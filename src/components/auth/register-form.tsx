@@ -9,9 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
+import { useState } from "react";
 
 export function RegisterForm() {
   const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
@@ -21,8 +23,29 @@ export function RegisterForm() {
   });
 
   const onSubmit = async (data: RegisterInput) => {
-    console.log("Register:", data);
-    router.push("/dashboard");
+    setError(null);
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: data.email,
+          password: data.password,
+        }),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        setError(result.error || "Error al registrarse");
+        return;
+      }
+
+      router.push("/dashboard");
+      router.refresh();
+    } catch {
+      setError("Error de conexión");
+    }
   };
 
   return (
@@ -33,6 +56,11 @@ export function RegisterForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {error && (
+            <div className="bg-red-50 text-red-600 text-sm p-3 rounded">
+              {error}
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input id="email" type="email" {...register("email")} />
@@ -42,6 +70,11 @@ export function RegisterForm() {
             <Label htmlFor="password">Contraseña</Label>
             <Input id="password" type="password" {...register("password")} />
             {errors.password && <p className="text-sm text-red-500">{errors.password.message}</p>}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="confirmPassword">Confirmar Contraseña</Label>
+            <Input id="confirmPassword" type="password" {...register("confirmPassword")} />
+            {errors.confirmPassword && <p className="text-sm text-red-500">{errors.confirmPassword.message}</p>}
           </div>
           <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting ? "Cargando..." : "Registrarse"}

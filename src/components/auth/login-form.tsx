@@ -9,9 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
+import { useState } from "react";
 
 export function LoginForm() {
   const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
@@ -21,8 +23,26 @@ export function LoginForm() {
   });
 
   const onSubmit = async (data: LoginInput) => {
-    console.log("Login:", data);
-    router.push("/dashboard");
+    setError(null);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        setError(result.error || "Error al iniciar sesión");
+        return;
+      }
+
+      router.push("/dashboard");
+      router.refresh();
+    } catch {
+      setError("Error de conexión");
+    }
   };
 
   return (
@@ -33,6 +53,11 @@ export function LoginForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {error && (
+            <div className="bg-red-50 text-red-600 text-sm p-3 rounded">
+              {error}
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input id="email" type="email" {...register("email")} />
