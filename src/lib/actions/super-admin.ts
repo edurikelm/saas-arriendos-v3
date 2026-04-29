@@ -1,0 +1,168 @@
+"use server";
+
+import { prisma } from "@/lib/db/prisma";
+import { getSession } from "@/lib/actions/auth";
+import { superAdminSchema, updateUserPlanSchema } from "@/lib/validations/super-admin";
+import { revalidatePath } from "next/cache";
+
+const isSuperAdmin = async (): Promise<boolean> => {
+  const session = await getSession();
+  if (!session) return false;
+
+  const user = await prisma.userProfile.findUnique({
+    where: { id: session.userId },
+  });
+
+  return user?.role === "SUPER_ADMIN";
+};
+
+export async function getAllUsers(options?: {
+  search?: string;
+  plan?: string;
+  page?: number;
+  limit?: number;
+}) {
+  if (!(await isSuperAdmin())) return { users: [], total: 0 };
+
+  const page = options?.page || 1;
+  const limit = options?.limit || 20;
+  const skip = (page - 1) * limit;
+
+  const where: any = {};
+
+  if (options?.search) {
+    where.OR = [
+      { email: { contains: options.search, mode: "insensitive" } },
+      { name: { contains: options.search, mode: "insensitive" } },
+    ];
+  }
+
+  if (options?.plan) {
+    where.plan = options.plan;
+  }
+
+  const [users, total] = await Promise.all([
+    prisma.userProfile.findMany({
+      where,
+      select: {
+        id: true,
+        email: true,
+        plan: true,
+        role: true,
+        createdAt: true,
+        _count: {
+          select: {
+            properties: true,
+            reservations: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+    }),
+    prisma.userProfile.count({ where }),
+  ]);
+
+  return { users, total, page, totalPages: Math.ceil(total / limit) };
+}
+
+export async function getUserStats(userId: string) {
+  if (!(await isSuperAdmin())) return null;
+
+  const [properties, clients, reservations, payments] = await Promise.all([
+    prisma.property.count({ where: { userId } }),
+    prisma.reservationClient.count({ where: { userId } }),
+    prisma.reservation.count({ where: { userId } }),
+    prisma.payment.findMany({
+      where: {
+        reservation: { userId },
+        status: "COMPLETED",
+      },
+      select: { amount: true },
+    }),
+  ]);
+
+  const totalRevenue = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+  return {
+    properties,
+    clients,
+    reservations,
+    totalRevenue,
+  };
+}
+
+export async function updateUserPlan(data: { userId: string; plan: "FREE" | "PRO" }) {
+  if (!(await isSuperAdmin())) return { error: "No autorizado" };
+
+  const validated = updateUserPlanSchema.parse(data);
+
+  const user = await prisma.userProfile.update({
+    where: { id: validated.userId },
+    data: { plan: validated.plan },
+  });
+
+  revalidatePath("/admin/users");
+
+  return { success: true, user };
+}
+
+export async function deleteUser(userId: string) {
+  if (!(await isSuperAdmin())) return { error: "No autorizado" };
+
+  if (userId === (await getSession())?.userId) {
+    return { error: "No puedes eliminarte a ti mismo" };
+  }
+
+  await prisma.$transaction([
+    prisma.payment.deleteMany({
+      where: { reservation: { userId } },
+    }),
+    prisma.reservationChange.deleteMany({
+      where: { reservation: { userId } },
+    }),
+    prisma.reservation.deleteMany({
+      where: { userId },
+    }),
+    prisma.reservationClient.deleteMany({
+      where: { userId },
+    }),
+    prisma.property.deleteMany({
+      where: { userId },
+    }),
+    prisma.userProfile.delete({
+      where: { id: userId },
+    }),
+  ]);
+
+  revalidatePath("/admin/users");
+
+  return { success: true };
+}
+
+export async function getSystemStats() {
+  if (!(await isSuperAdmin())) return null;
+
+  const [
+    totalUsers,
+    totalProperties,
+    totalReservations,
+    totalPayments,
+  ] = await Promise.all([
+    prisma.userProfile.count(),
+    prisma.property.count(),
+    prisma.reservation.count(),
+    prisma.payment.aggregate({
+      where: { status: "COMPLETED" },
+      _sum: { amount: true },
+    }),
+  ]);
+
+  return {
+    totalUsers,
+    totalProperties,
+    totalReservations,
+    totalRevenue: Number(totalPayments._sum.amount) || 0,
+  };
+}
