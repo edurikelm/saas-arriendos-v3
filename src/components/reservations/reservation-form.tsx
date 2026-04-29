@@ -3,7 +3,9 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { reservationSchema, type ReservationInput } from "@/lib/validations/reservation";
-import { useState } from "react";
+import { z } from "zod";
+type ReservationFormData = z.input<typeof reservationSchema>;
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 
 interface ReservationFormProps {
   properties: Array<{
@@ -50,13 +53,23 @@ export function ReservationForm({
     return d.toISOString().split("T")[0];
   };
 
+  const [dateRange, setDateRange] = React.useState<{
+    from: Date | undefined;
+    to: Date | undefined;
+  }>({
+    from: initialData?.startDate
+      ? new Date(initialData.startDate)
+      : undefined,
+    to: initialData?.endDate ? new Date(initialData.endDate) : undefined,
+  });
+
   const {
     register,
     handleSubmit,
     setValue,
     watch,
     formState: { errors },
-  } = useForm<ReservationInput>({
+  } = useForm<ReservationFormData>({
     resolver: zodResolver(reservationSchema),
     defaultValues: {
       propertyId: initialData?.propertyId || "",
@@ -70,13 +83,21 @@ export function ReservationForm({
     },
   });
 
+  const handleDateRangeChange = (date: { from: Date | undefined; to: Date | undefined }) => {
+    setDateRange(date);
+    setValue("startDate", date.from ? formatDateForInput(date.from) : "");
+    setValue("endDate", date.to ? formatDateForInput(date.to) : "");
+  };
+
   const selectedPropertyId = watch("propertyId");
   const selectedProperty = properties.find((p) => p.id === selectedPropertyId);
+  const selectedClientId = watch("clientId");
+  const selectedClient = clients.find((c) => c.id === selectedClientId);
 
-  const handleFormSubmit = async (data: ReservationInput) => {
+  const handleFormSubmit = async (data: ReservationFormData) => {
     setIsSubmitting(true);
     try {
-      await onSubmit(data);
+      await onSubmit(data as unknown as ReservationInput);
     } finally {
       setIsSubmitting(false);
     }
@@ -91,7 +112,9 @@ export function ReservationForm({
           onValueChange={(value) => setValue("propertyId", value || "")}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Seleccionar propiedad" />
+            <SelectValue placeholder="Seleccionar propiedad">
+              {selectedProperty && `${selectedProperty.name} (${selectedProperty.unitsAvailable} unidades)`}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {properties.map((property) => (
@@ -113,7 +136,9 @@ export function ReservationForm({
           onValueChange={(value) => setValue("clientId", value || "")}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Seleccionar cliente" />
+            <SelectValue placeholder="Seleccionar cliente">
+              {selectedClient && `${selectedClient.name} (${selectedClient.email})`}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {clients.map((client) => (
@@ -128,30 +153,17 @@ export function ReservationForm({
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="startDate">Fecha de Entrada *</Label>
-          <Input
-            id="startDate"
-            type="date"
-            {...register("startDate")}
-          />
-          {errors.startDate && (
-            <p className="text-sm text-red-500">{errors.startDate.message}</p>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="endDate">Última Noche *</Label>
-          <Input
-            id="endDate"
-            type="date"
-            {...register("endDate")}
-          />
-          {errors.endDate && (
-            <p className="text-sm text-red-500">{errors.endDate.message}</p>
-          )}
-        </div>
+      <div className="space-y-2">
+        <Label>Fechas de Estadía *</Label>
+        <DateRangePicker
+          date={dateRange}
+          onDateChange={handleDateRangeChange}
+        />
+        {(errors.startDate || errors.endDate) && (
+          <p className="text-sm text-red-500">
+            {errors.startDate?.message || errors.endDate?.message}
+          </p>
+        )}
       </div>
 
       <div className="space-y-2">
