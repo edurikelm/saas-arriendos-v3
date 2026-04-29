@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db/prisma";
-import { loginSchema, registerSchema, type LoginInput, type RegisterInput } from "@/lib/validations/auth";
+import { loginSchema, registerSchema, registerApiSchema, type LoginInput, type RegisterInput, type RegisterApiInput } from "@/lib/validations/auth";
 import { SignJWT, jwtVerify } from "jose";
 import { hash, compare } from "bcryptjs";
 
@@ -48,8 +48,8 @@ export async function loginAction(data: LoginInput) {
   return { success: true };
 }
 
-export async function registerAction(data: RegisterInput) {
-  const validated = registerSchema.parse(data);
+export async function registerAction(data: RegisterApiInput) {
+  const validated = registerApiSchema.parse(data);
 
   const existing = await prisma.userProfile.findUnique({
     where: { email: validated.email },

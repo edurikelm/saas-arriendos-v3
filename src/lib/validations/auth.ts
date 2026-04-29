@@ -20,5 +20,13 @@ export const registerSchema = z
     path: ["confirmPassword"],
   });
 
+export const registerApiSchema = z.object({
+  email: z.string().email("Email inválido"),
+  password: z
+    .string()
+    .min(8, "La contraseña debe tener al menos 8 caracteres"),
+});
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
+export type RegisterApiInput = z.infer<typeof registerApiSchema>;
