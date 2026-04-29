@@ -8,24 +8,32 @@ const globalForPrisma = globalThis as unknown as {
 
 function createPrismaClient() {
   const connectionString = process.env.DATABASE_URL;
-  
+
   if (!connectionString) {
     throw new Error("DATABASE_URL environment variable is not set");
   }
-  
-  // Create pg pool directly with SSL config
-  const pool = new pg.Pool({
+
+  const poolConfig: pg.PoolConfig = {
     connectionString,
-    ssl: {
-      rejectUnauthorized: false,
-    },
     max: 5,
     idleTimeoutMillis: 10000,
     connectionTimeoutMillis: 5000,
+  };
+
+  if (connectionString.includes("sslmode=verify-ca") || connectionString.includes("sslmode=require")) {
+    poolConfig.ssl = {
+      rejectUnauthorized: false,
+    };
+  }
+
+  const pool = new pg.Pool(poolConfig);
+
+  pool.on("error", (err) => {
+    console.error("Unexpected error on idle pg client:", err);
   });
-  
+
   const adapter = new PrismaPg(pool);
-  
+
   return new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
