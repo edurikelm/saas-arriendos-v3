@@ -9,11 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
-import { useState } from "react";
+import { toast } from "sonner";
 
 export function LoginForm() {
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
@@ -23,7 +22,6 @@ export function LoginForm() {
   });
 
   const onSubmit = async (data: LoginInput) => {
-    setError(null);
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
@@ -34,14 +32,15 @@ export function LoginForm() {
       const result = await res.json();
 
       if (!res.ok) {
-        setError(result.error || "Error al iniciar sesión");
+        toast.error(result.error || "Error al iniciar sesión");
         return;
       }
 
+      toast.success("Sesión iniciada correctamente");
       router.push("/dashboard");
       router.refresh();
     } catch {
-      setError("Error de conexión");
+      toast.error("Error de conexión");
     }
   };
 
@@ -53,11 +52,6 @@ export function LoginForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {error && (
-            <div className="bg-red-50 text-red-600 text-sm p-3 rounded">
-              {error}
-            </div>
-          )}
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input id="email" type="email" {...register("email")} />

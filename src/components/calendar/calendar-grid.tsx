@@ -21,6 +21,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CalendarReservation } from "@/lib/actions/calendar";
 
+function getContrastColor(hexColor: string): string {
+  const hex = hexColor.replace("#", "");
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5 ? "#000000" : "#FFFFFF";
+}
+
 interface CalendarGridProps {
   reservations: CalendarReservation[];
   onSelectReservation?: (id: string) => void;
@@ -45,8 +54,8 @@ export function CalendarGrid({
     const map = new Map<string, CalendarReservation[]>();
 
     reservations.forEach((res) => {
-      const start = parseISO(res.startDate.toISOString());
-      const end = parseISO(res.endDate.toISOString());
+      const start = typeof res.startDate === "string" ? parseISO(res.startDate) : res.startDate;
+      const end = typeof res.endDate === "string" ? parseISO(res.endDate) : res.endDate;
       const totalDays = differenceInDays(end, start) + 1;
 
       for (let i = 0; i < totalDays; i++) {
@@ -131,14 +140,11 @@ export function CalendarGrid({
                       e.stopPropagation();
                       onSelectReservation?.(res.id);
                     }}
-                    className={`
-                      cursor-pointer truncate rounded px-1 py-0.5 text-xs font-medium
-                      transition-colors hover:opacity-80
-                      ${res.status === "CONFIRMED" ? "bg-green-100 text-green-800" : ""}
-                      ${res.status === "PENDING" ? "bg-yellow-100 text-yellow-800" : ""}
-                      ${res.status === "CANCELLED" ? "bg-red-100 text-red-800" : ""}
-                      ${res.status === "COMPLETED" ? "bg-blue-100 text-blue-800" : ""}
-                    `}
+                    style={{
+                      backgroundColor: res.property.color,
+                      color: getContrastColor(res.property.color),
+                    }}
+                    className="cursor-pointer truncate rounded px-1 py-0.5 text-xs font-medium transition-colors hover:opacity-80"
                     title={`${res.property.name} - ${res.client.name}`}
                   >
                     {res.property.name}

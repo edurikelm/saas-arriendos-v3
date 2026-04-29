@@ -12,6 +12,7 @@ export type CalendarReservation = {
   property: {
     id: string;
     name: string;
+    color: string;
   };
   client: {
     name: string;
@@ -68,6 +69,7 @@ export async function getCalendarReservations(options?: {
         select: {
           id: true,
           name: true,
+          color: true,
         },
       },
       client: {

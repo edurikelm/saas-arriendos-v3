@@ -1,10 +1,42 @@
 import { z } from "zod";
 
+const dateStringSchema = z.string().transform((val) => {
+  let year: number, month: number, day: number;
+
+  if (val.includes("T")) {
+    const date = new Date(val);
+    if (isNaN(date.getTime())) {
+      throw new Error("Fecha inválida");
+    }
+    return date;
+  }
+
+  if (val.includes("-")) {
+    const parts = val.split("-").map(Number);
+    if (parts[0] > 31) {
+      year = parts[0];
+      month = parts[1];
+      day = parts[2];
+    } else {
+      day = parts[0];
+      month = parts[1];
+      year = parts[2];
+    }
+    const date = new Date(year, month - 1, day, 12, 0, 0);
+    if (isNaN(date.getTime())) {
+      throw new Error("Fecha inválida");
+    }
+    return date;
+  }
+
+  throw new Error("Fecha inválida");
+});
+
 export const reservationSchema = z.object({
   propertyId: z.string().min(1, "La propiedad es requerida"),
   clientId: z.string().min(1, "El cliente es requerido"),
-  startDate: z.date(),
-  endDate: z.date(),
+  startDate: dateStringSchema,
+  endDate: dateStringSchema,
   billingType: z.enum(["DAILY", "MONTHLY"]),
   unitsBooked: z.number().min(1, "Debe reservar al menos 1 unidad"),
   bookingAirbnb: z.boolean().default(false),
@@ -12,9 +44,13 @@ export const reservationSchema = z.object({
 });
 
 export const reservationUpdateSchema = z.object({
-  startDate: z.date().optional(),
-  endDate: z.date().optional(),
+  propertyId: z.string().optional(),
+  clientId: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  billingType: z.enum(["DAILY", "MONTHLY"]).optional(),
   unitsBooked: z.number().min(1).optional(),
+  bookingAirbnb: z.boolean().optional(),
   status: z.enum(["PENDING", "CONFIRMED", "CANCELLED", "COMPLETED"]).optional(),
   notes: z.string().optional().nullable(),
 });

@@ -42,6 +42,34 @@ export async function getPropertyCount() {
   });
 }
 
+export async function getUsedColors() {
+  const session = await getSession();
+  if (!session) return [];
+
+  const properties = await prisma.property.findMany({
+    where: { userId: session.userId },
+    select: { color: true },
+  });
+
+  return properties.map((p) => p.color);
+}
+
+const ALL_COLORS = [
+  "#3B82F6", // Blue
+  "#10B981", // Green
+  "#F59E0B", // Amber
+  "#EF4444", // Red
+  "#8B5CF6", // Purple
+  "#EC4899", // Pink
+  "#06B6D4", // Cyan
+  "#F97316", // Orange
+];
+
+export async function getAvailableColors() {
+  const usedColors = await getUsedColors();
+  return ALL_COLORS.filter((color) => !usedColors.includes(color));
+}
+
 export async function createProperty(data: PropertyInput) {
   const session = await getSession();
   if (!session) return { error: "No autorizado" };
@@ -58,6 +86,20 @@ export async function createProperty(data: PropertyInput) {
         upgrade: true,
       };
     }
+  }
+
+  // Check color uniqueness for this user
+  const existingWithColor = await prisma.property.findFirst({
+    where: {
+      userId: session.userId,
+      color: data.color,
+    },
+  });
+
+  if (existingWithColor) {
+    return {
+      error: "Ese color ya está en uso por otra propiedad. Elige uno diferente.",
+    };
   }
 
   const validated = propertySchema.parse(data);
@@ -92,6 +134,23 @@ export async function updateProperty(id: string, data: PropertyInput) {
   });
 
   if (!existing) return { error: "Propiedad no encontrada" };
+
+  // Check color uniqueness for this user (excluding current property)
+  if (data.color !== existing.color) {
+    const existingWithColor = await prisma.property.findFirst({
+      where: {
+        userId: session.userId,
+        color: data.color,
+        id: { not: id },
+      },
+    });
+
+    if (existingWithColor) {
+      return {
+        error: "Ese color ya está en uso por otra propiedad. Elige uno diferente.",
+      };
+    }
+  }
 
   const validated = propertySchema.parse(data);
 

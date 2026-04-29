@@ -6,9 +6,19 @@ import { es } from "date-fns/locale/es";
 import { Calendar, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CalendarGrid } from "@/components/calendar/calendar-grid";
 import type { CalendarReservation } from "@/lib/actions/calendar";
+
+function differenceInDays(end: Date, start: Date): number {
+  const diff = end.getTime() - start.getTime();
+  return Math.round(diff / (1000 * 60 * 60 * 24));
+}
+
+function getNights(startDate: string, endDate: string): number {
+  return differenceInDays(new Date(endDate), new Date(startDate)) + 1;
+}
 
 interface Property {
   id: string;
@@ -145,11 +155,11 @@ export default function CalendarPage() {
       </Card>
 
       {selectedReservation && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Detalle de Reserva</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <Dialog open onOpenChange={(open) => !open && setSelectedReservation(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Detalle de Reserva</DialogTitle>
+            </DialogHeader>
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <p className="text-sm text-muted-foreground">Propiedad</p>
@@ -160,15 +170,18 @@ export default function CalendarPage() {
                 <p className="font-medium">{selectedReservation.client.name}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Desde</p>
+                <p className="text-sm text-muted-foreground">Entrada</p>
                 <p className="font-medium">
                   {format(new Date(selectedReservation.startDate), "dd/MM/yyyy")}
                 </p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Hasta</p>
+                <p className="text-sm text-muted-foreground">Última Noche</p>
                 <p className="font-medium">
                   {format(new Date(selectedReservation.endDate), "dd/MM/yyyy")}
+                  <span className="text-muted-foreground ml-1">
+                    ({getNights(selectedReservation.startDate, selectedReservation.endDate)} noches)
+                  </span>
                 </p>
               </div>
               <div>
@@ -182,15 +195,13 @@ export default function CalendarPage() {
                 </p>
               </div>
             </div>
-            <Button
-              variant="outline"
-              className="mt-4"
-              onClick={() => setSelectedReservation(null)}
-            >
-              Cerrar
-            </Button>
-          </CardContent>
-        </Card>
+            <div className="flex justify-end mt-4">
+              <Button variant="outline" onClick={() => setSelectedReservation(null)}>
+                Cerrar
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

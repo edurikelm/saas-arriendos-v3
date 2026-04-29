@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Calendar, Plus, Pencil, Trash2, Eye, Link as LinkIcon } from "lucide-react";
+import { Calendar, Plus, Pencil, Trash2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { ReservationForm } from "@/components/reservations/reservation-form";
+import { toast } from "sonner";
 import type { ReservationInput } from "@/lib/validations/reservation";
 
 interface Property {
@@ -46,6 +46,15 @@ interface Reservation {
   }>;
 }
 
+function differenceInDays(end: Date, start: Date): number {
+  const diff = end.getTime() - start.getTime();
+  return Math.round(diff / (1000 * 60 * 60 * 24));
+}
+
+function getNights(startDate: string, endDate: string): number {
+  return differenceInDays(new Date(endDate), new Date(startDate)) + 1;
+}
+
 const statusLabels: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   PENDING: { label: "Pendiente", variant: "secondary" },
   CONFIRMED: { label: "Confirmada", variant: "default" },
@@ -74,42 +83,105 @@ export default function ReservationsPage() {
         fetch("/api/clients"),
       ]);
 
-      if (reservationsRes.ok) setReservations(await reservationsRes.json());
+      if (!reservationsRes.ok) {
+        toast.error("Error al cargar reservas");
+        return;
+      }
+      setReservations(await reservationsRes.json());
       if (propertiesRes.ok) setProperties(await propertiesRes.json());
       if (clientsRes.ok) setClients(await clientsRes.json());
-    } catch (error) {
-      console.error("Error fetching data:", error);
+    } catch {
+      toast.error("Error de conexión");
     } finally {
       setLoading(false);
     }
   };
 
   const handleCreate = async (data: ReservationInput) => {
-    const res = await fetch("/api/reservations", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+    try {
+      const res = await fetch("/api/reservations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
 
-    const result = await res.json();
+      const result = await res.json();
 
-    if (result.error) {
-      throw new Error(result.error);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+
+      toast.success("Reserva creada correctamente");
+      setIsCreateOpen(false);
+      fetchData();
+    } catch {
+      toast.error("Error de conexión");
     }
-
-    setIsCreateOpen(false);
-    fetchData();
   };
 
   const handleCancel = async (id: string) => {
     if (!confirm("¿Estás seguro de cancelar esta reserva?")) return;
 
-    const res = await fetch(`/api/reservations/${id}?reason=cancelled_by_user`, {
-      method: "DELETE",
-    });
+    try {
+      const res = await fetch(`/api/reservations/${id}?reason=cancelled_by_user`, {
+        method: "DELETE",
+      });
 
-    if (res.ok) {
+      if (!res.ok) {
+        toast.error("Error al cancelar reserva");
+        return;
+      }
+
+      toast.success("Reserva cancelada");
       fetchData();
+    } catch {
+      toast.error("Error de conexión");
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("¿Estás seguro de eliminar esta reserva? Esta acción no se puede deshacer.")) return;
+
+    try {
+      const res = await fetch(`/api/reservations/${id}?permanent=true`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        toast.error("Error al eliminar reserva");
+        return;
+      }
+
+      toast.success("Reserva eliminada");
+      fetchData();
+    } catch {
+      toast.error("Error de conexión");
+    }
+  };
+
+  const handleEdit = async (data: ReservationInput) => {
+    if (!editingReservation) return;
+
+    try {
+      const res = await fetch(`/api/reservations/${editingReservation.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      const result = await res.json();
+
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+
+      toast.success("Reserva actualizada correctamente");
+      setEditingReservation(null);
+      fetchData();
+    } catch {
+      toast.error("Error de conexión");
     }
   };
 
@@ -174,6 +246,9 @@ export default function ReservationsPage() {
                       <p className="text-muted-foreground">Fechas</p>
                       <p className="font-medium">
                         {formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}
+                        <span className="text-muted-foreground ml-1">
+                          ({getNights(reservation.startDate, reservation.endDate)} noches)
+                        </span>
                       </p>
                     </div>
                     <div>
@@ -236,6 +311,16 @@ export default function ReservationsPage() {
                         Cancelar
                       </Button>
                     )}
+                    {(reservation.status === "CANCELLED" || reservation.status === "COMPLETED") && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDelete(reservation.id)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Eliminar
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -284,6 +369,9 @@ export default function ReservationsPage() {
                   <p className="text-muted-foreground">Fechas</p>
                   <p className="font-medium">
                     {formatDate(viewingReservation.startDate)} - {formatDate(viewingReservation.endDate)}
+                    <span className="text-muted-foreground ml-1">
+                      ({getNights(viewingReservation.startDate, viewingReservation.endDate)} noches)
+                    </span>
                   </p>
                 </div>
                 <div>
@@ -333,6 +421,32 @@ export default function ReservationsPage() {
                 </div>
               )}
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingReservation} onOpenChange={() => setEditingReservation(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar Reserva</DialogTitle>
+          </DialogHeader>
+          {editingReservation && properties.length > 0 && clients.length > 0 && (
+            <ReservationForm
+              properties={properties}
+              clients={clients}
+              initialData={{
+                propertyId: editingReservation.propertyId,
+                clientId: editingReservation.clientId,
+                startDate: new Date(editingReservation.startDate),
+                endDate: new Date(editingReservation.endDate),
+                billingType: editingReservation.billingType as "DAILY" | "MONTHLY",
+                unitsBooked: editingReservation.unitsBooked,
+                bookingAirbnb: editingReservation.bookingAirbnb,
+                notes: editingReservation.notes || "",
+              }}
+              onSubmit={handleEdit}
+              onCancel={() => setEditingReservation(null)}
+            />
           )}
         </DialogContent>
       </Dialog>

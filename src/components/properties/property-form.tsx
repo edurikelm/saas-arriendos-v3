@@ -43,9 +43,10 @@ interface PropertyFormProps {
   initialData?: Partial<PropertyInput>;
   onSubmit: (data: PropertyInput) => Promise<void>;
   onCancel?: () => void;
+  usedColors?: string[];
 }
 
-export function PropertyForm({ initialData, onSubmit, onCancel }: PropertyFormProps) {
+export function PropertyForm({ initialData, onSubmit, onCancel, usedColors = [] }: PropertyFormProps) {
   const [activeTab, setActiveTab] = useState("basic");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mainImage, setMainImage] = useState<string | null>(initialData?.mainImage || null);
@@ -223,17 +224,22 @@ export function PropertyForm({ initialData, onSubmit, onCancel }: PropertyFormPr
               <div className="space-y-2">
                 <Label>Color para Calendario</Label>
                 <div className="flex gap-2 flex-wrap">
-                  {COLORS.map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => setValue("color", color)}
-                      className={`w-8 h-8 rounded-full border-2 ${
-                        watch("color") === color ? "border-black" : "border-transparent"
-                      }`}
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
+                  {COLORS.map((color) => {
+                    const isUsed = usedColors.includes(color) && color !== initialData?.color;
+                    return (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => !isUsed && setValue("color", color)}
+                        disabled={isUsed}
+                        className={`w-8 h-8 rounded-full border-2 ${
+                          watch("color") === color ? "border-black" : "border-transparent"
+                        } ${isUsed ? "opacity-30 cursor-not-allowed" : "cursor-pointer"}`}
+                        style={{ backgroundColor: color }}
+                        title={isUsed ? "Color en uso por otra propiedad" : color}
+                      />
+                    );
+                  })}
                 </div>
                 {errors.color && <p className="text-sm text-red-500">{errors.color.message}</p>}
               </div>

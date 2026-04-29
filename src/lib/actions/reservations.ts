@@ -135,7 +135,7 @@ function calculateTotalPrice(
     return Number(property.monthlyPrice || 0) * months * unitsBooked;
   }
 
-  const nights = differenceInDays(endDate, startDate);
+  const nights = differenceInDays(endDate, startDate) + 1;
   return Number(property.dailyPrice) * nights * unitsBooked;
 }
 
@@ -219,7 +219,7 @@ export async function createReservation(data: ReservationInput) {
   const session = await getSession();
   if (!session) return { error: "No autorizado" };
 
-  const validated = reservationSchema.parse(data);
+  const validated = data;
   const startDate = new Date(validated.startDate);
   const endDate = new Date(validated.endDate);
 
@@ -288,21 +288,60 @@ export async function updateReservation(id: string, data: ReservationUpdateInput
   const updateData: any = {};
   const changes: { field: string; old: string; new: string }[] = [];
 
-  if (data.startDate !== undefined && data.startDate.getTime() !== existing.startDate.getTime()) {
-    updateData.startDate = new Date(data.startDate);
+  if (data.propertyId !== undefined && data.propertyId !== existing.propertyId) {
+    updateData.propertyId = data.propertyId;
     changes.push({
-      field: "startDate",
-      old: existing.startDate.toISOString(),
-      new: updateData.startDate.toISOString(),
+      field: "propertyId",
+      old: existing.propertyId,
+      new: data.propertyId,
     });
   }
 
-  if (data.endDate !== undefined && data.endDate.getTime() !== existing.endDate.getTime()) {
-    updateData.endDate = new Date(data.endDate);
+  if (data.clientId !== undefined && data.clientId !== existing.clientId) {
+    updateData.clientId = data.clientId;
     changes.push({
-      field: "endDate",
-      old: existing.endDate.toISOString(),
-      new: updateData.endDate.toISOString(),
+      field: "clientId",
+      old: existing.clientId,
+      new: data.clientId,
+    });
+  }
+
+  if (data.startDate !== undefined) {
+    const startDate = new Date(data.startDate);
+    if (startDate.toString() === "Invalid Date") {
+      return { error: "Fecha de inicio inválida" };
+    }
+    if (startDate.getTime() !== existing.startDate.getTime()) {
+      updateData.startDate = startDate;
+      changes.push({
+        field: "startDate",
+        old: existing.startDate.toISOString(),
+        new: startDate.toISOString(),
+      });
+    }
+  }
+
+  if (data.endDate !== undefined) {
+    const endDate = new Date(data.endDate);
+    if (endDate.toString() === "Invalid Date") {
+      return { error: "Fecha de fin inválida" };
+    }
+    if (endDate.getTime() !== existing.endDate.getTime()) {
+      updateData.endDate = endDate;
+      changes.push({
+        field: "endDate",
+        old: existing.endDate.toISOString(),
+        new: endDate.toISOString(),
+      });
+    }
+  }
+
+  if (data.billingType !== undefined && data.billingType !== existing.billingType) {
+    updateData.billingType = data.billingType;
+    changes.push({
+      field: "billingType",
+      old: existing.billingType,
+      new: data.billingType,
     });
   }
 
@@ -312,6 +351,15 @@ export async function updateReservation(id: string, data: ReservationUpdateInput
       field: "unitsBooked",
       old: String(existing.unitsBooked),
       new: String(data.unitsBooked),
+    });
+  }
+
+  if (data.bookingAirbnb !== undefined && data.bookingAirbnb !== existing.bookingAirbnb) {
+    updateData.bookingAirbnb = data.bookingAirbnb;
+    changes.push({
+      field: "bookingAirbnb",
+      old: String(existing.bookingAirbnb),
+      new: String(data.bookingAirbnb),
     });
   }
 
@@ -334,12 +382,13 @@ export async function updateReservation(id: string, data: ReservationUpdateInput
   }
 
   if (changes.length > 0) {
+    const propertyId = updateData.propertyId || existing.propertyId;
     const startDate = updateData.startDate || existing.startDate;
     const endDate = updateData.endDate || existing.endDate;
     const unitsBooked = updateData.unitsBooked || existing.unitsBooked;
 
     const availability = await checkAvailability(
-      existing.propertyId,
+      propertyId,
       startDate,
       endDate,
       unitsBooked,
@@ -350,9 +399,17 @@ export async function updateReservation(id: string, data: ReservationUpdateInput
       return { error: availability.reason };
     }
 
+    const propertyForPrice = updateData.propertyId
+      ? await prisma.property.findUnique({ where: { id: updateData.propertyId } })
+      : existing.property;
+
+    if (!propertyForPrice) {
+      return { error: "Propiedad no encontrada" };
+    }
+
     updateData.totalPrice = calculateTotalPrice(
-      existing.property,
-      existing.billingType as "DAILY" | "MONTHLY",
+      propertyForPrice,
+      (updateData.billingType || existing.billingType) as "DAILY" | "MONTHLY",
       startDate,
       endDate,
       unitsBooked
@@ -398,4 +455,32 @@ export async function cancelReservation(id: string, reason?: string) {
   revalidatePath("/calendar");
 
   return { success: true, reservation };
+}
+
+export async function deleteReservation(id: string) {
+  const session = await getSession();
+  if (!session) return { error: "No autorizado" };
+
+  const existing = await prisma.reservation.findFirst({
+    where: { id, userId: session.userId },
+  });
+
+  if (!existing) return { error: "Reserva no encontrada" };
+
+  await prisma.reservationChange.deleteMany({
+    where: { reservationId: id },
+  });
+
+  await prisma.payment.deleteMany({
+    where: { reservationId: id },
+  });
+
+  await prisma.reservation.delete({
+    where: { id },
+  });
+
+  revalidatePath("/reservations");
+  revalidatePath("/calendar");
+
+  return { success: true };
 }

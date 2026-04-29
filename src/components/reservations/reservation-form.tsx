@@ -44,6 +44,12 @@ export function ReservationForm({
 }: ReservationFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const formatDateForInput = (date: Date | string | undefined): string => {
+    if (!date) return "";
+    const d = new Date(date);
+    return d.toISOString().split("T")[0];
+  };
+
   const {
     register,
     handleSubmit,
@@ -55,8 +61,8 @@ export function ReservationForm({
     defaultValues: {
       propertyId: initialData?.propertyId || "",
       clientId: initialData?.clientId || "",
-      startDate: initialData?.startDate || new Date(),
-      endDate: initialData?.endDate || new Date(),
+      startDate: formatDateForInput(initialData?.startDate),
+      endDate: formatDateForInput(initialData?.endDate),
       billingType: initialData?.billingType || "DAILY",
       unitsBooked: initialData?.unitsBooked || 1,
       bookingAirbnb: initialData?.bookingAirbnb || false,
@@ -124,11 +130,11 @@ export function ReservationForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="startDate">Fecha de Inicio *</Label>
+          <Label htmlFor="startDate">Fecha de Entrada *</Label>
           <Input
             id="startDate"
             type="date"
-            {...register("startDate", { valueAsDate: true })}
+            {...register("startDate")}
           />
           {errors.startDate && (
             <p className="text-sm text-red-500">{errors.startDate.message}</p>
@@ -136,11 +142,11 @@ export function ReservationForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="endDate">Fecha de Fin *</Label>
+          <Label htmlFor="endDate">Última Noche *</Label>
           <Input
             id="endDate"
             type="date"
-            {...register("endDate", { valueAsDate: true })}
+            {...register("endDate")}
           />
           {errors.endDate && (
             <p className="text-sm text-red-500">{errors.endDate.message}</p>

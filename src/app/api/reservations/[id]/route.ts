@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getReservationById, updateReservation, cancelReservation } from "@/lib/actions/reservations";
+import { getReservationById, updateReservation, cancelReservation, deleteReservation } from "@/lib/actions/reservations";
 import { reservationUpdateSchema } from "@/lib/validations/reservation";
 
 export async function GET(
@@ -53,6 +53,15 @@ export async function DELETE(
     const { id } = await params;
     const { searchParams } = new URL(request.url);
     const reason = searchParams.get("reason") || undefined;
+    const permanent = searchParams.get("permanent") === "true";
+
+    if (permanent) {
+      const result = await deleteReservation(id);
+      if (result?.error) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      return NextResponse.json(result);
+    }
 
     const result = await cancelReservation(id, reason);
 

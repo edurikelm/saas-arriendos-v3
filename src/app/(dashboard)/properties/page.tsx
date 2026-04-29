@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { PropertyForm } from "@/components/properties/property-form";
+import { toast } from "sonner";
 import type { PropertyInput } from "@/lib/validations/property";
 
 interface Property {
@@ -30,6 +31,7 @@ export default function PropertiesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
+  const [usedColors, setUsedColors] = useState<string[]>([]);
 
   useEffect(() => {
     fetchProperties();
@@ -37,67 +39,98 @@ export default function PropertiesPage() {
 
   const fetchProperties = async () => {
     try {
-      const res = await fetch("/api/properties");
-      if (res.ok) {
-        const data = await res.json();
-        setProperties(data);
+      const [propsRes, colorsRes] = await Promise.all([
+        fetch("/api/properties"),
+        fetch("/api/properties?type=colors"),
+      ]);
+
+      if (!propsRes.ok) {
+        toast.error("Error al cargar propiedades");
+        return;
       }
-    } catch (error) {
-      console.error("Error fetching properties:", error);
+      const data = await propsRes.json();
+      setProperties(data);
+
+      if (colorsRes.ok) {
+        const colors = await colorsRes.json();
+        setUsedColors(colors);
+      }
+    } catch {
+      toast.error("Error de conexión");
     } finally {
       setLoading(false);
     }
   };
 
   const handleCreate = async (data: PropertyInput) => {
-    const res = await fetch("/api/properties", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+    try {
+      const res = await fetch("/api/properties", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
 
-    const result = await res.json();
+      const result = await res.json();
 
-    if (result.error) {
-      if (result.upgrade) {
-        alert(result.error);
+      if (result.error) {
+        if (result.upgrade) {
+          toast.error(result.error);
+          return;
+        }
+        toast.error(result.error);
         return;
       }
-      throw new Error(result.error);
-    }
 
-    setIsCreateOpen(false);
-    fetchProperties();
+      toast.success("Propiedad creada correctamente");
+      setIsCreateOpen(false);
+      fetchProperties();
+    } catch {
+      toast.error("Error de conexión");
+    }
   };
 
   const handleUpdate = async (data: PropertyInput) => {
     if (!editingProperty) return;
 
-    const res = await fetch(`/api/properties/${editingProperty.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+    try {
+      const res = await fetch(`/api/properties/${editingProperty.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
 
-    const result = await res.json();
+      const result = await res.json();
 
-    if (result.error) {
-      throw new Error(result.error);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+
+      toast.success("Propiedad actualizada correctamente");
+      setEditingProperty(null);
+      fetchProperties();
+    } catch {
+      toast.error("Error de conexión");
     }
-
-    setEditingProperty(null);
-    fetchProperties();
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm("¿Estás seguro de eliminar esta propiedad?")) return;
 
-    const res = await fetch(`/api/properties/${id}`, {
-      method: "DELETE",
-    });
+    try {
+      const res = await fetch(`/api/properties/${id}`, {
+        method: "DELETE",
+      });
 
-    if (res.ok) {
+      if (!res.ok) {
+        toast.error("Error al eliminar propiedad");
+        return;
+      }
+
+      toast.success("Propiedad eliminada");
       fetchProperties();
+    } catch {
+      toast.error("Error de conexión");
     }
   };
 
@@ -146,7 +179,11 @@ export default function PropertiesPage() {
               <DialogHeader>
                 <DialogTitle>Crear Nueva Propiedad</DialogTitle>
               </DialogHeader>
-              <PropertyForm onSubmit={handleCreate} onCancel={() => setIsCreateOpen(false)} />
+              <PropertyForm
+                onSubmit={handleCreate}
+                onCancel={() => setIsCreateOpen(false)}
+                usedColors={usedColors}
+              />
             </DialogContent>
           </Dialog>
         </div>

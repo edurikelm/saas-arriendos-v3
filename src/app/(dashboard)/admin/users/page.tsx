@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 interface User {
   id: string;
@@ -68,13 +69,15 @@ export default function AdminUsersPage() {
       if (planFilter !== "all") params.append("plan", planFilter);
 
       const res = await fetch(`/api/admin/users?${params}`);
-      if (res.ok) {
-        const data = await res.json();
-        setUsers(data.users);
-        setTotal(data.total);
+      if (!res.ok) {
+        toast.error("Error al cargar usuarios");
+        return;
       }
-    } catch (error) {
-      console.error("Error fetching users:", error);
+      const data = await res.json();
+      setUsers(data.users);
+      setTotal(data.total);
+    } catch {
+      toast.error("Error de conexión");
     } finally {
       setLoading(false);
     }
@@ -84,12 +87,14 @@ export default function AdminUsersPage() {
     setSelectedUser(user);
     try {
       const res = await fetch(`/api/admin/users?userId=${user.id}`);
-      if (res.ok) {
-        const data = await res.json();
-        setUserStats(data);
+      if (!res.ok) {
+        toast.error("Error al cargar datos del usuario");
+        return;
       }
-    } catch (error) {
-      console.error("Error fetching user stats:", error);
+      const data = await res.json();
+      setUserStats(data);
+    } catch {
+      toast.error("Error de conexión");
     }
   };
 
@@ -101,14 +106,18 @@ export default function AdminUsersPage() {
         body: JSON.stringify({ userId, plan }),
       });
 
-      if (res.ok) {
-        fetchUsers();
-        if (selectedUser?.id === userId) {
-          setSelectedUser({ ...selectedUser, plan });
-        }
+      if (!res.ok) {
+        toast.error("Error al actualizar plan");
+        return;
       }
-    } catch (error) {
-      console.error("Error updating plan:", error);
+
+      toast.success("Plan actualizado correctamente");
+      fetchUsers();
+      if (selectedUser?.id === userId) {
+        setSelectedUser({ ...selectedUser, plan });
+      }
+    } catch {
+      toast.error("Error de conexión");
     }
   };
 
@@ -118,13 +127,17 @@ export default function AdminUsersPage() {
         method: "DELETE",
       });
 
-      if (res.ok) {
-        setShowDeleteDialog(false);
-        setSelectedUser(null);
-        fetchUsers();
+      if (!res.ok) {
+        toast.error("Error al eliminar usuario");
+        return;
       }
-    } catch (error) {
-      console.error("Error deleting user:", error);
+
+      toast.success("Usuario eliminado");
+      setShowDeleteDialog(false);
+      setSelectedUser(null);
+      fetchUsers();
+    } catch {
+      toast.error("Error de conexión");
     }
   };
 

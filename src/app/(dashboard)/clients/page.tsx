@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ClientForm } from "@/components/clients/client-form";
+import { toast } from "sonner";
 import type { ClientInput } from "@/lib/validations/client";
 
 interface Client {
@@ -34,66 +35,88 @@ export default function ClientsPage() {
   const fetchClients = async () => {
     try {
       const res = await fetch("/api/clients");
-      if (res.ok) {
-        const data = await res.json();
-        setClients(data);
+      if (!res.ok) {
+        toast.error("Error al cargar clientes");
+        return;
       }
-    } catch (error) {
-      console.error("Error fetching clients:", error);
+      const data = await res.json();
+      setClients(data);
+    } catch {
+      toast.error("Error de conexión");
     } finally {
       setLoading(false);
     }
   };
 
   const handleCreate = async (data: ClientInput) => {
-    const res = await fetch("/api/clients", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+    try {
+      const res = await fetch("/api/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
 
-    const result = await res.json();
+      const result = await res.json();
 
-    if (result.error) {
-      if (result.upgrade) {
-        alert(result.error);
+      if (result.error) {
+        if (result.upgrade) {
+          toast.error(result.error);
+          return;
+        }
+        toast.error(result.error);
         return;
       }
-      throw new Error(result.error);
-    }
 
-    setIsCreateOpen(false);
-    fetchClients();
+      toast.success("Cliente creado correctamente");
+      setIsCreateOpen(false);
+      fetchClients();
+    } catch {
+      toast.error("Error de conexión");
+    }
   };
 
   const handleUpdate = async (data: ClientInput) => {
     if (!editingClient) return;
 
-    const res = await fetch(`/api/clients/${editingClient.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+    try {
+      const res = await fetch(`/api/clients/${editingClient.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
 
-    const result = await res.json();
+      const result = await res.json();
 
-    if (result.error) {
-      throw new Error(result.error);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+
+      toast.success("Cliente actualizado correctamente");
+      setEditingClient(null);
+      fetchClients();
+    } catch {
+      toast.error("Error de conexión");
     }
-
-    setEditingClient(null);
-    fetchClients();
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm("¿Estás seguro de eliminar este cliente?")) return;
 
-    const res = await fetch(`/api/clients/${id}`, {
-      method: "DELETE",
-    });
+    try {
+      const res = await fetch(`/api/clients/${id}`, {
+        method: "DELETE",
+      });
 
-    if (res.ok) {
+      if (!res.ok) {
+        toast.error("Error al eliminar cliente");
+        return;
+      }
+
+      toast.success("Cliente eliminado");
       fetchClients();
+    } catch {
+      toast.error("Error de conexión");
     }
   };
 

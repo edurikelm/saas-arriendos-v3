@@ -159,7 +159,7 @@ export async function getOccupancyReport(options?: {
   reservations.forEach((res) => {
     const nights = Math.ceil(
       (new Date(res.endDate).getTime() - new Date(res.startDate).getTime()) / (1000 * 60 * 60 * 24)
-    );
+    ) + 1;
 
     if (!propertyMap.has(res.propertyId)) {
       propertyMap.set(res.propertyId, {
