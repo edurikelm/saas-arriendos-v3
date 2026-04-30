@@ -117,16 +117,16 @@ export function PropertyForm({ initialData, onSubmit, onCancel, usedColors = [] 
   };
 
   return (
-    <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+    <form onSubmit={handleSubmit(handleFormSubmit)} className="flex flex-col h-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
+        <TabsList className="shrink-0 bg-background border-b rounded-none px-0 mb-0">
           <TabsTrigger value="basic">Básico</TabsTrigger>
           <TabsTrigger value="rental">Arriendo</TabsTrigger>
           <TabsTrigger value="details">Detalles</TabsTrigger>
           <TabsTrigger value="images">Imágenes</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="basic" className="space-y-4">
+        <TabsContent value="basic" className="space-y-4 flex-1 overflow-auto">
           <Card>
             <CardHeader>
               <CardTitle>Información Básica</CardTitle>
@@ -175,7 +175,7 @@ export function PropertyForm({ initialData, onSubmit, onCancel, usedColors = [] 
           </Card>
         </TabsContent>
 
-        <TabsContent value="rental" className="space-y-4">
+        <TabsContent value="rental" className="space-y-4 flex-1 overflow-auto">
           <Card>
             <CardHeader>
               <CardTitle>Configuración de Arriendo</CardTitle>
@@ -214,7 +214,7 @@ export function PropertyForm({ initialData, onSubmit, onCancel, usedColors = [] 
           </Card>
         </TabsContent>
 
-        <TabsContent value="details" className="space-y-4">
+        <TabsContent value="details" className="space-y-4 flex-1 overflow-auto">
           <Card>
             <CardHeader>
               <CardTitle>Detalles y Amenidades</CardTitle>
@@ -259,7 +259,7 @@ export function PropertyForm({ initialData, onSubmit, onCancel, usedColors = [] 
           </Card>
         </TabsContent>
 
-        <TabsContent value="images" className="space-y-4">
+        <TabsContent value="images" className="space-y-4 flex-1 overflow-auto">
           <Card>
             <CardHeader>
               <CardTitle>Imágenes de la Propiedad</CardTitle>
@@ -347,18 +347,18 @@ export function PropertyForm({ initialData, onSubmit, onCancel, usedColors = [] 
             </CardContent>
           </Card>
         </TabsContent>
-      </Tabs>
 
-      <div className="flex justify-end gap-4">
-        {onCancel && (
-          <Button type="button" variant="outline" onClick={onCancel}>
-            Cancelar
+        <div className="shrink-0 flex justify-end gap-4 pt-4 border-t mt-4">
+          {onCancel && (
+            <Button type="button" variant="outline" onClick={onCancel}>
+              Cancelar
+            </Button>
+          )}
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "Guardando..." : "Guardar Propiedad"}
           </Button>
-        )}
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Guardando..." : "Guardar Propiedad"}
-        </Button>
-      </div>
+        </div>
+      </Tabs>
     </form>
   );
 }
