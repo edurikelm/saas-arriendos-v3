@@ -323,7 +323,7 @@ export function ReservationCardEditorial({ reservation, onEdit, onView, onCancel
       </div>
 
       <div className="flex items-center justify-between border-t border-stone-200 dark:border-stone-800 px-6 py-3 bg-stone-100/50 dark:bg-stone-800/50">
-        <p className="text-xs text-stone-500 truncate max-w-[200px]">
+        <p className="text-xs text-stone-500 truncate max-w-50">
           {reservation.client.email}
         </p>
         <div className="flex gap-2">

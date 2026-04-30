@@ -266,7 +266,7 @@ export default function PropertiesPage() {
         </div>
       ) : (
         <Card className="overflow-x-auto">
-          <CardContent className="p-0 min-w-[640px]">
+          <CardContent className="p-0 min-w-160">
             <table className="w-full">
               <thead className="border-b">
                 <tr className="text-left text-sm">
