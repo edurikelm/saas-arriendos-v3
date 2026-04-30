@@ -149,11 +149,11 @@ export default function AdminDashboardPage() {
                         <div className="flex items-center gap-3">
                           <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
                             <span className="text-sm font-medium">
-                              {owner.name.charAt(0).toUpperCase()}
+                              {(owner.name || owner.email).charAt(0).toUpperCase()}
                             </span>
                           </div>
                           <div>
-                            <p className="font-medium">{owner.name}</p>
+                            <p className="font-medium">{owner.name || "Sin nombre"}</p>
                             <p className="text-sm text-muted-foreground">{owner.email}</p>
                           </div>
                         </div>

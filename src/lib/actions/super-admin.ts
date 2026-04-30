@@ -29,7 +29,7 @@ export async function getAllUsers(options?: {
   const limit = options?.limit || 20;
   const skip = (page - 1) * limit;
 
-  const where: any = {};
+  const where: any = { role: "OWNER" };
 
   if (options?.search) {
     where.OR = [
@@ -47,6 +47,7 @@ export async function getAllUsers(options?: {
       where,
       select: {
         id: true,
+        name: true,
         email: true,
         plan: true,
         role: true,

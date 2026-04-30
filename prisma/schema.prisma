@@ -52,6 +52,7 @@ enum PaymentStatus {
 
 model UserProfile {
   id        String   @id @default(cuid())
+  name      String?
   email     String   @unique
   password  String
   role      UserRole @default(OWNER)
@@ -61,6 +62,10 @@ model UserProfile {
   properties    Property[]
   clients       ReservationClient[]
   reservations  Reservation[]
+
+  adminNotes     AdminNote[]     @relation("AdminNotes")
+  ownerNotes     AdminNote[]     @relation("OwnerNotes")
+  adminActions   AdminActionLog[] @relation("AdminActions")
 }
 
 model Property {
@@ -152,4 +157,33 @@ model ReservationChange {
   reservation Reservation @relation(fields: [reservationId], references: [id])
 
   @@index([reservationId])
+}
+
+model AdminNote {
+  id         String   @id @default(cuid())
+  adminId    String
+  ownerId    String
+  content    String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  admin  UserProfile @relation("AdminNotes", fields: [adminId], references: [id])
+  owner  UserProfile @relation("OwnerNotes", fields: [ownerId], references: [id])
+
+  @@index([adminId])
+  @@index([ownerId])
+}
+
+model AdminActionLog {
+  id         String   @id @default(cuid())
+  adminId    String
+  targetId   String
+  action     String
+  details    String?
+  createdAt  DateTime @default(now())
+
+  admin  UserProfile @relation("AdminActions", fields: [adminId], references: [id])
+
+  @@index([adminId])
+  @@index([targetId])
 }

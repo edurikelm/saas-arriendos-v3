@@ -37,7 +37,8 @@ export function LoginForm() {
       }
 
       toast.success("Sesión iniciada correctamente");
-      router.push("/dashboard");
+      const redirectTo = result.role === "SUPER_ADMIN" ? "/admin" : "/dashboard";
+      router.push(redirectTo);
       router.refresh();
     } catch {
       toast.error("Error de conexión");

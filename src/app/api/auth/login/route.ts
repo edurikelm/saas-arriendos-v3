@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { loginAction } from "@/lib/actions/auth";
+import { loginAction, getSession } from "@/lib/actions/auth";
 
 export async function POST(request: Request) {
   try {
@@ -10,7 +10,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: result.error }, { status: 401 });
     }
 
-    return NextResponse.json({ success: true });
+    const session = await getSession();
+    return NextResponse.json({ success: true, role: session?.role });
   } catch (error) {
     console.error("Login error:", error);
     return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });

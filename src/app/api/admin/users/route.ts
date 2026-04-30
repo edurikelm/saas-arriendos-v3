@@ -1,8 +1,38 @@
 import { NextResponse } from "next/server";
 import { updateUserPlan, deleteUser, createOwner, getAllUsers, getUserStats } from "@/lib/actions/super-admin";
+import { getSession } from "@/lib/actions/auth";
+import { prisma } from "@/lib/db/prisma";
+
+async function logAdminAction(targetId: string, action: string, details?: object) {
+  const session = await getSession();
+  if (!session) return;
+  await prisma.adminActionLog.create({
+    data: {
+      adminId: session.userId,
+      targetId,
+      action,
+      details: details ? JSON.stringify(details) : null,
+    },
+  });
+}
+
+async function isSuperAdmin(): Promise<boolean> {
+  const session = await getSession();
+  if (!session) return false;
+
+  const user = await prisma.userProfile.findUnique({
+    where: { id: session.userId },
+  });
+
+  return user?.role === "SUPER_ADMIN";
+}
 
 export async function GET(request: Request) {
   try {
+    if (!(await isSuperAdmin())) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
@@ -28,6 +58,10 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    if (!(await isSuperAdmin())) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
+
     const data = await request.json();
 
     if (!data.email || !data.password || !data.name) {
@@ -45,6 +79,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
 
+    if (result?.user) {
+      await logAdminAction(result.user.id, "CREATED", { email: data.email, name: data.name, plan: data.plan });
+    }
+
     return NextResponse.json(result);
   } catch (error) {
     console.error("Error creating owner:", error);
@@ -54,6 +92,10 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    if (!(await isSuperAdmin())) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
+
     const data = await request.json();
 
     if (!data.userId || !data.plan) {
@@ -66,6 +108,10 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: result.error }, { status: 403 });
     }
 
+    if (result?.user) {
+      await logAdminAction(data.userId, "UPDATED", { plan: data.plan });
+    }
+
     return NextResponse.json(result);
   } catch (error) {
     console.error("Error updating user plan:", error);
@@ -75,6 +121,10 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    if (!(await isSuperAdmin())) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId");
 
@@ -82,6 +132,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "userId es requerido" }, { status: 400 });
     }
 
+    await logAdminAction(userId, "DELETED", {});
     const result = await deleteUser(userId);
 
     if (result?.error) {

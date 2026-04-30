@@ -1,15 +1,45 @@
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import pg from "pg";
+import { hash } from "bcryptjs";
 
-const prisma = new PrismaClient();
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error("DATABASE_URL environment variable is not set");
+}
+
+const poolConfig: pg.PoolConfig = {
+  connectionString,
+  max: 5,
+  idleTimeoutMillis: 10000,
+  connectionTimeoutMillis: 5000,
+};
+
+if (connectionString.includes("sslmode=verify-ca") || connectionString.includes("sslmode=require")) {
+  poolConfig.ssl = {
+    rejectUnauthorized: false,
+  };
+}
+
+const pool = new pg.Pool(poolConfig);
+const adapter = new PrismaPg(pool);
+
+const prisma = new PrismaClient({
+  adapter,
+  log: ["error"],
+});
 
 async function main() {
-  // Create SUPER_ADMIN user (you)
+  const hashedPassword = await hash("admin123", 12);
+
   const superAdmin = await prisma.userProfile.upsert({
-    where: { email: "eduardo@example.com" }, // Change this to your email
+    where: { email: "eduardo@example.com" },
     update: {},
     create: {
+      name: "Eduardo",
       email: "eduardo@example.com",
-      password: "hashed_password_here", // In real app, hash this!
+      password: hashedPassword,
       role: "SUPER_ADMIN",
       plan: null,
     },
