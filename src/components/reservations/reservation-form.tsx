@@ -113,13 +113,13 @@ export function ReservationForm({
         >
           <SelectTrigger>
             <SelectValue placeholder="Seleccionar propiedad">
-              {selectedProperty && `${selectedProperty.name} (${selectedProperty.unitsAvailable} unidades)`}
+              {selectedProperty ? `${selectedProperty.name} (${selectedProperty.unitsAvailable} disp.)` : "Seleccionar propiedad"}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {properties.map((property) => (
               <SelectItem key={property.id} value={property.id}>
-                {property.name} ({property.unitsAvailable} unidades)
+                {property.name} ({property.unitsAvailable} disp.)
               </SelectItem>
             ))}
           </SelectContent>
@@ -137,7 +137,7 @@ export function ReservationForm({
         >
           <SelectTrigger>
             <SelectValue placeholder="Seleccionar cliente">
-              {selectedClient && `${selectedClient.name} (${selectedClient.email})`}
+              {selectedClient ? `${selectedClient.name} (${selectedClient.email})` : "Seleccionar cliente"}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
@@ -158,6 +158,7 @@ export function ReservationForm({
         <DateRangePicker
           date={dateRange}
           onDateChange={handleDateRangeChange}
+          className="w-full"
         />
         {(errors.startDate || errors.endDate) && (
           <p className="text-sm text-red-500">
@@ -168,30 +169,57 @@ export function ReservationForm({
 
       <div className="space-y-2">
         <Label>Tipo de Facturación *</Label>
-        <Select
-          value={watch("billingType")}
-          onValueChange={(value) => setValue("billingType", value as "DAILY" | "MONTHLY")}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Seleccionar tipo" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="DAILY">Diario</SelectItem>
-            <SelectItem value="MONTHLY">Mensual</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => setValue("billingType", "DAILY")}
+            className={`flex-1 h-14 rounded-lg border-2 transition-all flex flex-col items-center justify-center gap-0.5 ${
+              watch("billingType") === "DAILY"
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border"
+            }`}
+          >
+            <span className="text-xs font-medium">Diario</span>
+            <span className={`text-sm font-bold ${watch("billingType") === "DAILY" ? "text-primary" : "text-foreground"}`}>
+              ${selectedProperty ? Number(selectedProperty.dailyPrice).toLocaleString("CLP") : "—"}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setValue("billingType", "MONTHLY")}
+            className={`flex-1 h-14 rounded-lg border-2 transition-all flex flex-col items-center justify-center gap-0.5 ${
+              watch("billingType") === "MONTHLY"
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border"
+            }`}
+          >
+            <span className="text-xs font-medium">Mensual</span>
+            <span className={`text-sm font-bold ${watch("billingType") === "MONTHLY" ? "text-primary" : "text-foreground"}`}>
+              ${selectedProperty ? Number(selectedProperty.monthlyPrice).toLocaleString("CLP") : "—"}
+            </span>
+          </button>
+        </div>
         {errors.billingType && (
           <p className="text-sm text-red-500">{errors.billingType.message}</p>
         )}
       </div>
 
-      {selectedProperty && (
-        <div className="rounded-lg bg-muted p-4 text-sm">
-          <p className="font-medium">Precios:</p>
-          <p>Diario: ${Number(selectedProperty.dailyPrice).toLocaleString("CLP")}</p>
-          {selectedProperty.monthlyPrice && (
-            <p>Mensual: ${Number(selectedProperty.monthlyPrice).toLocaleString("CLP")}</p>
-          )}
+      {selectedProperty && dateRange.from && dateRange.to && (
+        <div className="rounded-lg bg-muted p-4 space-y-1">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Total reserva</span>
+            <span className="font-medium">{Math.ceil((dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24)) + 1} noches × {watch("unitsBooked") || 1} unidad(es)</span>
+          </div>
+          <div className="flex justify-between items-baseline">
+            <span className="text-sm text-muted-foreground">Monto total</span>
+            <span className="text-2xl font-bold text-primary">
+              ${(
+                (Math.ceil((dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24)) + 1) *
+                (watch("billingType") === "DAILY" ? Number(selectedProperty.dailyPrice) : Number(selectedProperty.monthlyPrice)) *
+                (watch("unitsBooked") || 1)
+              ).toLocaleString("CLP")}
+            </span>
+          </div>
         </div>
       )}
 

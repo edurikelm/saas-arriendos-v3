@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Calendar, Plus, Pencil, Trash2, Eye } from "lucide-react";
+import { Calendar, Plus, Pencil, Trash2, Eye, Grid, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { ReservationForm } from "@/components/reservations/reservation-form";
+import { ReservationTable } from "@/components/reservations/reservation-card-prototypes";
 import { toast } from "sonner";
 import type { ReservationInput } from "@/lib/validations/reservation";
 
@@ -67,6 +68,7 @@ export default function ReservationsPage() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<"list" | "table">("table");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
   const [viewingReservation, setViewingReservation] = useState<Reservation | null>(null);
@@ -200,10 +202,26 @@ export default function ReservationsPage() {
           <h1 className="text-3xl font-bold">Reservas</h1>
           <p className="text-muted-foreground">Gestiona las reservas de tus propiedades</p>
         </div>
-        <Button onClick={() => setIsCreateOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nueva Reserva
-        </Button>
+        <div className="flex gap-2">
+          <div className="flex border rounded-md">
+            <button
+              onClick={() => setViewMode("list")}
+              className={`p-2 ${viewMode === "list" ? "bg-muted" : ""}`}
+            >
+              <List className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setViewMode("table")}
+              className={`p-2 ${viewMode === "table" ? "bg-muted" : ""}`}
+            >
+              <Grid className="h-4 w-4" />
+            </button>
+          </div>
+          <Button onClick={() => setIsCreateOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nueva Reserva
+          </Button>
+        </div>
       </div>
 
       {loading ? (
@@ -218,8 +236,22 @@ export default function ReservationsPage() {
             Crear Reserva
           </Button>
         </div>
+      ) : viewMode === "table" ? (
+        <ReservationTable
+          reservations={reservations}
+          onView={(id) => {
+            const res = reservations.find((r) => r.id === id);
+            if (res) setViewingReservation(res);
+          }}
+          onEdit={(id) => {
+            const res = reservations.find((r) => r.id === id);
+            if (res) setEditingReservation(res);
+          }}
+          onCancel={(id) => handleCancel(id)}
+          onDelete={(id) => handleDelete(id)}
+        />
       ) : (
-        <div className="grid gap-4">
+        <div className="space-y-4">
           {reservations.map((reservation) => {
             const status = statusLabels[reservation.status] || statusLabels.PENDING;
             const paidAmount = reservation.payments

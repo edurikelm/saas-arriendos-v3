@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, Plus, Grid, List, Pencil, Trash2 } from "lucide-react";
+import { Building2, Plus, Grid, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { PropertyForm } from "@/components/properties/property-form";
+import { PropertyCardMinimal } from "@/components/properties/property-card-prototypes";
 import { toast } from "sonner";
 import type { PropertyInput } from "@/lib/validations/property";
 
@@ -213,54 +214,12 @@ export default function PropertiesPage() {
       ) : viewMode === "grid" ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredProperties.map((property) => (
-            <Card key={property.id} className="overflow-hidden">
-              <div
-                className="h-32 w-full"
-                style={{ backgroundColor: property.color + "20" }}
-              >
-                {property.mainImage && (
-                  <img
-                    src={property.mainImage}
-                    alt={property.name}
-                    className="h-full w-full object-cover"
-                  />
-                )}
-              </div>
-              <CardHeader>
-                <CardTitle>{property.name}</CardTitle>
-                <CardDescription>{typeLabels[property.type] || property.type}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Unidades:</span>
-                    <span className="font-medium">{property.unitsAvailable}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Precio diario:</span>
-                    <span className="font-medium">${Number(property.dailyPrice).toLocaleString("CLP")}</span>
-                  </div>
-                </div>
-                <div className="flex gap-2 mt-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => setEditingProperty(property)}
-                  >
-                    <Pencil className="h-4 w-4 mr-1" />
-                    Editar
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleDelete(property.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            <PropertyCardMinimal
+              key={property.id}
+              property={property}
+              onEdit={() => setEditingProperty(property)}
+              onDelete={() => handleDelete(property.id)}
+            />
           ))}
         </div>
       ) : (
