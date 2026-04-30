@@ -6,6 +6,13 @@ import { Building2, Plus, Grid, List, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { PropertyForm } from "@/components/properties/property-form";
 import { PropertyCardMinimal } from "@/prototypes/property-card-prototypes";
@@ -30,18 +37,24 @@ export default function PropertiesPage() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [searchQuery, setSearchQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
   const [usedColors, setUsedColors] = useState<string[]>([]);
 
   useEffect(() => {
     fetchProperties();
-  }, []);
+  }, [typeFilter]);
 
   const fetchProperties = async () => {
     try {
+      const params = new URLSearchParams();
+      if (typeFilter !== "all") {
+        params.append("type", typeFilter);
+      }
+
       const [propsRes, colorsRes] = await Promise.all([
-        fetch("/api/properties"),
+        fetch(`/api/properties?${params.toString()}`),
         fetch("/api/properties?type=colors"),
       ]);
 
@@ -135,9 +148,11 @@ export default function PropertiesPage() {
     }
   };
 
-  const filteredProperties = properties.filter((p) =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredProperties = properties.filter((p) => {
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesType = typeFilter === "all" || p.type === typeFilter;
+    return matchesSearch && matchesType;
+  });
 
   const typeLabels: Record<string, string> = {
     HOUSE: "Casa",
@@ -147,6 +162,20 @@ export default function PropertiesPage() {
     HOTEL: "Hotel",
     OFFICE: "Oficina",
     COMMERCIAL: "Comercial",
+  };
+
+  const PROPERTY_TYPES = [
+    { value: "HOUSE", label: "Casa" },
+    { value: "APARTMENT", label: "Departamento" },
+    { value: "CABIN", label: "Cabaña" },
+    { value: "HOSTEL", label: "Hostel" },
+    { value: "HOTEL", label: "Hotel" },
+    { value: "OFFICE", label: "Oficina" },
+    { value: "COMMERCIAL", label: "Comercial" },
+  ];
+
+  const handleTypeFilterChange = (value: string | null) => {
+    if (value) setTypeFilter(value);
   };
 
   return (
@@ -197,6 +226,19 @@ export default function PropertiesPage() {
           onChange={(e) => setSearchQuery(e.target.value)}
           className="max-w-sm"
         />
+        <Select value={typeFilter} onValueChange={handleTypeFilterChange}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Todos los tipos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los tipos</SelectItem>
+            {PROPERTY_TYPES.map((type) => (
+              <SelectItem key={type.value} value={type.value}>
+                {type.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {loading ? (

@@ -14,3 +14,12 @@ export const updateUserPlanSchema = z.object({
 });
 
 export type UpdateUserPlanInput = z.infer<typeof updateUserPlanSchema>;
+
+export const createOwnerSchema = z.object({
+  email: z.string().email("Email inválido"),
+  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
+  name: z.string().min(2, "Nombre debe tener al menos 2 caracteres"),
+  plan: z.enum(["FREE", "PRO"]).default("FREE"),
+});
+
+export type CreateOwnerInput = z.infer<typeof createOwnerSchema>;

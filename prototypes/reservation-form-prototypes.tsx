@@ -74,7 +74,7 @@ export function ReservationFormMinimal({
       <div className="space-y-5">
         <div className="space-y-2">
           <Label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Propiedad</Label>
-          <Select value={selectedProperty} onValueChange={setSelectedProperty}>
+          <Select value={selectedProperty} onValueChange={(v) => v && setSelectedProperty(v)}>
             <SelectTrigger className="w-full h-11 rounded-xl border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
               <SelectValue placeholder="Seleccionar propiedad">
                 {selectedProperty ? `${property?.name} (${property?.unitsAvailable} disp.)` : "Seleccionar propiedad"}
@@ -92,7 +92,7 @@ export function ReservationFormMinimal({
 
         <div className="space-y-2">
           <Label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Cliente</Label>
-          <Select value={selectedClient} onValueChange={setSelectedClient}>
+          <Select value={selectedClient} onValueChange={(v) => v && setSelectedClient(v)}>
             <SelectTrigger className="w-full h-11 rounded-xl border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
               <SelectValue placeholder="Seleccionar cliente">
                 {selectedClient ? `${client?.name} (${client?.email})` : "Seleccionar cliente"}
@@ -229,7 +229,7 @@ export function ReservationFormEditorial({
         <div className="grid grid-cols-2 gap-6">
           <div className="space-y-2">
             <Label className="text-xs font-medium uppercase tracking-widest text-stone-500">Propiedad</Label>
-            <Select value={selectedProperty} onValueChange={setSelectedProperty}>
+            <Select value={selectedProperty} onValueChange={(v) => v && setSelectedProperty(v)}>
               <SelectTrigger className="h-12 rounded-lg border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900">
                 <SelectValue placeholder="Seleccionar" />
               </SelectTrigger>
@@ -243,7 +243,7 @@ export function ReservationFormEditorial({
 
           <div className="space-y-2">
             <Label className="text-xs font-medium uppercase tracking-widest text-stone-500">Cliente</Label>
-            <Select value={selectedClient} onValueChange={setSelectedClient}>
+            <Select value={selectedClient} onValueChange={(v) => v && setSelectedClient(v)}>
               <SelectTrigger className="h-12 rounded-lg border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900">
                 <SelectValue placeholder="Seleccionar" />
               </SelectTrigger>
@@ -406,7 +406,7 @@ export function ReservationFormModern({
               <Label className="absolute -top-2 left-3 px-2 py-0.5 bg-white dark:bg-zinc-950 text-xs font-medium text-zinc-500 group-focus-within:text-purple-600 transition-colors">
                 Propiedad
               </Label>
-              <Select value={selectedProperty} onValueChange={setSelectedProperty}>
+              <Select value={selectedProperty} onValueChange={(v) => v && setSelectedProperty(v)}>
                 <SelectTrigger className="h-14 rounded-xl border-2 border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 group-focus-within:border-purple-500 transition-colors">
                   <SelectValue placeholder="Seleccionar propiedad" />
                 </SelectTrigger>
@@ -428,7 +428,7 @@ export function ReservationFormModern({
               <Label className="absolute -top-2 left-3 px-2 py-0.5 bg-white dark:bg-zinc-950 text-xs font-medium text-zinc-500 group-focus-within:text-purple-600 transition-colors">
                 Cliente
               </Label>
-              <Select value={selectedClient} onValueChange={setSelectedClient}>
+              <Select value={selectedClient} onValueChange={(v) => v && setSelectedClient(v)}>
                 <SelectTrigger className="h-14 rounded-xl border-2 border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 group-focus-within:border-purple-500 transition-colors">
                   <SelectValue placeholder="Seleccionar cliente" />
                 </SelectTrigger>
@@ -598,7 +598,7 @@ export function ReservationFormCompact({
         <div className="grid grid-cols-3 gap-4">
           <div className="col-span-2 space-y-1">
             <Label className="text-xs font-medium text-zinc-500 uppercase">Propiedad</Label>
-            <Select value={selectedProperty} onValueChange={setSelectedProperty}>
+            <Select value={selectedProperty} onValueChange={(v) => v && setSelectedProperty(v)}>
               <SelectTrigger className="h-10 rounded-lg">
                 <SelectValue placeholder="Propiedad" />
               </SelectTrigger>
@@ -618,7 +618,7 @@ export function ReservationFormCompact({
 
         <div className="space-y-1">
           <Label className="text-xs font-medium text-zinc-500 uppercase">Cliente</Label>
-          <Select value={selectedClient} onValueChange={setSelectedClient}>
+          <Select value={selectedClient} onValueChange={(v) => v && setSelectedClient(v)}>
             <SelectTrigger className="h-10 rounded-lg">
               <SelectValue placeholder="Cliente" />
             </SelectTrigger>

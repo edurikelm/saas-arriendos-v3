@@ -7,16 +7,25 @@ import { revalidatePath } from "next/cache";
 
 const FREE_PROPERTY_LIMIT = 3;
 
-export async function getProperties() {
+export async function getProperties(type?: string) {
   const session = await getSession();
   if (!session) return [];
 
+  const where: { userId: string; type?: any } = { userId: session.userId };
+  if (type && type !== "all") {
+    where.type = type;
+  }
+
   const properties = await prisma.property.findMany({
-    where: { userId: session.userId },
+    where,
     orderBy: { createdAt: "desc" },
   });
 
-  return properties;
+  return properties.map((p) => ({
+    ...p,
+    dailyPrice: String(p.dailyPrice),
+    monthlyPrice: p.monthlyPrice ? String(p.monthlyPrice) : null,
+  }));
 }
 
 export async function getPropertyById(id: string) {
@@ -30,7 +39,13 @@ export async function getPropertyById(id: string) {
     },
   });
 
-  return property;
+  if (!property) return null;
+
+  return {
+    ...property,
+    dailyPrice: String(property.dailyPrice),
+    monthlyPrice: property.monthlyPrice ? String(property.monthlyPrice) : null,
+  };
 }
 
 export async function getPropertyCount() {

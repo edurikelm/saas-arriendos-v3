@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { toast } from "sonner";
 import {
   Select,
   SelectContent,
@@ -49,6 +50,7 @@ interface PropertyFormProps {
 export function PropertyForm({ initialData, onSubmit, onCancel, usedColors = [] }: PropertyFormProps) {
   const [activeTab, setActiveTab] = useState("basic");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [mainImage, setMainImage] = useState<string | null>(initialData?.mainImage || null);
   const [images, setImages] = useState<string[]>(initialData?.images || []);
 
@@ -91,17 +93,33 @@ export function PropertyForm({ initialData, onSubmit, onCancel, usedColors = [] 
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // For now, just use a placeholder URL
-    // In production, upload to Cloudinary
-    const fakeUrl = `https://picsum.photos/800/600?random=${Date.now()}`;
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
 
-    if (isMain) {
-      setMainImage(fakeUrl);
-      setValue("mainImage", fakeUrl);
-    } else {
-      const newImages = [...images, fakeUrl];
-      setImages(newImages);
-      setValue("images", newImages);
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error("Upload failed");
+
+      const { url } = await res.json();
+
+      if (isMain) {
+        setMainImage(url);
+        setValue("mainImage", url);
+      } else {
+        const newImages = [...images, url];
+        setImages(newImages);
+        setValue("images", newImages);
+      }
+    } catch (err) {
+      console.error("Upload error:", err);
+      toast.error("Error al subir imagen");
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -295,12 +313,13 @@ export function PropertyForm({ initialData, onSubmit, onCancel, usedColors = [] 
                         className="hidden"
                         id="main-image-upload"
                       />
-                      <label
-                        htmlFor="main-image-upload"
-                        className="cursor-pointer text-muted-foreground hover:text-foreground"
-                      >
-                        Click para subir imagen principal
-                      </label>
+                      {isUploading ? (
+                        <span className="text-muted-foreground">Subiendo imagen...</span>
+                      ) : mainImage ? null : (
+                        <span className="cursor-pointer text-muted-foreground hover:text-foreground">
+                          Click para subir imagen principal
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>

@@ -2,7 +2,8 @@
 
 import { prisma } from "@/lib/db/prisma";
 import { getSession } from "@/lib/actions/auth";
-import { superAdminSchema, updateUserPlanSchema } from "@/lib/validations/super-admin";
+import { superAdminSchema, updateUserPlanSchema, createOwnerSchema } from "@/lib/validations/super-admin";
+import { hash } from "bcryptjs";
 import { revalidatePath } from "next/cache";
 
 const isSuperAdmin = async (): Promise<boolean> => {
@@ -53,6 +54,7 @@ export async function getAllUsers(options?: {
         _count: {
           select: {
             properties: true,
+            clients: true,
             reservations: true,
           },
         },
@@ -165,4 +167,63 @@ export async function getSystemStats() {
     totalReservations,
     totalRevenue: Number(totalPayments._sum.amount) || 0,
   };
+}
+
+export async function createOwner(data: {
+  email: string;
+  password: string;
+  name: string;
+  plan?: "FREE" | "PRO";
+}) {
+  if (!(await isSuperAdmin())) return { error: "No autorizado" };
+
+  const validated = createOwnerSchema.parse(data);
+
+  const existing = await prisma.userProfile.findUnique({
+    where: { email: validated.email },
+  });
+
+  if (existing) {
+    return { error: "El email ya está registrado" };
+  }
+
+  const hashedPassword = await hash(validated.password, 12);
+
+  const user = await prisma.userProfile.create({
+    data: {
+      email: validated.email,
+      password: hashedPassword,
+      name: validated.name,
+      plan: validated.plan,
+      role: "OWNER",
+    },
+  });
+
+  revalidatePath("/admin/users");
+
+  return { success: true, user };
+}
+
+export async function getRecentOwners(limit: number = 5) {
+  if (!(await isSuperAdmin())) return [];
+
+  const owners = await prisma.userProfile.findMany({
+    where: { role: "OWNER" },
+    select: {
+      id: true,
+      email: true,
+      plan: true,
+      createdAt: true,
+      _count: {
+        select: {
+          properties: true,
+          reservations: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
+
+  return owners;
 }

@@ -81,7 +81,10 @@ export async function getCalendarReservations(options?: {
     orderBy: { startDate: "asc" },
   });
 
-  return reservations;
+  return reservations.map((r) => ({
+    ...r,
+    totalPrice: Number(r.totalPrice),
+  }));
 }
 
 export async function getReservationsByDateRange(start: Date, end: Date) {
@@ -129,5 +132,8 @@ export async function getReservationsByDateRange(start: Date, end: Date) {
     orderBy: { startDate: "asc" },
   });
 
-  return reservations;
+  return reservations.map((r) => ({
+    ...r,
+    totalPrice: Number(r.totalPrice),
+  }));
 }

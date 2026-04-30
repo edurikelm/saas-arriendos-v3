@@ -21,7 +21,10 @@ export async function getPaymentsByReservation(reservationId: string) {
     orderBy: { createdAt: "desc" },
   });
 
-  return payments;
+  return payments.map((p) => ({
+    ...p,
+    amount: String(p.amount),
+  }));
 }
 
 export async function getPayments(filters?: {
@@ -70,7 +73,14 @@ export async function getPayments(filters?: {
     orderBy: { createdAt: "desc" },
   });
 
-  return payments;
+  return payments.map((p) => ({
+    ...p,
+    amount: String(p.amount),
+    reservation: {
+      ...p.reservation,
+      totalPrice: String(p.reservation.totalPrice),
+    },
+  }));
 }
 
 export async function createPayment(data: PaymentInput) {

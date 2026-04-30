@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Users, Shield, Trash2, Search } from "lucide-react";
+import { Users, Shield, Trash2, Search, Plus } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
 interface User {
@@ -31,6 +32,7 @@ interface User {
   createdAt: string;
   _count: {
     properties: number;
+    clients: number;
     reservations: number;
   };
 }
@@ -52,6 +54,9 @@ export default function AdminUsersPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [createForm, setCreateForm] = useState({ email: "", password: "", name: "", plan: "FREE" as "FREE" | "PRO" });
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -141,6 +146,37 @@ export default function AdminUsersPage() {
     }
   };
 
+  const handleCreateOwner = async () => {
+    if (!createForm.email || !createForm.password || !createForm.name) {
+      toast.error("Todos los campos son requeridos");
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(createForm),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        toast.error(error.error || "Error al crear propietario");
+        return;
+      }
+
+      toast.success("Propietario creado correctamente");
+      setShowCreateDialog(false);
+      setCreateForm({ email: "", password: "", name: "", plan: "FREE" });
+      fetchUsers();
+    } catch {
+      toast.error("Error de conexión");
+    } finally {
+      setCreating(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -161,6 +197,10 @@ export default function AdminUsersPage() {
               </CardTitle>
               <CardDescription>Total: {total} usuarios registrados</CardDescription>
             </div>
+            <Button size="sm" onClick={() => setShowCreateDialog(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Crear Propietario
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -228,6 +268,7 @@ export default function AdminUsersPage() {
                           </Badge>
                         </td>
                         <td className="px-4 py-3 text-sm">{user._count.properties}</td>
+                        <td className="px-4 py-3 text-sm">{user._count.clients}</td>
                         <td className="px-4 py-3 text-sm">{user._count.reservations}</td>
                         <td className="px-4 py-3">
                           <Button
@@ -313,7 +354,7 @@ export default function AdminUsersPage() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Clientes</p>
-                  <p className="text-lg font-semibold">-</p>
+                  <p className="text-lg font-semibold">{userStats?.clients ?? selectedUser._count.clients ?? 0}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Reservas</p>
@@ -359,6 +400,68 @@ export default function AdminUsersPage() {
               onClick={() => selectedUser && handleDeleteUser(selectedUser.id)}
             >
               Eliminar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Crear Nuevo Propietario</DialogTitle>
+            <DialogDescription>
+              Ingresa los datos del nuevo propietario
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Nombre</Label>
+              <Input
+                id="name"
+                value={createForm.name}
+                onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+                placeholder="Nombre completo"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={createForm.email}
+                onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
+                placeholder="email@ejemplo.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Contraseña</Label>
+              <Input
+                id="password"
+                type="password"
+                value={createForm.password}
+                onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
+                placeholder="Mínimo 6 caracteres"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="plan">Plan</Label>
+              <Select value={createForm.plan} onValueChange={(v) => setCreateForm({ ...createForm, plan: v as "FREE" | "PRO" })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="FREE">Free</SelectItem>
+                  <SelectItem value="PRO">Pro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleCreateOwner} disabled={creating}>
+              {creating ? "Creando..." : "Crear Propietario"}
             </Button>
           </div>
         </DialogContent>

@@ -12,7 +12,7 @@ export async function GET(request: Request) {
       return NextResponse.json(colors);
     }
 
-    const properties = await getProperties();
+    const properties = await getProperties(type || undefined);
     return NextResponse.json(properties);
   } catch (error) {
     console.error("Error fetching properties:", error);

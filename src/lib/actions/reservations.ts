@@ -67,38 +67,19 @@ export async function getReservations(filters?: {
     orderBy: { startDate: "desc" },
   });
 
-  return reservations;
-}
-
-export async function getReservationsForCalendar(startDate: string, endDate: string) {
-  const session = await getSession();
-  if (!session) return [];
-
-  const reservations = await prisma.reservation.findMany({
-    where: {
-      userId: session.userId,
-      billingType: "DAILY",
-      status: { in: ["PENDING", "CONFIRMED"] },
-      startDate: { lte: new Date(endDate) },
-      endDate: { gte: new Date(startDate) },
+  return reservations.map((r) => ({
+    ...r,
+    totalPrice: String(r.totalPrice),
+    property: {
+      ...r.property,
+      dailyPrice: String(r.property.dailyPrice),
+      monthlyPrice: r.property.monthlyPrice ? String(r.property.monthlyPrice) : null,
     },
-    include: {
-      property: {
-        select: {
-          id: true,
-          name: true,
-          color: true,
-        },
-      },
-      client: {
-        select: {
-          name: true,
-        },
-      },
-    },
-  });
-
-  return reservations;
+    payments: r.payments.map((p) => ({
+      ...p,
+      amount: String(p.amount),
+    })),
+  }));
 }
 
 export async function getReservationById(id: string) {
@@ -120,7 +101,21 @@ export async function getReservationById(id: string) {
     },
   });
 
-  return reservation;
+  if (!reservation) return null;
+
+  return {
+    ...reservation,
+    totalPrice: String(reservation.totalPrice),
+    property: {
+      ...reservation.property,
+      dailyPrice: String(reservation.property.dailyPrice),
+      monthlyPrice: reservation.property.monthlyPrice ? String(reservation.property.monthlyPrice) : null,
+    },
+    payments: reservation.payments.map((p) => ({
+      ...p,
+      amount: String(p.amount),
+    })),
+  };
 }
 
 function calculateTotalPrice(
@@ -135,7 +130,7 @@ function calculateTotalPrice(
     return Number(property.monthlyPrice || 0) * months * unitsBooked;
   }
 
-  const nights = differenceInDays(endDate, startDate) + 1;
+  const nights = differenceInDays(endDate, startDate);
   return Number(property.dailyPrice) * nights * unitsBooked;
 }
 

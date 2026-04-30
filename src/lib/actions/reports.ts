@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/db/prisma";
 import { getSession } from "@/lib/actions/auth";
-import { startOfMonth, endOfMonth, subMonths, format, startOfYear, endOfYear } from "date-fns";
+import { startOfMonth, endOfMonth, subMonths, format, startOfYear, endOfYear, isAfter, isBefore } from "date-fns";
 
 export interface RevenueReport {
   month: string;
@@ -24,6 +24,19 @@ export interface DashboardStats {
   activeReservations: number;
   monthlyRevenue: number;
   pendingPayments: number;
+}
+
+export interface ReservationReport {
+  id: string;
+  propertyName: string;
+  clientName: string;
+  clientEmail: string;
+  startDate: Date;
+  endDate: Date;
+  totalPrice: number;
+  status: string;
+  paymentStatus: string;
+  createdAt: Date;
 }
 
 export async function getDashboardStats() {
@@ -73,9 +86,45 @@ export async function getDashboardStats() {
 export async function getRevenueReport(options?: {
   months?: number;
   year?: number;
+  startDate?: Date;
+  endDate?: Date;
 }) {
   const session = await getSession();
   if (!session) return [];
+
+  const { startDate, endDate } = options || {};
+
+  if (startDate && endDate) {
+    const payments = await prisma.payment.findMany({
+      where: {
+        reservation: { userId: session.userId },
+        status: "COMPLETED",
+        createdAt: { gte: startDate, lte: endDate },
+      },
+      select: {
+        createdAt: true,
+        amount: true,
+        reservation: {
+          select: { id: true },
+        },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    const byMonth: Record<string, { totalRevenue: number; count: number }> = {};
+    payments.forEach((p) => {
+      const key = format(p.createdAt, "MMM yyyy");
+      if (!byMonth[key]) byMonth[key] = { totalRevenue: 0, count: 0 };
+      byMonth[key].totalRevenue += Number(p.amount);
+      byMonth[key].count += 1;
+    });
+
+    return Object.entries(byMonth).map(([month, data]) => ({
+      month,
+      totalRevenue: data.totalRevenue,
+      reservationCount: data.count,
+    }));
+  }
 
   const months = options?.months || 12;
   const year = options?.year || new Date().getFullYear();
@@ -221,4 +270,73 @@ export async function getYearlySummary(year?: number) {
     byMonth,
     byMethod,
   };
+}
+
+export async function getReservationsReport(options?: {
+  propertyId?: string;
+  status?: string;
+  startDate?: Date;
+  endDate?: Date;
+}) {
+  const session = await getSession();
+  if (!session) return [];
+
+  const where: any = {
+    userId: session.userId,
+  };
+
+  if (options?.propertyId) {
+    where.propertyId = options.propertyId;
+  }
+
+  if (options?.status) {
+    where.status = options.status;
+  }
+
+  if (options?.startDate) {
+    where.startDate = { gte: options.startDate };
+  }
+
+  if (options?.endDate) {
+    where.endDate = { lte: options.endDate };
+  }
+
+  const reservations = await prisma.reservation.findMany({
+    where,
+    select: {
+      id: true,
+      totalPrice: true,
+      status: true,
+      startDate: true,
+      endDate: true,
+      createdAt: true,
+      property: { select: { name: true } },
+      client: { select: { name: true, email: true } },
+      payments: {
+        select: { status: true },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return reservations.map((r) => {
+    const paymentStatus = r.payments.some((p) => p.status === "COMPLETED")
+      ? "COMPLETED"
+      : r.payments.some((p) => p.status === "PENDING")
+      ? "PENDING"
+      : "NONE";
+
+    return {
+      id: r.id,
+      propertyName: r.property.name,
+      clientName: r.client.name,
+      clientEmail: r.client.email,
+      startDate: r.startDate,
+      endDate: r.endDate,
+      totalPrice: Number(r.totalPrice),
+      status: r.status,
+      paymentStatus,
+      createdAt: r.createdAt,
+    };
+  });
 }
