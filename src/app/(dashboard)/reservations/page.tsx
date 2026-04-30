@@ -72,6 +72,13 @@ export default function ReservationsPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
   const [viewingReservation, setViewingReservation] = useState<Reservation | null>(null);
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<"MERCADO_PAGO" | "CASH" | "TRANSFER">("CASH");
+  const [paymentStatus, setPaymentStatus] = useState<"COMPLETED" | "PENDING">("COMPLETED");
+  const [mpLink, setMpLink] = useState<string | null>(null);
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -237,19 +244,21 @@ export default function ReservationsPage() {
           </Button>
         </div>
       ) : viewMode === "table" ? (
-        <ReservationTable
-          reservations={reservations}
-          onView={(id) => {
-            const res = reservations.find((r) => r.id === id);
-            if (res) setViewingReservation(res);
-          }}
-          onEdit={(id) => {
-            const res = reservations.find((r) => r.id === id);
-            if (res) setEditingReservation(res);
-          }}
-          onCancel={(id) => handleCancel(id)}
-          onDelete={(id) => handleDelete(id)}
-        />
+        <div className="overflow-x-auto">
+          <ReservationTable
+            reservations={reservations}
+            onView={(id) => {
+              const res = reservations.find((r) => r.id === id);
+              if (res) setViewingReservation(res);
+            }}
+            onEdit={(id) => {
+              const res = reservations.find((r) => r.id === id);
+              if (res) setEditingReservation(res);
+            }}
+            onCancel={(id) => handleCancel(id)}
+            onDelete={(id) => handleDelete(id)}
+          />
+        </div>
       ) : (
         <div className="space-y-4">
           {reservations.map((reservation) => {
@@ -442,14 +451,241 @@ export default function ReservationsPage() {
                   <p className="text-muted-foreground mb-2">Pagos</p>
                   <div className="space-y-2">
                     {viewingReservation.payments.map((payment) => (
-                      <div key={payment.id} className="flex justify-between text-sm border-b pb-2">
-                        <span>{payment.method}</span>
-                        <span className={payment.status === "COMPLETED" ? "text-green-600" : "text-orange-600"}>
-                          ${Number(payment.amount).toLocaleString("CLP")} ({payment.status})
-                        </span>
+                      <div key={payment.id} className="flex justify-between items-center text-sm border-b pb-2">
+                        <div className="flex items-center gap-2">
+                          <span>{payment.method}</span>
+                          <span className={payment.status === "COMPLETED" ? "text-green-600" : "text-orange-600"}>
+                            ${Number(payment.amount).toLocaleString("CLP")} ({payment.status})
+                          </span>
+                        </div>
+                        {payment.method !== "MERCADO_PAGO" && payment.status === "PENDING" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-green-600 h-7 px-2"
+                            onClick={async () => {
+                              try {
+                                const res = await fetch(`/api/payments/${payment.id}`, {
+                                  method: "PATCH",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ status: "COMPLETED" }),
+                                });
+                                const result = await res.json();
+                                if (result.error) {
+                                  toast.error(result.error);
+                                  return;
+                                }
+                                toast.success("Pago confirmado");
+                                setViewingReservation(null);
+                                fetchData();
+                              } catch {
+                                toast.error("Error al confirmar pago");
+                              }
+                            }}
+                          >
+                            Confirmar
+                          </Button>
+                        )}
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+              {viewingReservation.status !== "CANCELLED" && (
+                <div className="border-t pt-4 mt-4">
+                  {!showPaymentForm ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const completed = viewingReservation.payments
+                          .filter((p) => p.status === "COMPLETED")
+                          .reduce((sum, p) => sum + Number(p.amount), 0);
+                        const pending = Number(viewingReservation.totalPrice) - completed;
+                        setPaymentAmount(pending > 0 ? pending.toString() : "");
+                        setShowPaymentForm(true);
+                        setMpLink(null);
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Registrar Pago
+                    </Button>
+                  ) : (
+                    <div className="space-y-3 bg-muted/50 p-3 rounded-lg">
+                      <p className="font-medium text-sm">Nuevo Pago</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs text-muted-foreground">Monto</label>
+                          <input
+                            type="number"
+                            value={paymentAmount}
+                            onChange={(e) => setPaymentAmount(e.target.value)}
+                            max={(() => {
+                              const completed = viewingReservation.payments
+                                .filter((p) => p.status === "COMPLETED")
+                                .reduce((sum, p) => sum + Number(p.amount), 0);
+                              return Number(viewingReservation.totalPrice) - completed;
+                            })()}
+                            min="0"
+                            step="100"
+                            className="w-full mt-1 h-9 rounded-md border border-input bg-white px-3 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground">Método</label>
+                          <select
+                            value={paymentMethod}
+                            onChange={(e) => setPaymentMethod(e.target.value as any)}
+                            className="w-full mt-1 h-9 rounded-md border border-input bg-white px-3 text-sm"
+                          >
+                            <option value="CASH">Efectivo</option>
+                            <option value="TRANSFER">Transferencia</option>
+                            <option value="MERCADO_PAGO">Mercado Pago</option>
+                          </select>
+                        </div>
+                      </div>
+                      {paymentMethod !== "MERCADO_PAGO" && (
+                        <div className="flex gap-4">
+                          <label className="flex items-center gap-2 text-sm">
+                            <input
+                              type="radio"
+                              checked={paymentStatus === "COMPLETED"}
+                              onChange={() => setPaymentStatus("COMPLETED")}
+                            />
+                            Completado
+                          </label>
+                          <label className="flex items-center gap-2 text-sm">
+                            <input
+                              type="radio"
+                              checked={paymentStatus === "PENDING"}
+                              onChange={() => setPaymentStatus("PENDING")}
+                            />
+                            Pendiente
+                          </label>
+                        </div>
+                      )}
+                      {paymentMethod === "MERCADO_PAGO" && (
+                        <div className="space-y-2">
+                          {!mpLink ? (
+                            <Button
+                              size="sm"
+                              onClick={async () => {
+                                setIsGeneratingLink(true);
+                                try {
+                                  const res = await fetch("/api/payments/generate-link", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                      reservationId: viewingReservation.id,
+                                      amount: Number(paymentAmount),
+                                    }),
+                                  });
+                                  const result = await res.json();
+                                  if (result.error) {
+                                    toast.error(result.error);
+                                    return;
+                                  }
+                                  setMpLink(result.initPoint);
+                                } catch {
+                                  toast.error("Error al generar link");
+                                } finally {
+                                  setIsGeneratingLink(false);
+                                }
+                              }}
+                              disabled={isGeneratingLink || !paymentAmount}
+                            >
+                              {isGeneratingLink ? "Generando..." : "Generar Link de Pago"}
+                            </Button>
+                          ) : (
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(mpLink);
+                                  toast.success("Link copiado");
+                                }}
+                              >
+                                Copiar Link
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setMpLink(null)}
+                              >
+                                Cancelar
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <div className="flex gap-2 pt-2">
+                        <Button
+                          size="sm"
+                          onClick={async () => {
+                            if (paymentMethod === "MERCADO_PAGO" && mpLink) {
+                              toast.success("Pago registrado como pendiente");
+                              setShowPaymentForm(false);
+                              setMpLink(null);
+                              setPaymentAmount("");
+                              fetchData();
+                              return;
+                            }
+                            if (!paymentAmount || Number(paymentAmount) <= 0) {
+                              toast.error("Ingresa un monto válido");
+                              return;
+                            }
+                            setIsSubmittingPayment(true);
+                            try {
+                              const res = await fetch("/api/payments", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  reservationId: viewingReservation.id,
+                                  amount: Number(paymentAmount),
+                                  method: paymentMethod,
+                                  status: paymentMethod === "MERCADO_PAGO" ? "PENDING" : paymentStatus,
+                                }),
+                              });
+                              const result = await res.json();
+                              if (result.error) {
+                                toast.error(result.error);
+                                return;
+                              }
+                              toast.success("Pago registrado");
+                              setShowPaymentForm(false);
+                              setMpLink(null);
+                              setPaymentAmount("");
+                              setViewingReservation(null);
+                              fetchData();
+                            } catch {
+                              toast.error("Error al registrar pago");
+                            } finally {
+                              setIsSubmittingPayment(false);
+                            }
+                          }}
+                          disabled={
+                            isSubmittingPayment ||
+                            !paymentAmount ||
+                            (paymentMethod === "MERCADO_PAGO" && !mpLink)
+                          }
+                        >
+                          {isSubmittingPayment ? "Guardando..." : "Registrar Pago"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setShowPaymentForm(false);
+                            setMpLink(null);
+                            setPaymentAmount("");
+                          }}
+                        >
+                          Cancelar
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

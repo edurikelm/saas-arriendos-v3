@@ -94,7 +94,7 @@ export async function createPayment(data: PaymentInput) {
   const existingPayments = await prisma.payment.findMany({
     where: {
       reservationId: validated.reservationId,
-      status: "COMPLETED",
+      status: { in: ["COMPLETED", "PENDING"] },
     },
   });
 
@@ -112,9 +112,16 @@ export async function createPayment(data: PaymentInput) {
       reservationId: validated.reservationId,
       amount: validated.amount,
       method: validated.method as any,
-      status: "COMPLETED",
+      status: validated.status ?? "COMPLETED",
     },
   });
+
+  if (validated.status === "COMPLETED" && newTotal >= Number(reservation.totalPrice)) {
+    await prisma.reservation.update({
+      where: { id: validated.reservationId },
+      data: { status: "CONFIRMED" },
+    });
+  }
 
   revalidatePath("/reservations");
   revalidatePath(`/reservations/${validated.reservationId}`);
@@ -122,7 +129,7 @@ export async function createPayment(data: PaymentInput) {
   return { success: true, payment };
 }
 
-export async function generateMercadoPagoLink(reservationId: string) {
+export async function generateMercadoPagoLink(reservationId: string, amount?: number) {
   const session = await getSession();
   if (!session) return { error: "No autorizado" };
 
@@ -140,9 +147,29 @@ export async function generateMercadoPagoLink(reservationId: string) {
     return { error: "Mercado Pago no está configurado" };
   }
 
-  const externalReference = reservation.id;
-  const description = `Reserva ${reservation.property.name} - ${reservation.client.name}`;
-  const amount = Number(reservation.totalPrice);
+  const existingPayments = await prisma.payment.findMany({
+    where: {
+      reservationId,
+      status: { in: ["COMPLETED", "PENDING"] },
+    },
+  });
+
+  const totalPaid = existingPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+  const pendingAmount = Number(reservation.totalPrice) - totalPaid;
+  const paymentAmount = amount ?? pendingAmount;
+
+  if (paymentAmount <= 0) {
+    return { error: "El monto debe ser mayor a cero" };
+  }
+
+  if (paymentAmount > pendingAmount) {
+    return {
+      error: `El monto excede el pendiente. Pendiente: ${pendingAmount.toLocaleString("CLP")}`,
+    };
+  }
+
+  const externalReference = `${reservation.id}:${Date.now()}`;
+  const description = `Reserva ${reservation.property.name} - ${reservation.client.name} (pago parcial)`;
 
   try {
     const response = await fetch("https://api.mercadopago.com/checkout/preferences", {
@@ -158,7 +185,7 @@ export async function generateMercadoPagoLink(reservationId: string) {
             description,
             quantity: 1,
             currency_id: "CLP",
-            unit_price: amount,
+            unit_price: paymentAmount,
           },
         ],
         external_reference: externalReference,
@@ -176,7 +203,7 @@ export async function generateMercadoPagoLink(reservationId: string) {
     const payment = await prisma.payment.create({
       data: {
         reservationId,
-        amount,
+        amount: paymentAmount,
         method: "MERCADO_PAGO",
         status: "PENDING",
         mercadoPagoId: data.id,
@@ -203,6 +230,9 @@ export async function processMercadoPagoWebhook(payload: {
 
   const payment = await prisma.payment.findFirst({
     where: { mercadoPagoId: id },
+    include: {
+      reservation: true,
+    },
   });
 
   if (!payment) {
@@ -234,6 +264,25 @@ export async function processMercadoPagoWebhook(payload: {
     data: { status: newStatus },
   });
 
+  if (newStatus === "COMPLETED") {
+    const allPayments = await prisma.payment.findMany({
+      where: {
+        reservationId: payment.reservationId,
+        status: { in: ["COMPLETED", "PENDING"] },
+      },
+    });
+
+    const totalPaid = allPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+    const reservation = payment.reservation;
+
+    if (totalPaid >= Number(reservation.totalPrice)) {
+      await prisma.reservation.update({
+        where: { id: payment.reservationId },
+        data: { status: "CONFIRMED" },
+      });
+    }
+  }
+
   return { success: true, status: newStatus };
 }
 
@@ -262,4 +311,56 @@ export async function deletePayment(id: string) {
   revalidatePath(`/reservations/${payment.reservationId}`);
 
   return { success: true };
+}
+
+export async function updatePayment(id: string, data: { status: "COMPLETED" | "PENDING" }) {
+  const session = await getSession();
+  if (!session) return { error: "No autorizado" };
+
+  const payment = await prisma.payment.findFirst({
+    where: { id },
+    include: { reservation: true },
+  });
+
+  if (!payment) return { error: "Pago no encontrado" };
+
+  if (payment.reservation.userId !== session.userId) {
+    return { error: "No autorizado" };
+  }
+
+  if (payment.reservation.status === "CANCELLED") {
+    return { error: "No se pueden modificar pagos de una reserva cancelada" };
+  }
+
+  if (payment.method === "MERCADO_PAGO") {
+    return { error: "No se puede modificar un pago de Mercado Pago" };
+  }
+
+  const updated = await prisma.payment.update({
+    where: { id },
+    data: { status: data.status },
+  });
+
+  if (data.status === "COMPLETED") {
+    const allPayments = await prisma.payment.findMany({
+      where: {
+        reservationId: payment.reservationId,
+        status: { in: ["COMPLETED", "PENDING"] },
+      },
+    });
+
+    const totalPaid = allPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+    if (totalPaid >= Number(payment.reservation.totalPrice)) {
+      await prisma.reservation.update({
+        where: { id: payment.reservationId },
+        data: { status: "CONFIRMED" },
+      });
+    }
+  }
+
+  revalidatePath("/reservations");
+  revalidatePath(`/reservations/${payment.reservationId}`);
+
+  return { success: true, payment: updated };
 }

@@ -553,6 +553,17 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {sorted.map((res) => {
               const status = statusConfig[res.status] || statusConfig.PENDING;
+              const paidAmount = res.payments
+                .filter((p) => p.status === "COMPLETED")
+                .reduce((sum, p) => sum + Number(p.amount), 0);
+              const totalPrice = Number(res.totalPrice);
+              let paymentColor = "#EF4444";
+              if (paidAmount === totalPrice && totalPrice > 0) {
+                paymentColor = "#10B981";
+              } else if (paidAmount > 0) {
+                paymentColor = "#F59E0B";
+              }
+              const paymentTitle = `Pagado: ${formatPrice(paidAmount)} / Total: ${formatPrice(totalPrice)}`;
               return (
                 <tr key={res.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50 transition-colors">
                   <td className="p-4">
@@ -613,9 +624,16 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                     })()}
                   </td>
                   <td className="p-4 text-center">
-                    <Badge variant={status.variant} className="text-xs">
-                      {status.label}
-                    </Badge>
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span
+                        className="h-2 w-2 rounded-full shrink-0"
+                        style={{ backgroundColor: paymentColor }}
+                        title={paymentTitle}
+                      />
+                      <Badge variant={status.variant} className="text-xs">
+                        {status.label}
+                      </Badge>
+                    </div>
                   </td>
                   <td className="p-4 text-right">
                     <DropdownMenu>

@@ -130,18 +130,18 @@ export default function ClientsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Clientes</h1>
-          <p className="text-muted-foreground">Gestiona tu cartera de clientes</p>
+          <h1 className="text-2xl sm:text-3xl font-bold">Clientes</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">Gestiona tu cartera de clientes</p>
         </div>
-        <Button onClick={() => setIsCreateOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nuevo Cliente
+        <Button onClick={() => setIsCreateOpen(true)} size="sm">
+          <Plus className="h-4 w-4" />
+          <span className="hidden sm:inline ml-2">Nuevo Cliente</span>
         </Button>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -166,33 +166,34 @@ export default function ClientsPage() {
           </Button>
         </div>
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <table className="w-full">
+        <div className="overflow-x-auto">
+          <Card>
+            <CardContent className="p-0 min-w-[640px]">
+              <table className="w-full">
               <thead className="border-b">
-                <tr className="text-left">
-                  <th className="p-4 font-medium">Nombre</th>
-                  <th className="p-4 font-medium">Email</th>
-                  <th className="p-4 font-medium">Teléfono</th>
-                  <th className="p-4 font-medium">RUT</th>
-                  <th className="p-4 font-medium">Reservas</th>
-                  <th className="p-4 font-medium">Acciones</th>
+                <tr className="text-left text-sm">
+                  <th className="p-3 lg:p-4 font-medium">Nombre</th>
+                  <th className="p-3 lg:p-4 font-medium">Email</th>
+                  <th className="p-3 lg:p-4 font-medium">Teléfono</th>
+                  <th className="p-3 lg:p-4 font-medium">RUT</th>
+                  <th className="p-3 lg:p-4 font-medium">Reservas</th>
+                  <th className="p-3 lg:p-4 font-medium">Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredClients.map((client) => (
-                  <tr key={client.id} className="border-b">
-                    <td className="p-4 font-medium">{client.name}</td>
-                    <td className="p-4 text-muted-foreground">{client.email}</td>
-                    <td className="p-4">{client.phone || "-"}</td>
-                    <td className="p-4">{client.rut || "-"}</td>
-                    <td className="p-4">
+                  <tr key={client.id} className="border-b text-sm">
+                    <td className="p-3 lg:p-4 font-medium">{client.name}</td>
+                    <td className="p-3 lg:p-4 text-muted-foreground">{client.email}</td>
+                    <td className="p-3 lg:p-4">{client.phone || "-"}</td>
+                    <td className="p-3 lg:p-4">{client.rut || "-"}</td>
+                    <td className="p-3 lg:p-4">
                       <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
                         {client.reservationsCount}
                       </span>
                     </td>
-                    <td className="p-4">
-                      <div className="flex gap-2">
+                    <td className="p-3 lg:p-4">
+                      <div className="flex gap-1 lg:gap-2">
                         <Button
                           variant="ghost"
                           size="sm"
@@ -214,7 +215,8 @@ export default function ClientsPage() {
               </tbody>
             </table>
           </CardContent>
-        </Card>
+          </Card>
+        </div>
       )}
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, Plus, Grid, List } from "lucide-react";
+import { Building2, Plus, Grid, List, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -151,10 +151,10 @@ export default function PropertiesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Propiedades</h1>
-          <p className="text-muted-foreground">Gestiona tus propiedades y sus configuraciones</p>
+          <h1 className="text-2xl sm:text-3xl font-bold">Propiedades</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">Gestiona tus propiedades y sus configuraciones</p>
         </div>
         <div className="flex gap-2">
           <div className="flex border rounded-md">
@@ -172,10 +172,10 @@ export default function PropertiesPage() {
             </button>
           </div>
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-            <Button onClick={() => setIsCreateOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Nueva Propiedad
-              </Button>
+            <Button onClick={() => setIsCreateOpen(true)} size="sm">
+              <Plus className="h-4 w-4" />
+              <span className="sm:inline ml-2">Nueva Propiedad</span>
+            </Button>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Crear Nueva Propiedad</DialogTitle>
@@ -212,7 +212,7 @@ export default function PropertiesPage() {
           </Button>
         </div>
       ) : viewMode === "grid" ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
           {filteredProperties.map((property) => (
             <PropertyCardMinimal
               key={property.id}
@@ -223,33 +223,33 @@ export default function PropertiesPage() {
           ))}
         </div>
       ) : (
-        <Card>
-          <CardContent className="p-0">
+        <Card className="overflow-x-auto">
+          <CardContent className="p-0 min-w-[640px]">
             <table className="w-full">
               <thead className="border-b">
-                <tr className="text-left">
-                  <th className="p-4 font-medium">Nombre</th>
-                  <th className="p-4 font-medium">Tipo</th>
-                  <th className="p-4 font-medium">Unidades</th>
-                  <th className="p-4 font-medium">Precio Diario</th>
-                  <th className="p-4 font-medium">Precio Mensual</th>
-                  <th className="p-4 font-medium">Acciones</th>
+                <tr className="text-left text-sm">
+                  <th className="p-3 lg:p-4 font-medium">Nombre</th>
+                  <th className="p-3 lg:p-4 font-medium">Tipo</th>
+                  <th className="p-3 lg:p-4 font-medium">Unidades</th>
+                  <th className="p-3 lg:p-4 font-medium">Precio Diario</th>
+                  <th className="p-3 lg:p-4 font-medium">Precio Mensual</th>
+                  <th className="p-3 lg:p-4 font-medium">Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredProperties.map((property) => (
-                  <tr key={property.id} className="border-b">
-                    <td className="p-4">{property.name}</td>
-                    <td className="p-4">{typeLabels[property.type] || property.type}</td>
-                    <td className="p-4">{property.unitsAvailable}</td>
-                    <td className="p-4">${Number(property.dailyPrice).toLocaleString("CLP")}</td>
-                    <td className="p-4">
+                  <tr key={property.id} className="border-b text-sm">
+                    <td className="p-3 lg:p-4">{property.name}</td>
+                    <td className="p-3 lg:p-4">{typeLabels[property.type] || property.type}</td>
+                    <td className="p-3 lg:p-4">{property.unitsAvailable}</td>
+                    <td className="p-3 lg:p-4">${Number(property.dailyPrice).toLocaleString("CLP")}</td>
+                    <td className="p-3 lg:p-4">
                       {property.monthlyPrice
                         ? `$${Number(property.monthlyPrice).toLocaleString("CLP")}`
                         : "-"}
                     </td>
-                    <td className="p-4">
-                      <div className="flex gap-2">
+                    <td className="p-3 lg:p-4">
+                      <div className="flex gap-1 lg:gap-2">
                         <Button
                           variant="ghost"
                           size="sm"
