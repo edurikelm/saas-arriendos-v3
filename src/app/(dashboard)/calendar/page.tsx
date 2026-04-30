@@ -3,36 +3,39 @@
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale/es";
-import { Calendar, Filter } from "lucide-react";
+import { Calendar, Filter, Grid, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CalendarGrid } from "@/components/calendar/calendar-grid";
+import { CalendarTimeline } from "@/prototypes/calendar-prototypes";
 import type { CalendarReservation } from "@/lib/actions/calendar";
 
-function differenceInDays(end: Date, start: Date): number {
-  const diff = end.getTime() - start.getTime();
-  return Math.round(diff / (1000 * 60 * 60 * 24));
-}
-
 function getNights(startDate: string, endDate: string): number {
-  return differenceInDays(new Date(endDate), new Date(startDate)) + 1;
+  const diff = new Date(endDate).getTime() - new Date(startDate).getTime();
+  return Math.round(diff / (1000 * 60 * 60 * 24)) + 1;
 }
 
 interface Property {
   id: string;
   name: string;
+  color?: string;
 }
 
 interface ReservationDetails {
   id: string;
-  property: { name: string };
-  client: { name: string };
+  property: Property;
+  client: { name: string; email: string };
   startDate: string;
   endDate: string;
-  status: string;
+  billingType: string;
+  unitsBooked: number;
   totalPrice: string;
+  status: string;
+  bookingAirbnb: boolean;
+  notes: string | null;
+  payments: Array<{ id: string; amount: string; status: string; method: string }>;
 }
 
 export default function CalendarPage() {
@@ -42,6 +45,7 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [selectedReservation, setSelectedReservation] = useState<ReservationDetails | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [viewMode, setViewMode] = useState<"grid" | "timeline">("grid");
 
   useEffect(() => {
     fetchProperties();
@@ -123,6 +127,20 @@ export default function CalendarPage() {
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
+              <div className="flex border rounded-md">
+                <button
+                  onClick={() => setViewMode("grid")}
+                  className={`p-2 ${viewMode === "grid" ? "bg-muted" : ""}`}
+                >
+                  <Grid className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode("timeline")}
+                  className={`p-2 ${viewMode === "timeline" ? "bg-muted" : ""}`}
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                </button>
+              </div>
               <Filter className="h-4 w-4 text-muted-foreground" />
               <Select value={selectedPropertyId} onValueChange={(v) => setSelectedPropertyId(v || "all")}>
                 <SelectTrigger className="w-48">
@@ -145,10 +163,38 @@ export default function CalendarPage() {
             <div className="flex h-96 items-center justify-center">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
             </div>
-          ) : (
+          ) : viewMode === "grid" ? (
             <CalendarGrid
               reservations={reservations}
               onSelectReservation={handleSelectReservation}
+            />
+          ) : (
+            <CalendarTimeline
+              reservations={reservations.map((r) => ({
+                ...r,
+                propertyId: r.property.id,
+                clientId: "",
+                billingType: "DAILY" as const,
+                unitsBooked: 1,
+                bookingAirbnb: false,
+                notes: null,
+                payments: [],
+                startDate: r.startDate instanceof Date ? r.startDate.toISOString() : r.startDate,
+                endDate: r.endDate instanceof Date ? r.endDate.toISOString() : r.endDate,
+                totalPrice: String(r.totalPrice),
+                property: {
+                  ...r.property,
+                  color: properties.find((p) => p.id === r.property.id)?.color,
+                },
+                client: {
+                  ...r.client,
+                  id: "",
+                  email: "",
+                },
+              }))}
+              currentMonth={currentMonth}
+              onSelectReservation={handleSelectReservation}
+              onMonthChange={setCurrentMonth}
             />
           )}
         </CardContent>

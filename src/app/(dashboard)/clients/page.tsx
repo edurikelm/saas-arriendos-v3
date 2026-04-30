@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Users, Plus, Pencil, Trash2, Search } from "lucide-react";
+import { Users, Plus, Pencil, Trash2, Search, MoreHorizontal, ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ClientForm } from "@/components/clients/client-form";
+import { Badge } from "@/components/ui/badge";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import type { ClientInput } from "@/lib/validations/client";
 
@@ -166,56 +168,60 @@ export default function ClientsPage() {
           </Button>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <Card>
-            <CardContent className="p-0 min-w-160">
-              <table className="w-full">
-              <thead className="border-b">
-                <tr className="text-left text-sm">
-                  <th className="p-3 lg:p-4 font-medium">Nombre</th>
-                  <th className="p-3 lg:p-4 font-medium">Email</th>
-                  <th className="p-3 lg:p-4 font-medium">Teléfono</th>
-                  <th className="p-3 lg:p-4 font-medium">RUT</th>
-                  <th className="p-3 lg:p-4 font-medium">Reservas</th>
-                  <th className="p-3 lg:p-4 font-medium">Acciones</th>
+        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800">
+                <tr>
+                  <th className="text-left p-4 font-medium text-zinc-600 dark:text-zinc-400">Nombre</th>
+                  <th className="text-left p-4 font-medium text-zinc-600 dark:text-zinc-400">Email</th>
+                  <th className="text-left p-4 font-medium text-zinc-600 dark:text-zinc-400">Teléfono</th>
+                  <th className="text-left p-4 font-medium text-zinc-600 dark:text-zinc-400">RUT</th>
+                  <th className="text-center p-4 font-medium text-zinc-600 dark:text-zinc-400">Reservas</th>
+                  <th className="text-right p-4 font-medium text-zinc-600 dark:text-zinc-400">Acciones</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
                 {filteredClients.map((client) => (
-                  <tr key={client.id} className="border-b text-sm">
-                    <td className="p-3 lg:p-4 font-medium">{client.name}</td>
-                    <td className="p-3 lg:p-4 text-muted-foreground">{client.email}</td>
-                    <td className="p-3 lg:p-4">{client.phone || "-"}</td>
-                    <td className="p-3 lg:p-4">{client.rut || "-"}</td>
-                    <td className="p-3 lg:p-4">
-                      <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
-                        {client.reservationsCount}
-                      </span>
-                    </td>
-                    <td className="p-3 lg:p-4">
-                      <div className="flex gap-1 lg:gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setEditingClient(client)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDelete(client.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                  <tr key={client.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50 transition-colors">
+                    <td className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-medium">
+                          {client.name[0]}
+                        </div>
+                        <span className="font-medium text-zinc-900 dark:text-zinc-100">{client.name}</span>
                       </div>
+                    </td>
+                    <td className="p-4 text-zinc-600 dark:text-zinc-400">{client.email}</td>
+                    <td className="p-4 text-zinc-600 dark:text-zinc-400">{client.phone || "-"}</td>
+                    <td className="p-4 text-zinc-600 dark:text-zinc-400">{client.rut || "-"}</td>
+                    <td className="p-4 text-center">
+                      <Badge variant="secondary" className="text-xs">
+                        {client.reservationsCount}
+                      </Badge>
+                    </td>
+                    <td className="p-4 text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger className="cursor-pointer rounded-md p-1.5 hover:bg-muted transition-colors">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setEditingClient(client)}>
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem variant="destructive" onClick={() => handleDelete(client.id)}>
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Eliminar
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </CardContent>
-          </Card>
+          </div>
         </div>
       )}
 
