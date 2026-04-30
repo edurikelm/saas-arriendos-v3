@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { ReservationForm } from "@/components/reservations/reservation-form";
-import { ReservationTable } from "@/components/reservations/reservation-card-prototypes";
+import { ReservationTable } from "@/prototypes/reservation-card-prototypes";
 import { toast } from "sonner";
 import type { ReservationInput } from "@/lib/validations/reservation";
 

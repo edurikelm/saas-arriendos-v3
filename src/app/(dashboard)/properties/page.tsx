@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { PropertyForm } from "@/components/properties/property-form";
-import { PropertyCardMinimal } from "@/components/properties/property-card-prototypes";
+import { PropertyCardMinimal } from "@/prototypes/property-card-prototypes";
 import { toast } from "sonner";
 import type { PropertyInput } from "@/lib/validations/property";
 

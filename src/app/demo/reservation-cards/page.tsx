@@ -1,4 +1,4 @@
-import { ReservationCardShowcase } from "@/components/reservations/reservation-card-prototypes";
+import { ReservationCardShowcase } from "@/prototypes/reservation-card-prototypes";
 
 export default function ReservationCardsDemoPage() {
   return <ReservationCardShowcase />;

@@ -1,4 +1,4 @@
-import { ReservationFormShowcase } from "@/components/reservations/reservation-form-prototypes";
+import { ReservationFormShowcase } from "@/prototypes/reservation-form-prototypes";
 
 export default function ReservationFormDemoPage() {
   return <ReservationFormShowcase />;
