@@ -44,6 +44,10 @@ enum PaymentMethod {
   TRANSFER
 }
 
+enum IntegrationProvider {
+  MERCADO_PAGO
+}
+
 enum PaymentStatus {
   PENDING
   COMPLETED
@@ -66,6 +70,7 @@ model UserProfile {
   adminNotes     AdminNote[]     @relation("AdminNotes")
   ownerNotes     AdminNote[]     @relation("OwnerNotes")
   adminActions   AdminActionLog[] @relation("AdminActions")
+  integrations   UserIntegration[]
 }
 
 model Property {
@@ -144,6 +149,22 @@ model Payment {
   reservation Reservation @relation(fields: [reservationId], references: [id])
 
   @@index([reservationId])
+}
+
+model UserIntegration {
+  id           String            @id @default(cuid())
+  userId       String
+  provider     IntegrationProvider
+  accessToken  String
+  isActive     Boolean           @default(true)
+  metadata     Json?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  user         UserProfile       @relation(fields: [userId], references: [id])
+
+  @@unique([userId, provider])
+  @@index([userId])
 }
 
 model ReservationChange {

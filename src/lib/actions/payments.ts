@@ -6,6 +6,53 @@ import { paymentSchema, type PaymentInput } from "@/lib/validations/payment";
 import { revalidatePath } from "next/cache";
 import { addDays } from "date-fns";
 
+export async function saveMercadoPagoToken(userId: string, accessToken: string) {
+  if (!accessToken || typeof accessToken !== "string" || accessToken.trim().length === 0) {
+    return { error: "El token de acceso es requerido" };
+  }
+
+  try {
+    const response = await fetch("https://api.mercadopago.com/users/me", {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken.trim()}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const message = errorData.message || response.statusText;
+      if (response.status === 401 || response.status === 403) {
+        return { error: "Token de Mercado Pago inválido o revocada su acceso" };
+      }
+      return { error: `Error de Mercado Pago: ${message}` };
+    }
+
+    await prisma.userIntegration.upsert({
+      where: {
+        userId_provider: {
+          userId,
+          provider: "MERCADO_PAGO" as const,
+        },
+      },
+      update: {
+        accessToken: accessToken.trim(),
+        isActive: true,
+      },
+      create: {
+        userId,
+        provider: "MERCADO_PAGO" as const,
+        accessToken: accessToken.trim(),
+        isActive: true,
+      },
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    return { error: `Error al validar token: ${error.message}` };
+  }
+}
+
 export async function getPaymentsByReservation(reservationId: string) {
   const session = await getSession();
   if (!session) return [];
@@ -139,6 +186,23 @@ export async function createPayment(data: PaymentInput) {
   return { success: true, payment };
 }
 
+export async function getMercadoPagoToken(userId: string): Promise<string | null> {
+  const integration = await prisma.userIntegration.findUnique({
+    where: {
+      userId_provider: {
+        userId,
+        provider: "MERCADO_PAGO" as const,
+      },
+    },
+  });
+
+  if (!integration || !integration.isActive) {
+    return null;
+  }
+
+  return integration.accessToken;
+}
+
 export async function generateMercadoPagoLink(reservationId: string, amount?: number) {
   const session = await getSession();
   if (!session) return { error: "No autorizado" };
@@ -153,8 +217,11 @@ export async function generateMercadoPagoLink(reservationId: string, amount?: nu
 
   if (!reservation) return { error: "Reserva no encontrada" };
 
-  if (!process.env.MERCADOPAGO_ACCESS_TOKEN) {
-    return { error: "Mercado Pago no está configurado" };
+  const userToken = await getMercadoPagoToken(session.userId);
+  const accessToken = userToken ?? process.env.MERCADOPAGO_ACCESS_TOKEN;
+
+  if (!accessToken) {
+    return { error: "Mercado Pago not configured. Please add your access token in Settings." };
   }
 
   const existingPayments = await prisma.payment.findMany({
@@ -186,7 +253,7 @@ export async function generateMercadoPagoLink(reservationId: string, amount?: nu
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}`,
+        Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
         items: [
