@@ -238,14 +238,27 @@ export async function processMercadoPagoWebhook(payload: {
 }) {
   const { id, status, external_reference } = payload;
 
-  const payment = await prisma.payment.findFirst({
+  let payment = await prisma.payment.findFirst({
     where: { mercadoPagoId: id },
     include: {
       reservation: true,
     },
   });
 
+  if (!payment && external_reference) {
+    const reservationId = external_reference.split(":")[0];
+
+    if (reservationId) {
+      payment = await prisma.payment.findFirst({
+        where: { reservationId },
+        orderBy: { createdAt: "desc" },
+        include: { reservation: true },
+      });
+    }
+  }
+
   if (!payment) {
+    console.log(`Payment not found. ID: ${id}, externalRef: ${external_reference}`);
     return { error: "Pago no encontrado" };
   }
 
