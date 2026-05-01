@@ -1,0 +1,189 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  OWNER
+}
+
+enum Plan {
+  FREE
+  PRO
+}
+
+enum PropertyType {
+  HOUSE
+  APARTMENT
+  CABIN
+  HOSTEL
+  HOTEL
+  OFFICE
+  COMMERCIAL
+}
+
+enum BillingType {
+  DAILY
+  MONTHLY
+}
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum PaymentMethod {
+  MERCADO_PAGO
+  CASH
+  TRANSFER
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+model UserProfile {
+  id        String   @id @default(cuid())
+  name      String?
+  email     String   @unique
+  password  String
+  role      UserRole @default(OWNER)
+  plan      Plan?    @default(FREE)
+  createdAt DateTime @default(now())
+
+  properties    Property[]
+  clients       ReservationClient[]
+  reservations  Reservation[]
+
+  adminNotes     AdminNote[]     @relation("AdminNotes")
+  ownerNotes     AdminNote[]     @relation("OwnerNotes")
+  adminActions   AdminActionLog[] @relation("AdminActions")
+}
+
+model Property {
+  id              String       @id @default(cuid())
+  userId          String
+  name            String
+  type            PropertyType
+  unitsAvailable  Int          @default(1)
+  dailyPrice      Decimal      @db.Decimal(10, 2)
+  monthlyPrice    Decimal?     @db.Decimal(10, 2)
+  currency        String       @default("CLP")
+  amenities       String[]
+  color           String       @default("#3B82F6")
+  mainImage       String?
+  images          String[]
+  createdAt       DateTime     @default(now())
+
+  user         UserProfile    @relation(fields: [userId], references: [id])
+  reservations Reservation[]
+
+  @@index([userId])
+}
+
+model ReservationClient {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  email     String
+  phone     String?
+  rut       String?
+  notes     String?
+  createdAt DateTime @default(now())
+
+  user         UserProfile    @relation(fields: [userId], references: [id])
+  reservations Reservation[]
+
+  @@index([userId])
+  @@unique([userId, email])
+}
+
+model Reservation {
+  id            String            @id @default(cuid())
+  userId        String
+  propertyId    String
+  clientId      String
+  startDate     DateTime
+  endDate       DateTime
+  billingType   BillingType
+  unitsBooked   Int               @default(1)
+  totalPrice    Decimal           @db.Decimal(10, 2)
+  status        ReservationStatus @default(PENDING)
+  bookingAirbnb Boolean           @default(false)
+  notes         String?
+  createdAt     DateTime          @default(now())
+
+  user         UserProfile       @relation(fields: [userId], references: [id])
+  property     Property          @relation(fields: [propertyId], references: [id])
+  client       ReservationClient @relation(fields: [clientId], references: [id])
+  payments     Payment[]
+  changes      ReservationChange[]
+
+  @@index([userId])
+  @@index([propertyId])
+  @@index([clientId])
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  reservationId   String
+  amount          Decimal       @db.Decimal(10, 2)
+  method          PaymentMethod
+  status          PaymentStatus @default(PENDING)
+  mercadoPagoId   String?
+  createdAt       DateTime      @default(now())
+
+  reservation Reservation @relation(fields: [reservationId], references: [id])
+
+  @@index([reservationId])
+}
+
+model ReservationChange {
+  id            String   @id @default(cuid())
+  reservationId String
+  field         String
+  oldValue      String?
+  newValue      String?
+  createdAt     DateTime @default(now())
+
+  reservation Reservation @relation(fields: [reservationId], references: [id])
+
+  @@index([reservationId])
+}
+
+model AdminNote {
+  id         String   @id @default(cuid())
+  adminId    String
+  ownerId    String
+  content    String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  admin  UserProfile @relation("AdminNotes", fields: [adminId], references: [id])
+  owner  UserProfile @relation("OwnerNotes", fields: [ownerId], references: [id])
+
+  @@index([adminId])
+  @@index([ownerId])
+}
+
+model AdminActionLog {
+  id         String   @id @default(cuid())
+  adminId    String
+  targetId   String
+  action     String
+  details    String?
+  createdAt  DateTime @default(now())
+
+  admin  UserProfile @relation("AdminActions", fields: [adminId], references: [id])
+
+  @@index([adminId])
+  @@index([targetId])
+}
