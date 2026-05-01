@@ -20,7 +20,8 @@ Sistema SaaS para gestión de arriendos de propiedades.
 ### Reservation (Reserva)
 - `units_booked: Int` — cuántas unidades se reservan (puede ser > 1)
 - `billing_type: DAILY | MONTHLY` — elegido por el usuario al crear
-- `start_date`, `end_date` — fechas fijas (no hay renovación automática)
+- `start_date` — fecha de entrada (día de check-in)
+- `end_date` — última noche (última noche que duerme el huésped, NO el día de check-out)
 - `status: PENDING | CONFIRMED | CANCELLED | COMPLETED`
 - `notes?` — notas editables del propietario para esa estadía
 
@@ -40,7 +41,7 @@ Sistema SaaS para gestión de arriendos de propiedades.
 - Si cualquier día del rango no tiene suficientes unidades disponibles, se rechaza
 
 ### Precio
-- Si `billing_type: DAILY` → total = noches × daily_price
+- Si `billing_type: DAILY` → total = noches × daily_price (noches = end_date - start_date + 1)
 - Si `billing_type: MONTHLY` → total = meses × monthly_price (precio fijo, no se mezcla con diario)
 - El precio monthly es un descuento para estadías largas, no un umbral automático
 
@@ -97,3 +98,4 @@ Sistema SaaS para gestión de arriendos de propiedades.
 - **ReservationClient** — huesped/Cliente que arrienda
 - **Billing Type** — DAILY o MONTHLY, elegido al momento de crear la reserva
 - **Units Booked** — cantidad de unidades reservadas dentro de la misma propiedad
+- **Última Noche** — `end_date` representa la última noche que duerme el huésped, no el día de check-out. El cálculo de noches es `(end_date - start_date + 1)`
