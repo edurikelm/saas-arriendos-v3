@@ -27,7 +27,6 @@ async function getPaymentStatus(paymentId: string): Promise<{ status: string; ex
     });
 
     if (!response.ok) {
-      console.error(`Failed to fetch payment ${paymentId}: ${response.statusText}`);
       return null;
     }
 
@@ -37,7 +36,6 @@ async function getPaymentStatus(paymentId: string): Promise<{ status: string; ex
       external_reference: payment.external_reference,
     };
   } catch (error) {
-    console.error(`Error fetching payment ${paymentId}:`, error);
     return null;
   }
 }
@@ -53,8 +51,6 @@ export async function POST(request: Request) {
     const action = payload.action;
     const paymentId = payload.data.id;
 
-    console.log(`Mercado Pago webhook received: action=${action}, paymentId=${paymentId}`);
-
     if (action.startsWith("payment.")) {
       const paymentInfo = await getPaymentStatus(paymentId);
 
@@ -68,7 +64,6 @@ export async function POST(request: Request) {
         external_reference: paymentInfo.external_reference || "",
       });
 
-      console.log(`Processed payment webhook: ${paymentId}`, result);
       return NextResponse.json({ received: true, result });
     }
 
@@ -93,13 +88,11 @@ export async function POST(request: Request) {
 
       for (const payment of merchantOrder.payments || []) {
         if (payment.status === "approved") {
-          const result = await processMercadoPagoWebhook({
+          await processMercadoPagoWebhook({
             id: String(payment.id),
             status: payment.status,
             external_reference: merchantOrder.external_reference || "",
           });
-
-          console.log(`Processed merchant_order payment: ${payment.id}`, result);
         }
       }
 
@@ -108,7 +101,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ received: true });
   } catch (error) {
-    console.error("Mercado Pago webhook error:", error);
     return NextResponse.json({ error: "Webhook processing error" }, { status: 500 });
   }
 }
