@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/db/prisma";
 import { getSession } from "@/lib/actions/auth";
+import { getMercadoPagoToken } from "@/lib/actions/mercado-pago";
 import { paymentSchema, type PaymentInput } from "@/lib/validations/payment";
 import { revalidatePath } from "next/cache";
 import { addDays } from "date-fns";
@@ -153,8 +154,13 @@ export async function generateMercadoPagoLink(reservationId: string, amount?: nu
 
   if (!reservation) return { error: "Reserva no encontrada" };
 
-  if (!process.env.MERCADOPAGO_ACCESS_TOKEN) {
-    return { error: "Mercado Pago no está configurado" };
+  const userToken = await getMercadoPagoToken(session.userId);
+  const accessToken = userToken ?? process.env.MERCADOPAGO_ACCESS_TOKEN;
+
+  console.log(`[MP GenerateLink] Generating MP link for reservation ${reservationId} - using user token: ${userToken ? 'yes' : 'no (fallback)'}`);
+
+  if (!accessToken) {
+    return { error: "Mercado Pago no está configurado. Ve a Settings para conectar tu cuenta." };
   }
 
   const existingPayments = await prisma.payment.findMany({
@@ -186,7 +192,7 @@ export async function generateMercadoPagoLink(reservationId: string, amount?: nu
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}`,
+        Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
         items: [
@@ -209,6 +215,8 @@ export async function generateMercadoPagoLink(reservationId: string, amount?: nu
     }
 
     const data = await response.json();
+
+    console.log(`[MP GenerateLink] Mercado Pago link generated successfully for reservation ${reservationId}`);
 
     const payment = await prisma.payment.create({
       data: {

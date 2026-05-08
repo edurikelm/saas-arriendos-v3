@@ -50,6 +50,11 @@ enum PaymentStatus {
   FAILED
 }
 
+enum IntegrationProvider {
+  MERCADO_PAGO
+  STRIPE
+}
+
 model UserProfile {
   id        String   @id @default(cuid())
   name      String?
@@ -186,4 +191,18 @@ model AdminActionLog {
 
   @@index([adminId])
   @@index([targetId])
+}
+
+model UserIntegration {
+  id           String   @id @default(cuid())
+  userId       String
+  provider     IntegrationProvider
+  accessToken  String?
+  isActive     Boolean  @default(false)
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, provider])
+  @@index([userId])
 }
