@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { reservationSchema, type ReservationInput } from "@/lib/validations/reservation";
 import { z } from "zod";
 type ReservationFormData = z.input<typeof reservationSchema>;
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { getBlockedDates } from "@/lib/actions/reservations";
 
 interface ReservationFormProps {
   properties: Array<{
@@ -46,6 +47,7 @@ export function ReservationForm({
   onCancel,
 }: ReservationFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [blockedDates, setBlockedDates] = useState<string[]>([]);
 
   const formatDateForInput = (date: Date | string | undefined): string => {
     if (!date) return "";
@@ -93,6 +95,14 @@ export function ReservationForm({
   const selectedProperty = properties.find((p) => p.id === selectedPropertyId);
   const selectedClientId = watch("clientId");
   const selectedClient = clients.find((c) => c.id === selectedClientId);
+
+  useEffect(() => {
+    if (selectedPropertyId) {
+      getBlockedDates(selectedPropertyId).then(setBlockedDates);
+    } else {
+      setBlockedDates([]);
+    }
+  }, [selectedPropertyId]);
 
   const handleFormSubmit = async (data: ReservationFormData) => {
     setIsSubmitting(true);
@@ -159,6 +169,7 @@ export function ReservationForm({
           date={dateRange}
           onDateChange={handleDateRangeChange}
           className="w-full"
+          blockedDates={blockedDates}
         />
         {(errors.startDate || errors.endDate) && (
           <p className="text-sm text-red-500">

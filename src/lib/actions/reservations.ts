@@ -452,6 +452,36 @@ export async function cancelReservation(id: string, reason?: string) {
   return { success: true, reservation };
 }
 
+export async function getBlockedDates(propertyId: string) {
+  const session = await getSession();
+  if (!session) return [];
+
+  const reservations = await prisma.reservation.findMany({
+    where: {
+      propertyId,
+      userId: session.userId,
+      status: { in: ["PENDING", "CONFIRMED"] },
+    },
+    select: {
+      startDate: true,
+      endDate: true,
+      unitsBooked: true,
+    },
+  });
+
+  const blockedDates: Date[] = [];
+
+  for (const res of reservations) {
+    const start = new Date(res.startDate);
+    const end = new Date(res.endDate);
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      blockedDates.push(new Date(d));
+    }
+  }
+
+  return blockedDates.map(d => d.toISOString());
+}
+
 export async function deleteReservation(id: string) {
   const session = await getSession();
   if (!session) return { error: "No autorizado" };

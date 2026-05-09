@@ -18,13 +18,29 @@ interface DateRangePickerProps {
   date: { from: Date | undefined; to: Date | undefined }
   onDateChange: (date: { from: Date | undefined; to: Date | undefined }) => void
   className?: string
+  blockedDates?: string[]
 }
 
 export function DateRangePicker({
   date,
   onDateChange,
   className,
+  blockedDates = [],
 }: DateRangePickerProps) {
+  const normalizeDate = (d: Date) => {
+    const n = new Date(d);
+    n.setHours(0, 0, 0, 0);
+    return n.getTime();
+  };
+
+  const isBlocked = (d: Date) => {
+    return blockedDates.some(blocked => {
+      const b = new Date(blocked);
+      b.setHours(0, 0, 0, 0);
+      return b.getTime() === normalizeDate(d);
+    });
+  };
+
   return (
     <Popover>
       <PopoverTrigger
@@ -62,11 +78,11 @@ export function DateRangePicker({
           }
           numberOfMonths={2}
           locale={es}
-          disabled={(date) =>
-            date > new Date() || date < new Date("1900-01-01")
+          disabled={(d) =>
+            isBlocked(d)
           }
         />
       </PopoverContent>
     </Popover>
-  )
+  );
 }
