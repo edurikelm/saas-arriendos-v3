@@ -222,9 +222,7 @@ export async function generateMercadoPagoLink(reservationId: string, amount?: nu
 
     console.log(`[MP GenerateLink] Mercado Pago link generated successfully for reservation ${reservationId}`);
 
-    const expiresAt = addDays(new Date(), 7);
-
-const expirationDate = addDays(new Date(), 7);
+    const expirationDate = addDays(new Date(), 7);
 
     const payment = await prisma.payment.create({
       data: {
