@@ -464,46 +464,7 @@ export async function restorePayment(id: string) {
   revalidatePath("/reservations");
   revalidatePath(`/reservations/${payment.reservationId}`);
 
-  return { success: true };
-}
-
-  await prisma.payment.update({
-    where: { id },
-    data: { deletedAt: new Date() },
-  });
-
-  revalidatePath("/reservations");
-  revalidatePath(`/reservations/${payment.reservationId}`);
-
-  return { success: true };
-}
-
-export async function restorePayment(id: string) {
-  const session = await getSession();
-  if (!session) return { error: "No autorizado" };
-
-  const payment = await prisma.payment.findFirst({
-    where: { id },
-    include: {
-      reservation: true,
-    },
-  });
-
-  if (!payment) return { error: "Pago no encontrado" };
-
-  if (payment.reservation.userId !== session.userId) {
-    return { error: "No autorizado" };
-  }
-
-  await prisma.payment.update({
-    where: { id },
-    data: { deletedAt: null },
-  });
-
-  revalidatePath("/reservations");
-  revalidatePath(`/reservations/${payment.reservationId}`);
-
-  return { success: true };
+return { success: true };
 }
 
 export async function updatePayment(id: string, data: { status: "COMPLETED" | "PENDING" }) {

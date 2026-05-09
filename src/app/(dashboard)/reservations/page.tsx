@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Calendar, Plus, Pencil, Trash2, Eye, Grid, List } from "lucide-react";
+import { Calendar, Plus, Pencil, Trash2, Eye, Grid, List, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -44,6 +44,9 @@ interface Reservation {
     amount: string;
     status: string;
     method: string;
+    initPoint?: string | null;
+    expiresAt?: string | null;
+    deletedAt?: string | null;
   }>;
 }
 
@@ -450,44 +453,100 @@ export default function ReservationsPage() {
                 <div>
                   <p className="text-muted-foreground mb-2">Pagos</p>
                   <div className="space-y-2">
-                    {viewingReservation.payments.map((payment) => (
-                      <div key={payment.id} className="flex justify-between items-center text-sm border-b pb-2">
-                        <div className="flex items-center gap-2">
-                          <span>{payment.method}</span>
-                          <span className={payment.status === "COMPLETED" ? "text-green-600" : "text-orange-600"}>
-                            ${Number(payment.amount).toLocaleString("CLP")} ({payment.status})
-                          </span>
-                        </div>
-                        {payment.method !== "MERCADO_PAGO" && payment.status === "PENDING" && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-green-600 h-7 px-2"
-                            onClick={async () => {
-                              try {
-                                const res = await fetch(`/api/payments/${payment.id}`, {
-                                  method: "PATCH",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ status: "COMPLETED" }),
+                    {viewingReservation.payments.map((payment) => {
+                      const isExpired = payment.expiresAt && new Date(payment.expiresAt) < new Date() && payment.status === "PENDING";
+                      return (
+                        <div key={payment.id} className="flex justify-between items-center text-sm border-b pb-2">
+                          <div className="flex items-center gap-2">
+                            <span>{payment.method}</span>
+                            <span className={payment.status === "COMPLETED" ? "text-green-600" : "text-orange-600"}>
+                              ${Number(payment.amount).toLocaleString("CLP")} ({payment.status})
+                            </span>
+                            {isExpired && (
+                              <Badge variant="destructive" className="text-xs">Expirado</Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {payment.method === "MERCADO_PAGO" && payment.initPoint && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(payment.initPoint!);
+                                  toast.success("Link copiado al portapapeles");
+                                }}
+                              >
+                                <Copy className="h-3 w-3" />
+                              </Button>
+                            )}
+                            {payment.method !== "MERCADO_PAGO" && payment.status === "PENDING" && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-green-600 h-7 px-2"
+                                onClick={async () => {
+                                  try {
+                                    const res = await fetch(`/api/payments/${payment.id}`, {
+                                      method: "PATCH",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ status: "COMPLETED" }),
+                                    });
+                                    const result = await res.json();
+                                    if (result.error) {
+                                      toast.error(result.error);
+                                      return;
+                                    }
+                                    toast.success("Pago confirmado");
+                                    setViewingReservation(null);
+                                    fetchData();
+                                  } catch {
+                                    toast.error("Error al confirmar pago");
+                                  }
+                                }}
+                              >
+                                Confirmar
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-red-600 h-7 px-2"
+                              onClick={() => {
+                                if (!confirm("¿Eliminar este pago?")) return;
+                                toast.success("Pago eliminado", {
+                                  action: {
+                                    label: "Deshacer",
+                                    onClick: async () => {
+                                      try {
+                                        const res = await fetch(`/api/payments/${payment.id}`, {
+                                          method: "PUT",
+                                        });
+                                        if (res.ok) {
+                                          toast.success("Pago restaurado");
+                                          fetchData();
+                                        }
+                                      } catch {
+                                        toast.error("Error al restaurar pago");
+                                      }
+                                    },
+                                  },
+                                  duration: 5000,
                                 });
-                                const result = await res.json();
-                                if (result.error) {
-                                  toast.error(result.error);
-                                  return;
-                                }
-                                toast.success("Pago confirmado");
-                                setViewingReservation(null);
-                                fetchData();
-                              } catch {
-                                toast.error("Error al confirmar pago");
-                              }
-                            }}
-                          >
-                            Confirmar
-                          </Button>
-                        )}
-                      </div>
-                    ))}
+                                fetch(`/api/payments/${payment.id}`, { method: "DELETE" }).then((res) => {
+                                  if (res.ok) {
+                                    setViewingReservation(null);
+                                    fetchData();
+                                  }
+                                });
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
