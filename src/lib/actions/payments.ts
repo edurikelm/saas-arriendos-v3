@@ -224,6 +224,8 @@ export async function generateMercadoPagoLink(reservationId: string, amount?: nu
 
     const expiresAt = addDays(new Date(), 7);
 
+const expirationDate = addDays(new Date(), 7);
+
     const payment = await prisma.payment.create({
       data: {
         reservationId,
@@ -232,7 +234,7 @@ export async function generateMercadoPagoLink(reservationId: string, amount?: nu
         status: "PENDING",
         mercadoPagoId: data.id,
         initPoint: data.init_point,
-        expiresAt,
+        expiresAt: expirationDate,
       },
     });
 
@@ -241,6 +243,7 @@ export async function generateMercadoPagoLink(reservationId: string, amount?: nu
       payment,
       initPoint: data.init_point,
       sandboxInitPoint: data.sandbox_init_point,
+      expiresAt: expirationDate.toISOString(),
     };
   } catch (error: any) {
     return { error: `Error al generar link: ${error.message}` };
