@@ -6,6 +6,22 @@ import { reservationSchema, reservationUpdateSchema, type ReservationInput, type
 import { revalidatePath } from "next/cache";
 import { addDays, differenceInDays, differenceInMonths, startOfDay, endOfDay } from "date-fns";
 
+export type CalendarReservation = {
+  id: string;
+  startDate: Date;
+  endDate: Date;
+  status: string;
+  totalPrice: number;
+  property: {
+    id: string;
+    name: string;
+    color: string;
+  };
+  client: {
+    name: string;
+  };
+};
+
 export async function getReservations(filters?: {
   propertyId?: string;
   status?: string;
@@ -210,11 +226,19 @@ async function logChange(
   });
 }
 
-export async function createReservation(data: ReservationInput) {
+export async function createReservation(data: unknown) {
   const session = await getSession();
   if (!session) return { error: "No autorizado" };
 
-  const validated = data;
+  let validated: ReservationInput;
+  try {
+    validated = reservationSchema.parse(data);
+  } catch (e: any) {
+    if (e.name === 'ZodError') {
+      return { error: "Datos inválidos", details: e.errors };
+    }
+    return { error: "Datos inválidos" };
+  }
   const startDate = new Date(validated.startDate);
   const endDate = new Date(validated.endDate);
 
@@ -269,9 +293,19 @@ export async function createReservation(data: ReservationInput) {
   return { success: true, reservation };
 }
 
-export async function updateReservation(id: string, data: ReservationUpdateInput) {
+export async function updateReservation(id: string, data: unknown) {
   const session = await getSession();
   if (!session) return { error: "No autorizado" };
+
+  let validated: ReservationUpdateInput;
+  try {
+    validated = reservationUpdateSchema.parse(data);
+  } catch (e: any) {
+    if (e.name === 'ZodError') {
+      return { error: "Datos inválidos", details: e.errors };
+    }
+    return { error: "Datos inválidos" };
+  }
 
   const existing = await prisma.reservation.findFirst({
     where: { id, userId: session.userId },
@@ -283,26 +317,26 @@ export async function updateReservation(id: string, data: ReservationUpdateInput
   const updateData: any = {};
   const changes: { field: string; old: string; new: string }[] = [];
 
-  if (data.propertyId !== undefined && data.propertyId !== existing.propertyId) {
-    updateData.propertyId = data.propertyId;
+  if (validated.propertyId !== undefined && validated.propertyId !== existing.propertyId) {
+    updateData.propertyId = validated.propertyId;
     changes.push({
       field: "propertyId",
       old: existing.propertyId,
-      new: data.propertyId,
+      new: validated.propertyId,
     });
   }
 
-  if (data.clientId !== undefined && data.clientId !== existing.clientId) {
-    updateData.clientId = data.clientId;
+  if (validated.clientId !== undefined && validated.clientId !== existing.clientId) {
+    updateData.clientId = validated.clientId;
     changes.push({
       field: "clientId",
       old: existing.clientId,
-      new: data.clientId,
+      new: validated.clientId,
     });
   }
 
-  if (data.startDate !== undefined) {
-    const startDate = new Date(data.startDate);
+  if (validated.startDate !== undefined) {
+    const startDate = new Date(validated.startDate);
     if (startDate.toString() === "Invalid Date") {
       return { error: "Fecha de inicio inválida" };
     }
@@ -316,8 +350,8 @@ export async function updateReservation(id: string, data: ReservationUpdateInput
     }
   }
 
-  if (data.endDate !== undefined) {
-    const endDate = new Date(data.endDate);
+  if (validated.endDate !== undefined) {
+    const endDate = new Date(validated.endDate);
     if (endDate.toString() === "Invalid Date") {
       return { error: "Fecha de fin inválida" };
     }
@@ -331,48 +365,48 @@ export async function updateReservation(id: string, data: ReservationUpdateInput
     }
   }
 
-  if (data.billingType !== undefined && data.billingType !== existing.billingType) {
-    updateData.billingType = data.billingType;
+  if (validated.billingType !== undefined && validated.billingType !== existing.billingType) {
+    updateData.billingType = validated.billingType;
     changes.push({
       field: "billingType",
       old: existing.billingType,
-      new: data.billingType,
+      new: validated.billingType,
     });
   }
 
-  if (data.unitsBooked !== undefined && data.unitsBooked !== existing.unitsBooked) {
-    updateData.unitsBooked = data.unitsBooked;
+  if (validated.unitsBooked !== undefined && validated.unitsBooked !== existing.unitsBooked) {
+    updateData.unitsBooked = validated.unitsBooked;
     changes.push({
       field: "unitsBooked",
       old: String(existing.unitsBooked),
-      new: String(data.unitsBooked),
+      new: String(validated.unitsBooked),
     });
   }
 
-  if (data.bookingAirbnb !== undefined && data.bookingAirbnb !== existing.bookingAirbnb) {
-    updateData.bookingAirbnb = data.bookingAirbnb;
+  if (validated.bookingAirbnb !== undefined && validated.bookingAirbnb !== existing.bookingAirbnb) {
+    updateData.bookingAirbnb = validated.bookingAirbnb;
     changes.push({
       field: "bookingAirbnb",
       old: String(existing.bookingAirbnb),
-      new: String(data.bookingAirbnb),
+      new: String(validated.bookingAirbnb),
     });
   }
 
-  if (data.status !== undefined && data.status !== existing.status) {
-    updateData.status = data.status as any;
+  if (validated.status !== undefined && validated.status !== existing.status) {
+    updateData.status = validated.status as any;
     changes.push({
       field: "status",
       old: existing.status,
-      new: data.status,
+      new: validated.status,
     });
   }
 
-  if (data.notes !== undefined && data.notes !== existing.notes) {
-    updateData.notes = data.notes;
+  if (validated.notes !== undefined && validated.notes !== existing.notes) {
+    updateData.notes = validated.notes;
     changes.push({
       field: "notes",
       old: existing.notes || "",
-      new: data.notes || "",
+      new: validated.notes || "",
     });
   }
 
@@ -480,6 +514,125 @@ export async function getBlockedDates(propertyId: string) {
   }
 
   return blockedDates.map(d => d.toISOString());
+}
+
+export async function getCalendarReservations(options?: {
+  year: number;
+  month: number;
+  propertyId?: string;
+}) {
+  const session = await getSession();
+  if (!session) return [];
+
+  const now = new Date();
+  const year = options?.year || now.getFullYear();
+  const month = options?.month || now.getMonth();
+
+  const startDate = new Date(year, month, 1);
+  const endDate = new Date(year, month + 1, 0, 23, 59, 59);
+
+  const where: any = {
+    userId: session.userId,
+    billingType: "DAILY",
+    OR: [
+      {
+        startDate: { gte: startDate, lte: endDate },
+      },
+      {
+        endDate: { gte: startDate, lte: endDate },
+      },
+      {
+        AND: [
+          { startDate: { lte: startDate } },
+          { endDate: { gte: endDate } },
+        ],
+      },
+    ],
+  };
+
+  if (options?.propertyId) {
+    where.propertyId = options.propertyId;
+  }
+
+  const reservations = await prisma.reservation.findMany({
+    where,
+    select: {
+      id: true,
+      startDate: true,
+      endDate: true,
+      status: true,
+      totalPrice: true,
+      property: {
+        select: {
+          id: true,
+          name: true,
+          color: true,
+        },
+      },
+      client: {
+        select: {
+          name: true,
+        },
+      },
+    },
+    orderBy: { startDate: "asc" },
+  });
+
+  return reservations.map((r) => ({
+    ...r,
+    totalPrice: Number(r.totalPrice),
+  }));
+}
+
+export async function getReservationsByDateRange(start: Date, end: Date) {
+  const session = await getSession();
+  if (!session) return [];
+
+  const reservations = await prisma.reservation.findMany({
+    where: {
+      userId: session.userId,
+      billingType: "DAILY",
+      OR: [
+        {
+          startDate: { gte: start, lte: end },
+        },
+        {
+          endDate: { gte: start, lte: end },
+        },
+        {
+          AND: [
+            { startDate: { lte: start } },
+            { endDate: { gte: end } },
+          ],
+        },
+      ],
+    },
+    select: {
+      id: true,
+      startDate: true,
+      endDate: true,
+      status: true,
+      totalPrice: true,
+      property: {
+        select: {
+          id: true,
+          name: true,
+          color: true,
+        },
+      },
+      client: {
+        select: {
+          name: true,
+        },
+      },
+    },
+    orderBy: { startDate: "asc" },
+  });
+
+  return reservations.map((r) => ({
+    ...r,
+    totalPrice: Number(r.totalPrice),
+  }));
 }
 
 export async function deleteReservation(id: string) {

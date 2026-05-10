@@ -50,9 +50,19 @@ export async function getClientCount() {
   });
 }
 
-export async function createClient(data: ClientInput) {
+export async function createClient(data: unknown) {
   const session = await getSession();
   if (!session) return { error: "No autorizado" };
+
+  let validated: ClientInput;
+  try {
+    validated = clientSchema.parse(data);
+  } catch (e: any) {
+    if (e.name === 'ZodError') {
+      return { error: "Datos inválidos", details: e.errors };
+    }
+    return { error: "Datos inválidos" };
+  }
 
   if (session.plan === "FREE") {
     const count = await prisma.reservationClient.count({
@@ -66,8 +76,6 @@ export async function createClient(data: ClientInput) {
       };
     }
   }
-
-  const validated = clientSchema.parse(data);
 
   const client = await prisma.reservationClient.create({
     data: {
@@ -84,17 +92,25 @@ export async function createClient(data: ClientInput) {
   return { success: true, client };
 }
 
-export async function updateClient(id: string, data: ClientInput) {
+export async function updateClient(id: string, data: unknown) {
   const session = await getSession();
   if (!session) return { error: "No autorizado" };
+
+  let validated: ClientInput;
+  try {
+    validated = clientSchema.parse(data);
+  } catch (e: any) {
+    if (e.name === 'ZodError') {
+      return { error: "Datos inválidos", details: e.errors };
+    }
+    return { error: "Datos inválidos" };
+  }
 
   const existing = await prisma.reservationClient.findFirst({
     where: { id, userId: session.userId },
   });
 
   if (!existing) return { error: "Cliente no encontrado" };
-
-  const validated = clientSchema.parse(data);
 
   const client = await prisma.reservationClient.update({
     where: { id },
