@@ -14,8 +14,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { PropertyForm } from "@/components/properties/property-form";
-import { PropertyCardMinimal } from "@/prototypes/property-card-prototypes";
+import { PropertyFormSections as PropertyForm } from "@/components/properties/property-form-sections";
+import { PropertyCardLine, PropertyCardGrid } from "@/components/properties/property-card";
 import { toast } from "sonner";
 import type { PropertyInput } from "@/lib/validations/property";
 
@@ -201,9 +201,9 @@ export default function PropertiesPage() {
             </button>
           </div>
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-            <Button onClick={() => setIsCreateOpen(true)} size="sm">
-              <Plus className="h-4 w-4" />
-              <span className="sm:inline ml-2">Nueva Propiedad</span>
+            <Button onClick={() => setIsCreateOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              <span className="sm:inline">Nueva Propiedad</span>
             </Button>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
@@ -256,7 +256,7 @@ export default function PropertiesPage() {
       ) : viewMode === "grid" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
           {filteredProperties.map((property) => (
-            <PropertyCardMinimal
+            <PropertyCardGrid
               key={property.id}
               property={property}
               onEdit={() => setEditingProperty(property)}
@@ -265,55 +265,16 @@ export default function PropertiesPage() {
           ))}
         </div>
       ) : (
-        <Card className="overflow-x-auto">
-          <CardContent className="p-0 min-w-160">
-            <table className="w-full">
-              <thead className="border-b">
-                <tr className="text-left text-sm">
-                  <th className="p-3 lg:p-4 font-medium">Nombre</th>
-                  <th className="p-3 lg:p-4 font-medium">Tipo</th>
-                  <th className="p-3 lg:p-4 font-medium">Unidades</th>
-                  <th className="p-3 lg:p-4 font-medium">Precio Diario</th>
-                  <th className="p-3 lg:p-4 font-medium">Precio Mensual</th>
-                  <th className="p-3 lg:p-4 font-medium">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProperties.map((property) => (
-                  <tr key={property.id} className="border-b text-sm">
-                    <td className="p-3 lg:p-4">{property.name}</td>
-                    <td className="p-3 lg:p-4">{typeLabels[property.type] || property.type}</td>
-                    <td className="p-3 lg:p-4">{property.unitsAvailable}</td>
-                    <td className="p-3 lg:p-4">${Number(property.dailyPrice).toLocaleString("CLP")}</td>
-                    <td className="p-3 lg:p-4">
-                      {property.monthlyPrice
-                        ? `$${Number(property.monthlyPrice).toLocaleString("CLP")}`
-                        : "-"}
-                    </td>
-                    <td className="p-3 lg:p-4">
-                      <div className="flex gap-1 lg:gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setEditingProperty(property)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDelete(property.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
+        <div className="space-y-2">
+          {filteredProperties.map((property) => (
+            <PropertyCardLine
+              key={property.id}
+              property={property}
+              onEdit={() => setEditingProperty(property)}
+              onDelete={() => handleDelete(property.id)}
+            />
+          ))}
+        </div>
       )}
 
       <Dialog open={!!editingProperty} onOpenChange={() => setEditingProperty(null)}>

@@ -180,6 +180,8 @@ El sidebar utiliza variables CSS propias para mantener contraste en navegación:
 - `destructive`: `bg-destructive/10 text-destructive hover:bg-destructive/20`
 - `link`: `text-primary underline-offset-4 hover:underline`
 
+**Botones de acción primaria**: Los botones para crear nueva entidad ("Nueva Propiedad", "Nueva Reserva", etc.) deben usar el tamaño **default** (`h-8`). No usar `size="sm"` en estos botones.
+
 ### Input
 
 | Property | Value |
@@ -261,6 +263,12 @@ El sidebar utiliza variables CSS propias para mantener contraste en navegación:
 | Border | `border-b` |
 | Background | `bg-background` |
 | Sticky | `sticky top-0 z-30` |
+
+**Theme Toggle**:
+- Icon: `Moon` (light mode) / `Sun` (dark mode)
+- Size: `h-5 w-5`
+- Position: Antes del icono de Bell
+- Implementation: `next-themes` con `useTheme()` hook
 
 ---
 
@@ -380,7 +388,17 @@ Usar siempre `p-4 lg:p-6` para contenido principal.
 
 ## Dark Mode Implementation
 
-El dark mode se activa con la clase `.dark` en el elemento html. Todas las variables CSS usan el patrón:
+El dark mode se activa con la clase `.dark` en el elemento html. El toggle está en el navbar (DashboardNavbar) y usa `next-themes`:
+
+```tsx
+// Toggle button
+const { theme, setTheme } = useTheme();
+<Button onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+  {theme === "dark" ? <Sun /> : <Moon />}
+</Button>
+```
+
+Todas las variables CSS usan el patrón:
 
 ```css
 :root {
@@ -398,6 +416,13 @@ Para elementos que requieren contraste específico (sidebar):
   --sidebar: oklch(0.2046 0 0);
   --sidebar-foreground: oklch(0.9219 0 0);
 }
+```
+
+**ThemeProvider setup** en `app/layout.tsx`:
+```tsx
+<ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+  {children}
+</ThemeProvider>
 ```
 
 ---
