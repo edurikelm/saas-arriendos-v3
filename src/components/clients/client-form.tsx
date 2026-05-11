@@ -14,7 +14,11 @@ interface ClientFormProps {
   onCancel?: () => void;
 }
 
-export function ClientForm({ initialData, onSubmit, onCancel }: ClientFormProps) {
+export function ClientForm({
+  initialData,
+  onSubmit,
+  onCancel,
+}: ClientFormProps) {
   const {
     register,
     handleSubmit,
@@ -33,33 +37,66 @@ export function ClientForm({ initialData, onSubmit, onCancel }: ClientFormProps)
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="name">Nombre *</Label>
-        <Input id="name" {...register("name")} placeholder="Juan Pérez" />
-        {errors.name && <p className="text-sm text-red-500">{errors.name.message}</p>}
+        <Label htmlFor="name">Nombre completo *</Label>
+        <Input
+          id="name"
+          {...register("name")}
+          placeholder="Juan Pérez"
+        />
+        {errors.name && (
+          <p className="text-sm text-red-500">{errors.name.message}</p>
+        )}
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="email">Email *</Label>
-        <Input id="email" type="email" {...register("email")} placeholder="juan@ejemplo.com" />
-        {errors.email && <p className="text-sm text-red-500">{errors.email.message}</p>}
+        <Label htmlFor="email">Correo electrónico *</Label>
+        <Input
+          id="email"
+          type="email"
+          {...register("email")}
+          placeholder="juan@ejemplo.com"
+        />
+        {errors.email && (
+          <p className="text-sm text-red-500">{errors.email.message}</p>
+        )}
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="phone">Teléfono</Label>
-        <Input id="phone" {...register("phone")} placeholder="+56 9 1234 5678" />
-        {errors.phone && <p className="text-sm text-red-500">{errors.phone.message}</p>}
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="rut">RUT</Label>
-        <Input id="rut" {...register("rut")} placeholder="12.345.678-9" />
-        {errors.rut && <p className="text-sm text-red-500">{errors.rut.message}</p>}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="phone">Teléfono</Label>
+          <Input
+            id="phone"
+            {...register("phone")}
+            placeholder="+56 9 1234 5678"
+          />
+          {errors.phone && (
+            <p className="text-sm text-red-500">{errors.phone.message}</p>
+          )}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="rut">RUT</Label>
+          <Input
+            id="rut"
+            {...register("rut")}
+            placeholder="12.345.678-9"
+          />
+          {errors.rut && (
+            <p className="text-sm text-red-500">{errors.rut.message}</p>
+          )}
+        </div>
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="notes">Notas</Label>
-        <Textarea id="notes" {...register("notes")} placeholder="Preferencias del cliente..." />
-        {errors.notes && <p className="text-sm text-red-500">{errors.notes.message}</p>}
+        <Textarea
+          id="notes"
+          {...register("notes")}
+          placeholder="Notas sobre el cliente..."
+          className="resize-none"
+        />
+        {errors.notes && (
+          <p className="text-sm text-red-500">{errors.notes.message}</p>
+        )}
       </div>
 
       <div className="flex justify-end gap-4">
