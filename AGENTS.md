@@ -1,5 +1,9 @@
 # RentalPro - Agents
 
+## Session Protocol
+
+**Before any work, read `CONTEXT.md`** — establishes domain language, data model, business rules, and tech stack. Every session starts here to ensure consistent understanding of the project.
+
 ## Agent skills
 
 ### Issue tracker

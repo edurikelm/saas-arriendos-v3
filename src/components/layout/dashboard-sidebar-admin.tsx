@@ -33,14 +33,14 @@ export function DashboardSidebarAdmin({ open, onClose }: DashboardSidebarAdminPr
       )}
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 h-screen w-64 bg-slate-900 text-white transition-transform duration-300 lg:z-40 lg:translate-x-0",
+          "fixed left-0 top-0 z-50 h-screen w-64 bg-sidebar text-sidebar-foreground transition-transform duration-300 lg:z-40 lg:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between p-6 lg:hidden">
             <h1 className="text-2xl font-bold">RentalPro Admin</h1>
-            <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-lg">
+            <button onClick={onClose} className="p-2 hover:bg-sidebar-accent rounded-lg">
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -58,7 +58,7 @@ export function DashboardSidebarAdmin({ open, onClose }: DashboardSidebarAdminPr
                   onClick={onClose}
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    isActive ? "bg-slate-800 text-white" : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                    isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   )}
                 >
                   <Icon className="h-5 w-5" />
@@ -67,14 +67,14 @@ export function DashboardSidebarAdmin({ open, onClose }: DashboardSidebarAdminPr
               );
             })}
             <div className="pt-4">
-              <div className="border-t border-slate-800 my-2" />
-              <p className="px-3 py-2 text-xs text-slate-500 uppercase tracking-wider">Próximamente</p>
+              <div className="border-t border-sidebar-border my-2" />
+              <p className="px-3 py-2 text-xs text-muted-foreground uppercase tracking-wider">Próximamente</p>
               {placeholderItems.map((item) => {
                 const Icon = item.icon;
                 return (
                   <div
                     key={item.label}
-                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 cursor-not-allowed"
+                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground cursor-not-allowed"
                   >
                     <Icon className="h-5 w-5" />
                     {item.label}

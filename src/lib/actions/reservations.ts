@@ -72,11 +72,14 @@ export async function getReservations(filters?: {
         },
       },
       payments: {
+        where: { deletedAt: null },
         select: {
           id: true,
           amount: true,
           status: true,
           method: true,
+          initPoint: true,
+          expiresAt: true,
         },
       },
     },
@@ -94,6 +97,8 @@ export async function getReservations(filters?: {
     payments: r.payments.map((p) => ({
       ...p,
       amount: String(p.amount),
+      initPoint: p.initPoint ? String(p.initPoint) : null,
+      expiresAt: p.expiresAt ? String(p.expiresAt) : null,
     })),
   }));
 }
@@ -127,10 +132,14 @@ export async function getReservationById(id: string) {
       dailyPrice: String(reservation.property.dailyPrice),
       monthlyPrice: reservation.property.monthlyPrice ? String(reservation.property.monthlyPrice) : null,
     },
-    payments: reservation.payments.map((p) => ({
-      ...p,
-      amount: String(p.amount),
-    })),
+    payments: reservation.payments
+      .filter((p) => !p.deletedAt)
+      .map((p) => ({
+        ...p,
+        amount: String(p.amount),
+        initPoint: p.initPoint ? String(p.initPoint) : null,
+        expiresAt: p.expiresAt ? String(p.expiresAt) : null,
+      })),
   };
 }
 

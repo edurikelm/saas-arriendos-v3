@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Calendar, Plus, Pencil, Trash2, Eye, Grid, List, Copy } from "lucide-react";
+import { Calendar, Plus, Pencil, Trash2, Eye, Grid, List, Copy, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -467,7 +467,7 @@ export default function ReservationsPage() {
                             )}
                           </div>
                           <div className="flex items-center gap-1">
-                            {payment.method === "MERCADO_PAGO" && payment.initPoint && (
+                            {payment.method === "MERCADO_PAGO" && payment.initPoint && payment.status === "PENDING" && !isExpired && (
                               <Button
                                 size="sm"
                                 variant="ghost"
@@ -478,6 +478,32 @@ export default function ReservationsPage() {
                                 }}
                               >
                                 <Copy className="h-3 w-3" />
+                              </Button>
+                            )}
+                            {payment.method === "MERCADO_PAGO" && isExpired && payment.status === "PENDING" && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-blue-600"
+                                onClick={async () => {
+                                  try {
+                                    const res = await fetch(`/api/payments/${payment.id}`, {
+                                      method: "POST",
+                                    });
+                                    const result = await res.json();
+                                    if (result.error) {
+                                      toast.error(result.error);
+                                      return;
+                                    }
+                                    toast.success("Link regenerado");
+                                    setViewingReservation(null);
+                                    fetchData();
+                                  } catch {
+                                    toast.error("Error al regenerar link");
+                                  }
+                                }}
+                              >
+                                <RefreshCw className="h-3 w-3" />
                               </Button>
                             )}
                             {payment.method !== "MERCADO_PAGO" && payment.status === "PENDING" && (
@@ -624,74 +650,69 @@ export default function ReservationsPage() {
                         </div>
                       )}
                       {paymentMethod === "MERCADO_PAGO" && (
-                        <div className="space-y-2">
-                          {!mpLink ? (
-                            <Button
-                              size="sm"
-                              onClick={async () => {
-                                setIsGeneratingLink(true);
-                                try {
-                                  const res = await fetch("/api/payments/generate-link", {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({
-                                      reservationId: viewingReservation.id,
-                                      amount: Number(paymentAmount),
-                                    }),
-                                  });
-                                  const result = await res.json();
-                                  if (result.error) {
-                                    toast.error(result.error);
-                                    return;
-                                  }
-                                  setMpLink(result.initPoint);
-                                } catch {
-                                  toast.error("Error al generar link");
-                                } finally {
-                                  setIsGeneratingLink(false);
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={async () => {
+                              if (!paymentAmount || Number(paymentAmount) <= 0) {
+                                toast.error("Ingresa un monto válido");
+                                return;
+                              }
+                              setIsGeneratingLink(true);
+                              try {
+                                const res = await fetch("/api/payments/generate-link", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    reservationId: viewingReservation.id,
+                                    amount: Number(paymentAmount),
+                                  }),
+                                });
+                                const result = await res.json();
+                                if (result.error) {
+                                  toast.error(result.error);
+                                  return;
                                 }
-                              }}
-                              disabled={isGeneratingLink || !paymentAmount}
-                            >
-                              {isGeneratingLink ? "Generando..." : "Generar Link de Pago"}
-                            </Button>
-                          ) : (
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  navigator.clipboard.writeText(mpLink);
-                                  toast.success("Link copiado");
-                                }}
-                              >
-                                Copiar Link
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => setMpLink(null)}
-                              >
-                                Cancelar
-                              </Button>
-                            </div>
-                          )}
+                                toast.success("Link generado - Copia el link desde el listado de pagos");
+                                setMpLink(null);
+                                setPaymentAmount("");
+                                const resRes = await fetch("/api/reservations");
+                                const data = await resRes.json();
+                                const updated = data.find((r: any) => r.id === viewingReservation.id);
+                                if (updated) setViewingReservation(updated);
+                              } catch {
+                                toast.error("Error al generar link");
+                              } finally {
+                                setIsGeneratingLink(false);
+                              }
+                            }}
+                            disabled={isGeneratingLink || !paymentAmount}
+                          >
+                            {isGeneratingLink ? "Generando..." : "Generar Link de Pago"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setShowPaymentForm(false);
+                              setMpLink(null);
+                              setPaymentAmount("");
+                            }}
+                          >
+                            Cancelar
+                          </Button>
                         </div>
                       )}
                       <div className="flex gap-2 pt-2">
                         <Button
                           size="sm"
                           onClick={async () => {
-                            if (paymentMethod === "MERCADO_PAGO" && mpLink) {
-                              toast.success("Pago registrado como pendiente");
-                              setShowPaymentForm(false);
-                              setMpLink(null);
-                              setPaymentAmount("");
-                              fetchData();
-                              return;
-                            }
                             if (!paymentAmount || Number(paymentAmount) <= 0) {
                               toast.error("Ingresa un monto válido");
+                              return;
+                            }
+                            if (paymentMethod === "MERCADO_PAGO") {
+                              toast.error("Primero genera el link de pago");
                               return;
                             }
                             setIsSubmittingPayment(true);
@@ -703,7 +724,7 @@ export default function ReservationsPage() {
                                   reservationId: viewingReservation.id,
                                   amount: Number(paymentAmount),
                                   method: paymentMethod,
-                                  status: paymentMethod === "MERCADO_PAGO" ? "PENDING" : paymentStatus,
+                                  status: paymentStatus,
                                 }),
                               });
                               const result = await res.json();
@@ -713,9 +734,7 @@ export default function ReservationsPage() {
                               }
                               toast.success("Pago registrado");
                               setShowPaymentForm(false);
-                              setMpLink(null);
                               setPaymentAmount("");
-                              setViewingReservation(null);
                               fetchData();
                             } catch {
                               toast.error("Error al registrar pago");
@@ -726,7 +745,7 @@ export default function ReservationsPage() {
                           disabled={
                             isSubmittingPayment ||
                             !paymentAmount ||
-                            (paymentMethod === "MERCADO_PAGO" && !mpLink)
+                            paymentMethod === "MERCADO_PAGO"
                           }
                         >
                           {isSubmittingPayment ? "Guardando..." : "Registrar Pago"}
