@@ -18,7 +18,7 @@ export async function getPaymentsByReservation(reservationId: string) {
   if (!reservation) return [];
 
   const payments = await prisma.payment.findMany({
-    where: { reservationId },
+    where: { reservationId, deletedAt: null },
     orderBy: { createdAt: "desc" },
   });
 
@@ -56,7 +56,7 @@ export async function getPayments(filters?: {
   }
 
   const payments = await prisma.payment.findMany({
-    where,
+    where: { ...where, deletedAt: null },
     include: {
       reservation: {
         select: {
@@ -84,11 +84,19 @@ export async function getPayments(filters?: {
   }));
 }
 
-export async function createPayment(data: PaymentInput) {
+export async function createPayment(data: unknown) {
   const session = await getSession();
   if (!session) return { error: "No autorizado" };
 
-  const validated = paymentSchema.parse(data);
+  let validated: PaymentInput;
+  try {
+    validated = paymentSchema.parse(data);
+  } catch (e: any) {
+    if (e.name === 'ZodError') {
+      return { error: "Datos inválidos", details: e.errors };
+    }
+    return { error: "Datos inválidos" };
+  }
 
   const reservation = await prisma.reservation.findFirst({
     where: { id: validated.reservationId, userId: session.userId },
@@ -106,6 +114,7 @@ export async function createPayment(data: PaymentInput) {
     where: {
       reservationId: validated.reservationId,
       status: { in: ["COMPLETED", "PENDING"] },
+      deletedAt: null,
     },
   });
 
@@ -118,12 +127,14 @@ export async function createPayment(data: PaymentInput) {
     };
   }
 
-  const payment = await prisma.payment.create({
+const payment = await prisma.payment.create({
     data: {
       reservationId: validated.reservationId,
       amount: validated.amount,
       method: validated.method as any,
       status: validated.status ?? "COMPLETED",
+      initPoint: validated.initPoint,
+      expiresAt: validated.expiresAt ? new Date(validated.expiresAt) : null,
     },
   });
 
@@ -167,6 +178,7 @@ export async function generateMercadoPagoLink(reservationId: string, amount?: nu
     where: {
       reservationId,
       status: { in: ["COMPLETED", "PENDING"] },
+      deletedAt: null,
     },
   });
 
@@ -218,6 +230,8 @@ export async function generateMercadoPagoLink(reservationId: string, amount?: nu
 
     console.log(`[MP GenerateLink] Mercado Pago link generated successfully for reservation ${reservationId}`);
 
+    const expirationDate = addDays(new Date(), 7);
+
     const payment = await prisma.payment.create({
       data: {
         reservationId,
@@ -225,6 +239,8 @@ export async function generateMercadoPagoLink(reservationId: string, amount?: nu
         method: "MERCADO_PAGO",
         status: "PENDING",
         mercadoPagoId: data.id,
+        initPoint: data.init_point,
+        expiresAt: expirationDate,
       },
     });
 
@@ -233,6 +249,7 @@ export async function generateMercadoPagoLink(reservationId: string, amount?: nu
       payment,
       initPoint: data.init_point,
       sandboxInitPoint: data.sandbox_init_point,
+      expiresAt: expirationDate.toISOString(),
     };
   } catch (error: any) {
     return { error: `Error al generar link: ${error.message}` };
@@ -247,7 +264,7 @@ export async function processMercadoPagoWebhook(payload: {
   const { id, status, external_reference } = payload;
 
   let payment = await prisma.payment.findFirst({
-    where: { mercadoPagoId: id },
+    where: { mercadoPagoId: id, deletedAt: null },
     include: {
       reservation: true,
     },
@@ -258,7 +275,7 @@ export async function processMercadoPagoWebhook(payload: {
 
     if (reservationId) {
       payment = await prisma.payment.findFirst({
-        where: { reservationId },
+        where: { reservationId, deletedAt: null },
         orderBy: { createdAt: "desc" },
         include: { reservation: true },
       });
@@ -300,6 +317,7 @@ export async function processMercadoPagoWebhook(payload: {
       where: {
         reservationId: payment.reservationId,
         status: { in: ["COMPLETED", "PENDING"] },
+        deletedAt: null,
       },
     });
 
@@ -317,7 +335,117 @@ export async function processMercadoPagoWebhook(payload: {
   return { success: true, status: newStatus };
 }
 
+export async function regeneratePaymentLink(id: string) {
+  const session = await getSession();
+  if (!session) return { error: "No autorizado" };
+
+  const payment = await prisma.payment.findFirst({
+    where: { id, deletedAt: null },
+    include: { reservation: { include: { client: true, property: true } } },
+  });
+
+  if (!payment) return { error: "Pago no encontrado" };
+
+  if (payment.reservation.userId !== session.userId) {
+    return { error: "No autorizado" };
+  }
+
+  if (payment.method !== "MERCADO_PAGO") {
+    return { error: "Solo pagos de Mercado Pago pueden regenerar links" };
+  }
+
+  if (!payment.expiresAt || new Date(payment.expiresAt) > new Date()) {
+    return { error: "El link actual aún no ha expirado" };
+  }
+
+  const userToken = await getMercadoPagoToken(session.userId);
+  const accessToken = userToken ?? process.env.MERCADOPAGO_ACCESS_TOKEN;
+
+  if (!accessToken) {
+    return { error: "Mercado Pago no está configurado" };
+  }
+
+  const externalReference = `${payment.reservation.id}:${Date.now()}`;
+  const description = `Reserva ${payment.reservation.property.name} - ${payment.reservation.client.name} (pago parcial)`;
+
+  try {
+    const response = await fetch("https://api.mercadopago.com/checkout/preferences", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        items: [
+          {
+            title: description,
+            description,
+            quantity: 1,
+            currency_id: "CLP",
+            unit_price: Number(payment.amount),
+          },
+        ],
+        external_reference: externalReference,
+        notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/mercadopago`,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      return { error: `Mercado Pago error: ${errorData.message || response.statusText}` };
+    }
+
+    const data = await response.json();
+
+    const expiresAtDate = data.expiration_date ? new Date(data.expiration_date) : addDays(new Date(), 7);
+
+    await prisma.payment.update({
+      where: { id },
+      data: {
+        initPoint: data.init_point,
+        expiresAt: expiresAtDate,
+        mercadoPagoId: data.id,
+      },
+    });
+
+    revalidatePath("/reservations");
+    revalidatePath(`/reservations/${payment.reservationId}`);
+
+    return { success: true, initPoint: data.init_point, sandboxInitPoint: data.sandbox_init_point };
+  } catch (error: any) {
+    return { error: `Error al regenerar link: ${error.message}` };
+  }
+}
+
 export async function deletePayment(id: string) {
+  const session = await getSession();
+  if (!session) return { error: "No autorizado" };
+
+  const payment = await prisma.payment.findFirst({
+    where: { id, deletedAt: null },
+    include: {
+      reservation: true,
+    },
+  });
+
+  if (!payment) return { error: "Pago no encontrado" };
+
+  if (payment.reservation.userId !== session.userId) {
+    return { error: "No autorizado" };
+  }
+
+  await prisma.payment.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+  });
+
+  revalidatePath("/reservations");
+  revalidatePath(`/reservations/${payment.reservationId}`);
+
+  return { success: true };
+}
+
+export async function restorePayment(id: string) {
   const session = await getSession();
   if (!session) return { error: "No autorizado" };
 
@@ -334,14 +462,15 @@ export async function deletePayment(id: string) {
     return { error: "No autorizado" };
   }
 
-  await prisma.payment.delete({
+  await prisma.payment.update({
     where: { id },
+    data: { deletedAt: null },
   });
 
   revalidatePath("/reservations");
   revalidatePath(`/reservations/${payment.reservationId}`);
 
-  return { success: true };
+return { success: true };
 }
 
 export async function updatePayment(id: string, data: { status: "COMPLETED" | "PENDING" }) {
@@ -349,7 +478,7 @@ export async function updatePayment(id: string, data: { status: "COMPLETED" | "P
   if (!session) return { error: "No autorizado" };
 
   const payment = await prisma.payment.findFirst({
-    where: { id },
+    where: { id, deletedAt: null },
     include: { reservation: true },
   });
 
@@ -377,6 +506,7 @@ export async function updatePayment(id: string, data: { status: "COMPLETED" | "P
       where: {
         reservationId: payment.reservationId,
         status: { in: ["COMPLETED", "PENDING"] },
+        deletedAt: null,
       },
     });
 

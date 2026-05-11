@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { getClientById, updateClient, deleteClient } from "@/lib/actions/clients";
-import { clientSchema } from "@/lib/validations/client";
 
 export async function GET(
   request: Request,
@@ -28,8 +27,7 @@ export async function PUT(
   try {
     const { id } = await params;
     const data = await request.json();
-    const validated = clientSchema.parse(data);
-    const result = await updateClient(id, validated);
+    const result = await updateClient(id, data);
 
     if (result?.error) {
       return NextResponse.json({ error: result.error }, { status: 400 });
@@ -37,9 +35,6 @@ export async function PUT(
 
     return NextResponse.json(result);
   } catch (error: any) {
-    if (error.name === "ZodError") {
-      return NextResponse.json({ error: "Datos inválidos", details: error.errors }, { status: 400 });
-    }
     console.error("Error updating client:", error);
     return NextResponse.json({ error: "Error al actualizar cliente" }, { status: 500 });
   }

@@ -4,7 +4,8 @@
 
 ## Consumer rules
 
-- `improve-codebase-architecture`, `diagnose`, `tdd` → read `CONTEXT.md` to learn domain language
+- **Every session** → read `CONTEXT.md` before any work to learn domain language and project conventions
+- `improve-codebase-architecture`, `diagnose`, `tdd` → additionally read `docs/adr/` for past decisions
 - `grill-with-docs` → also reads `docs/adr/` for past decisions
 - `CONTEXT.md` uses terms as defined in the domain glossary — do not introduce implementation jargon there
 

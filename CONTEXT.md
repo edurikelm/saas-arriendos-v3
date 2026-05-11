@@ -32,7 +32,8 @@ Sistema SaaS para gestión de arriendos de propiedades.
 - `mercado_pago_id?` — para tracking de webhook
 
 ### ReservationChange (Auditoría de Cambios)
-- Registra: `{field, old_value, new_value, created_at}` por cada modificación
+- Registra por **cada campo modificado**: `{field, old_value, new_value, created_at}`
+- Incluye auditoría de: fechas, estado, cliente, propiedad, billing type, notas
 
 ## Reglas de Negocio
 

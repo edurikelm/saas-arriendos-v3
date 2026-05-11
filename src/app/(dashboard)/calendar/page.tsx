@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CalendarGrid } from "@/components/calendar/calendar-grid";
 import { CalendarTimeline } from "@/prototypes/calendar-prototypes";
-import type { CalendarReservation } from "@/lib/actions/calendar";
+import type { CalendarReservation } from "@/lib/actions/reservations";
 
 function getNights(startDate: string, endDate: string): number {
   const diff = new Date(endDate).getTime() - new Date(startDate).getTime();
