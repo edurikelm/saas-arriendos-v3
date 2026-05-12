@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getSession } from "@/lib/actions/auth";
 import { reservationSchema, reservationUpdateSchema, type ReservationInput, type ReservationUpdateInput } from "@/lib/validations/reservation";
 import { revalidatePath } from "next/cache";
-import { addDays, addMonths, differenceInDays, differenceInMonths, startOfDay, endOfDay } from "date-fns";
+import { addDays, differenceInDays, differenceInMonths, startOfDay, endOfDay } from "date-fns";
 
 export type CalendarReservation = {
   id: string;
@@ -148,12 +148,11 @@ function calculateTotalPrice(
   billingType: "DAILY" | "MONTHLY",
   startDate: Date,
   endDate: Date,
-  unitsBooked: number,
-  months?: number
+  unitsBooked: number
 ): number {
   if (billingType === "MONTHLY") {
-    const monthsCount = months || Math.max(1, differenceInMonths(endDate, startDate));
-    return Number(property.monthlyPrice || 0) * monthsCount * unitsBooked;
+    const months = Math.max(1, differenceInMonths(endDate, startDate));
+    return Number(property.monthlyPrice || 0) * months * unitsBooked;
   }
 
   const nights = differenceInDays(endDate, startDate);
@@ -276,67 +275,31 @@ export async function createReservation(data: unknown) {
     validated.billingType,
     startDate,
     endDate,
-    validated.unitsBooked,
-    validated.months
+    validated.unitsBooked
   );
 
-  const months = validated.billingType === "MONTHLY" ? (validated.months || 1) : 0;
-
-  const result = await prisma.$transaction(async (tx) => {
-    const reservation = await tx.reservation.create({
-      data: {
-        userId: session.userId,
-        propertyId: validated.propertyId,
-        clientId: validated.clientId,
-        startDate,
-        endDate,
-        billingType: validated.billingType,
-        unitsBooked: validated.unitsBooked,
-        totalPrice,
-        status: "PENDING",
-        bookingAirbnb: validated.bookingAirbnb,
-        notes: validated.notes ?? null,
-      },
-    });
-
-    await tx.reservationChange.create({
-      data: {
-        reservationId: reservation.id,
-        field: "created",
-        oldValue: null,
-        newValue: "Reservation created",
-      },
-    });
-
-    if (validated.billingType === "MONTHLY" && months > 0) {
-      const monthlyAmount = property.monthlyPrice || 0;
-      const payments = [];
-
-      for (let i = 1; i <= months; i++) {
-        const monthStart = addMonths(startDate, i - 1);
-        const lastDayOfMonth = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0, 23, 59, 59);
-
-        await tx.payment.create({
-          data: {
-            reservationId: reservation.id,
-            amount: monthlyAmount,
-            method: "CASH",
-            status: "PENDING",
-            expiresAt: lastDayOfMonth,
-            monthNumber: i,
-            totalMonths: months,
-          },
-        });
-      }
-    }
-
-    return reservation;
+  const reservation = await prisma.reservation.create({
+    data: {
+      userId: session.userId,
+      propertyId: validated.propertyId,
+      clientId: validated.clientId,
+      startDate,
+      endDate,
+      billingType: validated.billingType,
+      unitsBooked: validated.unitsBooked,
+      totalPrice,
+      status: "PENDING",
+      bookingAirbnb: validated.bookingAirbnb,
+      notes: validated.notes ?? null,
+    },
   });
+
+  await logChange(reservation.id, "created", null, "Reservation created");
 
   revalidatePath("/reservations");
   revalidatePath("/calendar");
 
-  return { success: true, reservation: result };
+  return { success: true, reservation };
 }
 
 export async function updateReservation(id: string, data: unknown) {

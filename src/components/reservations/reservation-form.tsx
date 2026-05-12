@@ -65,17 +65,6 @@ export function ReservationForm({
     to: initialData?.endDate ? new Date(initialData.endDate) : undefined,
   });
 
-  const [months, setMonths] = React.useState<number | undefined>(
-    initialData?.months || undefined
-  );
-
-  const calculateEndDate = (start: Date, m: number): Date => {
-    const end = new Date(start);
-    end.setMonth(end.getMonth() + m);
-    end.setDate(end.getDate() - 1);
-    return end;
-  };
-
   const {
     register,
     handleSubmit,
@@ -93,35 +82,13 @@ export function ReservationForm({
       unitsBooked: initialData?.unitsBooked || 1,
       bookingAirbnb: initialData?.bookingAirbnb || false,
       notes: initialData?.notes || "",
-      months: initialData?.months,
     },
   });
-
-  const billingType = watch("billingType");
-  const isMonthly = billingType === "MONTHLY";
-
-  const endDate = isMonthly && dateRange.from && months
-    ? calculateEndDate(dateRange.from, months)
-    : dateRange.to;
 
   const handleDateRangeChange = (date: { from: Date | undefined; to: Date | undefined }) => {
     setDateRange(date);
     setValue("startDate", date.from ? formatDateForInput(date.from) : "");
     setValue("endDate", date.to ? formatDateForInput(date.to) : "");
-    if (isMonthly && date.from && months) {
-      const end = calculateEndDate(date.from, months);
-      setValue("endDate", formatDateForInput(end));
-    }
-  };
-
-  const handleMonthsChange = (value: number | undefined) => {
-    setMonths(value);
-    setValue("months", value);
-    if (dateRange.from && value) {
-      const end = calculateEndDate(dateRange.from, value);
-      setDateRange((prev) => ({ ...prev, to: end }));
-      setValue("endDate", formatDateForInput(end));
-    }
   };
 
   const selectedPropertyId = watch("propertyId");
@@ -196,147 +163,71 @@ export function ReservationForm({
         )}
       </div>
 
-      {!isMonthly ? (
-        <div className="space-y-2">
-          <Label>Fechas de Estadía *</Label>
-          <DateRangePicker
-            date={dateRange}
-            onDateChange={handleDateRangeChange}
-            className="w-full"
-            blockedDates={blockedDates}
-          />
-          {(errors.startDate || errors.endDate) && (
-            <p className="text-sm text-red-500">
-              {errors.startDate?.message || errors.endDate?.message}
-            </p>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-2">
-          <Label>Fecha de Inicio *</Label>
-          <DateRangePicker
-            date={{ from: dateRange.from, to: undefined }}
-            onDateChange={(date) => {
-              setDateRange({ from: date.from, to: undefined });
-              setValue("startDate", date.from ? formatDateForInput(date.from) : "");
-              if (months && date.from) {
-                const end = calculateEndDate(date.from, months);
-                setDateRange({ from: date.from, to: end });
-                setValue("endDate", formatDateForInput(end));
-              } else {
-                setValue("endDate", "");
-              }
-            }}
-            className="w-full"
-            blockedDates={blockedDates}
-          />
-          {errors.startDate && (
-            <p className="text-sm text-red-500">{errors.startDate.message}</p>
-          )}
-        </div>
-      )}
-
-      {isMonthly && (
-        <div className="space-y-2">
-          <Label htmlFor="months">Cantidad de Meses *</Label>
-          <Input
-            id="months"
-            type="number"
-            min={1}
-            max={12}
-            value={months || ""}
-            onChange={(e) => {
-              const val = e.target.value ? Number(e.target.value) : undefined;
-              handleMonthsChange(val);
-            }}
-            placeholder="Ej: 3"
-          />
-          {errors.months && (
-            <p className="text-sm text-red-500">{errors.months.message}</p>
-          )}
-        </div>
-      )}
+      <div className="space-y-2">
+        <Label>Fechas de Estadía *</Label>
+        <DateRangePicker
+          date={dateRange}
+          onDateChange={handleDateRangeChange}
+          className="w-full"
+          blockedDates={blockedDates}
+        />
+        {(errors.startDate || errors.endDate) && (
+          <p className="text-sm text-red-500">
+            {errors.startDate?.message || errors.endDate?.message}
+          </p>
+        )}
+      </div>
 
       <div className="space-y-2">
         <Label>Tipo de Facturación *</Label>
         <div className="flex gap-3">
           <button
             type="button"
-            onClick={() => {
-              setValue("billingType", "DAILY");
-              setMonths(undefined);
-              setValue("months", undefined);
-            }}
+            onClick={() => setValue("billingType", "DAILY")}
             className={`flex-1 h-14 rounded-lg border-2 transition-all flex flex-col items-center justify-center gap-0.5 ${
-              !isMonthly
+              watch("billingType") === "DAILY"
                 ? "border-primary bg-primary/10 text-primary"
                 : "border-border"
             }`}
           >
             <span className="text-xs font-medium">Diario</span>
-            <span className={`text-sm font-bold ${!isMonthly ? "text-primary" : "text-foreground"}`}>
+            <span className={`text-sm font-bold ${watch("billingType") === "DAILY" ? "text-primary" : "text-foreground"}`}>
               ${selectedProperty ? Number(selectedProperty.dailyPrice).toLocaleString("CLP") : "—"}
             </span>
           </button>
           <button
             type="button"
-            onClick={() => {
-              if (!selectedProperty?.monthlyPrice) return;
-              setValue("billingType", "MONTHLY");
-            }}
-            disabled={!selectedProperty?.monthlyPrice}
+            onClick={() => setValue("billingType", "MONTHLY")}
             className={`flex-1 h-14 rounded-lg border-2 transition-all flex flex-col items-center justify-center gap-0.5 ${
-              isMonthly
+              watch("billingType") === "MONTHLY"
                 ? "border-primary bg-primary/10 text-primary"
                 : "border-border"
-            } ${!selectedProperty?.monthlyPrice ? "opacity-50 cursor-not-allowed" : ""}`}
+            }`}
           >
             <span className="text-xs font-medium">Mensual</span>
-            <span className={`text-sm font-bold ${isMonthly ? "text-primary" : "text-foreground"}`}>
-              ${selectedProperty?.monthlyPrice ? Number(selectedProperty.monthlyPrice).toLocaleString("CLP") : "—"}
+            <span className={`text-sm font-bold ${watch("billingType") === "MONTHLY" ? "text-primary" : "text-foreground"}`}>
+              ${selectedProperty ? Number(selectedProperty.monthlyPrice).toLocaleString("CLP") : "—"}
             </span>
           </button>
         </div>
         {errors.billingType && (
           <p className="text-sm text-red-500">{errors.billingType.message}</p>
         )}
-        {!selectedProperty?.monthlyPrice && selectedProperty && (
-          <p className="text-xs text-muted-foreground">
-            Esta propiedad no tiene precio mensual configurado
-          </p>
-        )}
       </div>
 
-      {selectedProperty && dateRange.from && endDate && (
+      {selectedProperty && dateRange.from && dateRange.to && (
         <div className="rounded-lg bg-muted p-4 space-y-1">
-          {isMonthly && months ? (
-            <>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Total reserva</span>
-                <span className="font-medium">{months} mes(es) × {watch("unitsBooked") || 1} unidad(es)</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Período</span>
-                <span className="font-medium">
-                  {dateRange.from.toLocaleDateString("es-CL")} → {endDate.toLocaleDateString("es-CL")}
-                </span>
-              </div>
-            </>
-          ) : !isMonthly ? (
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Total reserva</span>
-              <span className="font-medium">{Math.ceil((dateRange.to!.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24)) + 1} noches × {watch("unitsBooked") || 1} unidad(es)</span>
-            </div>
-          ) : null}
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Total reserva</span>
+            <span className="font-medium">{Math.ceil((dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24)) + 1} noches × {watch("unitsBooked") || 1} unidad(es)</span>
+          </div>
           <div className="flex justify-between items-baseline">
             <span className="text-sm text-muted-foreground">Monto total</span>
             <span className="text-2xl font-bold text-primary">
               ${(
-                isMonthly && months
-                  ? months * Number(selectedProperty.monthlyPrice) * (watch("unitsBooked") || 1)
-                  : (Math.ceil((dateRange.to!.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24)) + 1) *
-                    Number(selectedProperty.dailyPrice) *
-                    (watch("unitsBooked") || 1)
+                (Math.ceil((dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24)) + 1) *
+                (watch("billingType") === "DAILY" ? Number(selectedProperty.dailyPrice) : Number(selectedProperty.monthlyPrice)) *
+                (watch("unitsBooked") || 1)
               ).toLocaleString("CLP")}
             </span>
           </div>

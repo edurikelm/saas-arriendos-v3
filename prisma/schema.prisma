@@ -147,8 +147,6 @@ model Payment {
   initPoint       String?
   expiresAt      DateTime?
   deletedAt      DateTime?
-  monthNumber    Int?
-  totalMonths    Int?
   createdAt       DateTime      @default(now())
 
   reservation Reservation @relation(fields: [reservationId], references: [id])
