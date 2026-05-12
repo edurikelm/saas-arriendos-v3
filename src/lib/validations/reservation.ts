@@ -41,6 +41,17 @@ export const reservationSchema = z.object({
   unitsBooked: z.number().min(1, "Debe reservar al menos 1 unidad"),
   bookingAirbnb: z.boolean().default(false),
   notes: z.string().optional().nullable(),
+  months: z.number().optional(),
+}).superRefine((data, ctx) => {
+  if (data.billingType === "MONTHLY") {
+    if (!data.months || data.months < 1 || data.months > 12) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Para arriendos mensuales debe ingresar entre 1 y 12 meses",
+        path: ["months"],
+      });
+    }
+  }
 });
 
 export const reservationUpdateSchema = z.object({
