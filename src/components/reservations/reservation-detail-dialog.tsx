@@ -6,11 +6,13 @@ import {
   User,
   CreditCard,
   CheckCircle2,
+  Check,
   Copy,
   RefreshCw,
   Plus,
   Trash2,
   FileText,
+  Undo2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { confirmPayment, revertPayment } from "@/lib/actions/payments";
 
 interface Payment {
   id: string;
@@ -138,12 +141,14 @@ function PaymentItem({
   onRegenerateLink,
   onConfirmPayment,
   onDeletePayment,
+  onRevertPayment,
 }: {
   payment: Payment;
   onCopyLink?: () => void;
   onRegenerateLink?: () => void;
   onConfirmPayment?: () => void;
   onDeletePayment?: () => void;
+  onRevertPayment?: () => void;
 }) {
   const isExpired =
     payment.expiresAt &&
@@ -174,7 +179,7 @@ function PaymentItem({
           </p>
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1">
         <p className="font-medium text-sm">{formatPrice(payment.amount)}</p>
         {payment.method === "MERCADO_PAGO" &&
           payment.initPoint &&
@@ -196,10 +201,15 @@ function PaymentItem({
         {payment.method !== "MERCADO_PAGO" &&
           payment.status === "PENDING" &&
           onConfirmPayment && (
-            <Button size="sm" variant="ghost" className="text-green-600 h-7 px-2" onClick={onConfirmPayment}>
-              Confirmar
+            <Button size="icon-xs" variant="ghost" className="h-7 w-7 text-green-600" onClick={onConfirmPayment}>
+              <Check className="h-3 w-3" />
             </Button>
           )}
+        {payment.status === "COMPLETED" && onRevertPayment && (
+          <Button size="icon-xs" variant="ghost" className="h-7 w-7 text-orange-600" onClick={onRevertPayment}>
+            <Undo2 className="h-3 w-3" />
+          </Button>
+        )}
         {onDeletePayment && (
           <Button size="icon-xs" variant="ghost" className="h-7 w-7 text-red-600" onClick={onDeletePayment}>
             <Trash2 className="h-3 w-3" />
@@ -384,23 +394,24 @@ export function ReservationDetailDialog({
   };
 
   const handleConfirmPayment = async (paymentId: string) => {
-    try {
-      const res = await fetch(`/api/payments/${paymentId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "COMPLETED" }),
-      });
-      const result = await res.json();
-      if (result.error) {
-        toast.error(result.error);
-        return;
-      }
-      toast.success("Pago confirmado");
-      onRefresh?.(reservation.id);
-      onConfirmPayment?.(paymentId);
-    } catch {
-      toast.error("Error al confirmar pago");
+    const result = await confirmPayment(paymentId);
+    if (result?.error) {
+      toast.error(result.error);
+      return;
     }
+    toast.success("Pago confirmado");
+    onRefresh?.(reservation.id);
+    onConfirmPayment?.(paymentId);
+  };
+
+  const handleRevertPayment = async (paymentId: string) => {
+    const result = await revertPayment(paymentId);
+    if (result?.error) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success("Pago revertido a pendiente");
+    onRefresh?.(reservation.id);
   };
 
   const handleDeletePayment = (paymentId: string) => {
@@ -584,6 +595,7 @@ onRefresh?.(reservation.id);
                 onRegenerateLink={() => handleRegenerateLink(payment.id)}
                 onConfirmPayment={() => handleConfirmPayment(payment.id)}
                 onDeletePayment={() => handleDeletePayment(payment.id)}
+                onRevertPayment={() => handleRevertPayment(payment.id)}
               />
             ))}
           </div>

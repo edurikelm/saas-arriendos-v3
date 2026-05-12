@@ -148,7 +148,7 @@ const payment = await prisma.payment.create({
   revalidatePath("/reservations");
   revalidatePath(`/reservations/${validated.reservationId}`);
 
-  return { success: true, payment };
+  return { success: true, payment: { ...payment, amount: String(payment.amount) } };
 }
 
 export async function generateMercadoPagoLink(reservationId: string, amount?: number) {
@@ -523,5 +523,13 @@ export async function updatePayment(id: string, data: { status: "COMPLETED" | "P
   revalidatePath("/reservations");
   revalidatePath(`/reservations/${payment.reservationId}`);
 
-  return { success: true, payment: updated };
+  return { success: true, payment: { ...updated, amount: String(updated.amount) } };
+}
+
+export async function revertPayment(id: string) {
+  return updatePayment(id, { status: "PENDING" });
+}
+
+export async function confirmPayment(id: string) {
+  return updatePayment(id, { status: "COMPLETED" });
 }

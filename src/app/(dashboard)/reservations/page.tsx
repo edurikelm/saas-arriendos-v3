@@ -414,7 +414,10 @@ export default function ReservationsPage() {
             if (res.ok) {
               const data = await res.json();
               const updated = data.find((r: any) => r.id === reservationId);
-              if (updated) setViewingReservation(updated);
+              if (updated) {
+                setReservations(data);
+                setViewingReservation(updated);
+              }
             }
           }}
         />
