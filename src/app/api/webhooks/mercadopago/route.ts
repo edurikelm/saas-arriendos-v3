@@ -44,18 +44,37 @@ async function getPaymentStatus(paymentId: string): Promise<{ status: string; ex
 
 export async function POST(request: Request) {
   try {
-    const payload: MercadoPagoWebhookPayload = await request.json();
+    let payload: MercadoPagoWebhookPayload;
+    let paymentId: string;
+    let action: string;
 
-    if (!payload.action || !payload.data?.id) {
-      return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+    const contentType = request.headers.get("content-type") || "";
+    const url = new URL(request.url);
+
+    if (contentType.includes("application/json") && url.searchParams.has("id")) {
+      const id = url.searchParams.get("id");
+      const topic = url.searchParams.get("topic");
+
+      if (!id || !topic) {
+        return NextResponse.json({ error: "Missing id or topic" }, { status: 400 });
+      }
+
+      action = topic;
+      paymentId = id;
+      console.log(`Mercado Pago webhook via query: topic=${topic}, id=${id}`);
+    } else {
+      payload = await request.json();
+
+      if (!payload.action || !payload.data?.id) {
+        return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+      }
+
+      action = payload.action;
+      paymentId = payload.data.id;
+      console.log(`Mercado Pago webhook via body: action=${action}, paymentId=${paymentId}`);
     }
 
-    const action = payload.action;
-    const paymentId = payload.data.id;
-
-    console.log(`Mercado Pago webhook received: action=${action}, paymentId=${paymentId}`);
-
-    if (action.startsWith("payment.")) {
+    if (action === "payment" || action.startsWith("payment.")) {
       const paymentInfo = await getPaymentStatus(paymentId);
 
       if (!paymentInfo) {
@@ -72,14 +91,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ received: true, result });
     }
 
-    if (action.startsWith("merchant_order.")) {
+    if (action === "merchant_order" || action.startsWith("merchant_order.")) {
       if (!process.env.MERCADOPAGO_ACCESS_TOKEN) {
         return NextResponse.json({ error: "No token configured" }, { status: 500 });
       }
 
-      const merchantOrderId = payload.data.id;
-
-      const response = await fetch(`https://api.mercadopago.com/merchant_orders/${merchantOrderId}`, {
+      const response = await fetch(`https://api.mercadopago.com/merchant_orders/${paymentId}`, {
         headers: {
           Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}`,
         },

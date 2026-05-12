@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Calendar, Plus, Pencil, Trash2, Eye, Grid, List } from "lucide-react";
+import { Calendar, Plus, Pencil, Trash2, Eye, Grid, List, Copy, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { ReservationForm } from "@/components/reservations/reservation-form";
-import { ReservationTable } from "@/prototypes/reservation-card-prototypes";
+import { ReservationDetailDialog } from "@/components/reservations/reservation-detail-dialog";
+import { ReservationTable } from "@/components/reservations/reservation-table";
 import { toast } from "sonner";
 import type { ReservationInput } from "@/lib/validations/reservation";
 
@@ -44,6 +45,9 @@ interface Reservation {
     amount: string;
     status: string;
     method: string;
+    initPoint?: string | null;
+    expiresAt?: string | null;
+    deletedAt?: string | null;
   }>;
 }
 
@@ -390,308 +394,31 @@ export default function ReservationsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!viewingReservation} onOpenChange={() => setViewingReservation(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Detalle de Reserva</DialogTitle>
-          </DialogHeader>
-          {viewingReservation && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-muted-foreground">Propiedad</p>
-                  <p className="font-medium">{viewingReservation.property.name}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Cliente</p>
-                  <p className="font-medium">{viewingReservation.client.name}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Fechas</p>
-                  <p className="font-medium">
-                    {formatDate(viewingReservation.startDate)} - {formatDate(viewingReservation.endDate)}
-                    <span className="text-muted-foreground ml-1">
-                      ({getNights(viewingReservation.startDate, viewingReservation.endDate)} noches)
-                    </span>
-                  </p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Estado</p>
-                  <Badge variant={statusLabels[viewingReservation.status]?.variant}>
-                    {statusLabels[viewingReservation.status]?.label}
-                  </Badge>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Tipo</p>
-                  <p className="font-medium">
-                    {viewingReservation.billingType === "DAILY" ? "Diario" : "Mensual"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Unidades</p>
-                  <p className="font-medium">{viewingReservation.unitsBooked}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Total</p>
-                  <p className="font-medium">${Number(viewingReservation.totalPrice).toLocaleString("CLP")}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Booking Airbnb</p>
-                  <p className="font-medium">{viewingReservation.bookingAirbnb ? "Sí" : "No"}</p>
-                </div>
-              </div>
-              {viewingReservation.notes && (
-                <div>
-                  <p className="text-muted-foreground">Notas</p>
-                  <p className="font-medium">{viewingReservation.notes}</p>
-                </div>
-              )}
-              {viewingReservation.payments.length > 0 && (
-                <div>
-                  <p className="text-muted-foreground mb-2">Pagos</p>
-                  <div className="space-y-2">
-                    {viewingReservation.payments.map((payment) => (
-                      <div key={payment.id} className="flex justify-between items-center text-sm border-b pb-2">
-                        <div className="flex items-center gap-2">
-                          <span>{payment.method}</span>
-                          <span className={payment.status === "COMPLETED" ? "text-green-600" : "text-orange-600"}>
-                            ${Number(payment.amount).toLocaleString("CLP")} ({payment.status})
-                          </span>
-                        </div>
-                        {payment.method !== "MERCADO_PAGO" && payment.status === "PENDING" && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-green-600 h-7 px-2"
-                            onClick={async () => {
-                              try {
-                                const res = await fetch(`/api/payments/${payment.id}`, {
-                                  method: "PATCH",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ status: "COMPLETED" }),
-                                });
-                                const result = await res.json();
-                                if (result.error) {
-                                  toast.error(result.error);
-                                  return;
-                                }
-                                toast.success("Pago confirmado");
-                                setViewingReservation(null);
-                                fetchData();
-                              } catch {
-                                toast.error("Error al confirmar pago");
-                              }
-                            }}
-                          >
-                            Confirmar
-                          </Button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {viewingReservation.status !== "CANCELLED" && (
-                <div className="border-t pt-4 mt-4">
-                  {!showPaymentForm ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const completed = viewingReservation.payments
-                          .filter((p) => p.status === "COMPLETED")
-                          .reduce((sum, p) => sum + Number(p.amount), 0);
-                        const pending = Number(viewingReservation.totalPrice) - completed;
-                        setPaymentAmount(pending > 0 ? pending.toString() : "");
-                        setShowPaymentForm(true);
-                        setMpLink(null);
-                      }}
-                    >
-                      <Plus className="h-4 w-4 mr-1" />
-                      Registrar Pago
-                    </Button>
-                  ) : (
-                    <div className="space-y-3 bg-muted/50 p-3 rounded-lg">
-                      <p className="font-medium text-sm">Nuevo Pago</p>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="text-xs text-muted-foreground">Monto</label>
-                          <input
-                            type="number"
-                            value={paymentAmount}
-                            onChange={(e) => setPaymentAmount(e.target.value)}
-                            max={(() => {
-                              const completed = viewingReservation.payments
-                                .filter((p) => p.status === "COMPLETED")
-                                .reduce((sum, p) => sum + Number(p.amount), 0);
-                              return Number(viewingReservation.totalPrice) - completed;
-                            })()}
-                            min="0"
-                            step="100"
-                            className="w-full mt-1 h-9 rounded-md border border-input bg-white px-3 text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-muted-foreground">Método</label>
-                          <select
-                            value={paymentMethod}
-                            onChange={(e) => setPaymentMethod(e.target.value as any)}
-                            className="w-full mt-1 h-9 rounded-md border border-input bg-white px-3 text-sm"
-                          >
-                            <option value="CASH">Efectivo</option>
-                            <option value="TRANSFER">Transferencia</option>
-                            <option value="MERCADO_PAGO">Mercado Pago</option>
-                          </select>
-                        </div>
-                      </div>
-                      {paymentMethod !== "MERCADO_PAGO" && (
-                        <div className="flex gap-4">
-                          <label className="flex items-center gap-2 text-sm">
-                            <input
-                              type="radio"
-                              checked={paymentStatus === "COMPLETED"}
-                              onChange={() => setPaymentStatus("COMPLETED")}
-                            />
-                            Completado
-                          </label>
-                          <label className="flex items-center gap-2 text-sm">
-                            <input
-                              type="radio"
-                              checked={paymentStatus === "PENDING"}
-                              onChange={() => setPaymentStatus("PENDING")}
-                            />
-                            Pendiente
-                          </label>
-                        </div>
-                      )}
-                      {paymentMethod === "MERCADO_PAGO" && (
-                        <div className="space-y-2">
-                          {!mpLink ? (
-                            <Button
-                              size="sm"
-                              onClick={async () => {
-                                setIsGeneratingLink(true);
-                                try {
-                                  const res = await fetch("/api/payments/generate-link", {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({
-                                      reservationId: viewingReservation.id,
-                                      amount: Number(paymentAmount),
-                                    }),
-                                  });
-                                  const result = await res.json();
-                                  if (result.error) {
-                                    toast.error(result.error);
-                                    return;
-                                  }
-                                  setMpLink(result.initPoint);
-                                } catch {
-                                  toast.error("Error al generar link");
-                                } finally {
-                                  setIsGeneratingLink(false);
-                                }
-                              }}
-                              disabled={isGeneratingLink || !paymentAmount}
-                            >
-                              {isGeneratingLink ? "Generando..." : "Generar Link de Pago"}
-                            </Button>
-                          ) : (
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  navigator.clipboard.writeText(mpLink);
-                                  toast.success("Link copiado");
-                                }}
-                              >
-                                Copiar Link
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => setMpLink(null)}
-                              >
-                                Cancelar
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      <div className="flex gap-2 pt-2">
-                        <Button
-                          size="sm"
-                          onClick={async () => {
-                            if (paymentMethod === "MERCADO_PAGO" && mpLink) {
-                              toast.success("Pago registrado como pendiente");
-                              setShowPaymentForm(false);
-                              setMpLink(null);
-                              setPaymentAmount("");
-                              fetchData();
-                              return;
-                            }
-                            if (!paymentAmount || Number(paymentAmount) <= 0) {
-                              toast.error("Ingresa un monto válido");
-                              return;
-                            }
-                            setIsSubmittingPayment(true);
-                            try {
-                              const res = await fetch("/api/payments", {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({
-                                  reservationId: viewingReservation.id,
-                                  amount: Number(paymentAmount),
-                                  method: paymentMethod,
-                                  status: paymentMethod === "MERCADO_PAGO" ? "PENDING" : paymentStatus,
-                                }),
-                              });
-                              const result = await res.json();
-                              if (result.error) {
-                                toast.error(result.error);
-                                return;
-                              }
-                              toast.success("Pago registrado");
-                              setShowPaymentForm(false);
-                              setMpLink(null);
-                              setPaymentAmount("");
-                              setViewingReservation(null);
-                              fetchData();
-                            } catch {
-                              toast.error("Error al registrar pago");
-                            } finally {
-                              setIsSubmittingPayment(false);
-                            }
-                          }}
-                          disabled={
-                            isSubmittingPayment ||
-                            !paymentAmount ||
-                            (paymentMethod === "MERCADO_PAGO" && !mpLink)
-                          }
-                        >
-                          {isSubmittingPayment ? "Guardando..." : "Registrar Pago"}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setShowPaymentForm(false);
-                            setMpLink(null);
-                            setPaymentAmount("");
-                          }}
-                        >
-                          Cancelar
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {viewingReservation && (
+        <ReservationDetailDialog
+          reservation={viewingReservation}
+          open={!!viewingReservation}
+          onClose={() => setViewingReservation(null)}
+          onEdit={() => {
+            setViewingReservation(null);
+            setEditingReservation(viewingReservation);
+          }}
+          onCancel={() => {
+            if (!viewingReservation) return;
+            if (!confirm("¿Estás seguro de cancelar esta reserva?")) return;
+            handleCancel(viewingReservation.id);
+            setViewingReservation(null);
+          }}
+          onRefresh={async (reservationId) => {
+            const res = await fetch("/api/reservations");
+            if (res.ok) {
+              const data = await res.json();
+              const updated = data.find((r: any) => r.id === reservationId);
+              if (updated) setViewingReservation(updated);
+            }
+          }}
+        />
+      )}
 
       <Dialog open={!!editingReservation} onOpenChange={() => setEditingReservation(null)}>
         <DialogContent className="max-w-2xl">

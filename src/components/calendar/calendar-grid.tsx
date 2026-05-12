@@ -19,7 +19,7 @@ import { es } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { CalendarReservation } from "@/lib/actions/calendar";
+import type { CalendarReservation } from "@/lib/actions/reservations";
 
 function getContrastColor(hexColor: string): string {
   const hex = hexColor.replace("#", "");

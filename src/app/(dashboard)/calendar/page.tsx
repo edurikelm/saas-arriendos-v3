@@ -3,19 +3,17 @@
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale/es";
-import { Calendar, Filter, Grid, SlidersHorizontal } from "lucide-react";
+import { Calendar, Filter, Grid, Plus, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CalendarGrid } from "@/components/calendar/calendar-grid";
-import { CalendarTimeline } from "@/prototypes/calendar-prototypes";
-import type { CalendarReservation } from "@/lib/actions/calendar";
-
-function getNights(startDate: string, endDate: string): number {
-  const diff = new Date(endDate).getTime() - new Date(startDate).getTime();
-  return Math.round(diff / (1000 * 60 * 60 * 24)) + 1;
-}
+import { CalendarTimeline } from "@/components/calendar/calendar-timeline";
+import { ReservationDetailDialog } from "@/components/reservations/reservation-detail-dialog";
+import { ReservationForm } from "@/components/reservations/reservation-form";
+import type { CalendarReservation } from "@/lib/actions/reservations";
+import type { ReservationInput } from "@/lib/validations/reservation";
 
 interface Property {
   id: string;
@@ -23,10 +21,18 @@ interface Property {
   color?: string;
 }
 
+interface Client {
+  id: string;
+  name: string;
+  email: string;
+}
+
 interface ReservationDetails {
   id: string;
+  propertyId: string;
+  clientId: string;
   property: Property;
-  client: { name: string; email: string };
+  client: Client;
   startDate: string;
   endDate: string;
   billingType: string;
@@ -35,20 +41,23 @@ interface ReservationDetails {
   status: string;
   bookingAirbnb: boolean;
   notes: string | null;
-  payments: Array<{ id: string; amount: string; status: string; method: string }>;
+  payments: Array<{ id: string; amount: string; status: string; method: string; initPoint?: string | null; expiresAt?: string | null }>;
 }
 
 export default function CalendarPage() {
   const [reservations, setReservations] = useState<CalendarReservation[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [selectedReservation, setSelectedReservation] = useState<ReservationDetails | null>(null);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [viewMode, setViewMode] = useState<"grid" | "timeline">("grid");
 
   useEffect(() => {
     fetchProperties();
+    fetchClients();
   }, []);
 
   useEffect(() => {
@@ -64,6 +73,18 @@ export default function CalendarPage() {
       }
     } catch (error) {
       console.error("Error fetching properties:", error);
+    }
+  };
+
+  const fetchClients = async () => {
+    try {
+      const res = await fetch("/api/clients");
+      if (res.ok) {
+        const data = await res.json();
+        setClients(data);
+      }
+    } catch (error) {
+      console.error("Error fetching clients:", error);
     }
   };
 
@@ -103,6 +124,34 @@ export default function CalendarPage() {
     }
   };
 
+  const handleRefreshReservation = async (id: string) => {
+    try {
+      const res = await fetch(`/api/reservations/${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSelectedReservation(data);
+      }
+    } catch (error) {
+      console.error("Error refreshing reservation:", error);
+    }
+  };
+
+  const handleCreateReservation = async (data: ReservationInput) => {
+    const res = await fetch("/api/reservations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.message || "Error creating reservation");
+    }
+
+    setCreateDialogOpen(false);
+    fetchReservations();
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -127,6 +176,10 @@ export default function CalendarPage() {
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
+              <Button variant="default" size="sm" onClick={() => setCreateDialogOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Nueva Reserva
+              </Button>
               <div className="flex border rounded-md">
                 <button
                   onClick={() => setViewMode("grid")}
@@ -201,54 +254,33 @@ export default function CalendarPage() {
       </Card>
 
       {selectedReservation && (
-        <Dialog open onOpenChange={(open) => !open && setSelectedReservation(null)}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Detalle de Reserva</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <p className="text-sm text-muted-foreground">Propiedad</p>
-                <p className="font-medium">{selectedReservation.property.name}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Cliente</p>
-                <p className="font-medium">{selectedReservation.client.name}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Entrada</p>
-                <p className="font-medium">
-                  {format(new Date(selectedReservation.startDate), "dd/MM/yyyy")}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Última Noche</p>
-                <p className="font-medium">
-                  {format(new Date(selectedReservation.endDate), "dd/MM/yyyy")}
-                  <span className="text-muted-foreground ml-1">
-                    ({getNights(selectedReservation.startDate, selectedReservation.endDate)} noches)
-                  </span>
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Estado</p>
-                <p className="font-medium">{selectedReservation.status}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total</p>
-                <p className="font-medium">
-                  {Number(selectedReservation.totalPrice).toLocaleString("CLP")}
-                </p>
-              </div>
-            </div>
-            <div className="flex justify-end mt-4">
-              <Button variant="outline" onClick={() => setSelectedReservation(null)}>
-                Cerrar
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <ReservationDetailDialog
+          reservation={selectedReservation}
+          open={!!selectedReservation}
+          onClose={() => setSelectedReservation(null)}
+          onRefresh={handleRefreshReservation}
+        />
       )}
+
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Nueva Reserva</DialogTitle>
+          </DialogHeader>
+          <ReservationForm
+            properties={properties.map(p => ({
+              id: p.id,
+              name: p.name,
+              unitsAvailable: 10,
+              dailyPrice: "0",
+              monthlyPrice: null,
+            }))}
+            clients={clients}
+            onSubmit={handleCreateReservation}
+            onCancel={() => setCreateDialogOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

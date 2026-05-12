@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { getClients, createClient } from "@/lib/actions/clients";
-import { clientSchema } from "@/lib/validations/client";
 
 export async function GET() {
   try {
@@ -15,8 +14,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const data = await request.json();
-    const validated = clientSchema.parse(data);
-    const result = await createClient(validated);
+    const result = await createClient(data);
 
     if (result?.error) {
       const status = result.upgrade ? 403 : 400;
@@ -25,9 +23,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json(result, { status: 201 });
   } catch (error: any) {
-    if (error.name === "ZodError") {
-      return NextResponse.json({ error: "Datos inválidos", details: error.errors }, { status: 400 });
-    }
     console.error("Error creating client:", error);
     return NextResponse.json({ error: "Error al crear cliente" }, { status: 500 });
   }

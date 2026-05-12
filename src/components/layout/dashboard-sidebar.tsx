@@ -33,14 +33,14 @@ export function DashboardSidebar({ open, onClose }: DashboardSidebarProps) {
       )}
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 h-screen w-64 bg-slate-900 text-white transition-transform duration-300 lg:z-40 lg:translate-x-0",
+          "fixed left-0 top-0 z-50 h-screen w-64 bg-sidebar text-sidebar-foreground transition-transform duration-300 lg:z-40 lg:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between p-6 lg:hidden">
             <h1 className="text-2xl font-bold">RentalPro</h1>
-            <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-lg">
+            <button onClick={onClose} className="p-2 hover:bg-sidebar-accent rounded-lg">
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -58,7 +58,7 @@ export function DashboardSidebar({ open, onClose }: DashboardSidebarProps) {
                   onClick={onClose}
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    isActive ? "bg-slate-800 text-white" : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                    isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   )}
                 >
                   <Icon className="h-5 w-5" />
@@ -67,8 +67,8 @@ export function DashboardSidebar({ open, onClose }: DashboardSidebarProps) {
               );
             })}
           </nav>
-          <div className="border-t border-slate-800 p-3">
-            <Link href="/" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white">
+          <div className="border-t border-sidebar-border p-3">
+            <Link href="/" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
               <FileText className="h-5 w-5" />
               Licencia
             </Link>

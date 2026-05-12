@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { deletePayment, updatePayment } from "@/lib/actions/payments";
+import { deletePayment, updatePayment, restorePayment, regeneratePaymentLink } from "@/lib/actions/payments";
 
 export async function DELETE(
   request: Request,
@@ -37,5 +37,43 @@ export async function PATCH(
   } catch (error) {
     console.error("Error updating payment:", error);
     return NextResponse.json({ error: "Error al actualizar pago" }, { status: 500 });
+  }
+}
+
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const result = await restorePayment(id);
+
+    if (result?.error) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error("Error restoring payment:", error);
+    return NextResponse.json({ error: "Error al restaurar pago" }, { status: 500 });
+  }
+}
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const result = await regeneratePaymentLink(id);
+
+    if (result?.error) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error("Error regenerating payment link:", error);
+    return NextResponse.json({ error: "Error al regenerar link" }, { status: 500 });
   }
 }

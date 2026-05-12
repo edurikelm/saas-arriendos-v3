@@ -137,10 +137,10 @@ export default function ClientsPage() {
           <h1 className="text-2xl sm:text-3xl font-bold">Clientes</h1>
           <p className="text-muted-foreground text-sm sm:text-base">Gestiona tu cartera de clientes</p>
         </div>
-        <Button onClick={() => setIsCreateOpen(true)} size="sm">
-          <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline ml-2">Nuevo Cliente</span>
-        </Button>
+<Button onClick={() => setIsCreateOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            <span className="sm:inline">Nuevo Cliente</span>
+          </Button>
       </div>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -226,7 +226,7 @@ export default function ClientsPage() {
       )}
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Nuevo Cliente</DialogTitle>
           </DialogHeader>
@@ -238,7 +238,7 @@ export default function ClientsPage() {
       </Dialog>
 
       <Dialog open={!!editingClient} onOpenChange={() => setEditingClient(null)}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Editar Cliente</DialogTitle>
           </DialogHeader>
