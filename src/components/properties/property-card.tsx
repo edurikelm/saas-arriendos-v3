@@ -76,13 +76,13 @@ export function PropertyCardLine({ property, onEdit, onDelete }: PropertyCardBas
         </div>
 
         <div className="w-28 text-right">
-          <p className="font-semibold">{formatPrice(property.dailyPrice)}</p>
+          <p suppressHydrationWarning className="font-semibold">{formatPrice(property.dailyPrice)}</p>
           <p className="text-xs text-muted-foreground">/noche</p>
         </div>
 
         {property.monthlyPrice && (
           <div className="hidden md:block w-28 text-right">
-            <p className="font-medium">{formatPrice(property.monthlyPrice)}</p>
+            <p suppressHydrationWarning className="font-medium">{formatPrice(property.monthlyPrice)}</p>
             <p className="text-xs text-muted-foreground">/mes</p>
           </div>
         )}
@@ -156,11 +156,11 @@ export function PropertyCardGrid({ property, onEdit, onDelete }: PropertyCardBas
 
         <div className="mt-3 flex items-baseline justify-between">
           <div>
-            <span className="text-lg font-bold">{formatPrice(property.dailyPrice)}</span>
+            <span suppressHydrationWarning className="text-lg font-bold">{formatPrice(property.dailyPrice)}</span>
             <span className="text-xs text-muted-foreground ml-1">/noche</span>
           </div>
           {property.monthlyPrice && (
-            <span className="text-xs text-muted-foreground">
+            <span suppressHydrationWarning className="text-xs text-muted-foreground">
               {formatPrice(property.monthlyPrice)}/mes
             </span>
           )}
@@ -209,9 +209,9 @@ export function PropertyCardStacked({ property, onEdit, onDelete }: PropertyCard
 
       <div className="border-t bg-muted/30 px-3 py-2">
         <div className="flex items-baseline justify-between">
-          <span className="font-semibold text-sm">{formatPrice(property.dailyPrice)}</span>
+          <span suppressHydrationWarning className="font-semibold text-sm">{formatPrice(property.dailyPrice)}</span>
           {property.monthlyPrice ? (
-            <span className="text-xs text-muted-foreground">{formatPrice(property.monthlyPrice)}/mes</span>
+            <span suppressHydrationWarning className="text-xs text-muted-foreground">{formatPrice(property.monthlyPrice)}/mes</span>
           ) : (
             <span className="text-xs text-muted-foreground">Sin precio mensual</span>
           )}

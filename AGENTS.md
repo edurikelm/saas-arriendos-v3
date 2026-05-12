@@ -17,3 +17,9 @@ Five-label triage vocabulary. See `docs/agents/triage-labels.md`.
 ### Domain docs
 
 Single-context layout: one `CONTEXT.md` at the repo root + `docs/adr/` for architectural decisions. See `docs/agents/domain.md`.
+
+## Next.js Best Practices
+
+When working on Next.js code (pages, components, API routes, server actions), **load the `next-best-practices` skill first**.
+
+See skill: `next-best-practices`

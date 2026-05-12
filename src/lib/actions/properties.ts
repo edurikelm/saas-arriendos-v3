@@ -22,9 +22,19 @@ export async function getProperties(type?: string) {
   });
 
   return properties.map((p) => ({
-    ...p,
+    id: p.id,
+    userId: p.userId,
+    name: p.name,
+    type: p.type,
+    unitsAvailable: p.unitsAvailable,
     dailyPrice: String(p.dailyPrice),
     monthlyPrice: p.monthlyPrice ? String(p.monthlyPrice) : null,
+    currency: p.currency,
+    amenities: p.amenities,
+    color: p.color,
+    mainImage: p.mainImage,
+    images: p.images,
+    createdAt: p.createdAt.toISOString(),
   }));
 }
 
@@ -42,9 +52,19 @@ export async function getPropertyById(id: string) {
   if (!property) return null;
 
   return {
-    ...property,
+    id: property.id,
+    userId: property.userId,
+    name: property.name,
+    type: property.type,
+    unitsAvailable: property.unitsAvailable,
     dailyPrice: String(property.dailyPrice),
     monthlyPrice: property.monthlyPrice ? String(property.monthlyPrice) : null,
+    currency: property.currency,
+    amenities: property.amenities,
+    color: property.color,
+    mainImage: property.mainImage,
+    images: property.images,
+    createdAt: property.createdAt.toISOString(),
   };
 }
 

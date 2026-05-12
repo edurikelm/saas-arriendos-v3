@@ -100,3 +100,43 @@ Sistema SaaS para gestión de arriendos de propiedades.
 - **Billing Type** — DAILY o MONTHLY, elegido al momento de crear la reserva
 - **Units Booked** — cantidad de unidades reservadas dentro de la misma propiedad
 - **Última Noche** — `end_date` representa la última noche que duerme el huésped, no el día de check-out. El cálculo de noches es `(end_date - start_date + 1)`
+
+## Patrones Next.js
+
+### Componentes Server vs Client
+
+Los layouts y páginas son Server Components por defecto. `'use client'` solo cuando es necesario.
+
+**Patrón** `*LayoutClient`: Cuando un layout tiene datos de servidor (session) Y estado interactivo (sidebar toggle), se divide en:
+
+```tsx
+// layout.tsx (Server Component)
+import { getSession } from "@/lib/actions/auth";
+export default async function DashboardLayout({ children }) {
+  const session = await getSession();
+  return <DashboardLayoutClient children={children} userName={session.email} />;
+}
+
+// components/*LayoutClient.tsx (Client Component)
+"use client";
+export function DashboardLayoutClient({ children, userName }) {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  // ...
+}
+```
+
+### Error Handling
+
+Cada route group debe tener `error.tsx` y `not-found.tsx`.
+
+### Metadata
+
+Todos los layouts deben exportar `metadata` para SEO.
+
+### Middleware (Next.js 16+)
+
+Usar `src/proxy.ts` con exports `proxy` y `config` en lugar de `middleware.ts`.
+
+### Ver también
+
+- ADR-0002: `docs/adr/0002-nextjs-app-router-patterns.md`

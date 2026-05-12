@@ -22,7 +22,14 @@ export async function getClients() {
   });
 
   return clients.map((client) => ({
-    ...client,
+    id: client.id,
+    name: client.name,
+    email: client.email,
+    phone: client.phone,
+    rut: client.rut,
+    notes: client.notes,
+    createdAt: client.createdAt.toISOString(),
+    userId: client.userId,
     reservationsCount: client.reservations.length,
   }));
 }
