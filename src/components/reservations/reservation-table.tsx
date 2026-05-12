@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { getPaymentStatus } from "@/lib/reservation-payment";
 
 interface Payment {
   id: string;
@@ -563,7 +564,11 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
               } else if (paidAmount > 0) {
                 paymentColor = "#F59E0B";
               }
-              const paymentTitle = `Pagado: ${formatPrice(paidAmount)} / Total: ${formatPrice(totalPrice)}`;
+              const paymentStatus = getPaymentStatus({
+                paidAmount,
+                totalPrice,
+                status: res.status,
+              });
               return (
                 <tr key={res.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50 transition-colors">
                   <td className="p-4">
@@ -627,11 +632,11 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                     <div className="flex items-center justify-center gap-1.5">
                       <span
                         className="h-2 w-2 rounded-full shrink-0"
-                        style={{ backgroundColor: paymentColor }}
-                        title={paymentTitle}
+                        style={{ backgroundColor: paymentStatus.color }}
+                        title={paymentStatus.tooltip}
                       />
-                      <Badge variant={status.variant} className="text-xs">
-                        {status.label}
+                      <Badge variant={paymentStatus.variant} className="text-xs">
+                        {paymentStatus.label}
                       </Badge>
                     </div>
                   </td>
