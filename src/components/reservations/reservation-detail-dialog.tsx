@@ -125,6 +125,13 @@ function getNights(startDate: string, endDate: string): number {
   return Math.round(diff / (1000 * 60 * 60 * 24)) + 1;
 }
 
+function getMonths(startDate: string, endDate: string): number {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+  return months >= 1 ? months : 1;
+}
+
 function PaymentItem({
   payment,
   onCopyLink,
@@ -512,7 +519,7 @@ onRefresh?.(reservation.id);
             <p className="font-medium text-sm">{formatDate(reservation.startDate)}</p>
             <p className="text-xs text-muted-foreground">hasta</p>
             <p className="font-medium text-sm">{formatDate(reservation.endDate)}</p>
-            <p className="text-xs text-muted-foreground mt-1">{nights} noches</p>
+            <p className="text-xs text-muted-foreground mt-1">{reservation.billingType === "MONTHLY" ? `${getMonths(reservation.startDate, reservation.endDate)} meses` : `${nights} noches`}</p>
           </div>
 
           <div className="p-3 rounded-md bg-muted/30 border border-border">

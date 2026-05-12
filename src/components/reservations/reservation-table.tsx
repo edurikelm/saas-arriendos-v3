@@ -80,6 +80,13 @@ function getNights(startDate: string, endDate: string): number {
   return Math.round(diff / (1000 * 60 * 60 * 24)) + 1;
 }
 
+function getMonths(startDate: string, endDate: string): number {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+  return months >= 1 ? months : 1;
+}
+
 function getTemporalStatus(startDate: string, endDate: string): { label: string; variant: "default" | "secondary" | "outline" | "destructive"; color: string } {
   const today = new Date();
   const start = new Date(startDate);
@@ -140,7 +147,7 @@ export function ReservationCardMinimal({ reservation, onEdit, onView, onCancel, 
               <span>
                 {formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}
               </span>
-              <span className="text-zinc-400">({getNights(reservation.startDate, reservation.endDate)} noches)</span>
+              <span className="text-zinc-400">({reservation.billingType === "MONTHLY" ? `${getMonths(reservation.startDate, reservation.endDate)} meses` : `${getNights(reservation.startDate, reservation.endDate)} noches`})</span>
             </div>
           </div>
 
@@ -217,7 +224,7 @@ export function ReservationCardCompact({ reservation, onEdit, onView, onCancel, 
           </span>
           <span className="flex items-center gap-1">
             <Calendar className="h-3 w-3" />
-            {nights} noches
+            {reservation.billingType === "MONTHLY" ? `${getMonths(reservation.startDate, reservation.endDate)} meses` : `${getNights(reservation.startDate, reservation.endDate)} noches`}
           </span>
         </div>
       </div>
@@ -289,7 +296,7 @@ export function ReservationCardEditorial({ reservation, onEdit, onView, onCancel
             <div>
               <p className="text-xs text-stone-500 mb-1">Duración</p>
               <p className="font-medium text-stone-900 dark:text-stone-100">
-                {nights} noches
+                {reservation.billingType === "MONTHLY" ? `${getMonths(reservation.startDate, reservation.endDate)} meses` : `${getNights(reservation.startDate, reservation.endDate)} noches`}
               </p>
             </div>
           </div>
@@ -407,7 +414,7 @@ export function ReservationCardTimeline({ reservation, onEdit, onView, onCancel,
           <div className="mt-3 flex items-center gap-4">
             <div className="flex items-center gap-2 text-sm text-zinc-500">
               <Clock className="h-3.5 w-3.5" />
-              <span>{nights} noches</span>
+<span>{reservation.billingType === "MONTHLY" ? `${getMonths(reservation.startDate, reservation.endDate)} meses` : `${getNights(reservation.startDate, reservation.endDate)} noches`}</span>
             </div>
             <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
               {formatPrice(reservation.totalPrice)}
@@ -599,7 +606,7 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                       <span>{formatDate(res.startDate)}</span>
                       <span className="mx-1 text-zinc-300">→</span>
                       <span>{formatDate(res.endDate)}</span>
-                      <span className="ml-1 text-xs text-zinc-400">({getNights(res.startDate, res.endDate)} noches)</span>
+                      <span className="ml-1 text-xs text-zinc-400">({res.billingType === "MONTHLY" ? `${getMonths(res.startDate, res.endDate)} meses` : `${getNights(res.startDate, res.endDate)} noches`})</span>
                     </div>
                   </td>
                   <td className="p-4">
@@ -717,7 +724,7 @@ export function ReservationTableCards({ reservations, onEdit, onView, onCancel, 
               <div className="flex items-center justify-between pt-2 border-t border-zinc-100 dark:border-zinc-800">
                 <div className="text-right">
                   <p className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{formatPrice(res.totalPrice)}</p>
-                  <p className="text-xs text-muted-foreground">{getNights(res.startDate, res.endDate)} noches</p>
+                  <p className="text-xs text-muted-foreground">{res.billingType === "MONTHLY" ? `${getMonths(res.startDate, res.endDate)} meses` : `${getNights(res.startDate, res.endDate)} noches`}</p>
                 </div>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   {onView && (
