@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { getPaymentStatus } from "@/lib/reservation-payment";
 
 interface Payment {
   id: string;
@@ -79,6 +80,13 @@ function getNights(startDate: string, endDate: string): number {
   return Math.round(diff / (1000 * 60 * 60 * 24)) + 1;
 }
 
+function getMonths(startDate: string, endDate: string): number {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+  return months >= 1 ? months : 1;
+}
+
 function getTemporalStatus(startDate: string, endDate: string): { label: string; variant: "default" | "secondary" | "outline" | "destructive"; color: string } {
   const today = new Date();
   const start = new Date(startDate);
@@ -139,7 +147,7 @@ export function ReservationCardMinimal({ reservation, onEdit, onView, onCancel, 
               <span>
                 {formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}
               </span>
-              <span className="text-zinc-400">({getNights(reservation.startDate, reservation.endDate)} noches)</span>
+              <span className="text-zinc-400">({reservation.billingType === "MONTHLY" ? `${getMonths(reservation.startDate, reservation.endDate)} meses` : `${getNights(reservation.startDate, reservation.endDate)} noches`})</span>
             </div>
           </div>
 
@@ -557,13 +565,11 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                 .filter((p) => p.status === "COMPLETED")
                 .reduce((sum, p) => sum + Number(p.amount), 0);
               const totalPrice = Number(res.totalPrice);
-              let paymentColor = "#EF4444";
-              if (paidAmount === totalPrice && totalPrice > 0) {
-                paymentColor = "#10B981";
-              } else if (paidAmount > 0) {
-                paymentColor = "#F59E0B";
-              }
-              const paymentTitle = `Pagado: ${formatPrice(paidAmount)} / Total: ${formatPrice(totalPrice)}`;
+              const paymentStatus = getPaymentStatus({
+                paidAmount,
+                totalPrice,
+                status: res.status,
+              });
               return (
                 <tr key={res.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50 transition-colors">
                   <td className="p-4">
@@ -594,7 +600,7 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                       <span>{formatDate(res.startDate)}</span>
                       <span className="mx-1 text-zinc-300">→</span>
                       <span>{formatDate(res.endDate)}</span>
-                      <span className="ml-1 text-xs text-zinc-400">({getNights(res.startDate, res.endDate)} noches)</span>
+                      <span className="ml-1 text-xs text-zinc-400">({res.billingType === "MONTHLY" ? `${getMonths(res.startDate, res.endDate)} meses` : `${getNights(res.startDate, res.endDate)} noches`})</span>
                     </div>
                   </td>
                   <td className="p-4">
@@ -627,11 +633,11 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                     <div className="flex items-center justify-center gap-1.5">
                       <span
                         className="h-2 w-2 rounded-full shrink-0"
-                        style={{ backgroundColor: paymentColor }}
-                        title={paymentTitle}
+                        style={{ backgroundColor: paymentStatus.color }}
+                        title={paymentStatus.tooltip}
                       />
-                      <Badge variant={status.variant} className="text-xs">
-                        {status.label}
+                      <Badge variant={paymentStatus.variant} className="text-xs">
+                        {paymentStatus.label}
                       </Badge>
                     </div>
                   </td>
@@ -712,7 +718,7 @@ export function ReservationTableCards({ reservations, onEdit, onView, onCancel, 
               <div className="flex items-center justify-between pt-2 border-t border-zinc-100 dark:border-zinc-800">
                 <div className="text-right">
                   <p className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{formatPrice(res.totalPrice)}</p>
-                  <p className="text-xs text-muted-foreground">{getNights(res.startDate, res.endDate)} noches</p>
+                  <p className="text-xs text-muted-foreground">{res.billingType === "MONTHLY" ? `${getMonths(res.startDate, res.endDate)} meses` : `${getNights(res.startDate, res.endDate)} noches`}</p>
                 </div>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   {onView && (
