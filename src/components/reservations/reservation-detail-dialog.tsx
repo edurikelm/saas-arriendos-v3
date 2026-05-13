@@ -1,18 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 import {
   Calendar,
   User,
   CreditCard,
-  CheckCircle2,
   Check,
-  Copy,
   RefreshCw,
-  Plus,
-  Trash2,
   FileText,
-  Undo2,
+  ExternalLink,
+  Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,11 +32,13 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { confirmPayment, revertPayment } from "@/lib/actions/payments";
+import { confirmPayment, revertPayment, generatePaymentLink, markPaymentAsPaid } from "@/lib/actions/payments";
 
 interface Payment {
   id: string;
+  installmentIndex?: number;
   amount: string;
+  dueDate?: string | null;
   status: string;
   method: string;
   initPoint?: string | null;
@@ -84,10 +85,10 @@ export interface ReservationDetailProps {
   onRegenerateLink?: (paymentId: string) => void;
   onConfirmPayment?: (paymentId: string) => void;
   onDeletePayment?: (paymentId: string) => void;
-  onAddPayment?: () => void;
   onEdit?: () => void;
   onCancel?: () => void;
   onRefresh?: (reservationId: string) => void;
+  onMarkPaid?: (paymentId: string) => void;
 }
 
 const statusConfig: Record<
@@ -98,6 +99,15 @@ const statusConfig: Record<
   CONFIRMED: { label: "Confirmada", variant: "default" },
   CANCELLED: { label: "Cancelada", variant: "destructive" },
   COMPLETED: { label: "Completada", variant: "outline" },
+};
+
+const paymentStatusConfig: Record<
+  string,
+  { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
+> = {
+  PENDING: { label: "Pendiente", variant: "secondary" },
+  COMPLETED: { label: "Pagado", variant: "outline" },
+  FAILED: { label: "Fallido", variant: "destructive" },
 };
 
 const paymentMethodLabels: Record<string, string> = {
@@ -112,6 +122,19 @@ function formatDate(dateString: string): string {
     month: "short",
     year: "numeric",
   });
+}
+
+function formatDueDate(dateString: string): string {
+  return format(new Date(dateString), "d MMM yyyy", { locale: es } as any);
+}
+
+function formatAmount(amount: string | number): string {
+  return new Intl.NumberFormat("es-CL", {
+    style: "currency",
+    currency: "CLP",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Number(amount));
 }
 
 function formatPrice(price: string | number): string {
@@ -135,219 +158,94 @@ function getMonths(startDate: string, endDate: string): number {
   return months >= 1 ? months : 1;
 }
 
-function PaymentItem({
-  payment,
-  onCopyLink,
-  onRegenerateLink,
-  onConfirmPayment,
-  onDeletePayment,
-  onRevertPayment,
-}: {
-  payment: Payment;
-  onCopyLink?: () => void;
-  onRegenerateLink?: () => void;
-  onConfirmPayment?: () => void;
-  onDeletePayment?: () => void;
-  onRevertPayment?: () => void;
-}) {
-  const isExpired =
-    payment.expiresAt &&
-    new Date(payment.expiresAt) < new Date() &&
-    payment.status === "PENDING";
-
-  return (
-    <div className="flex items-center justify-between p-3 rounded-md border border-border bg-card">
-      <div className="flex items-center gap-3">
-        <div
-          className={cn(
-            "h-8 w-8 rounded-md flex items-center justify-center",
-            payment.status === "COMPLETED"
-              ? "bg-green-100 dark:bg-green-900/30"
-              : "bg-orange-100 dark:bg-orange-900/30"
-          )}
-        >
-          {payment.status === "COMPLETED" ? (
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-          ) : (
-            <CreditCard className="h-4 w-4 text-orange-600" />
-          )}
-        </div>
-        <div>
-          <p className="font-medium text-sm">{paymentMethodLabels[payment.method]}</p>
-          <p className={cn("text-xs", payment.status === "COMPLETED" ? "text-green-600" : "text-orange-600")}>
-            {payment.status === "COMPLETED" ? "Pagado" : isExpired ? "Expirado" : "Pendiente"}
-          </p>
-        </div>
-      </div>
-      <div className="flex items-center gap-1">
-        <p className="font-medium text-sm">{formatPrice(payment.amount)}</p>
-        {payment.method === "MERCADO_PAGO" &&
-          payment.initPoint &&
-          payment.status === "PENDING" &&
-          !isExpired &&
-          onCopyLink && (
-            <Button size="icon-xs" variant="ghost" className="h-7 w-7" onClick={onCopyLink}>
-              <Copy className="h-3 w-3" />
-            </Button>
-          )}
-        {payment.method === "MERCADO_PAGO" &&
-          isExpired &&
-          payment.status === "PENDING" &&
-          onRegenerateLink && (
-            <Button size="icon-xs" variant="ghost" className="h-7 w-7 text-blue-600" onClick={onRegenerateLink}>
-              <RefreshCw className="h-3 w-3" />
-            </Button>
-          )}
-        {payment.method !== "MERCADO_PAGO" &&
-          payment.status === "PENDING" &&
-          onConfirmPayment && (
-            <Button size="icon-xs" variant="ghost" className="h-7 w-7 text-green-600" onClick={onConfirmPayment}>
-              <Check className="h-3 w-3" />
-            </Button>
-          )}
-        {payment.status === "COMPLETED" && onRevertPayment && (
-          <Button size="icon-xs" variant="ghost" className="h-7 w-7 text-orange-600" onClick={onRevertPayment}>
-            <Undo2 className="h-3 w-3" />
-          </Button>
-        )}
-        {onDeletePayment && (
-          <Button size="icon-xs" variant="ghost" className="h-7 w-7 text-red-600" onClick={onDeletePayment}>
-            <Trash2 className="h-3 w-3" />
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function PaymentForm({
-  totalPrice,
+function MonthlyPaymentsTable({
   payments,
-  onSubmit,
-  onCancel,
   onGenerateLink,
-  isGeneratingLink,
+  onMarkPaid,
 }: {
-  totalPrice: string;
   payments: Payment[];
-  onSubmit?: (data: { amount: number; method: "MERCADO_PAGO" | "CASH" | "TRANSFER"; status: "COMPLETED" | "PENDING" }) => void;
-  onCancel?: () => void;
-  onGenerateLink?: (amount: number) => Promise<void>;
-  isGeneratingLink?: boolean;
+  onGenerateLink?: (paymentId: string) => void;
+  onMarkPaid?: (paymentId: string) => void;
 }) {
-  const [paymentAmount, setPaymentAmount] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"MERCADO_PAGO" | "CASH" | "TRANSFER">("CASH");
-  const [paymentStatus, setPaymentStatus] = useState<"COMPLETED" | "PENDING">("COMPLETED");
-
-  const completedAmount = payments
-    .filter((p) => p.status === "COMPLETED")
-    .reduce((sum, p) => sum + Number(p.amount), 0);
-  const maxAmount = Number(totalPrice) - completedAmount;
-
   return (
-    <div className="p-4 rounded-md bg-muted/50 border border-border space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium">Nuevo Pago</p>
-        <span className="text-xs text-muted-foreground">Max: {formatPrice(maxAmount)}</span>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Monto</Label>
-          <div className="flex gap-1">
-            <Input
-              type="number"
-              value={paymentAmount}
-              onChange={(e) => setPaymentAmount(e.target.value)}
-              max={maxAmount}
-              min="0"
-              step="100"
-              className="h-8 flex-1"
-              placeholder="$0"
-            />
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-8 px-2 text-xs"
-              onClick={() => setPaymentAmount(maxAmount.toString())}
-            >
-              Max
-            </Button>
-          </div>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Método</Label>
-          <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as typeof paymentMethod)}>
-            <SelectTrigger className="h-8">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="CASH">Efectivo</SelectItem>
-              <SelectItem value="TRANSFER">Transferencia</SelectItem>
-              <SelectItem value="MERCADO_PAGO">Mercado Pago</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {paymentMethod === "MERCADO_PAGO" && (
-        <div className="space-y-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => onGenerateLink?.(Number(paymentAmount))}
-            disabled={!paymentAmount || Number(paymentAmount) <= 0 || isGeneratingLink}
-            className="w-full h-8"
-          >
-            {isGeneratingLink ? (
-              <>
-                <div className="h-3 w-3 rounded-full border-2 border-primary border-t-transparent animate-spin mr-2" />
-                Generando...
-              </>
-            ) : (
-              <>
-                <CreditCard className="h-3 w-3 mr-2" />
-                Generar Link de Pago
-              </>
-            )}
-          </Button>
-        </div>
-      )}
-
-      {paymentMethod !== "MERCADO_PAGO" && (
-        <div className="flex gap-4">
-          <label className="flex items-center gap-2 text-sm cursor-pointer">
-            <input type="radio" checked={paymentStatus === "COMPLETED"} onChange={() => setPaymentStatus("COMPLETED")} />
-            Completado
-          </label>
-          <label className="flex items-center gap-2 text-sm cursor-pointer">
-            <input type="radio" checked={paymentStatus === "PENDING"} onChange={() => setPaymentStatus("PENDING")} />
-            Pendiente
-          </label>
-        </div>
-      )}
-
-      <div className="flex gap-2">
-        <Button
-          size="sm"
-          onClick={() => onSubmit?.({ amount: Number(paymentAmount), method: paymentMethod, status: paymentStatus })}
-          disabled={
-            !paymentAmount ||
-            Number(paymentAmount) <= 0 ||
-            (paymentMethod === "MERCADO_PAGO" && !isGeneratingLink && !paymentAmount)
-          }
-          className="h-8"
-        >
-          Registrar
-        </Button>
-        <Button size="sm" variant="ghost" onClick={onCancel} className="h-8">
-          Cancelar
-        </Button>
-      </div>
+    <div className="rounded-md border border-border overflow-hidden">
+      <table className="w-full text-sm">
+        <thead className="bg-muted/50">
+          <tr>
+            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Cuota</th>
+            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Monto</th>
+            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Vencimiento</th>
+            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Estado</th>
+            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {[...payments].sort((a, b) => (a.installmentIndex ?? 0) - (b.installmentIndex ?? 0)).map((payment) => {
+            const statusCfg = paymentStatusConfig[payment.status] || paymentStatusConfig.PENDING;
+            return (
+              <tr key={payment.id} className="border-t border-border">
+                <td className="px-3 py-2.5 font-medium">
+                  {payment.installmentIndex ?? "—"}
+                </td>
+                <td className="px-3 py-2.5">{formatAmount(payment.amount)}</td>
+                <td className="px-3 py-2.5">
+                  {payment.dueDate ? formatDueDate(payment.dueDate) : "—"}
+                </td>
+                <td className="px-3 py-2.5">
+                  <Badge variant={statusCfg.variant} className="text-xs">{statusCfg.label}</Badge>
+                </td>
+                <td className="px-3 py-2.5">
+                  {payment.status === "PENDING" && (
+                    <div className="flex gap-1">
+                      {payment.method === "MERCADO_PAGO" && !payment.initPoint && onGenerateLink && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 px-2 text-xs"
+                          onClick={() => onGenerateLink(payment.id)}
+                        >
+                          <ExternalLink className="h-3 w-3 mr-1" />
+                          Generar Link
+                        </Button>
+                      )}
+                      {payment.method === "MERCADO_PAGO" && payment.initPoint && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 px-2 text-xs"
+                          onClick={() => {
+                            navigator.clipboard.writeText(payment.initPoint!);
+                            toast.success("Link copiado al portapapeles");
+                          }}
+                        >
+                          <Copy className="h-3 w-3 mr-1" />
+                          Copiar Link
+                        </Button>
+                      )}
+                      {onMarkPaid && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 px-2 text-xs"
+                          onClick={() => onMarkPaid(payment.id)}
+                        >
+                          <Check className="h-3 w-3 mr-1" />
+                          Marcar Pagado
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
+
+
 
 export function ReservationDetailDialog({
   reservation,
@@ -357,7 +255,6 @@ export function ReservationDetailDialog({
   onRegenerateLink,
   onConfirmPayment,
   onDeletePayment,
-  onAddPayment,
   onEdit,
   onCancel,
   onRefresh,
@@ -366,8 +263,13 @@ export function ReservationDetailDialog({
   const nights = getNights(reservation.startDate, reservation.endDate);
   const paidAmount = reservation.payments.filter((p) => p.status === "COMPLETED").reduce((sum, p) => sum + Number(p.amount), 0);
   const pendingAmount = Number(reservation.totalPrice) - paidAmount;
-  const [showPaymentForm, setShowPaymentForm] = useState(false);
+
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+  const [generatingLinkId, setGeneratingLinkId] = useState<string | null>(null);
+  const [showMarkPaidModal, setShowMarkPaidModal] = useState(false);
+  const [markPaidPaymentId, setMarkPaidPaymentId] = useState<string | null>(null);
+  const [markPaidDate, setMarkPaidDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [markPaidMethod, setMarkPaidMethod] = useState<"CASH" | "TRANSFER">("CASH");
 
   const handleCopyLink = (initPoint: string) => {
     navigator.clipboard.writeText(initPoint);
@@ -411,6 +313,26 @@ export function ReservationDetailDialog({
       return;
     }
     toast.success("Pago revertido a pendiente");
+    onRefresh?.(reservation.id);
+  };
+
+  const handleMarkPaidClick = (paymentId: string) => {
+    setMarkPaidPaymentId(paymentId);
+    setMarkPaidDate(format(new Date(), "yyyy-MM-dd"));
+    setMarkPaidMethod("CASH");
+    setShowMarkPaidModal(true);
+  };
+
+  const handleConfirmMarkPaid = async () => {
+    if (!markPaidPaymentId) return;
+    const result = await markPaymentAsPaid(markPaidPaymentId, new Date(markPaidDate), markPaidMethod);
+    if (result?.error) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success("Pago marcado como pagado");
+    setShowMarkPaidModal(false);
+    setMarkPaidPaymentId(null);
     onRefresh?.(reservation.id);
   };
 
@@ -469,35 +391,7 @@ onRefresh?.(reservation.id);
     }
   };
 
-  const handleAddPayment = async (data: { amount: number; method: "MERCADO_PAGO" | "CASH" | "TRANSFER"; status: "COMPLETED" | "PENDING" }) => {
-    if (data.method === "MERCADO_PAGO") {
-      toast.error("Primero genera el link de pago");
-      return;
-    }
-    try {
-      const res = await fetch("/api/payments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          reservationId: reservation.id,
-          amount: data.amount,
-          method: data.method,
-          status: data.status,
-        }),
-      });
-      const result = await res.json();
-      if (result.error) {
-        toast.error(result.error);
-        return;
-      }
-      toast.success("Pago registrado");
-      setShowPaymentForm(false);
-      onRefresh?.(reservation.id);
-      onAddPayment?.();
-    } catch {
-      toast.error("Error al registrar pago");
-    }
-  };
+
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -562,44 +456,20 @@ onRefresh?.(reservation.id);
           </div>
         )}
 
-        <div className="border-t border-border pt-4">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-medium">Pagos ({reservation.payments.length})</p>
-            {reservation.status !== "CANCELLED" && (
-              <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => setShowPaymentForm(!showPaymentForm)}>
-                <Plus className="h-3 w-3 mr-1" />
-                {showPaymentForm ? "Cancelar" : "Agregar"}
-              </Button>
-            )}
-          </div>
-
-          {showPaymentForm && (
-            <div className="mb-3">
-              <PaymentForm
-                totalPrice={reservation.totalPrice}
+        {reservation.billingType === "MONTHLY" &&
+          reservation.payments &&
+          reservation.payments.length > 0 && (
+            <div className="mb-6">
+              <p className="text-sm font-medium mb-3">Cuotas de arriendo</p>
+              <MonthlyPaymentsTable
                 payments={reservation.payments}
-                onCancel={() => setShowPaymentForm(false)}
-                onSubmit={handleAddPayment}
-                onGenerateLink={handleGenerateLink}
-                isGeneratingLink={isGeneratingLink}
+                onGenerateLink={handleRegenerateLink}
+                onMarkPaid={handleMarkPaidClick}
               />
             </div>
           )}
 
-          <div className="space-y-2">
-            {reservation.payments.map((payment) => (
-              <PaymentItem
-                key={payment.id}
-                payment={payment}
-                onCopyLink={() => payment.initPoint && handleCopyLink(payment.initPoint)}
-                onRegenerateLink={() => handleRegenerateLink(payment.id)}
-                onConfirmPayment={() => handleConfirmPayment(payment.id)}
-                onDeletePayment={() => handleDeletePayment(payment.id)}
-                onRevertPayment={() => handleRevertPayment(payment.id)}
-              />
-            ))}
-          </div>
-        </div>
+
 
         <div className="flex gap-2 pt-4 border-t border-border mt-6">
           <Button variant="outline" size="sm" className="flex-1 h-8" onClick={onEdit}>Editar Reserva</Button>
@@ -607,6 +477,41 @@ onRefresh?.(reservation.id);
             <Button variant="destructive" size="sm" className="h-8" onClick={onCancel}>Cancelar</Button>
           )}
         </div>
+
+        <Dialog open={showMarkPaidModal} onOpenChange={setShowMarkPaidModal}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Marcar Pago como Pagado</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label className="text-xs">Fecha de Pago</Label>
+                <Input
+                  type="date"
+                  value={markPaidDate}
+                  onChange={(e) => setMarkPaidDate(e.target.value)}
+                  className="h-9"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Método de Pago</Label>
+                <Select value={markPaidMethod} onValueChange={(v) => setMarkPaidMethod(v as typeof markPaidMethod)}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CASH">Efectivo</SelectItem>
+                    <SelectItem value="TRANSFER">Transferencia</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button size="sm" variant="ghost" onClick={() => setShowMarkPaidModal(false)}>Cancelar</Button>
+              <Button size="sm" onClick={handleConfirmMarkPaid}>Confirmar</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   );

@@ -145,8 +145,11 @@ model Payment {
   status          PaymentStatus @default(PENDING)
   mercadoPagoId   String?
   initPoint       String?
-  expiresAt      DateTime?
-  deletedAt      DateTime?
+  expiresAt       DateTime?
+  installmentIndex Int?
+  dueDate         DateTime?
+  paidAt          DateTime?
+  deletedAt       DateTime?
   createdAt       DateTime      @default(now())
 
   reservation Reservation @relation(fields: [reservationId], references: [id])

@@ -4,13 +4,15 @@ import { prisma } from "@/lib/db/prisma";
 import { getSession } from "@/lib/actions/auth";
 import { reservationSchema, reservationUpdateSchema, type ReservationInput, type ReservationUpdateInput } from "@/lib/validations/reservation";
 import { revalidatePath } from "next/cache";
-import { addDays, differenceInDays, differenceInMonths, startOfDay, endOfDay } from "date-fns";
+import { addDays, differenceInDays, differenceInMonths, startOfDay, endOfDay, addMonths } from "date-fns";
+import { generateMonthlyPayments } from "@/lib/payments/monthly";
 
 export type CalendarReservation = {
   id: string;
   startDate: Date;
   endDate: Date;
   status: string;
+  billingType: string;
   totalPrice: number;
   property: {
     id: string;
@@ -80,6 +82,8 @@ export async function getReservations(filters?: {
           method: true,
           initPoint: true,
           expiresAt: true,
+          installmentIndex: true,
+          dueDate: true,
         },
       },
     },
@@ -99,6 +103,7 @@ export async function getReservations(filters?: {
       amount: String(p.amount),
       initPoint: p.initPoint ? String(p.initPoint) : null,
       expiresAt: p.expiresAt ? String(p.expiresAt) : null,
+      dueDate: p.dueDate ? String(p.dueDate) : null,
     })),
   }));
 }
@@ -143,16 +148,21 @@ export async function getReservationById(id: string) {
   };
 }
 
+function calculateEndDate(startDate: Date, months: number): Date {
+  return addDays(addMonths(startDate, months), -1);
+}
+
 function calculateTotalPrice(
   property: { dailyPrice: any; monthlyPrice: any | null },
   billingType: "DAILY" | "MONTHLY",
   startDate: Date,
   endDate: Date,
-  unitsBooked: number
+  unitsBooked: number,
+  months?: number
 ): number {
   if (billingType === "MONTHLY") {
-    const months = Math.max(1, differenceInMonths(endDate, startDate));
-    return Number(property.monthlyPrice || 0) * months * unitsBooked;
+    const monthlyCount = months ?? Math.max(1, differenceInMonths(endDate, startDate));
+    return Number(property.monthlyPrice || 0) * monthlyCount * unitsBooked;
   }
 
   const nights = differenceInDays(endDate, startDate);
@@ -248,8 +258,6 @@ export async function createReservation(data: unknown) {
     }
     return { error: "Datos inválidos" };
   }
-  const startDate = new Date(validated.startDate);
-  const endDate = new Date(validated.endDate);
 
   const property = await prisma.property.findUnique({
     where: { id: validated.propertyId },
@@ -257,6 +265,16 @@ export async function createReservation(data: unknown) {
 
   if (!property) {
     return { error: "Propiedad no encontrada" };
+  }
+
+  let startDate = new Date(validated.startDate);
+  let endDate = new Date(validated.endDate);
+
+  if (validated.billingType === 'MONTHLY') {
+    if (!property.monthlyPrice) {
+      return { error: "Esta propiedad no tiene precio mensual configurado" };
+    }
+    endDate = calculateEndDate(startDate, validated.months || 1);
   }
 
   const availability = await checkAvailability(
@@ -275,26 +293,60 @@ export async function createReservation(data: unknown) {
     validated.billingType,
     startDate,
     endDate,
-    validated.unitsBooked
+    validated.unitsBooked,
+    validated.months
   );
 
-  const reservation = await prisma.reservation.create({
-    data: {
-      userId: session.userId,
-      propertyId: validated.propertyId,
-      clientId: validated.clientId,
-      startDate,
-      endDate,
-      billingType: validated.billingType,
-      unitsBooked: validated.unitsBooked,
-      totalPrice,
-      status: "PENDING",
-      bookingAirbnb: validated.bookingAirbnb,
-      notes: validated.notes ?? null,
-    },
-  });
+  const reservation = await prisma.$transaction(async (tx) => {
+    const newReservation = await tx.reservation.create({
+      data: {
+        userId: session.userId,
+        propertyId: validated.propertyId,
+        clientId: validated.clientId,
+        startDate,
+        endDate,
+        billingType: validated.billingType,
+        unitsBooked: validated.unitsBooked,
+        totalPrice,
+        status: "PENDING",
+        bookingAirbnb: validated.bookingAirbnb,
+        notes: validated.notes ?? null,
+      },
+    });
 
-  await logChange(reservation.id, "created", null, "Reservation created");
+    await tx.reservationChange.create({
+      data: {
+        reservationId: newReservation.id,
+        field: "created",
+        oldValue: null,
+        newValue: "Reservation created",
+      },
+    });
+
+    if (validated.billingType === 'MONTHLY') {
+      const paymentInputs = generateMonthlyPayments(
+        startDate,
+        validated.months || 1,
+        property.monthlyPrice!,
+        validated.unitsBooked
+      );
+
+      for (const paymentInput of paymentInputs) {
+        await tx.payment.create({
+          data: {
+            reservationId: newReservation.id,
+            amount: paymentInput.amount,
+            method: paymentInput.method,
+            status: paymentInput.status,
+            dueDate: paymentInput.dueDate,
+            installmentIndex: paymentInput.installmentIndex,
+          },
+        });
+      }
+    }
+
+    return newReservation;
+  });
 
   revalidatePath("/reservations");
   revalidatePath("/calendar");
@@ -479,20 +531,44 @@ export async function cancelReservation(id: string, reason?: string) {
 
   if (!existing) return { error: "Reserva no encontrada" };
 
-  await logChange(id, "status", existing.status, "CANCELLED");
-  if (reason) {
-    await logChange(id, "cancellation_reason", null, reason);
-  }
+  await prisma.$transaction(async (tx) => {
+    await tx.reservationChange.create({
+      data: {
+        reservationId: id,
+        field: "status",
+        oldValue: existing.status,
+        newValue: "CANCELLED",
+      },
+    });
 
-  const reservation = await prisma.reservation.update({
-    where: { id },
-    data: { status: "CANCELLED" },
+    if (reason) {
+      await tx.reservationChange.create({
+        data: {
+          reservationId: id,
+          field: "cancellation_reason",
+          oldValue: null,
+          newValue: reason,
+        },
+      });
+    }
+
+    await tx.reservation.update({
+      where: { id },
+      data: { status: "CANCELLED" },
+    });
+
+    await tx.payment.deleteMany({
+      where: {
+        reservationId: id,
+        status: "PENDING",
+      },
+    });
   });
 
   revalidatePath("/reservations");
   revalidatePath("/calendar");
 
-  return { success: true, reservation };
+  return { success: true, reservation: { ...existing, status: "CANCELLED" } };
 }
 
 export async function getBlockedDates(propertyId: string) {
@@ -570,6 +646,7 @@ export async function getCalendarReservations(options?: {
       startDate: true,
       endDate: true,
       status: true,
+      billingType: true,
       totalPrice: true,
       property: {
         select: {

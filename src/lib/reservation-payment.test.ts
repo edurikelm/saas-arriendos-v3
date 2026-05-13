@@ -149,5 +149,50 @@ describe('getPaymentStatus', () => {
       });
       expect(result.label).toBe('Pagado');
     });
+
+    it('handles string paidAmount and number totalPrice', () => {
+      const result = getPaymentStatus({
+        paidAmount: '50000',
+        totalPrice: 100000,
+        status: 'CONFIRMED',
+      });
+      expect(result.label).toBe('Parcial');
+    });
+
+    it('handles number paidAmount and string totalPrice', () => {
+      const result = getPaymentStatus({
+        paidAmount: 50000,
+        totalPrice: '100000',
+        status: 'CONFIRMED',
+      });
+      expect(result.label).toBe('Parcial');
+    });
+
+    it('handles both paidAmount and totalPrice as strings', () => {
+      const result = getPaymentStatus({
+        paidAmount: '100000',
+        totalPrice: '100000',
+        status: 'CONFIRMED',
+      });
+      expect(result.label).toBe('Pagado');
+    });
+
+    it('handles mixed types when fully paid (string paidAmount, number totalPrice)', () => {
+      const result = getPaymentStatus({
+        paidAmount: '100000',
+        totalPrice: 100000,
+        status: 'CONFIRMED',
+      });
+      expect(result.label).toBe('Pagado');
+    });
+
+    it('handles mixed types when fully paid (number paidAmount, string totalPrice)', () => {
+      const result = getPaymentStatus({
+        paidAmount: 100000,
+        totalPrice: '100000',
+        status: 'CONFIRMED',
+      });
+      expect(result.label).toBe('Pagado');
+    });
   });
 });

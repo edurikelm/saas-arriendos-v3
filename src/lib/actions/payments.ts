@@ -335,6 +335,93 @@ export async function processMercadoPagoWebhook(payload: {
   return { success: true, status: newStatus };
 }
 
+export async function generatePaymentLink(paymentId: string) {
+  const session = await getSession();
+  if (!session) return { error: "No autorizado" };
+
+  const payment = await prisma.payment.findFirst({
+    where: { id: paymentId, deletedAt: null },
+    include: { reservation: { include: { client: true, property: true } } },
+  });
+
+  if (!payment) return { error: "Pago no encontrado" };
+
+  if (payment.reservation.userId !== session.userId) {
+    return { error: "No autorizado" };
+  }
+
+  if (payment.status !== "PENDING") {
+    return { error: `No se puede generar link para un pago con estado ${payment.status}` };
+  }
+
+  if (payment.method !== "MERCADO_PAGO") {
+    return { error: "Solo pagos de Mercado Pago pueden generar links" };
+  }
+
+  const userToken = await getMercadoPagoToken(session.userId);
+  const accessToken = userToken ?? process.env.MERCADOPAGO_ACCESS_TOKEN;
+
+  if (!accessToken) {
+    return { error: "Mercado Pago no está configurado. Ve a Settings para conectar tu cuenta." };
+  }
+
+  const externalReference = `${payment.reservation.id}:${paymentId}:${Date.now()}`;
+  const description = `Cuota - Reserva ${payment.reservation.property.name}`;
+
+  try {
+    const response = await fetch("https://api.mercadopago.com/checkout/preferences", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        items: [
+          {
+            title: description,
+            description,
+            quantity: 1,
+            currency_id: "CLP",
+            unit_price: Number(payment.amount),
+          },
+        ],
+        external_reference: externalReference,
+        notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/mercadopago`,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      return { error: `Mercado Pago error: ${errorData.message || response.statusText}` };
+    }
+
+    const data = await response.json();
+
+    const expiresAtDate = addDays(new Date(), 7);
+
+    await prisma.payment.update({
+      where: { id: paymentId },
+      data: {
+        initPoint: data.init_point,
+        expiresAt: expiresAtDate,
+        mercadoPagoId: String(data.id),
+      },
+    });
+
+    revalidatePath("/reservations");
+    revalidatePath(`/reservations/${payment.reservationId}`);
+
+    return {
+      success: true,
+      initPoint: data.init_point,
+      sandboxInitPoint: data.sandbox_init_point,
+      expiresAt: expiresAtDate.toISOString(),
+    };
+  } catch (error: any) {
+    return { error: `Error al generar link: ${error.message}` };
+  }
+}
+
 export async function regeneratePaymentLink(id: string) {
   const session = await getSession();
   if (!session) return { error: "No autorizado" };
@@ -354,7 +441,7 @@ export async function regeneratePaymentLink(id: string) {
     return { error: "Solo pagos de Mercado Pago pueden regenerar links" };
   }
 
-  if (!payment.expiresAt || new Date(payment.expiresAt) > new Date()) {
+  if (payment.initPoint && (!payment.expiresAt || new Date(payment.expiresAt) > new Date())) {
     return { error: "El link actual aún no ha expirado" };
   }
 
@@ -528,6 +615,61 @@ export async function updatePayment(id: string, data: { status: "COMPLETED" | "P
 
 export async function revertPayment(id: string) {
   return updatePayment(id, { status: "PENDING" });
+}
+
+export async function markPaymentAsPaid(
+  paymentId: string,
+  paidAt: Date,
+  method: 'CASH' | 'TRANSFER'
+) {
+  const session = await getSession();
+  if (!session) return { error: "No autorizado" };
+
+  const payment = await prisma.payment.findFirst({
+    where: { id: paymentId, deletedAt: null },
+    include: { reservation: true },
+  });
+
+  if (!payment) return { error: "Pago no encontrado" };
+
+  if (payment.reservation.userId !== session.userId) {
+    return { error: "No autorizado" };
+  }
+
+  if (payment.status === "COMPLETED") {
+    return { error: "El pago ya está completado" };
+  }
+
+  await prisma.payment.update({
+    where: { id: paymentId },
+    data: {
+      status: 'COMPLETED',
+      paidAt,
+      method,
+    },
+  });
+
+  const allPayments = await prisma.payment.findMany({
+    where: {
+      reservationId: payment.reservationId,
+      status: { in: ["COMPLETED", "PENDING"] },
+      deletedAt: null,
+    },
+  });
+
+  const totalPaid = allPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+  if (totalPaid >= Number(payment.reservation.totalPrice)) {
+    await prisma.reservation.update({
+      where: { id: payment.reservationId },
+      data: { status: "CONFIRMED" },
+    });
+  }
+
+  revalidatePath('/reservations');
+  revalidatePath(`/reservations/${payment.reservationId}`);
+
+  return { success: true };
 }
 
 export async function confirmPayment(id: string) {

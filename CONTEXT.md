@@ -30,6 +30,9 @@ Sistema SaaS para gestión de arriendos de propiedades.
 - `method: MERCADO_PAGO | CASH | TRANSFER`
 - `status: PENDING | COMPLETED | FAILED`
 - `mercado_pago_id?` — para tracking de webhook
+- `installment_index?` — ordinal de cuota en arriendos mensuales (1, 2, 3...)
+- `due_date?` — fecha de vencimiento de la cuota (día 1 del mes correspondiente)
+- `paid_at?` — fecha en que se recibió el pago (para auditoría financiera)
 
 ### ReservationChange (Auditoría de Cambios)
 - Registra por **cada campo modificado**: `{field, old_value, new_value, created_at}`
@@ -49,8 +52,12 @@ Sistema SaaS para gestión de arriendos de propiedades.
 ### Pagos
 - Diferido: la reserva se crea sin pago obligatorio
 - Mercado Pago: webhook actualiza estado de pago
-- Pagos manuales: el propietario registra efectivo/transferencia
+- Pagos manuales: el propietario registra efectivo/transferencia con `paid_at` y `method`
 - Reservas pueden estar CONFIRMED con saldo pendiente
+- **Arriendos mensuales (MONTHLY):** se generan N pagos pendientes al crear la reserva, uno por cada mes
+- **Generación de pagos:** `amount = monthly_price × units_booked`, `due_date` = día 1 de cada mes
+- **Link MP:** se genera bajo demanda (no al crear la reserva), vence en 7 días
+- Al cancelar: DELETE pagos PENDING, KEEP pagos COMPLETED (auditoría financiera)
 
 ### Cancelación
 - Libre — cualquier parte puede cancelar
@@ -140,3 +147,4 @@ Usar `src/proxy.ts` con exports `proxy` y `config` en lugar de `middleware.ts`.
 ### Ver también
 
 - ADR-0002: `docs/adr/0002-nextjs-app-router-patterns.md`
+- ADR-0012: `docs/adr/0012-monthly-payment-generation.md`

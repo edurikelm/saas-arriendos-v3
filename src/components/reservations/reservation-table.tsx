@@ -39,6 +39,7 @@ interface Reservation {
   status: string;
   bookingAirbnb: boolean;
   notes: string | null;
+  createdAt: string;
   property: Property;
   client: Client;
   payments: Payment[];
@@ -87,14 +88,23 @@ function getMonths(startDate: string, endDate: string): number {
   return months >= 1 ? months : 1;
 }
 
-function getTemporalStatus(startDate: string, endDate: string): { label: string; variant: "default" | "secondary" | "outline" | "destructive"; color: string } {
+function getTemporalStatus(startDate: string, endDate: string, billingType: string): { label: string; variant: "default" | "secondary" | "outline" | "destructive"; color: string; sublabel?: string } {
   const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const start = new Date(startDate);
   const end = new Date(endDate);
 
-  if (today < start) return { label: "Próxima", variant: "secondary", color: "#3B82F6" };
+  if (today < start) {
+    const daysUntil = Math.ceil((start.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return { label: "Próxima", variant: "secondary", color: "#3B82F6", sublabel: `${daysUntil}d` };
+  }
   if (today > end) return { label: "Finalizada", variant: "outline", color: "#6B7280" };
-  return { label: "Activa", variant: "default", color: "#10B981" };
+  if (billingType === "MONTHLY") {
+    const monthsLeft = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24 * 30));
+    return { label: "Activa", variant: "default", color: "#10B981", sublabel: `${monthsLeft} meses` };
+  }
+  const nightsLeft = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  return { label: "Activa", variant: "default", color: "#10B981", sublabel: `${nightsLeft} noches` };
 }
 
 interface ReservationCardBaseProps {
@@ -502,7 +512,7 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
   onCancel?: (id: string) => void;
   onDelete?: (id: string) => void;
 }) {
-  const [sortField, setSortField] = useState<"startDate" | "totalPrice" | "client">("startDate");
+  const [sortField, setSortField] = useState<"startDate" | "totalPrice" | "client" | "createdAt">("createdAt");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const sorted = [...reservations].sort((a, b) => {
@@ -511,6 +521,8 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
       cmp = new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
     } else if (sortField === "totalPrice") {
       cmp = Number(a.totalPrice) - Number(b.totalPrice);
+    } else if (sortField === "createdAt") {
+      cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     } else {
       cmp = a.client.name.localeCompare(b.client.name);
     }
@@ -538,6 +550,15 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                   className="flex items-center gap-1 hover:text-zinc-900 dark:hover:text-zinc-100"
                 >
                   Cliente
+                  <ArrowUpDown className="h-3 w-3" />
+                </button>
+              </th>
+              <th className="text-left p-4 font-medium text-zinc-600 dark:text-zinc-400">
+                <button
+                  onClick={() => toggleSort("createdAt")}
+                  className="flex items-center gap-1 hover:text-zinc-900 dark:hover:text-zinc-100"
+                >
+                  Creación
                   <ArrowUpDown className="h-3 w-3" />
                 </button>
               </th>
@@ -592,6 +613,9 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                       </div>
                     </div>
                   </td>
+                  <td className="p-4 text-sm text-zinc-500">
+                    {formatFullDate(res.createdAt)}
+                  </td>
                   <td className="p-4">
                     <div className="flex items-center gap-2">
                       <div
@@ -621,30 +645,39 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                   </td>
                   <td className="p-4 text-center">
                     {(() => {
-                      const temporal = getTemporalStatus(res.startDate, res.endDate);
+                      const temporal = getTemporalStatus(res.startDate, res.endDate, res.billingType);
                       return (
-                        <div className="flex items-center justify-center gap-1.5">
-                          <span
-                            className="h-2 w-2 rounded-full"
-                            style={{ backgroundColor: temporal.color }}
-                          />
-                          <Badge variant={temporal.variant} className="text-xs">
-                            {temporal.label}
-                          </Badge>
+                        <div className="flex flex-col items-center justify-center gap-1">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <span
+                              className="h-2 w-2 rounded-full"
+                              style={{ backgroundColor: temporal.color }}
+                            />
+                            <Badge variant={temporal.variant} className="text-xs">
+                              {temporal.label}
+                            </Badge>
+                          </div>
+                          {temporal.sublabel && (
+                            <span className="text-xs text-zinc-500">{temporal.sublabel}</span>
+                          )}
                         </div>
                       );
                     })()}
                   </td>
                   <td className="p-4 text-center">
-                    <div className="flex items-center justify-center gap-1.5">
-                      <span
-                        className="h-2 w-2 rounded-full shrink-0"
-                        style={{ backgroundColor: paymentStatus.color }}
-                        title={paymentStatus.tooltip}
-                      />
-                      <Badge variant={paymentStatus.variant} className="text-xs">
-                        {paymentStatus.label}
-                      </Badge>
+                    <div className="flex flex-col items-center justify-center gap-1">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span
+                          className="h-2 w-2 rounded-full shrink-0"
+                          style={{ backgroundColor: paymentStatus.color }}
+                        />
+                        <Badge variant={paymentStatus.variant} className="text-xs">
+                          {paymentStatus.label}
+                        </Badge>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {formatPrice(paidAmount)} / {formatPrice(totalPrice)}
+                      </span>
                     </div>
                   </td>
                   <td className="p-4 text-right">

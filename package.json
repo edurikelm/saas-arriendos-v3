@@ -10,7 +10,10 @@
     "typecheck": "tsc --noEmit",
     "postinstall": "prisma generate",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "clean": "rmdir /s /q .next 2>nul & rmdir /s /q node_modules\\.cache 2>nul & echo Cleaned",
+    "db:push": "prisma db push",
+    "db:pull": "prisma db pull"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

@@ -24,12 +24,15 @@ export function getPaymentStatus({
   totalPrice: number;
   status: string;
 }): PaymentStatusResult {
+  const paid = Number(paidAmount);
+  const total = Number(totalPrice);
+
   if (status === "CANCELLED") {
     return {
       label: "—",
       variant: "outline",
       color: "#EF4444",
-      tooltip: `Pagado: ${formatPrice(paidAmount)} / Total: ${formatPrice(totalPrice)}`,
+      tooltip: `Pagado: ${formatPrice(paid)} / Total: ${formatPrice(total)}`,
     };
   }
 
@@ -38,25 +41,25 @@ export function getPaymentStatus({
       label: "Pagado",
       variant: "default",
       color: "#10B981",
-      tooltip: `Pagado: ${formatPrice(paidAmount)} / Total: ${formatPrice(totalPrice)}`,
+      tooltip: `Pagado: ${formatPrice(paid)} / Total: ${formatPrice(total)}`,
     };
   }
 
-  if (paidAmount === totalPrice || totalPrice === 0) {
+  if (paid >= total || total === 0) {
     return {
       label: "Pagado",
       variant: "default",
       color: "#10B981",
-      tooltip: `Pagado: ${formatPrice(paidAmount)} / Total: ${formatPrice(totalPrice)}`,
+      tooltip: `Pagado: ${formatPrice(paid)} / Total: ${formatPrice(total)}`,
     };
   }
 
-  if (paidAmount > 0) {
+  if (paid > 0) {
     return {
       label: "Parcial",
       variant: "secondary",
       color: "#F59E0B",
-      tooltip: `Pagado: ${formatPrice(paidAmount)} / Total: ${formatPrice(totalPrice)}`,
+      tooltip: `Pagado: ${formatPrice(paid)} / Total: ${formatPrice(total)}`,
     };
   }
 
@@ -64,6 +67,6 @@ export function getPaymentStatus({
     label: "Pendiente",
     variant: "destructive",
     color: "#EF4444",
-    tooltip: `Pagado: ${formatPrice(paidAmount)} / Total: ${formatPrice(totalPrice)}`,
+    tooltip: `Pagado: ${formatPrice(paid)} / Total: ${formatPrice(total)}`,
   };
 }
