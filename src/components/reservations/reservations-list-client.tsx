@@ -351,7 +351,11 @@ export function ReservationsListClient({
             setViewingReservation(null);
           }}
           onRefresh={async (reservationId) => {
-            await handleRefresh();
+            const updated = await getReservations();
+            const freshList = updated as unknown as Reservation[];
+            setReservations(freshList);
+            const fresh = freshList.find((r) => r.id === reservationId);
+            if (fresh) setViewingReservation(fresh);
           }}
         />
       )}

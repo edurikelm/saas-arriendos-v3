@@ -123,6 +123,8 @@ export function CalendarView({ initialReservations, properties, clients }: Calen
     fetchReservations();
   };
 
+  const dailyReservations = reservations.filter((r) => r.billingType === "DAILY");
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -141,7 +143,7 @@ export function CalendarView({ initialReservations, properties, clients }: Calen
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Reservas</CardTitle>
+              <CardTitle>Reservas Diarias</CardTitle>
               <CardDescription>
                 Visualiza las reservas diarias en el calendario
               </CardDescription>
@@ -189,12 +191,12 @@ export function CalendarView({ initialReservations, properties, clients }: Calen
             </div>
           ) : viewMode === "grid" ? (
             <CalendarGrid
-              reservations={reservations}
+              reservations={dailyReservations}
               onSelectReservation={handleSelectReservation}
             />
           ) : (
             <CalendarTimeline
-              reservations={reservations.map((r) => ({
+              reservations={dailyReservations.map((r) => ({
                 ...r,
                 propertyId: r.property.id,
                 clientId: "",
