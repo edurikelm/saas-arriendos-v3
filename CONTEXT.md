@@ -29,10 +29,24 @@ Sistema SaaS para gestión de arriendos de propiedades.
 - Una reserva puede tener múltiples pagos parciales
 - `method: MERCADO_PAGO | CASH | TRANSFER`
 - `status: PENDING | COMPLETED | FAILED`
-- `mercado_pago_id?` — para tracking de webhook
+- `mercadoPagoId` — preference_id de MP (para tracking de webhook)
+- `initPoint` — URL del link de pago de MP
+- `expiresAt` — fecha de expiración del link (7 días)
 - `installment_index?` — ordinal de cuota en arriendos mensuales (1, 2, 3...)
 - `due_date?` — fecha de vencimiento de la cuota (día 1 del mes correspondiente)
-- `paid_at?` — fecha en que se recibió el pago (para auditoría financiera)
+- `paid_at` — fecha y hora cuando el pago fue completado (se setea automático vía webhook MP)
+- `deleted_at?` — soft delete para auditoría
+
+### Webhook de Pagos (Mercado Pago)
+
+El `external_reference` enviado a MP tiene formato: `reservationId:paymentId:timestamp`
+
+El webhook intenta matchear el pago en este orden:
+1. Por `mercadoPagoId = payment_id` (el ID real del pago en MP)
+2. Por `paymentId` extraído del `external_reference` (validado con regex `/[a-z0-9]/`)
+3. Por `preference_id`
+4. Por `mercadoPagoId + reservationId`
+5. Si ninguno falla → error "Pago no encontrado" (sin fallback)
 
 ### ReservationChange (Auditoría de Cambios)
 - Registra por **cada campo modificado**: `{field, old_value, new_value, created_at}`

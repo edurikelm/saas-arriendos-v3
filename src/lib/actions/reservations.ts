@@ -84,6 +84,7 @@ export async function getReservations(filters?: {
           expiresAt: true,
           installmentIndex: true,
           dueDate: true,
+          paidAt: true,
         },
       },
     },
@@ -144,6 +145,7 @@ export async function getReservationById(id: string) {
         amount: String(p.amount),
         initPoint: p.initPoint ? String(p.initPoint) : null,
         expiresAt: p.expiresAt ? String(p.expiresAt) : null,
+        paidAt: p.paidAt ? String(p.paidAt) : null,
       })),
   };
 }

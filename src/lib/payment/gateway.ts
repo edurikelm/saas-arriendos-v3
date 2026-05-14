@@ -164,11 +164,18 @@ export class MercadoPagoGateway implements PaymentGateway {
     });
 
     if (!payment && payload.external_reference) {
-      const reservationId = payload.external_reference.split(":")[0];
+      const parts = payload.external_reference.split(":");
+      const reservationId = parts[0];
+      const paymentIdFromRef = parts.length > 1 ? parts[1] : null;
       if (reservationId) {
+        const isValidUUID = paymentIdFromRef && /^[a-f0-9]{20,}$/i.test(paymentIdFromRef);
         payment = await prisma.payment.findFirst({
-          where: { reservationId, deletedAt: null },
-          orderBy: { createdAt: "desc" },
+          where: {
+            reservationId,
+            ...(isValidUUID ? { id: paymentIdFromRef } : {}),
+            deletedAt: null,
+          },
+          orderBy: { createdAt: "asc" },
           include: { reservation: true },
         });
       }

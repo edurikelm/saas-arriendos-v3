@@ -14,7 +14,7 @@ interface MercadoPagoWebhookPayload {
   };
 }
 
-async function getPaymentStatus(paymentId: string): Promise<{ status: string; external_reference?: string } | null> {
+async function getPaymentStatus(paymentId: string): Promise<{ status: string; external_reference?: string; preference_id?: string } | null> {
   if (!process.env.MERCADOPAGO_ACCESS_TOKEN) {
     return null;
   }
@@ -35,6 +35,7 @@ async function getPaymentStatus(paymentId: string): Promise<{ status: string; ex
     return {
       status: payment.status,
       external_reference: payment.external_reference,
+      preference_id: payment.preference_id,
     };
   } catch (error) {
     console.error(`Error fetching payment ${paymentId}:`, error);
@@ -85,6 +86,7 @@ export async function POST(request: Request) {
         id: paymentId,
         status: paymentInfo.status,
         external_reference: paymentInfo.external_reference || "",
+        preference_id: paymentInfo.preference_id || "",
       });
 
       console.log(`Processed payment webhook: ${paymentId}`, result);
@@ -114,6 +116,7 @@ export async function POST(request: Request) {
             id: String(payment.id),
             status: payment.status,
             external_reference: merchantOrder.external_reference || "",
+            preference_id: String(payment.preference_id || ""),
           });
 
           console.log(`Processed merchant_order payment: ${payment.id}`, result);

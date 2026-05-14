@@ -25,14 +25,34 @@ Se implementó un webhook en `POST /api/webhooks/mercadopago` que procesa notifi
    }
    ```
 4. El handler obtiene detalles del pago vía API de MP para extraer `external_reference`
-5. `external_reference` contiene `reservationId:timestamp` que permite encontrar el pago en BD
-6. Se actualiza estado a COMPLETED y la reserva a CONFIRMED si corresponde
+5. `external_reference` contiene `reservationId:paymentId:timestamp` que permite encontrar el pago en BD
+6. Se actualiza estado a COMPLETED, se setea `paidAt` con fecha actual, y la reserva a CONFIRMED si corresponde
 
 ### Formato de external_reference
 
 ```javascript
-external_reference: `${reservationId}:${Date.now()}`
+external_reference: `${reservationId}:${paymentId}:${Date.now()}`
+// Ejemplo: "cmp5opegz000c7skvwmx7km9f:cmp5opetk000f7skv21365l2a:1778775058415"
 ```
+
+Donde:
+- `reservationId` — CUID de la reserva en BD (24+ caracteres)
+- `paymentId` — CUID del pago en BD (24+ caracteres)
+- `timestamp` — Unix timestamp para unicidad
+
+### Algoritmo de matching (prioridad)
+
+1. Buscar por `mercadoPagoId = payment_id` (el ID real del pago en MP)
+2. Parsear `external_reference` → extraer `reservationId` y `paymentId` → buscar por `paymentId`
+3. Buscar por `preference_id` (el ID de la preferencia)
+4. Buscar por `mercadoPagoId + reservationId`
+5. Si ninguno funciona → error (NO fallback por createdAt)
+
+> **Importante:** El regex para validar `paymentId` debe ser `/^[a-z0-9]{20,}$/i` para aceptar CUIDs de Prisma (letras minúsculas + números), NO solo hexadecimales.
+
+### Actualización de `paidAt`
+
+Cuando el webhook procesa un pago con status `approved`/`accredited` (COMPLETED), se setea automáticamente `paidAt = new Date()` para registrar la fecha y hora exacta en que se recibió el pago. Esto es útil para auditoría financiera.
 
 ## Implementation
 

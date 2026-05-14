@@ -43,6 +43,7 @@ interface Payment {
   method: string;
   initPoint?: string | null;
   expiresAt?: string | null;
+  paidAt?: string | null;
   deletedAt?: string | null;
 }
 
@@ -169,14 +170,16 @@ function MonthlyPaymentsTable({
 }) {
   return (
     <div className="rounded-md border border-border overflow-hidden">
-      <table className="w-full text-sm">
+      <table className="w-full text-xs">
         <thead className="bg-muted/50">
           <tr>
-            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Cuota</th>
-            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Monto</th>
-            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Vencimiento</th>
-            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Estado</th>
-            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Acciones</th>
+            <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Cuota</th>
+            <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Monto</th>
+            <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Vencimiento</th>
+            <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Fecha Pago</th>
+            <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Medio</th>
+            <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Estado</th>
+            <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Acciones</th>
           </tr>
         </thead>
         <tbody>
@@ -184,17 +187,23 @@ function MonthlyPaymentsTable({
             const statusCfg = paymentStatusConfig[payment.status] || paymentStatusConfig.PENDING;
             return (
               <tr key={payment.id} className="border-t border-border">
-                <td className="px-3 py-2.5 font-medium">
+                <td className="px-2 py-2 font-medium">
                   {payment.installmentIndex ?? "—"}
                 </td>
-                <td className="px-3 py-2.5">{formatAmount(payment.amount)}</td>
-                <td className="px-3 py-2.5">
+                <td className="px-2 py-2">{formatAmount(payment.amount)}</td>
+                <td className="px-2 py-2">
                   {payment.dueDate ? formatDueDate(payment.dueDate) : "—"}
                 </td>
-                <td className="px-3 py-2.5">
+                <td className="px-2 py-2 text-muted-foreground text-xs">
+                  {payment.paidAt ? formatDate(payment.paidAt) : "—"}
+                </td>
+                <td className="px-2 py-2">
+                  {payment.method === "MERCADO_PAGO" ? "Mercado Pago" : payment.method === "CASH" ? "Efectivo" : payment.method === "TRANSFER" ? "Transferencia" : "—"}
+                </td>
+                <td className="px-2 py-2">
                   <Badge variant={statusCfg.variant} className="text-xs">{statusCfg.label}</Badge>
                 </td>
-                <td className="px-3 py-2.5">
+                <td className="px-2 py-2">
                   {payment.status === "PENDING" && (
                     <div className="flex gap-1">
                       {payment.method === "MERCADO_PAGO" && !payment.initPoint && onGenerateLink && (
@@ -395,7 +404,7 @@ onRefresh?.(reservation.id);
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="w-auto overflow-x-auto">
         <div className="flex items-start justify-between mb-6">
           <div className="flex items-center gap-4">
             <div
@@ -439,9 +448,19 @@ onRefresh?.(reservation.id);
 
           <div className="p-3 rounded-md bg-primary/5 border border-primary/20">
             <p className="text-xs text-muted-foreground mb-1">
-              {reservation.billingType === "DAILY" ? "Tarifa" : "Tarifa mensual"}
+              {reservation.billingType === "DAILY" ? "Tarifa" : "Total arriendo"}
             </p>
             <p className="text-xl font-bold text-primary">{formatPrice(reservation.totalPrice)}</p>
+            {reservation.billingType === "MONTHLY" && reservation.property.monthlyPrice && (
+              <p className="text-xs text-muted-foreground mt-1">
+                ({formatPrice(reservation.property.monthlyPrice)}/mes × {getMonths(reservation.startDate, reservation.endDate)} meses)
+              </p>
+            )}
+            {reservation.billingType === "DAILY" && reservation.property.dailyPrice && (
+              <p className="text-xs text-muted-foreground mt-1">
+                ({formatPrice(reservation.property.dailyPrice)}/noche × {nights} noches)
+              </p>
+            )}
             {pendingAmount > 0 && <p className="text-xs text-orange-600 mt-1">{formatPrice(pendingAmount)} pend.</p>}
           </div>
         </div>
