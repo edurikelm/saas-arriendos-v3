@@ -12,6 +12,7 @@ import {
   FileText,
   ExternalLink,
   Copy,
+  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +34,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { confirmPayment, revertPayment, generatePaymentLink, markPaymentAsPaid } from "@/lib/actions/payments";
+import { AddPaymentDialog } from "./add-payment-dialog";
 
 interface Payment {
   id: string;
@@ -90,6 +92,7 @@ export interface ReservationDetailProps {
   onCancel?: () => void;
   onRefresh?: (reservationId: string) => void;
   onMarkPaid?: (paymentId: string) => void;
+  onAddPayment?: () => void;
 }
 
 const statusConfig: Record<
@@ -267,6 +270,7 @@ export function ReservationDetailDialog({
   onEdit,
   onCancel,
   onRefresh,
+  onAddPayment,
 }: ReservationDetailProps) {
   const status = statusConfig[reservation.status] || statusConfig.PENDING;
   const nights = getNights(reservation.startDate, reservation.endDate);
@@ -279,6 +283,7 @@ export function ReservationDetailDialog({
   const [markPaidPaymentId, setMarkPaidPaymentId] = useState<string | null>(null);
   const [markPaidDate, setMarkPaidDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [markPaidMethod, setMarkPaidMethod] = useState<"CASH" | "TRANSFER">("CASH");
+  const [showAddPaymentDialog, setShowAddPaymentDialog] = useState(false);
 
   const handleCopyLink = (initPoint: string) => {
     navigator.clipboard.writeText(initPoint);
@@ -475,18 +480,46 @@ onRefresh?.(reservation.id);
           </div>
         )}
 
-        {reservation.billingType === "MONTHLY" &&
-          reservation.payments &&
-          reservation.payments.length > 0 && (
-            <div className="mb-6">
-              <p className="text-sm font-medium mb-3">Cuotas de arriendo</p>
-              <MonthlyPaymentsTable
-                payments={reservation.payments}
-                onGenerateLink={handleRegenerateLink}
-                onMarkPaid={handleMarkPaidClick}
-              />
+        {(reservation.billingType === "MONTHLY" ||
+          (reservation.payments && reservation.payments.length > 0)) && (
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-medium">
+                {reservation.billingType === "MONTHLY" ? "Cuotas de arriendo" : "Pagos"}
+              </p>
+              {reservation.status !== "CANCELLED" && reservation.status !== "COMPLETED" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => setShowAddPaymentDialog(true)}
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Agregar Pago
+                </Button>
+              )}
             </div>
-          )}
+            <MonthlyPaymentsTable
+              payments={reservation.payments}
+              onGenerateLink={handleRegenerateLink}
+              onMarkPaid={handleMarkPaidClick}
+            />
+          </div>
+        )}
+
+        {reservation.status !== "CANCELLED" && reservation.status !== "COMPLETED" && reservation.payments?.length === 0 && (
+          <div className="mb-6">
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full h-8"
+              onClick={() => setShowAddPaymentDialog(true)}
+            >
+              <Plus className="h-3 w-3 mr-1" />
+              Agregar Pago
+            </Button>
+          </div>
+        )}
 
 
 
@@ -531,6 +564,15 @@ onRefresh?.(reservation.id);
             </div>
           </DialogContent>
         </Dialog>
+
+        <AddPaymentDialog
+          reservationId={reservation.id}
+          totalPrice={reservation.totalPrice}
+          paidAmount={paidAmount}
+          open={showAddPaymentDialog}
+          onOpenChange={setShowAddPaymentDialog}
+          onSuccess={() => onRefresh?.(reservation.id)}
+        />
       </DialogContent>
     </Dialog>
   );

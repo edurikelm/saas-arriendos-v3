@@ -7,6 +7,7 @@ export const paymentSchema = z.object({
   status: z.enum(["PENDING", "COMPLETED"]).optional().default("COMPLETED"),
   initPoint: z.string().url().optional(),
   expiresAt: z.string().datetime().optional(),
+  paidAt: z.string().datetime().optional(),
 });
 
 export type PaymentInput = z.infer<typeof paymentSchema>;

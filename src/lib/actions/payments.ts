@@ -135,6 +135,7 @@ const payment = await prisma.payment.create({
       status: validated.status ?? "COMPLETED",
       initPoint: validated.initPoint,
       expiresAt: validated.expiresAt ? new Date(validated.expiresAt) : null,
+      paidAt: validated.paidAt ? new Date(validated.paidAt) : null,
     },
   });
 

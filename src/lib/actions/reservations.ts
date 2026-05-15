@@ -167,7 +167,7 @@ function calculateTotalPrice(
     return Number(property.monthlyPrice || 0) * monthlyCount * unitsBooked;
   }
 
-  const nights = differenceInDays(endDate, startDate);
+  const nights = differenceInDays(endDate, startDate) + 1;
   return Number(property.dailyPrice) * nights * unitsBooked;
 }
 
