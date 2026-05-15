@@ -741,6 +741,117 @@ export async function markPaymentAsPaid(
   return { success: true };
 }
 
+async function getMercadoPagoPaymentInfo(mercadoPagoId: string, accessToken: string): Promise<{ status: string } | null> {
+  const response = await fetch(`https://api.mercadopago.com/v1/payments/${mercadoPagoId}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (response.ok) {
+    const payment = await response.json();
+    return { status: payment.status };
+  }
+
+  return null;
+}
+
 export async function confirmPayment(id: string) {
   return updatePayment(id, { status: "COMPLETED" });
+}
+
+export async function checkMercadoPagoPaymentStatus(paymentId: string) {
+  const session = await getSession();
+  if (!session) return { error: "No autorizado" };
+
+  const payment = await prisma.payment.findFirst({
+    where: { id: paymentId, deletedAt: null },
+    include: { reservation: true },
+  });
+
+  if (!payment) return { error: "Pago no encontrado" };
+
+  if (payment.reservation.userId !== session.userId) {
+    return { error: "No autorizado" };
+  }
+
+  if (payment.method !== "MERCADO_PAGO") {
+    return { error: "Solo pagos de Mercado Pago pueden verificarse" };
+  }
+
+  if (!payment.mercadoPagoId) {
+    return { error: "Este pago no tiene ID de Mercado Pago" };
+  }
+
+  const userToken = await getMercadoPagoToken(session.userId);
+  const accessToken = userToken ?? process.env.MERCADOPAGO_ACCESS_TOKEN;
+
+  if (!accessToken) {
+    return { error: "Mercado Pago no está configurado. Ve a Settings para conectar tu cuenta." };
+  }
+
+  try {
+    const paymentInfo = await getMercadoPagoPaymentInfo(payment.mercadoPagoId, accessToken);
+
+    if (!paymentInfo) {
+      return { error: "No se encontró información del pago en Mercado Pago. El cliente quizás aún no ha iniciado el pago." };
+    }
+
+    let newStatus: "PENDING" | "COMPLETED" | "FAILED" = "PENDING";
+    switch (paymentInfo.status) {
+      case "approved":
+      case "accredited":
+        newStatus = "COMPLETED";
+        break;
+      case "pending":
+        newStatus = "PENDING";
+        break;
+      case "cancelled":
+      case "rejected":
+      case "refunded":
+      case "charged_back":
+        newStatus = "FAILED";
+        break;
+      default:
+        newStatus = "PENDING";
+    }
+
+    if (newStatus !== payment.status) {
+      await prisma.payment.update({
+        where: { id: paymentId },
+        data: {
+          status: newStatus,
+          paidAt: newStatus === "COMPLETED" ? new Date() : undefined,
+        },
+      });
+
+      if (newStatus === "COMPLETED") {
+        const allPayments = await prisma.payment.findMany({
+          where: {
+            reservationId: payment.reservationId,
+            status: { in: ["COMPLETED", "PENDING"] },
+            deletedAt: null,
+          },
+        });
+
+        const totalPaid = allPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+        if (totalPaid >= Number(payment.reservation.totalPrice)) {
+          await prisma.reservation.update({
+            where: { id: payment.reservationId },
+            data: { status: "CONFIRMED" },
+          });
+        }
+      }
+
+      revalidatePath("/reservations");
+      revalidatePath(`/reservations/${payment.reservationId}`);
+
+      return { success: true, newStatus };
+    }
+
+    return { success: true, newStatus: payment.status, alreadyUpdated: false };
+  } catch (error: any) {
+    return { error: `Error al verificar pago: ${error.message}` };
+  }
 }

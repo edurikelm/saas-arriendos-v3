@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { deletePayment, updatePayment, restorePayment, regeneratePaymentLink } from "@/lib/actions/payments";
+import { deletePayment, updatePayment, restorePayment, regeneratePaymentLink, checkMercadoPagoPaymentStatus } from "@/lib/actions/payments";
 
 export async function DELETE(
   request: Request,
@@ -75,5 +75,24 @@ export async function POST(
   } catch (error) {
     console.error("Error regenerating payment link:", error);
     return NextResponse.json({ error: "Error al regenerar link" }, { status: 500 });
+  }
+}
+
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const result = await checkMercadoPagoPaymentStatus(id);
+
+    if (result?.error) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error("Error checking payment status:", error);
+    return NextResponse.json({ error: "Error al verificar pago" }, { status: 500 });
   }
 }

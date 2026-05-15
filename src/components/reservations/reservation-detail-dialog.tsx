@@ -34,6 +34,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { confirmPayment, revertPayment, generatePaymentLink, markPaymentAsPaid } from "@/lib/actions/payments";
+import { CheckCircle, Search } from "lucide-react";
 import { AddPaymentDialog } from "./add-payment-dialog";
 
 interface Payment {
@@ -93,6 +94,7 @@ export interface ReservationDetailProps {
   onRefresh?: (reservationId: string) => void;
   onMarkPaid?: (paymentId: string) => void;
   onAddPayment?: () => void;
+  onCheckPaymentStatus?: (paymentId: string) => void;
 }
 
 const statusConfig: Record<
@@ -162,23 +164,29 @@ function getMonths(startDate: string, endDate: string): number {
   return months >= 1 ? months : 1;
 }
 
-function MonthlyPaymentsTable({
+function PaymentsTable({
   payments,
   onGenerateLink,
   onMarkPaid,
+  showInstallmentColumns,
 }: {
   payments: Payment[];
   onGenerateLink?: (paymentId: string) => void;
   onMarkPaid?: (paymentId: string) => void;
+  showInstallmentColumns: boolean;
 }) {
   return (
     <div className="rounded-md border border-border overflow-hidden">
       <table className="w-full text-xs">
         <thead className="bg-muted/50">
           <tr>
-            <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Cuota</th>
+            {showInstallmentColumns && (
+              <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Cuota</th>
+            )}
             <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Monto</th>
-            <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Vencimiento</th>
+            {showInstallmentColumns && (
+              <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Vencimiento</th>
+            )}
             <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Fecha Pago</th>
             <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Medio</th>
             <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Estado</th>
@@ -190,13 +198,17 @@ function MonthlyPaymentsTable({
             const statusCfg = paymentStatusConfig[payment.status] || paymentStatusConfig.PENDING;
             return (
               <tr key={payment.id} className="border-t border-border">
-                <td className="px-2 py-2 font-medium">
-                  {payment.installmentIndex ?? "—"}
-                </td>
+                {showInstallmentColumns && (
+                  <td className="px-2 py-2 font-medium">
+                    {payment.installmentIndex ?? "—"}
+                  </td>
+                )}
                 <td className="px-2 py-2">{formatAmount(payment.amount)}</td>
-                <td className="px-2 py-2">
-                  {payment.dueDate ? formatDueDate(payment.dueDate) : "—"}
-                </td>
+                {showInstallmentColumns && (
+                  <td className="px-2 py-2">
+                    {payment.dueDate ? formatDueDate(payment.dueDate) : "—"}
+                  </td>
+                )}
                 <td className="px-2 py-2 text-muted-foreground text-xs">
                   {payment.paidAt ? formatDate(payment.paidAt) : "—"}
                 </td>
@@ -221,18 +233,20 @@ function MonthlyPaymentsTable({
                         </Button>
                       )}
                       {payment.method === "MERCADO_PAGO" && payment.initPoint && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-6 px-2 text-xs"
-                          onClick={() => {
-                            navigator.clipboard.writeText(payment.initPoint!);
-                            toast.success("Link copiado al portapapeles");
-                          }}
-                        >
-                          <Copy className="h-3 w-3 mr-1" />
-                          Copiar Link
-                        </Button>
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 px-2 text-xs"
+                            onClick={() => {
+                              navigator.clipboard.writeText(payment.initPoint!);
+                              toast.success("Link copiado al portapapeles");
+                            }}
+                          >
+                            <Copy className="h-3 w-3 mr-1" />
+                            Copiar Link
+                          </Button>
+                        </>
                       )}
                       {onMarkPaid && (
                         <Button
@@ -284,6 +298,7 @@ export function ReservationDetailDialog({
   const [markPaidDate, setMarkPaidDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [markPaidMethod, setMarkPaidMethod] = useState<"CASH" | "TRANSFER">("CASH");
   const [showAddPaymentDialog, setShowAddPaymentDialog] = useState(false);
+  const [isCheckingAllPayments, setIsCheckingAllPayments] = useState(false);
 
   const handleCopyLink = (initPoint: string) => {
     navigator.clipboard.writeText(initPoint);
@@ -377,6 +392,23 @@ onRefresh?.(reservation.id);
         onDeletePayment?.(paymentId);
       }
     });
+  };
+
+  const handleRefreshPayments = async () => {
+    setIsCheckingAllPayments(true);
+    try {
+      const res = await fetch(`/api/payments/reservation/${reservation.id}/refresh`);
+      const result = await res.json();
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      onRefresh?.(reservation.id);
+    } catch {
+      toast.error("Error al refrescar pagos");
+    } finally {
+      setIsCheckingAllPayments(false);
+    }
   };
 
   const handleGenerateLink = async (amount: number) => {
@@ -488,21 +520,36 @@ onRefresh?.(reservation.id);
                 {reservation.billingType === "MONTHLY" ? "Cuotas de arriendo" : "Pagos"}
               </p>
               {reservation.status !== "CANCELLED" && reservation.status !== "COMPLETED" && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-xs"
-                  onClick={() => setShowAddPaymentDialog(true)}
-                >
-                  <Plus className="h-3 w-3 mr-1" />
-                  Agregar Pago
-                </Button>
+                <div className="flex gap-2">
+                  {reservation.payments && reservation.payments.length > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={handleRefreshPayments}
+                      disabled={isCheckingAllPayments}
+                    >
+                      <RefreshCw className={cn("h-3 w-3 mr-1", isCheckingAllPayments && "animate-spin")} />
+                      {isCheckingAllPayments ? "Verificando..." : "Verificar"}
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={() => setShowAddPaymentDialog(true)}
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Agregar Pago
+                  </Button>
+                </div>
               )}
             </div>
-            <MonthlyPaymentsTable
+            <PaymentsTable
               payments={reservation.payments}
               onGenerateLink={handleRegenerateLink}
               onMarkPaid={handleMarkPaidClick}
+              showInstallmentColumns={reservation.billingType === "MONTHLY"}
             />
           </div>
         )}
