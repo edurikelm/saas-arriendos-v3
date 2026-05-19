@@ -1,8 +1,7 @@
 import { getMercadoPagoToken } from "@/lib/actions/mercado-pago";
+import { processMercadoPagoWebhook } from "@/lib/actions/payments";
 import { prisma } from "@/lib/db/prisma";
 import { addDays } from "date-fns";
-import { encrypt, decrypt } from "@/lib/crypto";
-import { IntegrationProvider } from "@prisma/client";
 
 export interface PaymentEvent {
   paymentId: string;
@@ -51,7 +50,10 @@ export class MercadoPagoGateway implements PaymentGateway {
   }
 
   private getToken(): string {
-    return this.accessToken ?? process.env.MERCADOPAGO_ACCESS_TOKEN ?? "";
+    if (!this.accessToken) {
+      throw new Error("Mercado Pago access token not configured for this user. Connect your account in Settings.");
+    }
+    return this.accessToken;
   }
 
   async createPaymentLink(
@@ -86,7 +88,21 @@ export class MercadoPagoGateway implements PaymentGateway {
       throw new Error("Payment amount must be greater than zero");
     }
 
-    const externalReference = `${reservation.id}:${Date.now()}`;
+    const expirationDate = addDays(new Date(), 7);
+
+    const payment = await prisma.payment.create({
+      data: {
+        reservationId,
+        amount: paymentAmount,
+        method: "MERCADO_PAGO",
+        status: "PENDING",
+        mercadoPagoId: `temp_${Date.now()}`,
+        initPoint: null,
+        expiresAt: expirationDate,
+      },
+    });
+
+    const externalReference = `${reservation.id}:${payment.id}:${Date.now()}`;
     const description = `Reserva ${reservation.property.name} - ${reservation.client.name} (pago parcial)`;
 
     const response = await fetch(
@@ -115,21 +131,17 @@ export class MercadoPagoGateway implements PaymentGateway {
 
     if (!response.ok) {
       const errorData = await response.json();
+      await prisma.payment.delete({ where: { id: payment.id } });
       throw new Error(`Mercado Pago error: ${errorData.message || response.statusText}`);
     }
 
     const data = await response.json();
-    const expirationDate = addDays(new Date(), 7);
 
-    const payment = await prisma.payment.create({
+    await prisma.payment.update({
+      where: { id: payment.id },
       data: {
-        reservationId,
-        amount: paymentAmount,
-        method: "MERCADO_PAGO",
-        status: "PENDING",
         mercadoPagoId: String(data.id),
         initPoint: data.init_point,
-        expiresAt: expirationDate,
       },
     });
 
@@ -152,74 +164,30 @@ export class MercadoPagoGateway implements PaymentGateway {
   }
 
   async handleWebhook(rawPayload: unknown): Promise<PaymentEvent> {
-    const payload = rawPayload as {
-      id: string;
-      status: string;
-      external_reference?: string;
+    const raw = rawPayload as Record<string, unknown>;
+
+    const payload = {
+      id: String(raw.id ?? ""),
+      status: String(raw.status ?? ""),
+      external_reference: String(raw.external_reference ?? ""),
+      preference_id: raw.preference_id ? String(raw.preference_id) : undefined,
+      receipt_url: raw.receipt_url ? String(raw.receipt_url) : undefined,
+      date_approved: raw.date_approved ? String(raw.date_approved) : undefined,
     };
 
-    let payment = await prisma.payment.findFirst({
-      where: { mercadoPagoId: String(payload.id) },
-      include: { reservation: true },
-    });
+    const result = await processMercadoPagoWebhook(payload);
 
-    if (!payment && payload.external_reference) {
-      const parts = payload.external_reference.split(":");
-      const reservationId = parts[0];
-      const paymentIdFromRef = parts.length > 1 ? parts[1] : null;
-      if (reservationId) {
-        const isValidUUID = paymentIdFromRef && /^[a-f0-9]{20,}$/i.test(paymentIdFromRef);
-        payment = await prisma.payment.findFirst({
-          where: {
-            reservationId,
-            ...(isValidUUID ? { id: paymentIdFromRef } : {}),
-            deletedAt: null,
-          },
-          orderBy: { createdAt: "asc" },
-          include: { reservation: true },
-        });
-      }
+    if ("error" in result) {
+      throw new Error(result.error);
     }
 
-    if (!payment) {
-      throw new Error("Payment not found");
-    }
-
-    const newStatus = mapMercadoPagoStatus(payload.status);
-
-    await prisma.payment.update({
-      where: { id: payment.id },
-      data: { status: newStatus as "PENDING" | "COMPLETED" | "FAILED" },
-    });
-
-    if (newStatus === "COMPLETED") {
-      const allPayments = await prisma.payment.findMany({
-        where: {
-          reservationId: payment.reservationId,
-          status: { in: ["COMPLETED", "PENDING"] },
-          deletedAt: null,
-        },
-      });
-
-      const totalPaid = allPayments.reduce(
-        (sum, p) => sum + Number(p.amount),
-        0
-      );
-      const reservation = payment.reservation;
-
-      if (totalPaid >= Number(reservation.totalPrice)) {
-        await prisma.reservation.update({
-          where: { id: payment.reservationId },
-          data: { status: "CONFIRMED" },
-        });
-      }
-    }
+    const status = result.skipped
+      ? mapMercadoPagoStatus(payload.status)
+      : result.status as PaymentEvent["status"];
 
     return {
-      paymentId: String(payload.id),
-      status: newStatus,
-      reservationId: payment.reservationId,
-      amount: Number(payment.amount),
+      paymentId: payload.id,
+      status,
     };
   }
 }

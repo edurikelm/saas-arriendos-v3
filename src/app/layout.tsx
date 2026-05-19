@@ -4,6 +4,7 @@ import { ThemeProvider } from "@/components/providers/theme-provider";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -23,7 +24,9 @@ export default function RootLayout({
     <html lang="es" suppressHydrationWarning className={cn("font-sans", geist.variable)}>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          {children}
+          <TooltipProvider delay={300}>
+            {children}
+          </TooltipProvider>
         </ThemeProvider>
         <Toaster />
       </body>

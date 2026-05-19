@@ -8,6 +8,7 @@ export const paymentSchema = z.object({
   initPoint: z.string().url().optional(),
   expiresAt: z.string().datetime().optional(),
   paidAt: z.string().datetime().optional(),
+  receiptUrl: z.string().url().optional(),
 });
 
 export type PaymentInput = z.infer<typeof paymentSchema>;

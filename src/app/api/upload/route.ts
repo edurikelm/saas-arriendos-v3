@@ -1,11 +1,10 @@
-"use server";
-
 import { uploadImage } from "@/lib/actions/cloudinary";
 
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
     const file = formData.get("file") as File;
+    const folder = (formData.get("folder") as string) || undefined;
 
     if (!file) {
       return new Response(JSON.stringify({ error: "No file provided" }), {
@@ -14,7 +13,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const url = await uploadImage(file);
+    const url = await uploadImage(file, folder);
     return new Response(JSON.stringify({ url }), {
       status: 200,
       headers: { "Content-Type": "application/json" },

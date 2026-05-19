@@ -85,6 +85,7 @@ export async function getReservations(filters?: {
           installmentIndex: true,
           dueDate: true,
           paidAt: true,
+          receiptUrl: true,
         },
       },
     },

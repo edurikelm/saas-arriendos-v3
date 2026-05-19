@@ -1018,7 +1018,7 @@ export default async function DashboardPage({
   searchParams: Promise<{ variant?: string }>;
 }) {
   const params = await searchParams;
-  const variant = params.variant ?? "A";
+  const variant = params.variant ?? "D";
 
   const [reservations, properties, clients] = await Promise.all([
     getReservations(),
@@ -1041,10 +1041,10 @@ export default async function DashboardPage({
         </p>
       </div>
 
-      {(variant === "A" || variant === undefined) && <VariantA {...data} />}
+      {variant === "A" && <VariantA {...data} />}
       {variant === "B" && <VariantB {...data} />}
       {variant === "C" && <VariantC {...data} />}
-      {variant === "D" && <VariantD {...data} />}
+      {(variant === "D" || variant === undefined) && <VariantD {...data} />}
 
       {process.env.NODE_ENV !== "production" && (
         <Suspense fallback={null}>

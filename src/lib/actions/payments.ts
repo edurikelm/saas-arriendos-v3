@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db/prisma";
 import { getSession } from "@/lib/actions/auth";
 import { getMercadoPagoToken } from "@/lib/actions/mercado-pago";
 import { paymentSchema, type PaymentInput } from "@/lib/validations/payment";
+import { fileSchema } from "@/lib/validations/file";
+import { uploadImage } from "@/lib/actions/cloudinary";
 import { revalidatePath } from "next/cache";
 import { addDays } from "date-fns";
 
@@ -89,13 +91,54 @@ export async function createPayment(data: unknown) {
   if (!session) return { error: "No autorizado" };
 
   let validated: PaymentInput;
-  try {
-    validated = paymentSchema.parse(data);
-  } catch (e: any) {
-    if (e.name === 'ZodError') {
-      return { error: "Datos inválidos", details: e.errors };
+
+  if (data instanceof FormData) {
+    const reservationId = data.get("reservationId") as string;
+    const amount = Number(data.get("amount"));
+    const method = data.get("method") as string;
+    const status = data.get("status") as string;
+    const paidAtStr = data.get("paidAt") as string | null;
+    const receipt = data.get("receipt") as File | null;
+
+    let receiptUrl: string | undefined;
+    if (receipt && receipt.size > 0) {
+      const fileValidation = fileSchema.safeParse({
+        size: receipt.size,
+        type: receipt.type,
+      });
+      if (!fileValidation.success) {
+        return {
+          error: fileValidation.error.errors.map(e => e.message).join(", "),
+        };
+      }
+
+      receiptUrl = await uploadImage(receipt, "rentalpro/receipts");
     }
-    return { error: "Datos inválidos" };
+
+    try {
+      validated = paymentSchema.parse({
+        reservationId,
+        amount,
+        method,
+        status: status ?? "COMPLETED",
+        paidAt: paidAtStr || undefined,
+        receiptUrl: receiptUrl || undefined,
+      });
+    } catch (e: any) {
+      if (e.name === 'ZodError') {
+        return { error: "Datos inválidos", details: e.errors };
+      }
+      return { error: "Datos inválidos" };
+    }
+  } else {
+    try {
+      validated = paymentSchema.parse(data);
+    } catch (e: any) {
+      if (e.name === 'ZodError') {
+        return { error: "Datos inválidos", details: e.errors };
+      }
+      return { error: "Datos inválidos" };
+    }
   }
 
   const reservation = await prisma.reservation.findFirst({
@@ -136,6 +179,7 @@ const payment = await prisma.payment.create({
       initPoint: validated.initPoint,
       expiresAt: validated.expiresAt ? new Date(validated.expiresAt) : null,
       paidAt: validated.paidAt ? new Date(validated.paidAt) : null,
+      receiptUrl: validated.receiptUrl,
     },
   });
 
@@ -166,14 +210,13 @@ export async function generateMercadoPagoLink(reservationId: string, amount?: nu
 
   if (!reservation) return { error: "Reserva no encontrada" };
 
-  const userToken = await getMercadoPagoToken(session.userId);
-  const accessToken = userToken ?? process.env.MERCADOPAGO_ACCESS_TOKEN;
-
-  console.log(`[MP GenerateLink] Generating MP link for reservation ${reservationId} - using user token: ${userToken ? 'yes' : 'no (fallback)'}`);
+  const accessToken = await getMercadoPagoToken(session.userId);
 
   if (!accessToken) {
-    return { error: "Mercado Pago no está configurado. Ve a Settings para conectar tu cuenta." };
+    return { error: "Conecta tu cuenta de Mercado Pago en Settings" };
   }
+
+  console.log(`[MP GenerateLink] Generating MP link for reservation ${reservationId} - using user token`);
 
   const existingPayments = await prisma.payment.findMany({
     where: {
@@ -277,8 +320,9 @@ export async function processMercadoPagoWebhook(payload: {
   status: string;
   external_reference: string;
   preference_id?: string;
+  date_approved?: string;
 }) {
-  const { id, status, external_reference, preference_id } = payload;
+  const { id, status, external_reference, preference_id, date_approved } = payload;
 
   console.log(`[MP Webhook] Processing. ID: ${id}, Status: ${status}, ExternalRef: ${external_reference}, PreferenceID: ${preference_id}`);
 
@@ -371,10 +415,19 @@ export async function processMercadoPagoWebhook(payload: {
       newStatus = "PENDING";
   }
 
+  if (payment.status === newStatus) {
+    console.log(`[MP Webhook] Payment ${payment.id} already in status ${newStatus}, skipping duplicate webhook`);
+    return { success: true, skipped: true };
+  }
+
   if (newStatus === "COMPLETED") {
     await prisma.payment.update({
       where: { id: payment.id },
-      data: { status: newStatus, paidAt: new Date() },
+      data: {
+        status: newStatus,
+        paidAt: date_approved ? new Date(date_approved) : new Date(),
+        mercadoPagoId: id,
+      },
     });
 
     const allPayments = await prisma.payment.findMany({
@@ -397,7 +450,7 @@ export async function processMercadoPagoWebhook(payload: {
   } else {
     await prisma.payment.update({
       where: { id: payment.id },
-      data: { status: newStatus },
+      data: { status: newStatus, mercadoPagoId: id },
     });
   }
 
@@ -427,11 +480,10 @@ export async function generatePaymentLink(paymentId: string) {
     return { error: "Solo pagos de Mercado Pago pueden generar links" };
   }
 
-  const userToken = await getMercadoPagoToken(session.userId);
-  const accessToken = userToken ?? process.env.MERCADOPAGO_ACCESS_TOKEN;
+  const accessToken = await getMercadoPagoToken(session.userId);
 
   if (!accessToken) {
-    return { error: "Mercado Pago no está configurado. Ve a Settings para conectar tu cuenta." };
+    return { error: "Conecta tu cuenta de Mercado Pago en Settings" };
   }
 
   const externalReference = `${payment.reservation.id}:${payment.id}:${Date.now()}`;
@@ -514,11 +566,10 @@ export async function regeneratePaymentLink(id: string) {
     return { error: "El link actual aún no ha expirado" };
   }
 
-  const userToken = await getMercadoPagoToken(session.userId);
-  const accessToken = userToken ?? process.env.MERCADOPAGO_ACCESS_TOKEN;
+  const accessToken = await getMercadoPagoToken(session.userId);
 
   if (!accessToken) {
-    return { error: "Mercado Pago no está configurado" };
+    return { error: "Conecta tu cuenta de Mercado Pago en Settings" };
   }
 
   const externalReference = `${payment.reservation.id}:${payment.id}:${Date.now()}`;
@@ -689,7 +740,8 @@ export async function revertPayment(id: string) {
 export async function markPaymentAsPaid(
   paymentId: string,
   paidAt: Date,
-  method: 'CASH' | 'TRANSFER'
+  method: 'CASH' | 'TRANSFER',
+  receiptUrl?: string
 ) {
   const session = await getSession();
   if (!session) return { error: "No autorizado" };
@@ -715,6 +767,7 @@ export async function markPaymentAsPaid(
       status: 'COMPLETED',
       paidAt,
       method,
+      ...(receiptUrl && { receiptUrl }),
     },
   });
 
@@ -736,6 +789,31 @@ export async function markPaymentAsPaid(
   }
 
   revalidatePath('/reservations');
+  revalidatePath(`/reservations/${payment.reservationId}`);
+
+  return { success: true };
+}
+
+export async function attachReceipt(paymentId: string, receiptUrl: string) {
+  const session = await getSession();
+  if (!session) return { error: "No autorizado" };
+
+  const payment = await prisma.payment.findFirst({
+    where: { id: paymentId, deletedAt: null },
+    include: { reservation: true },
+  });
+
+  if (!payment) return { error: "Pago no encontrado" };
+  if (payment.reservation.userId !== session.userId) return { error: "No autorizado" };
+  if (payment.status !== "COMPLETED") return { error: "Solo se puede adjuntar comprobante a pagos completados" };
+  if (payment.receiptUrl) return { error: "El pago ya tiene un comprobante" };
+
+  await prisma.payment.update({
+    where: { id: paymentId },
+    data: { receiptUrl },
+  });
+
+  revalidatePath("/reservations");
   revalidatePath(`/reservations/${payment.reservationId}`);
 
   return { success: true };
@@ -783,11 +861,10 @@ export async function checkMercadoPagoPaymentStatus(paymentId: string) {
     return { error: "Este pago no tiene ID de Mercado Pago" };
   }
 
-  const userToken = await getMercadoPagoToken(session.userId);
-  const accessToken = userToken ?? process.env.MERCADOPAGO_ACCESS_TOKEN;
+  const accessToken = await getMercadoPagoToken(payment.reservation.userId);
 
   if (!accessToken) {
-    return { error: "Mercado Pago no está configurado. Ve a Settings para conectar tu cuenta." };
+    return { error: "Conecta tu cuenta de Mercado Pago en Settings" };
   }
 
   try {

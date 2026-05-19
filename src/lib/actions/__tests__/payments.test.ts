@@ -507,6 +507,334 @@ describe('generatePaymentLink', () => {
   });
 });
 
+describe('processMercadoPagoWebhook - receipt_url', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('guarda receipt_url en Payment cuando webhook recibe payment con receipt_url', async () => {
+    const { prisma } = await import('@/lib/db/prisma');
+
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      method: 'MERCADO_PAGO',
+      status: 'PENDING',
+      initPoint: 'https://mercadopago.com/tx',
+      expiresAt: new Date('2025-12-01'),
+      deletedAt: null,
+      mercadoPagoId: 'mp-123',
+      receiptUrl: null,
+      createdAt: new Date(),
+      reservation: mockReservation,
+    });
+
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([
+      {
+        id: 'pay-1',
+        reservationId: 'res-1',
+        amount: 50000 as any,
+        method: 'MERCADO_PAGO',
+        status: 'COMPLETED',
+        initPoint: 'https://mercadopago.com/tx',
+        expiresAt: new Date('2025-12-01'),
+        deletedAt: null,
+        mercadoPagoId: 'mp-123',
+        receiptUrl: 'https://mercadopago.com/receipt/mp-123',
+        createdAt: new Date(),
+      },
+    ]);
+
+    const { processMercadoPagoWebhook } = await import('../payments');
+    const result = await processMercadoPagoWebhook({
+      id: 'mp-123',
+      status: 'approved',
+      external_reference: 'res-1:pay-1:123456',
+      preference_id: 'pref-123',
+      receipt_url: 'https://mercadopago.com/receipt/mp-123',
+    });
+
+    expect(result).toHaveProperty('success', true);
+    expect(prisma.payment.update).toHaveBeenCalledWith({
+      where: { id: 'pay-1' },
+      data: expect.objectContaining({
+        receiptUrl: 'https://mercadopago.com/receipt/mp-123',
+      }),
+    });
+  });
+
+  it('no sobreescribe receiptUrl si no viene en webhook', async () => {
+    const { prisma } = await import('@/lib/db/prisma');
+
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      method: 'MERCADO_PAGO',
+      status: 'PENDING',
+      initPoint: 'https://mercadopago.com/tx',
+      expiresAt: new Date('2025-12-01'),
+      deletedAt: null,
+      mercadoPagoId: 'mp-123',
+      receiptUrl: null,
+      createdAt: new Date(),
+      reservation: mockReservation,
+    });
+
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([
+      {
+        id: 'pay-1',
+        reservationId: 'res-1',
+        amount: 50000 as any,
+        method: 'MERCADO_PAGO',
+        status: 'COMPLETED',
+        initPoint: 'https://mercadopago.com/tx',
+        expiresAt: new Date('2025-12-01'),
+        deletedAt: null,
+        mercadoPagoId: 'mp-123',
+        receiptUrl: null,
+        createdAt: new Date(),
+      },
+    ]);
+
+    const { processMercadoPagoWebhook } = await import('../payments');
+    const result = await processMercadoPagoWebhook({
+      id: 'mp-123',
+      status: 'approved',
+      external_reference: 'res-1:pay-1:123456',
+      preference_id: 'pref-123',
+    });
+
+    expect(result).toHaveProperty('success', true);
+    expect(prisma.payment.update).toHaveBeenCalledWith({
+      where: { id: 'pay-1' },
+      data: expect.not.objectContaining(['receiptUrl']),
+    });
+  });
+});
+
+describe('processMercadoPagoWebhook - idempotency', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('skips update when payment is already COMPLETED and webhook sends approved (duplicate)', async () => {
+    const { prisma } = await import('@/lib/db/prisma');
+
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      method: 'MERCADO_PAGO',
+      status: 'COMPLETED',
+      initPoint: 'https://mercadopago.com/tx',
+      expiresAt: new Date('2025-12-01'),
+      deletedAt: null,
+      mercadoPagoId: 'mp-123',
+      receiptUrl: 'https://mercadopago.com/receipt/mp-123',
+      paidAt: new Date('2025-01-15T10:00:00Z'),
+      createdAt: new Date(),
+      reservation: mockReservation,
+    });
+
+    const { processMercadoPagoWebhook } = await import('../payments');
+    const result = await processMercadoPagoWebhook({
+      id: 'mp-123',
+      status: 'approved',
+      external_reference: 'res-1:pay-1:123456',
+      preference_id: 'pref-123',
+    });
+
+    expect(result).toEqual({ success: true, skipped: true });
+    expect(prisma.payment.update).not.toHaveBeenCalled();
+  });
+
+  it('updates payment when status differs (PENDING -> COMPLETED)', async () => {
+    const { prisma } = await import('@/lib/db/prisma');
+
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      method: 'MERCADO_PAGO',
+      status: 'PENDING',
+      initPoint: 'https://mercadopago.com/tx',
+      expiresAt: new Date('2025-12-01'),
+      deletedAt: null,
+      mercadoPagoId: 'mp-123',
+      receiptUrl: null,
+      createdAt: new Date(),
+      reservation: mockReservation,
+    });
+
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([
+      {
+        id: 'pay-1',
+        reservationId: 'res-1',
+        amount: 50000 as any,
+        method: 'MERCADO_PAGO',
+        status: 'COMPLETED',
+        initPoint: 'https://mercadopago.com/tx',
+        expiresAt: new Date('2025-12-01'),
+        deletedAt: null,
+        mercadoPagoId: 'mp-123',
+        receiptUrl: null,
+        createdAt: new Date(),
+      },
+    ]);
+
+    const { processMercadoPagoWebhook } = await import('../payments');
+    const result = await processMercadoPagoWebhook({
+      id: 'mp-123',
+      status: 'approved',
+      external_reference: 'res-1:pay-1:123456',
+      preference_id: 'pref-123',
+    });
+
+    expect(result).toHaveProperty('success', true);
+    expect(result).toHaveProperty('status', 'COMPLETED');
+    expect(prisma.payment.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('updates payment from FAILED to COMPLETED (MP correction allowed)', async () => {
+    const { prisma } = await import('@/lib/db/prisma');
+
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      method: 'MERCADO_PAGO',
+      status: 'FAILED',
+      initPoint: 'https://mercadopago.com/tx',
+      expiresAt: new Date('2025-12-01'),
+      deletedAt: null,
+      mercadoPagoId: 'mp-123',
+      receiptUrl: null,
+      createdAt: new Date(),
+      reservation: mockReservation,
+    });
+
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([]);
+
+    const { processMercadoPagoWebhook } = await import('../payments');
+    const result = await processMercadoPagoWebhook({
+      id: 'mp-123',
+      status: 'approved',
+      external_reference: 'res-1:pay-1:123456',
+      preference_id: 'pref-123',
+    });
+
+    expect(result).toHaveProperty('success', true);
+    expect(result).toHaveProperty('status', 'COMPLETED');
+    expect(prisma.payment.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'pay-1' },
+        data: expect.objectContaining({ status: 'COMPLETED' }),
+      })
+    );
+  });
+
+  it('skips update when payment is PENDING and webhook status maps to PENDING', async () => {
+    const { prisma } = await import('@/lib/db/prisma');
+
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      method: 'MERCADO_PAGO',
+      status: 'PENDING',
+      initPoint: 'https://mercadopago.com/tx',
+      expiresAt: new Date('2025-12-01'),
+      deletedAt: null,
+      mercadoPagoId: 'mp-123',
+      receiptUrl: null,
+      createdAt: new Date(),
+      reservation: mockReservation,
+    });
+
+    const { processMercadoPagoWebhook } = await import('../payments');
+    const result = await processMercadoPagoWebhook({
+      id: 'mp-123',
+      status: 'pending',
+      external_reference: 'res-1:pay-1:123456',
+      preference_id: 'pref-123',
+    });
+
+    expect(result).toEqual({ success: true, skipped: true });
+    expect(prisma.payment.update).not.toHaveBeenCalled();
+  });
+
+  it('updates payment when COMPLETED payment receives a rejected webhook', async () => {
+    const { prisma } = await import('@/lib/db/prisma');
+
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      method: 'MERCADO_PAGO',
+      status: 'COMPLETED',
+      initPoint: 'https://mercadopago.com/tx',
+      expiresAt: new Date('2025-12-01'),
+      deletedAt: null,
+      mercadoPagoId: 'mp-123',
+      receiptUrl: null,
+      createdAt: new Date(),
+      reservation: mockReservation,
+    });
+
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+
+    const { processMercadoPagoWebhook } = await import('../payments');
+    const result = await processMercadoPagoWebhook({
+      id: 'mp-123',
+      status: 'rejected',
+      external_reference: 'res-1:pay-1:123456',
+      preference_id: 'pref-123',
+    });
+
+    expect(result).toHaveProperty('success', true);
+    expect(result).toHaveProperty('status', 'FAILED');
+    expect(prisma.payment.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not overwrite paidAt on duplicate approved webhooks to a COMPLETED payment', async () => {
+    const { prisma } = await import('@/lib/db/prisma');
+
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      method: 'MERCADO_PAGO',
+      status: 'COMPLETED',
+      initPoint: 'https://mercadopago.com/tx',
+      expiresAt: new Date('2025-12-01'),
+      deletedAt: null,
+      mercadoPagoId: 'mp-123',
+      receiptUrl: 'https://mercadopago.com/receipt/mp-123',
+      paidAt: new Date('2025-01-15T10:00:00Z'),
+      createdAt: new Date(),
+      reservation: mockReservation,
+    });
+
+    const { processMercadoPagoWebhook } = await import('../payments');
+    await processMercadoPagoWebhook({
+      id: 'mp-123',
+      status: 'approved',
+      external_reference: 'res-1:pay-1:123456',
+      preference_id: 'pref-123',
+    });
+
+    expect(prisma.payment.update).not.toHaveBeenCalled();
+  });
+});
+
 describe('regeneratePaymentLink', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -602,5 +930,240 @@ describe('regeneratePaymentLink', () => {
 
     expect(result).toHaveProperty('success', true);
     expect(result).toHaveProperty('initPoint', 'https://mercadopago.com/new');
+  });
+});
+
+describe('processMercadoPagoWebhook - date_approved', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('uses date_approved from MP for paidAt when provided', async () => {
+    const { prisma } = await import('@/lib/db/prisma');
+
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      method: 'MERCADO_PAGO',
+      status: 'PENDING',
+      initPoint: 'https://mercadopago.com/tx',
+      expiresAt: new Date('2025-12-01'),
+      deletedAt: null,
+      mercadoPagoId: 'mp-123',
+      receiptUrl: null,
+      createdAt: new Date(),
+      reservation: mockReservation,
+    });
+
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([]);
+
+    const { processMercadoPagoWebhook } = await import('../payments');
+    await processMercadoPagoWebhook({
+      id: 'mp-123',
+      status: 'approved',
+      external_reference: 'res-1:pay-1:123456',
+      preference_id: 'pref-123',
+      date_approved: '2025-06-15T14:30:00.000Z',
+    });
+
+    expect(prisma.payment.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          paidAt: new Date('2025-06-15T14:30:00.000Z'),
+        }),
+      })
+    );
+  });
+
+  it('falls back to new Date() when date_approved is not provided', async () => {
+    const { prisma } = await import('@/lib/db/prisma');
+
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      method: 'MERCADO_PAGO',
+      status: 'PENDING',
+      initPoint: 'https://mercadopago.com/tx',
+      expiresAt: new Date('2025-12-01'),
+      deletedAt: null,
+      mercadoPagoId: 'mp-123',
+      receiptUrl: null,
+      createdAt: new Date(),
+      reservation: mockReservation,
+    });
+
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([]);
+
+    const before = new Date();
+
+    const { processMercadoPagoWebhook } = await import('../payments');
+    await processMercadoPagoWebhook({
+      id: 'mp-123',
+      status: 'approved',
+      external_reference: 'res-1:pay-1:123456',
+      preference_id: 'pref-123',
+    });
+
+    expect(prisma.payment.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          paidAt: expect.any(Date),
+        }),
+      })
+    );
+
+    const updateCall = vi.mocked(prisma.payment.update).mock.calls[0];
+    const paidAt = (updateCall[0] as any).data.paidAt as Date;
+    expect(paidAt.getTime()).toBeGreaterThanOrEqual(before.getTime());
+  });
+});
+
+describe('generateMercadoPagoLink - per-user token only', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns error when user has no Mercado Pago token configured', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    const { prisma } = await import('@/lib/db/prisma');
+    const { getMercadoPagoToken } = await import('@/lib/actions/mercado-pago');
+
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    vi.mocked(getMercadoPagoToken).mockResolvedValue(null);
+
+    vi.mocked(prisma.reservation.findFirst).mockResolvedValue({
+      ...mockReservation,
+      totalPrice: 100000 as any,
+    } as any);
+
+    const { generateMercadoPagoLink } = await import('../payments');
+    const result = await generateMercadoPagoLink('res-1');
+
+    expect(result).toHaveProperty('error', 'Conecta tu cuenta de Mercado Pago en Settings');
+  });
+
+  it('does NOT fall back to global env token', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    const { getMercadoPagoToken } = await import('@/lib/actions/mercado-pago');
+
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    vi.mocked(getMercadoPagoToken).mockResolvedValue(null);
+
+    process.env.MERCADOPAGO_ACCESS_TOKEN = 'TEST-GLOBAL-TOKEN';
+
+    const { generateMercadoPagoLink } = await import('../payments');
+    const result = await generateMercadoPagoLink('res-1');
+
+    delete process.env.MERCADOPAGO_ACCESS_TOKEN;
+
+    expect(result).toHaveProperty('error', 'Conecta tu cuenta de Mercado Pago en Settings');
+  });
+});
+
+describe('generatePaymentLink - per-user token only', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns error when user has no token (no global fallback)', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    const { prisma } = await import('@/lib/db/prisma');
+    const { getMercadoPagoToken } = await import('@/lib/actions/mercado-pago');
+
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    vi.mocked(getMercadoPagoToken).mockResolvedValue(null);
+
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      method: 'MERCADO_PAGO',
+      status: 'PENDING',
+      initPoint: null,
+      expiresAt: new Date('2025-12-01'),
+      deletedAt: null,
+      mercadoPagoId: 'mp-123',
+      createdAt: new Date(),
+      reservation: mockReservation,
+    });
+
+    const { generatePaymentLink } = await import('../payments');
+    const result = await generatePaymentLink('pay-1');
+
+    expect(result).toHaveProperty('error', 'Conecta tu cuenta de Mercado Pago en Settings');
+  });
+});
+
+describe('checkMercadoPagoPaymentStatus - uses payment owner token', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('uses payment owner userId for token lookup (payment.reservation.userId)', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    const { prisma } = await import('@/lib/db/prisma');
+    const { getMercadoPagoToken } = await import('@/lib/actions/mercado-pago');
+
+    vi.mocked(getSession).mockResolvedValue({ ...mockSession, userId: 'payment-owner' });
+    vi.mocked(getMercadoPagoToken).mockResolvedValue('owner-token');
+
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      method: 'MERCADO_PAGO',
+      status: 'PENDING',
+      initPoint: 'https://mercadopago.com/tx',
+      expiresAt: new Date('2025-12-01'),
+      deletedAt: null,
+      mercadoPagoId: 'mp-123',
+      receiptUrl: null,
+      createdAt: new Date(),
+      reservation: { ...mockReservation, userId: 'payment-owner' },
+    });
+
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ status: 'pending' }),
+    });
+    global.fetch = mockFetch;
+
+    const { checkMercadoPagoPaymentStatus } = await import('../payments');
+    await checkMercadoPagoPaymentStatus('pay-1');
+
+    expect(getMercadoPagoToken).toHaveBeenCalledWith('payment-owner');
+  });
+
+  it('returns error when payment owner has no token', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    const { prisma } = await import('@/lib/db/prisma');
+    const { getMercadoPagoToken } = await import('@/lib/actions/mercado-pago');
+
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    vi.mocked(getMercadoPagoToken).mockResolvedValue(null);
+
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      method: 'MERCADO_PAGO',
+      status: 'PENDING',
+      initPoint: 'https://mercadopago.com/tx',
+      expiresAt: new Date('2025-12-01'),
+      deletedAt: null,
+      mercadoPagoId: 'mp-123',
+      receiptUrl: null,
+      createdAt: new Date(),
+      reservation: mockReservation,
+    });
+
+    const { checkMercadoPagoPaymentStatus } = await import('../payments');
+    const result = await checkMercadoPagoPaymentStatus('pay-1');
+
+    expect(result).toHaveProperty('error', 'Conecta tu cuenta de Mercado Pago en Settings');
   });
 });

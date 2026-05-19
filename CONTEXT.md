@@ -34,12 +34,24 @@ Sistema SaaS para gestión de arriendos de propiedades.
 - `expiresAt` — fecha de expiración del link (7 días)
 - `installment_index?` — ordinal de cuota en arriendos mensuales (1, 2, 3...)
 - `due_date?` — fecha de vencimiento de la cuota (día 1 del mes correspondiente)
-- `paid_at` — fecha y hora cuando el pago fue completado (se setea automático vía webhook MP)
+- `paid_at` — fecha y hora cuando el pago fue completado
+- `receiptUrl?` — comprobante de pago subido manualmente por el propietario vía Cloudinary (aplica a todos los métodos: CASH, TRANSFER, MERCADO_PAGO). La API de MP no expone `receipt_url` para pagos con tarjeta.
 - `deleted_at?` — soft delete para auditoría
 
 ### Webhook de Pagos (Mercado Pago)
 
+**Token:** Cada owner configura su propio access token en `/settings` (guardado encriptado en `UserIntegration`). El token global `MERCADOPAGO_ACCESS_TOKEN` **no se usa en producción** — solo para desarrollo local. Ver ADR-0013.
+
 El `external_reference` enviado a MP tiene formato: `reservationId:paymentId:timestamp`
+
+**Flujo del webhook:**
+1. Recibir notificación con `payment_id`
+2. Buscar pago en BD (matching por `mercadoPagoId`, `external_reference`, `preference_id`)
+3. Si no se encuentra → 200 OK (sin reintentar)
+4. Obtener `userId` dueño del pago → `getMercadoPagoToken(userId)`
+5. Si no hay token → 200 OK con warning
+6. Consultar `GET /v1/payments/{id}` con el token del usuario
+7. Procesar actualización (mapear status MP → status interno, setear `paidAt`). El `receiptUrl` no se recibe del webhook — se sube manualmente desde la UI.
 
 El webhook intenta matchear el pago en este orden:
 1. Por `mercadoPagoId = payment_id` (el ID real del pago en MP)
@@ -66,7 +78,7 @@ El webhook intenta matchear el pago en este orden:
 ### Pagos
 - Diferido: la reserva se crea sin pago obligatorio
 - Mercado Pago: webhook actualiza estado de pago
-- Pagos manuales: el propietario registra efectivo/transferencia con `paid_at` y `method`
+- Pagos manuales: el propietario registra efectivo/transferencia con `paid_at` y `method`; puede adjuntar comprobante (imagen) al crear el pago, al marcarlo como pagado, o después en un pago ya completado. Esto también aplica a pagos de Mercado Pago ya completados.
 - Reservas pueden estar CONFIRMED con saldo pendiente
 - **Arriendos mensuales (MONTHLY):** se generan N pagos pendientes al crear la reserva, uno por cada mes
 - **Generación de pagos:** `amount = monthly_price × units_booked`, `due_date` = día 1 de cada mes
@@ -92,7 +104,7 @@ El webhook intenta matchear el pago en este orden:
 
 ## Storage
 
-- **Imágenes de propiedades** → Cloudinary (25GB gratis en tier gratuito)
+- **Imágenes de propiedades y comprobantes de pago** → Cloudinary (25GB gratis en tier gratuito)
 - **PDFs y documentos** → Supabase Storage
 
 ## Tech Stack

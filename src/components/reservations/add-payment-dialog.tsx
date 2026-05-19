@@ -19,7 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, CreditCard } from "lucide-react";
+import { Plus, CreditCard, Loader2 } from "lucide-react";
+import { ReceiptUpload } from "@/components/ui/receipt-upload";
 
 interface AddPaymentDialogProps {
   reservationId: string;
@@ -52,6 +53,7 @@ export function AddPaymentDialog({
   const [method, setMethod] = useState<PaymentMethod>("MERCADO_PAGO");
   const [amount, setAmount] = useState("");
   const [paidAt, setPaidAt] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const pendingAmount = Number(totalPrice) - paidAmount;
@@ -89,19 +91,22 @@ export function AddPaymentDialog({
         }
         toast.success("Link de pago generado - Cópialo desde el listado de pagos");
       } else {
+        const formData = new FormData();
+        formData.append("reservationId", reservationId);
+        formData.append("amount", String(numAmount));
+        formData.append("method", method);
+        formData.append("status", "COMPLETED");
+        formData.append("paidAt", (() => {
+          const [y, m, d] = paidAt.split('-').map(Number);
+          return new Date(y, m - 1, d, 12, 0, 0).toISOString();
+        })());
+        if (receiptFile) {
+          formData.append("receipt", receiptFile);
+        }
+
         const res = await fetch("/api/payments", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            reservationId,
-            amount: numAmount,
-            method,
-            status: "COMPLETED",
-            paidAt: (() => {
-              const [y, m, d] = paidAt.split('-').map(Number);
-              return new Date(y, m - 1, d, 12, 0, 0).toISOString();
-            })(),
-          }),
+          body: formData,
         });
         const result = await res.json();
         if (result.error) {
@@ -113,6 +118,7 @@ export function AddPaymentDialog({
 
       setAmount("");
       setMethod("MERCADO_PAGO");
+      setReceiptFile(null);
       onOpenChange(false);
       onSuccess?.();
     } catch {
@@ -132,7 +138,7 @@ export function AddPaymentDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="space-y-4 py-2 relative">
           <div className="p-3 rounded-md bg-muted/50 border border-border text-sm">
             <div className="flex justify-between mb-1">
               <span className="text-muted-foreground">Total reserva:</span>
@@ -197,7 +203,25 @@ export function AddPaymentDialog({
               />
             </div>
           )}
+
+          {method !== "MERCADO_PAGO" && (
+            <div className="space-y-2">
+              <Label className="text-xs">Comprobante (opcional)</Label>
+              <ReceiptUpload onFileSelect={setReceiptFile} />
+            </div>
+          )}
         </div>
+
+        {isSubmitting && (
+          <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10 rounded-lg">
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              <span className="text-sm text-muted-foreground">
+                {receiptFile ? "Subiendo comprobante..." : "Guardando..."}
+              </span>
+            </div>
+          </div>
+        )}
 
         <div className="flex gap-2 justify-end">
           <Button

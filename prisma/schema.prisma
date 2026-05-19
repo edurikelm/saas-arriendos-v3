@@ -149,6 +149,7 @@ model Payment {
   installmentIndex Int?
   dueDate         DateTime?
   paidAt          DateTime?
+  receiptUrl      String?
   deletedAt       DateTime?
   createdAt       DateTime      @default(now())
 

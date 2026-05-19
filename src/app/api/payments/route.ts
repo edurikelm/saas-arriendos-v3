@@ -20,7 +20,10 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const data = await request.json();
+    const contentType = request.headers.get("content-type") || "";
+    const data = contentType.includes("multipart/form-data")
+      ? await request.formData()
+      : await request.json();
     const result = await createPayment(data);
 
     if (result?.error) {

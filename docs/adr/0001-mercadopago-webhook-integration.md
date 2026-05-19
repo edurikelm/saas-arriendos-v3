@@ -52,7 +52,11 @@ Donde:
 
 ### Actualización de `paidAt`
 
-Cuando el webhook procesa un pago con status `approved`/`accredited` (COMPLETED), se setea automáticamente `paidAt = new Date()` para registrar la fecha y hora exacta en que se recibió el pago. Esto es útil para auditoría financiera.
+Cuando el webhook procesa un pago con status `approved`/`accredited` (COMPLETED), se setea `paidAt = date_approved` (fecha provista por la API de MP). Si `date_approved` no está disponible, se usa `new Date()` como fallback.
+
+### `receiptUrl`
+
+La API de MercadoPago `/v1/payments/{id}` **no** expone un campo `receipt_url` para pagos con tarjeta de crédito/débito. El campo `transaction_details.external_resource_url` solo se llena para pagos offline (Rapipago, OXXO, boleto, etc.). Por lo tanto, `receiptUrl` no se recibe del webhook — los comprobantes se suben manualmente desde la UI vía Cloudinary para todos los métodos de pago (CASH, TRANSFER, MERCADO_PAGO).
 
 ## Implementation
 

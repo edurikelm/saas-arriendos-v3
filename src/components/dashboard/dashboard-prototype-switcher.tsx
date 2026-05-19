@@ -5,10 +5,10 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const VARIANTS = [
+  { key: "D", name: "Modern Timeline" },
   { key: "A", name: "Stitch Design" },
   { key: "B", name: "Stats First" },
   { key: "C", name: "Compact List" },
-  { key: "D", name: "Modern Timeline" },
 ];
 
 export function DashboardPrototypeSwitcher({

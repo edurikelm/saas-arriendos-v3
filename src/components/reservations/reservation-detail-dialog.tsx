@@ -13,6 +13,8 @@ import {
   ExternalLink,
   Copy,
   Plus,
+  Trash,
+  FileImage,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,13 +33,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { confirmPayment, revertPayment, generatePaymentLink, markPaymentAsPaid } from "@/lib/actions/payments";
+import { confirmPayment, revertPayment, generatePaymentLink, markPaymentAsPaid, attachReceipt } from "@/lib/actions/payments";
 import { CheckCircle, Search } from "lucide-react";
 import { AddPaymentDialog } from "./add-payment-dialog";
+import { ReceiptUpload } from "@/components/ui/receipt-upload";
 
-interface Payment {
+export interface Payment {
   id: string;
   installmentIndex?: number;
   amount: string;
@@ -48,6 +56,7 @@ interface Payment {
   expiresAt?: string | null;
   paidAt?: string | null;
   deletedAt?: string | null;
+  receiptUrl?: string | null;
 }
 
 interface Property {
@@ -164,15 +173,19 @@ function getMonths(startDate: string, endDate: string): number {
   return months >= 1 ? months : 1;
 }
 
-function PaymentsTable({
+export function PaymentsTable({
   payments,
   onGenerateLink,
   onMarkPaid,
+  onDeletePayment,
+  onAttachReceipt,
   showInstallmentColumns,
 }: {
   payments: Payment[];
   onGenerateLink?: (paymentId: string) => void;
   onMarkPaid?: (paymentId: string) => void;
+  onDeletePayment?: (paymentId: string) => void;
+  onAttachReceipt?: (paymentId: string) => void;
   showInstallmentColumns: boolean;
 }) {
   return (
@@ -190,7 +203,7 @@ function PaymentsTable({
             <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Fecha Pago</th>
             <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Medio</th>
             <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Estado</th>
-            <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Acciones</th>
+            <th className="px-2 py-1.5 text-center font-medium text-muted-foreground w-[120px]">Acciones</th>
           </tr>
         </thead>
         <tbody>
@@ -219,48 +232,119 @@ function PaymentsTable({
                   <Badge variant={statusCfg.variant} className="text-xs">{statusCfg.label}</Badge>
                 </td>
                 <td className="px-2 py-2">
-                  {payment.status === "PENDING" && (
-                    <div className="flex gap-1">
-                      {payment.method === "MERCADO_PAGO" && !payment.initPoint && onGenerateLink && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-6 px-2 text-xs"
-                          onClick={() => onGenerateLink(payment.id)}
-                        >
-                          <ExternalLink className="h-3 w-3 mr-1" />
-                          Generar Link
-                        </Button>
-                      )}
-                      {payment.method === "MERCADO_PAGO" && payment.initPoint && (
-                        <>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-6 px-2 text-xs"
-                            onClick={() => {
-                              navigator.clipboard.writeText(payment.initPoint!);
-                              toast.success("Link copiado al portapapeles");
-                            }}
-                          >
-                            <Copy className="h-3 w-3 mr-1" />
-                            Copiar Link
-                          </Button>
-                        </>
-                      )}
-                      {onMarkPaid && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-6 px-2 text-xs"
-                          onClick={() => onMarkPaid(payment.id)}
-                        >
-                          <Check className="h-3 w-3 mr-1" />
-                          Marcar Pagado
-                        </Button>
-                      )}
-                    </div>
-                  )}
+                  <div className="flex items-center justify-center gap-0.5">
+                    {payment.receiptUrl && (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="size-7"
+                              onClick={() => window.open(payment.receiptUrl!, "_blank")}
+                            >
+                              <FileText className="size-3.5" />
+                            </Button>
+                          }
+                        />
+                        <TooltipContent>Ver comprobante</TooltipContent>
+                      </Tooltip>
+                    )}
+                    {payment.status === "PENDING" && payment.method === "MERCADO_PAGO" && !payment.initPoint && onGenerateLink && (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="size-7"
+                              onClick={() => onGenerateLink(payment.id)}
+                            >
+                              <ExternalLink className="size-3.5" />
+                            </Button>
+                          }
+                        />
+                        <TooltipContent>Generar link de pago</TooltipContent>
+                      </Tooltip>
+                    )}
+                    {payment.status === "PENDING" && payment.method === "MERCADO_PAGO" && payment.initPoint && (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="size-7"
+                              onClick={() => {
+                                navigator.clipboard.writeText(payment.initPoint!);
+                                toast.success("Link copiado al portapapeles");
+                              }}
+                            >
+                              <Copy className="size-3.5" />
+                            </Button>
+                          }
+                        />
+                        <TooltipContent>Copiar link de pago</TooltipContent>
+                      </Tooltip>
+                    )}
+                    {payment.status === "PENDING" && onMarkPaid && (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="size-7"
+                              onClick={() => onMarkPaid(payment.id)}
+                            >
+                              <Check className="size-3.5" />
+                            </Button>
+                          }
+                        />
+                        <TooltipContent>Marcar como pagado</TooltipContent>
+                      </Tooltip>
+                    )}
+                    {payment.status === "PENDING" && payment.method !== "MERCADO_PAGO" && onDeletePayment && (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="size-7 text-destructive hover:text-destructive"
+                              onClick={() => onDeletePayment(payment.id)}
+                            >
+                              <Trash className="size-3.5" />
+                            </Button>
+                          }
+                        />
+                        <TooltipContent>Eliminar pago</TooltipContent>
+                      </Tooltip>
+                    )}
+                    {payment.status === "COMPLETED" && !payment.receiptUrl && onAttachReceipt && (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="size-7"
+                              onClick={() => onAttachReceipt(payment.id)}
+                            >
+                              <FileImage className="size-3.5" />
+                            </Button>
+                          }
+                        />
+                        <TooltipContent>Adjuntar comprobante</TooltipContent>
+                      </Tooltip>
+                    )}
+                    {payment.status === "COMPLETED" && payment.method === "MERCADO_PAGO" && !payment.initPoint && !payment.receiptUrl && (
+                      <span className="text-muted-foreground text-[10px]">—</span>
+                    )}
+                    {payment.status !== "PENDING" && payment.status !== "COMPLETED" && (
+                      <span className="text-muted-foreground text-[10px]">—</span>
+                    )}
+                  </div>
                 </td>
               </tr>
             );
@@ -299,6 +383,12 @@ export function ReservationDetailDialog({
   const [markPaidMethod, setMarkPaidMethod] = useState<"CASH" | "TRANSFER">("CASH");
   const [showAddPaymentDialog, setShowAddPaymentDialog] = useState(false);
   const [isCheckingAllPayments, setIsCheckingAllPayments] = useState(false);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [showAttachReceiptModal, setShowAttachReceiptModal] = useState(false);
+  const [attachReceiptPaymentId, setAttachReceiptPaymentId] = useState<string | null>(null);
+  const [attachReceiptFile, setAttachReceiptFile] = useState<File | null>(null);
+  const [isAttachingReceipt, setIsAttachingReceipt] = useState(false);
 
   const handleCopyLink = (initPoint: string) => {
     navigator.clipboard.writeText(initPoint);
@@ -349,12 +439,41 @@ export function ReservationDetailDialog({
     setMarkPaidPaymentId(paymentId);
     setMarkPaidDate(format(new Date(), "yyyy-MM-dd"));
     setMarkPaidMethod("CASH");
+    setReceiptFile(null);
     setShowMarkPaidModal(true);
   };
 
   const handleConfirmMarkPaid = async () => {
     if (!markPaidPaymentId) return;
-    const result = await markPaymentAsPaid(markPaidPaymentId, new Date(markPaidDate), markPaidMethod);
+
+    let receiptUrl: string | undefined;
+
+    if (receiptFile) {
+      setIsUploading(true);
+      const uploadFormData = new FormData();
+      uploadFormData.append("file", receiptFile);
+      uploadFormData.append("folder", "rentalpro/receipts");
+
+      try {
+        const uploadRes = await fetch("/api/upload", {
+          method: "POST",
+          body: uploadFormData,
+        });
+        const uploadResult = await uploadRes.json();
+        if (uploadResult.error) {
+          toast.error(uploadResult.error);
+          return;
+        }
+        receiptUrl = uploadResult.url;
+      } catch {
+        toast.error("Error al subir comprobante");
+        return;
+      } finally {
+        setIsUploading(false);
+      }
+    }
+
+    const result = await markPaymentAsPaid(markPaidPaymentId, new Date(markPaidDate), markPaidMethod, receiptUrl);
     if (result?.error) {
       toast.error(result.error);
       return;
@@ -362,6 +481,7 @@ export function ReservationDetailDialog({
     toast.success("Pago marcado como pagado");
     setShowMarkPaidModal(false);
     setMarkPaidPaymentId(null);
+    setReceiptFile(null);
     onRefresh?.(reservation.id);
   };
 
@@ -408,6 +528,49 @@ onRefresh?.(reservation.id);
       toast.error("Error al refrescar pagos");
     } finally {
       setIsCheckingAllPayments(false);
+    }
+  };
+
+  const handleAttachReceiptClick = (paymentId: string) => {
+    setAttachReceiptPaymentId(paymentId);
+    setAttachReceiptFile(null);
+    setShowAttachReceiptModal(true);
+  };
+
+  const handleConfirmAttachReceipt = async () => {
+    if (!attachReceiptPaymentId || !attachReceiptFile) return;
+
+    setIsAttachingReceipt(true);
+    try {
+      const uploadFormData = new FormData();
+      uploadFormData.append("file", attachReceiptFile);
+      uploadFormData.append("folder", "rentalpro/receipts");
+
+      const uploadRes = await fetch("/api/upload", {
+        method: "POST",
+        body: uploadFormData,
+      });
+      const uploadResult = await uploadRes.json();
+      if (uploadResult.error) {
+        toast.error(uploadResult.error);
+        return;
+      }
+
+      const result = await attachReceipt(attachReceiptPaymentId, uploadResult.url);
+      if (result?.error) {
+        toast.error(result.error);
+        return;
+      }
+
+      toast.success("Comprobante adjuntado");
+      setShowAttachReceiptModal(false);
+      setAttachReceiptPaymentId(null);
+      setAttachReceiptFile(null);
+      onRefresh?.(reservation.id);
+    } catch {
+      toast.error("Error al adjuntar comprobante");
+    } finally {
+      setIsAttachingReceipt(false);
     }
   };
 
@@ -549,6 +712,8 @@ onRefresh?.(reservation.id);
               payments={reservation.payments}
               onGenerateLink={handleRegenerateLink}
               onMarkPaid={handleMarkPaidClick}
+              onDeletePayment={handleDeletePayment}
+              onAttachReceipt={handleAttachReceiptClick}
               showInstallmentColumns={reservation.billingType === "MONTHLY"}
             />
           </div>
@@ -604,10 +769,31 @@ onRefresh?.(reservation.id);
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Comprobante (opcional)</Label>
+                <ReceiptUpload onFileSelect={setReceiptFile} />
+              </div>
             </div>
             <div className="flex gap-2 justify-end">
-              <Button size="sm" variant="ghost" onClick={() => setShowMarkPaidModal(false)}>Cancelar</Button>
-              <Button size="sm" onClick={handleConfirmMarkPaid}>Confirmar</Button>
+              <Button size="sm" variant="ghost" onClick={() => setShowMarkPaidModal(false)} disabled={isUploading}>Cancelar</Button>
+              <Button size="sm" onClick={handleConfirmMarkPaid} disabled={isUploading}>{isUploading ? "Subiendo..." : "Confirmar"}</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showAttachReceiptModal} onOpenChange={setShowAttachReceiptModal}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Adjuntar Comprobante</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <ReceiptUpload onFileSelect={setAttachReceiptFile} />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button size="sm" variant="ghost" onClick={() => setShowAttachReceiptModal(false)}>Cancelar</Button>
+              <Button size="sm" onClick={handleConfirmAttachReceipt} disabled={!attachReceiptFile || isAttachingReceipt}>
+                {isAttachingReceipt ? "Subiendo..." : "Subir"}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
