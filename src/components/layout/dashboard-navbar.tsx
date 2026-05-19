@@ -2,6 +2,12 @@
 
 import { Bell, LogOut, Shield, Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { logoutAction } from "@/lib/actions/auth";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
@@ -13,16 +19,12 @@ interface DashboardNavbarProps {
 
 export function DashboardNavbar({ userName, userRole }: DashboardNavbarProps) {
   const isSuperAdmin = userRole === "SUPER_ADMIN";
-  const { theme, setTheme } = useTheme();
+  const { setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  const toggleTheme = () => {
-    setTheme(theme === "dark" ? "light" : "dark");
-  };
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background px-4 lg:px-6">
@@ -38,9 +40,30 @@ export function DashboardNavbar({ userName, userRole }: DashboardNavbarProps) {
             <span className="text-sm font-medium text-primary">Super Admin</span>
           </div>
         )}
-        <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Cambiar tema">
-          {mounted && theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-        </Button>
+        {mounted ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Cambiar tema" />}>
+              <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+              <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+              <span className="sr-only">Cambiar tema</span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setTheme("light")}>
+                Claro
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme("dark")}>
+                Oscuro
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme("system")}>
+                Sistema
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <Button variant="ghost" size="icon" disabled>
+            <Moon className="h-5 w-5" />
+          </Button>
+        )}
         <Button variant="ghost" size="icon">
           <Bell className="h-5 w-5" />
         </Button>
