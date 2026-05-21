@@ -174,7 +174,27 @@ Usar `src/proxy.ts` con exports `proxy` y `config` en lugar de `middleware.ts`.
 
 Todas las páginas que contienen tablas (clientes, reservas, admin/users) envuelven el contenido en el componente `<Card>` de shadcn/ui con `<CardHeader>` (título, descripción, acción principal) y `<CardContent>` (búsqueda, filtros, tabla). Esto da framing visual con `ring-1 ring-foreground/10` y separa claramente el área de datos del fondo. El layout (sidebar, navbar) provee el `bg-background` general; el Card aporta elevación sobre ese fondo.
 
+### Diseño Responsive
+
+Estrategia mobile-first con breakpoints estándar de Tailwind v4. Ver ADR-0015.
+
+#### Tablas
+Toda tabla DEBE envolverse en `<div className="overflow-x-auto">`. No se esconden columnas.
+
+#### Barras de filtro y búsqueda
+Se apilan vertical en mobile: `flex flex-col sm:flex-row sm:items-center gap-2`. Inputs y selects usan `w-full sm:w-auto`.
+
+#### Diálogos modales
+Todo `DialogContent` usa `w-[95vw]` como ancho base + `max-w-{tamaño}`.
+
+#### Grids de cards
+Progresión: `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3` (o 4).
+
+#### Calendario
+Grid de 7 columnas en todas las resoluciones. Celdas: `min-h-12 sm:min-h-20 lg:min-h-24`.
+
 ### Ver también
 
 - ADR-0002: `docs/adr/0002-nextjs-app-router-patterns.md`
 - ADR-0012: `docs/adr/0012-monthly-payment-generation.md`
+- ADR-0015: `docs/adr/0015-responsive-design-strategy.md`

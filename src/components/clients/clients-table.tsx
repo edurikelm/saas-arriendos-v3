@@ -110,7 +110,7 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="relative max-w-sm mb-6">
+          <div className="relative w-full sm:max-w-sm mb-6">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Buscar por nombre, email, teléfono o RUT..."

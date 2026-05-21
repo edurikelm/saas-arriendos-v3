@@ -46,7 +46,7 @@ export function LoginForm() {
   };
 
   return (
-    <Card className="w-[400px]">
+    <Card className="w-full max-w-sm mx-4">
       <CardHeader>
         <CardTitle>Iniciar Sesión</CardTitle>
         <CardDescription>Ingresa tus credenciales para acceder</CardDescription>

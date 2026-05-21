@@ -192,7 +192,7 @@ export function PaymentsTable({
   generatingLinkId?: string | null;
 }) {
   return (
-    <div className="rounded-md border border-border overflow-hidden">
+    <div className="overflow-x-auto rounded-md border border-border">
       <table className="w-full text-xs">
         <thead className="bg-muted/50">
           <tr>
@@ -615,7 +615,7 @@ onRefresh?.(reservation.id);
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="w-auto overflow-x-auto">
+      <DialogContent className="w-[95vw] max-w-2xl">
         <div className="flex items-start justify-between mb-6">
           <div className="flex items-center gap-4">
             <div
@@ -635,7 +635,7 @@ onRefresh?.(reservation.id);
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-6">
           <div className="p-3 rounded-md bg-muted/30 border border-border">
             <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
               <Calendar className="h-3 w-3" />
@@ -747,7 +747,7 @@ onRefresh?.(reservation.id);
 
 
 
-        <div className="flex gap-2 pt-4 border-t border-border mt-6">
+        <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t border-border mt-6">
           <Button variant="outline" size="sm" className="flex-1 h-8" onClick={onEdit}>Editar Reserva</Button>
           {reservation.status !== "CANCELLED" && reservation.status !== "COMPLETED" && (
             <Button variant="destructive" size="sm" className="h-8" onClick={onCancel}>Cancelar</Button>
@@ -755,7 +755,7 @@ onRefresh?.(reservation.id);
         </div>
 
         <Dialog open={showMarkPaidModal} onOpenChange={setShowMarkPaidModal}>
-          <DialogContent className="max-w-sm">
+          <DialogContent className="w-[95vw] max-w-sm">
             <DialogHeader>
               <DialogTitle>Marcar Pago como Pagado</DialogTitle>
             </DialogHeader>
@@ -794,7 +794,7 @@ onRefresh?.(reservation.id);
         </Dialog>
 
         <Dialog open={showAttachReceiptModal} onOpenChange={setShowAttachReceiptModal}>
-          <DialogContent className="max-w-sm">
+          <DialogContent className="w-[95vw] max-w-sm">
             <DialogHeader>
               <DialogTitle>Adjuntar Comprobante</DialogTitle>
             </DialogHeader>

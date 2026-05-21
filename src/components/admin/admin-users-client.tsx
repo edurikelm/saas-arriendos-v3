@@ -199,7 +199,7 @@ export function AdminUsersClient({ initialUsers, initialTotal }: AdminUsersClien
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-4 mb-6">
+          <div className="flex flex-col sm:flex-row gap-2 mb-6">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -228,7 +228,7 @@ export function AdminUsersClient({ initialUsers, initialTotal }: AdminUsersClien
             </div>
           ) : (
             <>
-              <div className="border rounded-lg">
+              <div className="overflow-x-auto rounded-lg border">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b bg-muted/50">
@@ -332,7 +332,7 @@ export function AdminUsersClient({ initialUsers, initialTotal }: AdminUsersClien
                   value={selectedUser.plan}
                   onValueChange={(v) => handleUpdatePlan(selectedUser.id, v || "FREE")}
                 >
-                  <SelectTrigger className="w-32">
+<SelectTrigger className="w-full sm:w-32">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

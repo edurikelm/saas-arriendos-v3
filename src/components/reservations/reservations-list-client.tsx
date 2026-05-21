@@ -237,7 +237,7 @@ export function ReservationsListClient({
                 <select
                   value={filters.propertyId}
                   onChange={(e) => setFilters({ ...filters, propertyId: e.target.value })}
-                  className="h-9 px-3 rounded-md border bg-background text-sm"
+                  className="h-8 sm:h-9 px-2 sm:px-3 rounded-md border bg-background text-xs sm:text-sm"
                 >
                   <option value="">Todas las propiedades</option>
                   {properties.map((p) => (
@@ -248,7 +248,7 @@ export function ReservationsListClient({
                 <select
                   value={filters.billingType}
                   onChange={(e) => setFilters({ ...filters, billingType: e.target.value })}
-                  className="h-9 px-3 rounded-md border bg-background text-sm"
+                  className="h-8 sm:h-9 px-2 sm:px-3 rounded-md border bg-background text-xs sm:text-sm"
                 >
                   <option value="">Todos los tipos</option>
                   <option value="DAILY">Diario</option>
@@ -258,7 +258,7 @@ export function ReservationsListClient({
                 <select
                   value={filters.status}
                   onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-                  className="h-9 px-3 rounded-md border bg-background text-sm"
+                  className="h-8 sm:h-9 px-2 sm:px-3 rounded-md border bg-background text-xs sm:text-sm"
                 >
                   <option value="">Todos los estados</option>
                   <option value="PENDING">Pendiente</option>
@@ -270,7 +270,7 @@ export function ReservationsListClient({
                 <select
                   value={filters.payment}
                   onChange={(e) => setFilters({ ...filters, payment: e.target.value })}
-                  className="h-9 px-3 rounded-md border bg-background text-sm"
+                  className="h-8 sm:h-9 px-2 sm:px-3 rounded-md border bg-background text-xs sm:text-sm"
                 >
                   <option value="">Todos los pagos</option>
                   <option value="paid">Pagado</option>

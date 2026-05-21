@@ -48,7 +48,7 @@ export function RegisterForm() {
   };
 
   return (
-    <Card className="w-[400px]">
+    <Card className="w-full max-w-sm mx-4">
       <CardHeader>
         <CardTitle>Crear Cuenta</CardTitle>
         <CardDescription>Regístrate para comenzar a gestionar tus propiedades</CardDescription>

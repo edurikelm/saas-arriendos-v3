@@ -215,7 +215,7 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div className="flex items-center gap-3">
           <BarChart3 className="h-8 w-8 text-primary" />
           <div>
@@ -286,7 +286,7 @@ export default function ReportsPage() {
             <div className="flex flex-col gap-1.5">
               <label className="text-xs text-muted-foreground">Propiedad</label>
               <Select value={selectedProperty} onValueChange={(value) => setSelectedProperty(value || "all")}>
-                <SelectTrigger className="w-48">
+                <SelectTrigger className="w-full sm:w-48">
                   <SelectValue placeholder="Todas" />
                 </SelectTrigger>
                 <SelectContent>
@@ -301,7 +301,7 @@ export default function ReportsPage() {
             <div className="flex flex-col gap-1.5">
               <label className="text-xs text-muted-foreground">Estado reserva</label>
               <Select value={selectedStatus} onValueChange={(v) => v && setSelectedStatus(v)}>
-                <SelectTrigger className="w-40">
+                <SelectTrigger className="w-full sm:w-40">
                   <SelectValue placeholder="Todos" />
                 </SelectTrigger>
                 <SelectContent>
@@ -317,7 +317,7 @@ export default function ReportsPage() {
             <div className="flex flex-col gap-1.5">
               <label className="text-xs text-muted-foreground">Año</label>
               <Select value={selectedYear} onValueChange={(v) => setSelectedYear(v || new Date().getFullYear().toString())}>
-                <SelectTrigger className="w-32">
+                <SelectTrigger className="w-full sm:w-32">
                   <SelectValue placeholder="Año" />
                 </SelectTrigger>
                 <SelectContent>
@@ -337,7 +337,7 @@ export default function ReportsPage() {
         </div>
       ) : (
         <>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Propiedades</CardTitle>
@@ -434,7 +434,7 @@ export default function ReportsPage() {
             </Card>
           )}
 
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -520,7 +520,7 @@ export default function ReportsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-6 md:grid-cols-3">
+                <div className="grid gap-6 grid-cols-1 sm:grid-cols-3">
                   <div className="text-center">
                     <p className="text-3xl font-bold text-primary">
                       {yearlySummary.totalRevenue.toLocaleString("CLP")}

@@ -169,15 +169,15 @@ export function PropertiesClient({ initialProperties, usedColors }: PropertiesCl
         </Dialog>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
         <Input
           placeholder="Buscar propiedades..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="max-w-sm"
+          className="w-full sm:max-w-sm"
         />
         <Select value={typeFilter} onValueChange={(value: string | null) => { if (value) setTypeFilter(value); }}>
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-full sm:w-40">
             <SelectValue placeholder="Todos los tipos" />
           </SelectTrigger>
           <SelectContent>

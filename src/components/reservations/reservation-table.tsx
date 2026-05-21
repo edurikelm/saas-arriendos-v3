@@ -271,7 +271,7 @@ export function ReservationCardEditorial({ reservation, onEdit, onView, onCancel
 
   return (
     <div className="group relative overflow-hidden rounded-2xl border border-stone-200/50 dark:border-stone-800/50 bg-stone-50 dark:bg-stone-900 transition-all duration-500 hover:shadow-2xl">
-      <div className="grid grid-cols-[1fr_auto] gap-6 p-6">
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-4 sm:gap-6 p-4 sm:p-6">
         <div className="space-y-4">
           <div className="flex items-start justify-between">
             <div>

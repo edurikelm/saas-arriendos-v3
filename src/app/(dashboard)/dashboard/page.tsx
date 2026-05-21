@@ -893,71 +893,73 @@ function VariantC({
             <div className="border-b px-4 py-3 bg-muted/30">
               <h3 className="font-semibold">Arriendos Activos y Próximos</h3>
             </div>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/30">
-                  <th className="text-left p-3 font-medium">Propiedad</th>
-                  <th className="text-left p-3 font-medium">Cliente</th>
-                  <th className="text-left p-3 font-medium">Check-in</th>
-                  <th className="text-left p-3 font-medium">Check-out</th>
-                  <th className="text-left p-3 font-medium">Noches</th>
-                  <th className="text-left p-3 font-medium">Tipo</th>
-                  <th className="text-right p-3 font-medium">Total</th>
-                  <th className="text-right p-3 font-medium">Pagado</th>
-                  <th className="text-right p-3 font-medium">Estado</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {[...groupedReservations.active, ...groupedReservations.upcoming].map((res) => {
-                  const isActive = groupedReservations.active.some((r) => r.id === res.id);
-                  const paid = getPaidAmount(res.payments);
-                  const pending = Number(res.totalPrice) - paid;
-                  const status = getStatusBadge(res.status);
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/30">
+                    <th className="text-left p-3 font-medium">Propiedad</th>
+                    <th className="text-left p-3 font-medium">Cliente</th>
+                    <th className="text-left p-3 font-medium">Check-in</th>
+                    <th className="text-left p-3 font-medium">Check-out</th>
+                    <th className="text-left p-3 font-medium">Noches</th>
+                    <th className="text-left p-3 font-medium">Tipo</th>
+                    <th className="text-right p-3 font-medium">Total</th>
+                    <th className="text-right p-3 font-medium">Pagado</th>
+                    <th className="text-right p-3 font-medium">Estado</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {[...groupedReservations.active, ...groupedReservations.upcoming].map((res) => {
+                    const isActive = groupedReservations.active.some((r) => r.id === res.id);
+                    const paid = getPaidAmount(res.payments);
+                    const pending = Number(res.totalPrice) - paid;
+                    const status = getStatusBadge(res.status);
 
-                  return (
-                    <tr key={res.id} className={isActive ? "bg-green-50/50" : ""}>
-                      <td className="p-3">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="h-3 w-3 rounded-full"
-                            style={{ backgroundColor: res.property.color }}
-                          />
-                          <span className="font-medium">{res.property.name}</span>
-                        </div>
-                      </td>
-                      <td className="p-3 text-muted-foreground">{res.client.name}</td>
-                      <td className="p-3">{formatDate(res.startDate)}</td>
-                      <td className="p-3">{formatDate(res.endDate)}</td>
-                      <td className="p-3 text-center">{getNights(res.startDate, res.endDate)}</td>
-                      <td className="p-3">
-                        <span className="text-xs bg-muted px-2 py-1 rounded">
-                          {res.billingType === "DAILY" ? "Diario" : "Mensual"}
-                        </span>
-                      </td>
-                      <td className="p-3 text-right font-medium">{formatCLP(Number(res.totalPrice))}</td>
-                      <td className="p-3 text-right">
-                        <span className="text-green-600">{formatCLP(paid)}</span>
-                        {pending > 0 && (
-                          <span className="text-orange-600 block text-xs">{formatCLP(pending)} pte</span>
-                        )}
-                      </td>
-                      <td className="p-3 text-right">
-                        <span
-                          className={`inline-flex h-5 items-center rounded-full px-2 text-xs font-medium ${
-                            status.variant === "default" ? "bg-primary text-primary-foreground" :
-                            status.variant === "secondary" ? "bg-secondary text-secondary-foreground" :
-                            status.variant === "destructive" ? "bg-destructive/10 text-destructive" :
-                            "border"
-                          }`}
-                        >
-                          {status.label}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                    return (
+                      <tr key={res.id} className={isActive ? "bg-green-50/50" : ""}>
+                        <td className="p-3">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="h-3 w-3 rounded-full"
+                              style={{ backgroundColor: res.property.color }}
+                            />
+                            <span className="font-medium">{res.property.name}</span>
+                          </div>
+                        </td>
+                        <td className="p-3 text-muted-foreground">{res.client.name}</td>
+                        <td className="p-3">{formatDate(res.startDate)}</td>
+                        <td className="p-3">{formatDate(res.endDate)}</td>
+                        <td className="p-3 text-center">{getNights(res.startDate, res.endDate)}</td>
+                        <td className="p-3">
+                          <span className="text-xs bg-muted px-2 py-1 rounded">
+                            {res.billingType === "DAILY" ? "Diario" : "Mensual"}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right font-medium">{formatCLP(Number(res.totalPrice))}</td>
+                        <td className="p-3 text-right">
+                          <span className="text-green-600">{formatCLP(paid)}</span>
+                          {pending > 0 && (
+                            <span className="text-orange-600 block text-xs">{formatCLP(pending)} pte</span>
+                          )}
+                        </td>
+                        <td className="p-3 text-right">
+                          <span
+                            className={`inline-flex h-5 items-center rounded-full px-2 text-xs font-medium ${
+                              status.variant === "default" ? "bg-primary text-primary-foreground" :
+                              status.variant === "secondary" ? "bg-secondary text-secondary-foreground" :
+                              status.variant === "destructive" ? "bg-destructive/10 text-destructive" :
+                              "border"
+                            }`}
+                          >
+                            {status.label}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -967,35 +969,37 @@ function VariantC({
             <div className="border-b px-4 py-3 bg-yellow-50/50">
               <h3 className="font-semibold text-yellow-800">Reservas Pendientes de Confirmación</h3>
             </div>
-            <table className="w-full text-sm">
-              <tbody className="divide-y">
-                {groupedReservations.pending.map((res) => {
-                  const paid = getPaidAmount(res.payments);
-                  return (
-                    <tr key={res.id}>
-                      <td className="p-3">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="h-3 w-3 rounded-full"
-                            style={{ backgroundColor: res.property.color }}
-                          />
-                          <span className="font-medium">{res.property.name}</span>
-                        </div>
-                      </td>
-                      <td className="p-3 text-muted-foreground">{res.client.name}</td>
-                      <td className="p-3">{formatDate(res.startDate)}</td>
-                      <td className="p-3">{formatDate(res.endDate)}</td>
-                      <td className="p-3 text-right font-medium">{formatCLP(Number(res.totalPrice))}</td>
-                      <td className="p-3 text-right">
-                        <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
-                          Pendiente
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <tbody className="divide-y">
+                  {groupedReservations.pending.map((res) => {
+                    const paid = getPaidAmount(res.payments);
+                    return (
+                      <tr key={res.id}>
+                        <td className="p-3">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="h-3 w-3 rounded-full"
+                              style={{ backgroundColor: res.property.color }}
+                            />
+                            <span className="font-medium">{res.property.name}</span>
+                          </div>
+                        </td>
+                        <td className="p-3 text-muted-foreground">{res.client.name}</td>
+                        <td className="p-3">{formatDate(res.startDate)}</td>
+                        <td className="p-3">{formatDate(res.endDate)}</td>
+                        <td className="p-3 text-right font-medium">{formatCLP(Number(res.totalPrice))}</td>
+                        <td className="p-3 text-right">
+                          <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
+                            Pendiente
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 

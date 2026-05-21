@@ -82,14 +82,14 @@ export function CalendarGrid({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">
+        <h2 className="text-base sm:text-xl font-semibold">
           {format(currentDate, "MMMM yyyy", { locale: es }).toUpperCase()}
         </h2>
         <div className="flex gap-2">
           <Button variant="outline" size="icon" onClick={() => navigateMonth("prev")}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button variant="outline" onClick={() => setCurrentDate(new Date())}>
+          <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>
             HOY
           </Button>
           <Button variant="outline" size="icon" onClick={() => navigateMonth("next")}>
@@ -102,7 +102,7 @@ export function CalendarGrid({
         {["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"].map((day) => (
           <div
             key={day}
-            className="bg-muted p-2 text-center text-sm font-medium text-muted-foreground"
+            className="bg-muted p-1 sm:p-2 text-center text-xs sm:text-sm font-medium text-muted-foreground"
           >
             {day}
           </div>
@@ -118,7 +118,7 @@ export function CalendarGrid({
             <div
               key={dateKey}
               className={`
-                min-h-24 bg-background p-1 transition-colors hover:bg-muted/50
+                min-h-12 sm:min-h-20 lg:min-h-24 bg-background p-1 transition-colors hover:bg-muted/50 overflow-hidden
                 ${!isCurrentMonth ? "text-muted-foreground opacity-50" : ""}
               `}
               onClick={() => onDateClick?.(day)}

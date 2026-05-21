@@ -200,7 +200,7 @@ export function ReservationForm({
 
       <div className="space-y-2">
         <Label>Tipo de Facturación *</Label>
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-2">
           <button
             type="button"
             onClick={() => {
