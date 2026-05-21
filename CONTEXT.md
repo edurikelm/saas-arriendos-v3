@@ -170,6 +170,10 @@ Todos los layouts deben exportar `metadata` para SEO.
 
 Usar `src/proxy.ts` con exports `proxy` y `config` en lugar de `middleware.ts`.
 
+### Card wrapping en páginas de tabla
+
+Todas las páginas que contienen tablas (clientes, reservas, admin/users) envuelven el contenido en el componente `<Card>` de shadcn/ui con `<CardHeader>` (título, descripción, acción principal) y `<CardContent>` (búsqueda, filtros, tabla). Esto da framing visual con `ring-1 ring-foreground/10` y separa claramente el área de datos del fondo. El layout (sidebar, navbar) provee el `bg-background` general; el Card aporta elevación sobre ese fondo.
+
 ### Ver también
 
 - ADR-0002: `docs/adr/0002-nextjs-app-router-patterns.md`

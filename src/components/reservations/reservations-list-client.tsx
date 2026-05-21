@@ -186,231 +186,236 @@ export function ReservationsListClient({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Reservas</h1>
-          <p className="text-muted-foreground">Gestiona las reservas de tus propiedades</p>
-        </div>
-        <div className="flex gap-2">
-          <div className="flex border rounded-md">
-            <button
-              onClick={() => setViewMode("list")}
-              className={`p-2 ${viewMode === "list" ? "bg-muted" : ""}`}
-            >
-              <List className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setViewMode("table")}
-              className={`p-2 ${viewMode === "table" ? "bg-muted" : ""}`}
-            >
-              <Grid className="h-4 w-4" />
-            </button>
-          </div>
-          <Button onClick={() => setIsCreateOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nueva Reserva
-          </Button>
-        </div>
-      </div>
-
-      {reservations.length === 0 ? (
-        <div className="text-center py-12">
-          <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-          <h3 className="text-lg font-medium mb-2">No hay reservas</h3>
-          <p className="text-muted-foreground mb-4">Crea tu primera reserva para comenzar</p>
-          <Button onClick={() => setIsCreateOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Crear Reserva
-          </Button>
-        </div>
-      ) : (
-        <>
-          <div className="flex flex-wrap items-center gap-3 p-4 bg-muted/50 rounded-lg border">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Filtros:</span>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Reservas</CardTitle>
+              <CardDescription>Gestiona las reservas de tus propiedades</CardDescription>
             </div>
-
-            <select
-              value={filters.propertyId}
-              onChange={(e) => setFilters({ ...filters, propertyId: e.target.value })}
-              className="h-9 px-3 rounded-md border bg-background text-sm"
-            >
-              <option value="">Todas las propiedades</option>
-              {properties.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-
-            <select
-              value={filters.billingType}
-              onChange={(e) => setFilters({ ...filters, billingType: e.target.value })}
-              className="h-9 px-3 rounded-md border bg-background text-sm"
-            >
-              <option value="">Todos los tipos</option>
-              <option value="DAILY">Diario</option>
-              <option value="MONTHLY">Mensual</option>
-            </select>
-
-            <select
-              value={filters.status}
-              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-              className="h-9 px-3 rounded-md border bg-background text-sm"
-            >
-              <option value="">Todos los estados</option>
-              <option value="PENDING">Pendiente</option>
-              <option value="CONFIRMED">Confirmada</option>
-              <option value="CANCELLED">Cancelada</option>
-              <option value="COMPLETED">Completada</option>
-            </select>
-
-            <select
-              value={filters.payment}
-              onChange={(e) => setFilters({ ...filters, payment: e.target.value })}
-              className="h-9 px-3 rounded-md border bg-background text-sm"
-            >
-              <option value="">Todos los pagos</option>
-              <option value="paid">Pagado</option>
-              <option value="pending">Pendiente</option>
-              <option value="overpaid">Exceso</option>
-            </select>
-
-            {hasActiveFilters && (
-              <Button variant="ghost" size="sm" onClick={clearFilters}>
-                <X className="h-4 w-4 mr-1" />
-                Limpiar
+            <div className="flex gap-2">
+              <div className="flex border rounded-md">
+                <button
+                  onClick={() => setViewMode("list")}
+                  className={`p-2 ${viewMode === "list" ? "bg-muted" : ""}`}
+                >
+                  <List className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode("table")}
+                  className={`p-2 ${viewMode === "table" ? "bg-muted" : ""}`}
+                >
+                  <Grid className="h-4 w-4" />
+                </button>
+              </div>
+              <Button onClick={() => setIsCreateOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Nueva Reserva
               </Button>
-            )}
+            </div>
           </div>
-
-          {viewMode === "table" ? (
-            <div className="overflow-x-auto">
-              <ReservationTable
-                reservations={filteredReservations}
-                onView={(id) => {
-                  const res = reservations.find((r) => r.id === id);
-                  if (res) setViewingReservation(res);
-                }}
-                onEdit={(id) => {
-                  const res = reservations.find((r) => r.id === id);
-                  if (res) setEditingReservation(res);
-                }}
-                onCancel={(id) => handleCancel(id)}
-                onDelete={(id) => handleDelete(id)}
-              />
+        </CardHeader>
+        <CardContent>
+          {reservations.length === 0 ? (
+            <div className="text-center py-12">
+              <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-medium mb-2">No hay reservas</h3>
+              <p className="text-muted-foreground mb-4">Crea tu primera reserva para comenzar</p>
+              <Button onClick={() => setIsCreateOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Crear Reserva
+              </Button>
             </div>
           ) : (
-            <div className="space-y-4">
-              {filteredReservations.map((reservation) => {
-                const status = statusLabels[reservation.status] || statusLabels.PENDING;
-                const paidAmount = reservation.payments
-                  .filter((p) => p.status === "COMPLETED")
-                  .reduce((sum, p) => sum + Number(p.amount), 0);
-                const pendingAmount = Number(reservation.totalPrice) - paidAmount;
+            <>
+              <div className="flex flex-wrap items-center gap-3 p-4 bg-muted/50 rounded-lg border mb-6">
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Filtros:</span>
+                </div>
 
-                return (
-                  <Card key={reservation.id}>
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <CardTitle className="text-lg">{reservation.property.name}</CardTitle>
-                          <CardDescription>
-                            {reservation.client.name} • {reservation.client.email}
-                          </CardDescription>
-                        </div>
-                        <Badge variant={status.variant}>{status.label}</Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-                        <div>
-                          <p className="text-muted-foreground">Fechas</p>
-                          <p className="font-medium">
-                            {formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}
-                            <span className="text-muted-foreground ml-1">
-                              ({getNights(reservation.startDate, reservation.endDate)} noches)
-                            </span>
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Tipo</p>
-                          <p className="font-medium">
-                            {reservation.billingType === "DAILY" ? "Diario" : "Mensual"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Unidades</p>
-                          <p className="font-medium">{reservation.unitsBooked}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Total</p>
-                          <p className="font-medium">${Number(reservation.totalPrice).toLocaleString("CLP")}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Pagado/Pendiente</p>
-                          <p className="font-medium text-green-600">
-                            ${paidAmount.toLocaleString("CLP")}
-                          </p>
-                          {pendingAmount > 0 && (
-                            <p className="text-xs text-orange-600">
-                              ${pendingAmount.toLocaleString("CLP")} pendiente
+                <select
+                  value={filters.propertyId}
+                  onChange={(e) => setFilters({ ...filters, propertyId: e.target.value })}
+                  className="h-9 px-3 rounded-md border bg-background text-sm"
+                >
+                  <option value="">Todas las propiedades</option>
+                  {properties.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+
+                <select
+                  value={filters.billingType}
+                  onChange={(e) => setFilters({ ...filters, billingType: e.target.value })}
+                  className="h-9 px-3 rounded-md border bg-background text-sm"
+                >
+                  <option value="">Todos los tipos</option>
+                  <option value="DAILY">Diario</option>
+                  <option value="MONTHLY">Mensual</option>
+                </select>
+
+                <select
+                  value={filters.status}
+                  onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                  className="h-9 px-3 rounded-md border bg-background text-sm"
+                >
+                  <option value="">Todos los estados</option>
+                  <option value="PENDING">Pendiente</option>
+                  <option value="CONFIRMED">Confirmada</option>
+                  <option value="CANCELLED">Cancelada</option>
+                  <option value="COMPLETED">Completada</option>
+                </select>
+
+                <select
+                  value={filters.payment}
+                  onChange={(e) => setFilters({ ...filters, payment: e.target.value })}
+                  className="h-9 px-3 rounded-md border bg-background text-sm"
+                >
+                  <option value="">Todos los pagos</option>
+                  <option value="paid">Pagado</option>
+                  <option value="pending">Pendiente</option>
+                  <option value="overpaid">Exceso</option>
+                </select>
+
+                {hasActiveFilters && (
+                  <Button variant="ghost" size="sm" onClick={clearFilters}>
+                    <X className="h-4 w-4 mr-1" />
+                    Limpiar
+                  </Button>
+                )}
+              </div>
+
+              {viewMode === "table" ? (
+                <div className="overflow-x-auto">
+                  <ReservationTable
+                    reservations={filteredReservations}
+                    onView={(id) => {
+                      const res = reservations.find((r) => r.id === id);
+                      if (res) setViewingReservation(res);
+                    }}
+                    onEdit={(id) => {
+                      const res = reservations.find((r) => r.id === id);
+                      if (res) setEditingReservation(res);
+                    }}
+                    onCancel={(id) => handleCancel(id)}
+                    onDelete={(id) => handleDelete(id)}
+                  />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {filteredReservations.map((reservation) => {
+                    const status = statusLabels[reservation.status] || statusLabels.PENDING;
+                    const paidAmount = reservation.payments
+                      .filter((p) => p.status === "COMPLETED")
+                      .reduce((sum, p) => sum + Number(p.amount), 0);
+                    const pendingAmount = Number(reservation.totalPrice) - paidAmount;
+
+                    return (
+                      <Card key={reservation.id}>
+                        <CardHeader className="pb-3">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <CardTitle className="text-lg">{reservation.property.name}</CardTitle>
+                              <CardDescription>
+                                {reservation.client.name} • {reservation.client.email}
+                              </CardDescription>
+                            </div>
+                            <Badge variant={status.variant}>{status.label}</Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                            <div>
+                              <p className="text-muted-foreground">Fechas</p>
+                              <p className="font-medium">
+                                {formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}
+                                <span className="text-muted-foreground ml-1">
+                                  ({getNights(reservation.startDate, reservation.endDate)} noches)
+                                </span>
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Tipo</p>
+                              <p className="font-medium">
+                                {reservation.billingType === "DAILY" ? "Diario" : "Mensual"}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Unidades</p>
+                              <p className="font-medium">{reservation.unitsBooked}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Total</p>
+                              <p className="font-medium">${Number(reservation.totalPrice).toLocaleString("CLP")}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Pagado/Pendiente</p>
+                              <p className="font-medium text-green-600">
+                                ${paidAmount.toLocaleString("CLP")}
+                              </p>
+                              {pendingAmount > 0 && (
+                                <p className="text-xs text-orange-600">
+                                  ${pendingAmount.toLocaleString("CLP")} pendiente
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {reservation.notes && (
+                            <p className="mt-3 text-sm text-muted-foreground">
+                              <span className="font-medium">Notas:</span> {reservation.notes}
                             </p>
                           )}
-                        </div>
-                      </div>
 
-                      {reservation.notes && (
-                        <p className="mt-3 text-sm text-muted-foreground">
-                          <span className="font-medium">Notas:</span> {reservation.notes}
-                        </p>
-                      )}
-
-                      <div className="flex gap-2 mt-4">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setViewingReservation(reservation)}
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          Ver
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setEditingReservation(reservation)}
-                        >
-                          <Pencil className="h-4 w-4 mr-1" />
-                          Editar
-                        </Button>
-                        {reservation.status !== "CANCELLED" && reservation.status !== "COMPLETED" && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleCancel(reservation.id)}
-                          >
-                            <Trash2 className="h-4 w-4 mr-1" />
-                            Cancelar
-                          </Button>
-                        )}
-                        {(reservation.status === "CANCELLED" || reservation.status === "COMPLETED") && (
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleDelete(reservation.id)}
-                          >
-                            <Trash2 className="h-4 w-4 mr-1" />
-                            Eliminar
-                          </Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
+                          <div className="flex gap-2 mt-4">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setViewingReservation(reservation)}
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              Ver
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setEditingReservation(reservation)}
+                            >
+                              <Pencil className="h-4 w-4 mr-1" />
+                              Editar
+                            </Button>
+                            {reservation.status !== "CANCELLED" && reservation.status !== "COMPLETED" && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleCancel(reservation.id)}
+                              >
+                                <Trash2 className="h-4 w-4 mr-1" />
+                                Cancelar
+                              </Button>
+                            )}
+                            {(reservation.status === "CANCELLED" || reservation.status === "COMPLETED") && (
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleDelete(reservation.id)}
+                              >
+                                <Trash2 className="h-4 w-4 mr-1" />
+                                Eliminar
+                              </Button>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
-        </>
-      )}
+        </CardContent>
+      </Card>
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="max-w-2xl">

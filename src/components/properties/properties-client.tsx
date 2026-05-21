@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, Plus, Grid, List, Pencil, Trash2 } from "lucide-react";
+import { Building2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PropertyFormSections as PropertyForm } from "@/components/properties/property-form-sections";
-import { PropertyCardLine, PropertyCardGrid } from "@/components/properties/property-card";
+import { PropertyCardGrid } from "@/components/properties/property-card";
 import { toast } from "sonner";
 import { createProperty, updateProperty, deleteProperty } from "@/lib/actions/properties";
 import type { PropertyInput } from "@/lib/validations/property";
@@ -50,7 +50,6 @@ export function PropertiesClient({ initialProperties, usedColors }: PropertiesCl
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [properties, setProperties] = useState<Property[]>(initialProperties);
-  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -152,38 +151,22 @@ export function PropertiesClient({ initialProperties, usedColors }: PropertiesCl
           <h1 className="text-2xl sm:text-3xl font-bold">Propiedades</h1>
           <p className="text-muted-foreground text-sm sm:text-base">Gestiona tus propiedades y sus configuraciones</p>
         </div>
-        <div className="flex gap-2">
-          <div className="flex border rounded-md">
-            <button
-              onClick={() => setViewMode("grid")}
-              className={`p-2 ${viewMode === "grid" ? "bg-muted" : ""}`}
-            >
-              <Grid className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setViewMode("table")}
-              className={`p-2 ${viewMode === "table" ? "bg-muted" : ""}`}
-            >
-              <List className="h-4 w-4" />
-            </button>
-          </div>
-          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-            <Button onClick={() => setIsCreateOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              <span className="sm:inline">Nueva Propiedad</span>
-            </Button>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Crear Nueva Propiedad</DialogTitle>
-              </DialogHeader>
-              <PropertyForm
-                onSubmit={handleCreate}
-                onCancel={() => setIsCreateOpen(false)}
-                usedColors={usedColors}
-              />
-            </DialogContent>
-          </Dialog>
-        </div>
+        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+          <Button onClick={() => setIsCreateOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            <span className="sm:inline">Nueva Propiedad</span>
+          </Button>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Crear Nueva Propiedad</DialogTitle>
+            </DialogHeader>
+            <PropertyForm
+              onSubmit={handleCreate}
+              onCancel={() => setIsCreateOpen(false)}
+              usedColors={usedColors}
+            />
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="flex items-center gap-4">
@@ -209,30 +192,24 @@ export function PropertiesClient({ initialProperties, usedColors }: PropertiesCl
       </div>
 
       {filteredProperties.length === 0 ? (
-        <div className="text-center py-12">
-          <Building2 className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-          <h3 className="text-lg font-medium mb-2">No hay propiedades</h3>
-          <p className="text-muted-foreground mb-4">Crea tu primera propiedad para comenzar</p>
-          <Button onClick={() => setIsCreateOpen(true)}>
+        <div className="flex flex-col items-center justify-center py-20">
+          <div className="relative mb-6">
+            <div className="absolute inset-0 rounded-full bg-primary/10 blur-2xl" />
+            <div className="relative flex size-16 items-center justify-center rounded-full border border-border bg-card">
+              <Building2 className="size-7 text-muted-foreground" />
+            </div>
+          </div>
+          <h3 className="text-lg font-semibold">No hay propiedades</h3>
+          <p className="mt-1 text-sm text-muted-foreground">Crea tu primera propiedad para comenzar</p>
+          <Button onClick={() => setIsCreateOpen(true)} className="mt-6" size="lg">
             <Plus className="h-4 w-4 mr-2" />
             Crear Propiedad
           </Button>
         </div>
-      ) : viewMode === "grid" ? (
+      ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
           {filteredProperties.map((property) => (
             <PropertyCardGrid
-              key={property.id}
-              property={property}
-              onEdit={() => setEditingProperty(property)}
-              onDelete={() => handleDelete(property.id)}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {filteredProperties.map((property) => (
-            <PropertyCardLine
               key={property.id}
               property={property}
               onEdit={() => setEditingProperty(property)}

@@ -198,68 +198,6 @@ export function ReservationForm({
         )}
       </div>
 
-      {!isMonthly ? (
-        <div className="space-y-2">
-          <Label>Fechas de Estadía *</Label>
-          <DateRangePicker
-            date={dateRange}
-            onDateChange={handleDateRangeChange}
-            className="w-full"
-            blockedDates={blockedDates}
-          />
-          {(errors.startDate || errors.endDate) && (
-            <p className="text-sm text-red-500">
-              {errors.startDate?.message || errors.endDate?.message}
-            </p>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-2">
-          <Label>Fecha de Inicio *</Label>
-          <DateRangePicker
-            date={{ from: dateRange.from, to: undefined }}
-            onDateChange={(date) => {
-              setDateRange({ from: date.from, to: undefined });
-              setValue("startDate", date.from ? formatDateForInput(date.from) : "");
-              if (months && date.from) {
-                const end = calculateEndDate(date.from, months);
-                setDateRange({ from: date.from, to: end });
-                setValue("endDate", formatDateForInput(end));
-              } else {
-                setValue("endDate", "");
-              }
-            }}
-            className="w-full"
-            blockedDates={blockedDates}
-          />
-          {errors.startDate && (
-            <p className="text-sm text-red-500">{errors.startDate.message}</p>
-          )}
-        </div>
-      )}
-
-      {isMonthly && (
-        <div className="space-y-2">
-          <Label htmlFor="months">Cantidad de Meses *</Label>
-          <Input
-            id="months"
-            type="number"
-            min={1}
-            max={12}
-            {...register("months", { valueAsNumber: true })}
-            value={months || ""}
-            onChange={(e) => {
-              const val = e.target.value ? Number(e.target.value) : undefined;
-              handleMonthsChange(val);
-            }}
-            placeholder="Ej: 3"
-          />
-          {errors.months && (
-            <p className="text-sm text-red-500">{errors.months.message}</p>
-          )}
-        </div>
-      )}
-
       <div className="space-y-2">
         <Label>Tipo de Facturación *</Label>
         <div className="flex gap-3">
@@ -309,6 +247,69 @@ export function ReservationForm({
           </p>
         )}
       </div>
+
+      {!isMonthly ? (
+        <div className="space-y-2">
+          <Label>Fechas de Estadía *</Label>
+          <DateRangePicker
+            date={dateRange}
+            onDateChange={handleDateRangeChange}
+            className="w-full"
+            blockedDates={blockedDates}
+          />
+          {(errors.startDate || errors.endDate) && (
+            <p className="text-sm text-red-500">
+              {errors.startDate?.message || errors.endDate?.message}
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <Label>Fecha de Inicio *</Label>
+          <DateRangePicker
+            date={{ from: dateRange.from, to: undefined }}
+            onDateChange={(date) => {
+              setDateRange({ from: date.from, to: undefined });
+              setValue("startDate", date.from ? formatDateForInput(date.from) : "");
+              if (months && date.from) {
+                const end = calculateEndDate(date.from, months);
+                setDateRange({ from: date.from, to: end });
+                setValue("endDate", formatDateForInput(end));
+              } else {
+                setValue("endDate", "");
+              }
+            }}
+            className="w-full"
+            blockedDates={blockedDates}
+            mode="single"
+          />
+          {errors.startDate && (
+            <p className="text-sm text-red-500">{errors.startDate.message}</p>
+          )}
+        </div>
+      )}
+
+      {isMonthly && (
+        <div className="space-y-2">
+          <Label htmlFor="months">Cantidad de Meses *</Label>
+          <Input
+            id="months"
+            type="number"
+            min={1}
+            max={12}
+            {...register("months", { valueAsNumber: true })}
+            value={months || ""}
+            onChange={(e) => {
+              const val = e.target.value ? Number(e.target.value) : undefined;
+              handleMonthsChange(val);
+            }}
+            placeholder="Ej: 3"
+          />
+          {errors.months && (
+            <p className="text-sm text-red-500">{errors.months.message}</p>
+          )}
+        </div>
+      )}
 
       {selectedProperty && dateRange.from && endDate && (
         <div className="rounded-lg bg-muted p-4 space-y-1">

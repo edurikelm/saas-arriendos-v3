@@ -19,6 +19,7 @@ interface DateRangePickerProps {
   onDateChange: (date: { from: Date | undefined; to: Date | undefined }) => void
   className?: string
   blockedDates?: string[]
+  mode?: "range" | "single"
 }
 
 export function DateRangePicker({
@@ -26,6 +27,7 @@ export function DateRangePicker({
   onDateChange,
   className,
   blockedDates = [],
+  mode = "range",
 }: DateRangePickerProps) {
   const normalizeDate = (d: Date) => {
     const n = new Date(d);
@@ -70,18 +72,27 @@ export function DateRangePicker({
         )}
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
-        <Calendar
-          mode="range"
-          selected={{ from: date.from, to: date.to }}
-          onSelect={(range) =>
-            onDateChange({ from: range?.from, to: range?.to })
-          }
-          numberOfMonths={2}
-          locale={es}
-          disabled={(d) =>
-            isBlocked(d)
-          }
-        />
+        {mode === "single" ? (
+          <Calendar
+            mode="single"
+            selected={date.from}
+            onSelect={(d) => onDateChange({ from: d, to: undefined })}
+            numberOfMonths={2}
+            locale={es}
+            disabled={(d) => isBlocked(d)}
+          />
+        ) : (
+          <Calendar
+            mode="range"
+            selected={{ from: date.from, to: date.to }}
+            onSelect={(range) =>
+              onDateChange({ from: range?.from, to: range?.to })
+            }
+            numberOfMonths={2}
+            locale={es}
+            disabled={(d) => isBlocked(d)}
+          />
+        )}
       </PopoverContent>
     </Popover>
   );

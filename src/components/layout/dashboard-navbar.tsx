@@ -27,7 +27,7 @@ export function DashboardNavbar({ userName, userRole }: DashboardNavbarProps) {
   }, []);
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background px-4 lg:px-6">
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-navbar px-4 lg:px-6">
       <div className="hidden lg:block">
         <h2 className="text-lg font-medium">
           {isSuperAdmin ? "Panel de Super Admin" : userName ? `Bienvenido, ${userName}` : "Bienvenido de vuelta"}

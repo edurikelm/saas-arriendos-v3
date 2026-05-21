@@ -21,7 +21,7 @@ export function AdminLayoutClient({ children, userName, userRole }: AdminLayoutC
     <div className="min-h-screen bg-background">
       <DashboardSidebarAdmin open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="lg:pl-64">
-        <div className="sticky top-0 z-30 flex items-center gap-4 bg-background px-4 py-3 lg:hidden">
+        <div className="sticky top-0 z-30 flex items-center gap-4 bg-navbar px-4 py-3 lg:hidden">
           <Button
             variant="ghost"
             size="icon"

@@ -15,6 +15,7 @@ import {
   Plus,
   Trash,
   FileImage,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -118,11 +119,11 @@ const statusConfig: Record<
 
 const paymentStatusConfig: Record<
   string,
-  { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
+  { label: string; variant: "default" | "secondary" | "destructive" | "outline"; className?: string }
 > = {
-  PENDING: { label: "Pendiente", variant: "secondary" },
-  COMPLETED: { label: "Pagado", variant: "outline" },
-  FAILED: { label: "Fallido", variant: "destructive" },
+  PENDING: { label: "Pendiente", variant: "secondary", className: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800" },
+  COMPLETED: { label: "Pagado", variant: "outline", className: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800" },
+  FAILED: { label: "Fallido", variant: "destructive", className: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-800" },
 };
 
 const paymentMethodLabels: Record<string, string> = {
@@ -180,6 +181,7 @@ export function PaymentsTable({
   onDeletePayment,
   onAttachReceipt,
   showInstallmentColumns,
+  generatingLinkId,
 }: {
   payments: Payment[];
   onGenerateLink?: (paymentId: string) => void;
@@ -187,6 +189,7 @@ export function PaymentsTable({
   onDeletePayment?: (paymentId: string) => void;
   onAttachReceipt?: (paymentId: string) => void;
   showInstallmentColumns: boolean;
+  generatingLinkId?: string | null;
 }) {
   return (
     <div className="rounded-md border border-border overflow-hidden">
@@ -229,7 +232,7 @@ export function PaymentsTable({
                   {payment.method === "MERCADO_PAGO" ? "Mercado Pago" : payment.method === "CASH" ? "Efectivo" : payment.method === "TRANSFER" ? "Transferencia" : "—"}
                 </td>
                 <td className="px-2 py-2">
-                  <Badge variant={statusCfg.variant} className="text-xs">{statusCfg.label}</Badge>
+                  <Badge variant={statusCfg.variant} className={cn("text-xs", statusCfg.className)}>{statusCfg.label}</Badge>
                 </td>
                 <td className="px-2 py-2">
                   <div className="flex items-center justify-center gap-0.5">
@@ -258,9 +261,14 @@ export function PaymentsTable({
                               size="icon"
                               variant="ghost"
                               className="size-7"
+                              disabled={generatingLinkId === payment.id}
                               onClick={() => onGenerateLink(payment.id)}
                             >
-                              <ExternalLink className="size-3.5" />
+                              {generatingLinkId === payment.id ? (
+                                <Loader2 className="size-3.5 animate-spin" />
+                              ) : (
+                                <ExternalLink className="size-3.5" />
+                              )}
                             </Button>
                           }
                         />
@@ -397,6 +405,7 @@ export function ReservationDetailDialog({
   };
 
   const handleRegenerateLink = async (paymentId: string) => {
+    setGeneratingLinkId(paymentId);
     try {
       const res = await fetch(`/api/payments/${paymentId}`, {
         method: "POST",
@@ -411,6 +420,8 @@ export function ReservationDetailDialog({
       onRegenerateLink?.(paymentId);
     } catch {
       toast.error("Error al regenerar link");
+    } finally {
+      setGeneratingLinkId(null);
     }
   };
 
@@ -715,6 +726,7 @@ onRefresh?.(reservation.id);
               onDeletePayment={handleDeletePayment}
               onAttachReceipt={handleAttachReceiptClick}
               showInstallmentColumns={reservation.billingType === "MONTHLY"}
+              generatingLinkId={generatingLinkId}
             />
           </div>
         )}
