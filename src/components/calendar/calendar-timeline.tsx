@@ -292,7 +292,7 @@ export function CalendarTimeline({ reservations, currentMonth, onSelectReservati
                         backgroundColor: res.property.color || "#6366F1",
                       }}
                     >
-                      <span className="truncate">{res.client.name}</span>
+                      <span className="truncate">{res.client.name} - {res.property.name}</span>
                     </button>
                   );
                 })}

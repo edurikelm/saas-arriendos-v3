@@ -9,8 +9,8 @@ import { generateMonthlyPayments } from "@/lib/payments/monthly";
 
 export type CalendarReservation = {
   id: string;
-  startDate: Date;
-  endDate: Date;
+  startDate: string;
+  endDate: string;
   status: string;
   billingType: string;
   totalPrice: number;
@@ -93,19 +93,44 @@ export async function getReservations(filters?: {
   });
 
   return reservations.map((r) => ({
-    ...r,
+    id: r.id,
+    userId: r.userId,
+    propertyId: r.propertyId,
+    clientId: r.clientId,
+    startDate: r.startDate.toISOString(),
+    endDate: r.endDate.toISOString(),
+    billingType: r.billingType,
+    unitsBooked: r.unitsBooked,
     totalPrice: String(r.totalPrice),
+    status: r.status,
+    bookingAirbnb: r.bookingAirbnb,
+    notes: r.notes,
+    createdAt: r.createdAt.toISOString(),
     property: {
-      ...r.property,
+      id: r.property.id,
+      name: r.property.name,
+      color: r.property.color,
       dailyPrice: String(r.property.dailyPrice),
       monthlyPrice: r.property.monthlyPrice ? String(r.property.monthlyPrice) : null,
+      unitsAvailable: r.property.unitsAvailable,
+    },
+    client: {
+      id: r.client.id,
+      name: r.client.name,
+      email: r.client.email,
+      phone: r.client.phone,
     },
     payments: r.payments.map((p) => ({
-      ...p,
+      id: p.id,
       amount: String(p.amount),
-      initPoint: p.initPoint ? String(p.initPoint) : null,
-      expiresAt: p.expiresAt ? String(p.expiresAt) : null,
-      dueDate: p.dueDate ? String(p.dueDate) : null,
+      status: p.status,
+      method: p.method,
+      initPoint: p.initPoint || null,
+      expiresAt: p.expiresAt ? p.expiresAt.toISOString() : null,
+      installmentIndex: p.installmentIndex,
+      dueDate: p.dueDate ? p.dueDate.toISOString() : null,
+      paidAt: p.paidAt ? p.paidAt.toISOString() : null,
+      receiptUrl: p.receiptUrl || null,
     })),
   }));
 }
@@ -132,22 +157,68 @@ export async function getReservationById(id: string) {
   if (!reservation) return null;
 
   return {
-    ...reservation,
+    id: reservation.id,
+    userId: reservation.userId,
+    propertyId: reservation.propertyId,
+    clientId: reservation.clientId,
+    startDate: reservation.startDate.toISOString(),
+    endDate: reservation.endDate.toISOString(),
+    billingType: reservation.billingType,
+    unitsBooked: reservation.unitsBooked,
     totalPrice: String(reservation.totalPrice),
+    status: reservation.status,
+    bookingAirbnb: reservation.bookingAirbnb,
+    notes: reservation.notes,
+    createdAt: reservation.createdAt.toISOString(),
     property: {
-      ...reservation.property,
+      id: reservation.property.id,
+      name: reservation.property.name,
+      type: reservation.property.type,
+      color: reservation.property.color,
       dailyPrice: String(reservation.property.dailyPrice),
       monthlyPrice: reservation.property.monthlyPrice ? String(reservation.property.monthlyPrice) : null,
+      unitsAvailable: reservation.property.unitsAvailable,
+      amenities: reservation.property.amenities,
+      mainImage: reservation.property.mainImage,
+      images: reservation.property.images,
+      userId: reservation.property.userId,
+      createdAt: reservation.property.createdAt.toISOString(),
+    },
+    client: {
+      id: reservation.client.id,
+      name: reservation.client.name,
+      email: reservation.client.email,
+      phone: reservation.client.phone,
+      rut: reservation.client.rut,
+      notes: reservation.client.notes,
+      userId: reservation.client.userId,
+      createdAt: reservation.client.createdAt.toISOString(),
     },
     payments: reservation.payments
       .filter((p) => !p.deletedAt)
       .map((p) => ({
-        ...p,
+        id: p.id,
+        reservationId: p.reservationId,
         amount: String(p.amount),
-        initPoint: p.initPoint ? String(p.initPoint) : null,
-        expiresAt: p.expiresAt ? String(p.expiresAt) : null,
-        paidAt: p.paidAt ? String(p.paidAt) : null,
+        status: p.status,
+        method: p.method,
+        initPoint: p.initPoint || null,
+        expiresAt: p.expiresAt ? p.expiresAt.toISOString() : null,
+        installmentIndex: p.installmentIndex,
+        dueDate: p.dueDate ? p.dueDate.toISOString() : null,
+        paidAt: p.paidAt ? p.paidAt.toISOString() : null,
+        receiptUrl: p.receiptUrl || null,
+        mercadoPagoId: p.mercadoPagoId || null,
+        deletedAt: null,
       })),
+    changes: reservation.changes.map((c) => ({
+      id: c.id,
+      reservationId: c.reservationId,
+      field: c.field,
+      oldValue: c.oldValue,
+      newValue: c.newValue,
+      createdAt: c.createdAt.toISOString(),
+    })),
   };
 }
 
@@ -668,8 +739,20 @@ export async function getCalendarReservations(options?: {
   });
 
   return reservations.map((r) => ({
-    ...r,
+    id: r.id,
+    startDate: r.startDate.toISOString(),
+    endDate: r.endDate.toISOString(),
+    status: r.status,
+    billingType: r.billingType,
     totalPrice: Number(r.totalPrice),
+    property: {
+      id: r.property.id,
+      name: r.property.name,
+      color: r.property.color,
+    },
+    client: {
+      name: r.client.name,
+    },
   }));
 }
 
@@ -719,8 +802,19 @@ export async function getReservationsByDateRange(start: Date, end: Date) {
   });
 
   return reservations.map((r) => ({
-    ...r,
+    id: r.id,
+    startDate: r.startDate.toISOString(),
+    endDate: r.endDate.toISOString(),
+    status: r.status,
     totalPrice: Number(r.totalPrice),
+    property: {
+      id: r.property.id,
+      name: r.property.name,
+      color: r.property.color,
+    },
+    client: {
+      name: r.client.name,
+    },
   }));
 }
 

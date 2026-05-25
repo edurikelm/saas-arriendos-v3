@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { clientSchema, type ClientInput } from "@/lib/validations/client";
@@ -12,13 +13,21 @@ interface ClientFormProps {
   initialData?: Partial<ClientInput>;
   onSubmit: (data: ClientInput) => Promise<void>;
   onCancel?: () => void;
+  serverError?: string;
 }
 
 export function ClientForm({
   initialData,
   onSubmit,
   onCancel,
+  serverError: externalServerError,
 }: ClientFormProps) {
+  const [serverError, setServerError] = useState(externalServerError);
+
+  useEffect(() => {
+    setServerError(externalServerError);
+  }, [externalServerError]);
+
   const {
     register,
     handleSubmit,
@@ -53,11 +62,16 @@ export function ClientForm({
         <Input
           id="email"
           type="email"
-          {...register("email")}
+          {...register("email", {
+            onChange: () => setServerError(undefined),
+          })}
           placeholder="juan@ejemplo.com"
         />
         {errors.email && (
           <p className="text-sm text-red-500">{errors.email.message}</p>
+        )}
+        {serverError && (
+          <p className="text-sm text-red-500">{serverError}</p>
         )}
       </div>
 

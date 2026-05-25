@@ -1,5 +1,6 @@
 "use server";
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { getSession } from "@/lib/actions/auth";
 import { clientSchema, type ClientInput } from "@/lib/validations/client";
@@ -84,16 +85,24 @@ export async function createClient(data: unknown) {
     }
   }
 
-  const client = await prisma.reservationClient.create({
-    data: {
-      userId: session.userId,
-      name: validated.name,
-      email: validated.email,
-      phone: validated.phone ?? null,
-      rut: validated.rut ?? null,
-      notes: validated.notes ?? null,
-    },
-  });
+  let client;
+  try {
+    client = await prisma.reservationClient.create({
+      data: {
+        userId: session.userId,
+        name: validated.name,
+        email: validated.email,
+        phone: validated.phone ?? null,
+        rut: validated.rut ?? null,
+        notes: validated.notes ?? null,
+      },
+    });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return { error: "Ya existe un cliente con ese email" };
+    }
+    return { error: "Error al crear el cliente" };
+  }
 
   revalidatePath("/clients");
   return { success: true, client };

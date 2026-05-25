@@ -54,8 +54,8 @@ export function CalendarGrid({
     const map = new Map<string, CalendarReservation[]>();
 
     reservations.forEach((res) => {
-      const start = typeof res.startDate === "string" ? parseISO(res.startDate) : res.startDate;
-      const end = typeof res.endDate === "string" ? parseISO(res.endDate) : res.endDate;
+      const start = parseISO(res.startDate);
+      const end = parseISO(res.endDate);
       const totalDays = differenceInDays(end, start) + 1;
 
       for (let i = 0; i < totalDays; i++) {
@@ -145,9 +145,9 @@ export function CalendarGrid({
                       color: getContrastColor(res.property.color),
                     }}
                     className="cursor-pointer truncate rounded px-1 py-0.5 text-xs font-medium transition-colors hover:opacity-80"
-                    title={`${res.property.name} - ${res.client.name}`}
+                    title={`${res.client.name} - ${res.property.name}`}
                   >
-                    {res.property.name}
+                    {res.client.name} - {res.property.name}
                   </div>
                 ))}
 

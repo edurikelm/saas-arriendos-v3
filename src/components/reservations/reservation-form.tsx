@@ -10,16 +10,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
+import { Combobox } from "@/components/ui/combobox";
 import { Switch } from "@/components/ui/switch";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ClientForm } from "@/components/clients/client-form";
+import { createClient } from "@/lib/actions/clients";
+import { toast } from "sonner";
 import { getBlockedDates } from "@/lib/actions/reservations";
+import type { ClientInput } from "@/lib/validations/client";
 
 interface ReservationFormProps {
   properties: Array<{
@@ -37,6 +37,7 @@ interface ReservationFormProps {
   initialData?: Partial<ReservationInput>;
   onSubmit: (data: ReservationInput) => Promise<void>;
   onCancel?: () => void;
+  plan?: "FREE" | "PRO";
 }
 
 export function ReservationForm({
@@ -45,9 +46,13 @@ export function ReservationForm({
   initialData,
   onSubmit,
   onCancel,
+  plan = "FREE",
 }: ReservationFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [blockedDates, setBlockedDates] = useState<string[]>([]);
+  const [clientsList, setClientsList] = React.useState(clients);
+  const [isCreateClientOpen, setIsCreateClientOpen] = useState(false);
+  const [serverError, setServerError] = useState<string | undefined>();
 
   const formatDateForInput = (date: Date | string | undefined): string => {
     if (!date) return "";
@@ -99,6 +104,7 @@ export function ReservationForm({
 
   const billingType = watch("billingType");
   const isMonthly = billingType === "MONTHLY";
+  const isAtFreeLimit = plan === "FREE" && clientsList.length >= 5;
 
   const endDate = isMonthly && dateRange.from && months
     ? calculateEndDate(dateRange.from, months)
@@ -127,7 +133,6 @@ export function ReservationForm({
   const selectedPropertyId = watch("propertyId");
   const selectedProperty = properties.find((p) => p.id === selectedPropertyId);
   const selectedClientId = watch("clientId");
-  const selectedClient = clients.find((c) => c.id === selectedClientId);
 
   useEffect(() => {
     if (selectedPropertyId) {
@@ -152,23 +157,13 @@ export function ReservationForm({
       <input type="hidden" {...register("endDate")} />
       <div className="space-y-2">
         <Label>Propiedad *</Label>
-        <Select
+        <Combobox
+          options={properties.map(p => ({ value: p.id, label: p.name, subtitle: `${p.unitsAvailable} disp.` }))}
           value={selectedPropertyId}
           onValueChange={(value) => setValue("propertyId", value || "")}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Seleccionar propiedad">
-              {selectedProperty ? `${selectedProperty.name} (${selectedProperty.unitsAvailable} disp.)` : "Seleccionar propiedad"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {properties.map((property) => (
-              <SelectItem key={property.id} value={property.id}>
-                {property.name} ({property.unitsAvailable} disp.)
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          placeholder="Seleccionar propiedad"
+          showSearch={false}
+        />
         {errors.propertyId && (
           <p className="text-sm text-red-500">{errors.propertyId.message}</p>
         )}
@@ -176,23 +171,16 @@ export function ReservationForm({
 
       <div className="space-y-2">
         <Label>Cliente *</Label>
-        <Select
+        <Combobox
+          options={clientsList.map(c => ({ value: c.id, label: c.name, subtitle: c.email }))}
           value={watch("clientId")}
           onValueChange={(value) => setValue("clientId", value || "")}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Seleccionar cliente">
-              {selectedClient ? `${selectedClient.name} (${selectedClient.email})` : "Seleccionar cliente"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {clients.map((client) => (
-              <SelectItem key={client.id} value={client.id}>
-                {client.name} ({client.email})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          placeholder="Seleccionar cliente"
+          searchPlaceholder="Buscar cliente por nombre o email..."
+          notFoundMessage="No se encontraron clientes"
+          footerAction={isAtFreeLimit ? undefined : { label: "Crear nuevo cliente...", onClick: () => setIsCreateClientOpen(true) }}
+          footerDisabledMessage={isAtFreeLimit ? "Límite de 5 clientes alcanzado (plan FREE)" : undefined}
+        />
         {errors.clientId && (
           <p className="text-sm text-red-500">{errors.clientId.message}</p>
         )}
@@ -397,6 +385,34 @@ export function ReservationForm({
           {isSubmitting ? "Guardando..." : "Guardar Reserva"}
         </Button>
       </div>
+
+      <Dialog open={isCreateClientOpen} onOpenChange={setIsCreateClientOpen}>
+        <DialogContent className="w-[95vw] max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Nuevo Cliente</DialogTitle>
+          </DialogHeader>
+          <ClientForm
+            serverError={serverError}
+            onSubmit={async (data: ClientInput) => {
+              setServerError(undefined);
+              const result = await createClient(data);
+              if (result.error) {
+                setServerError(result.error);
+                return;
+              }
+              const newClient = result.client!;
+              toast.success("Cliente creado correctamente");
+              setClientsList((prev) => [...prev, { id: newClient.id, name: newClient.name, email: newClient.email }]);
+              setValue("clientId", newClient.id);
+              setIsCreateClientOpen(false);
+            }}
+            onCancel={() => {
+              setIsCreateClientOpen(false);
+              setServerError(undefined);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </form>
   );
 }

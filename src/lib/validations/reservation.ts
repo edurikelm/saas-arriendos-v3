@@ -3,7 +3,7 @@ import { z } from "zod";
 const dateStringSchema = z.union([
   z.string(),
   z.date()
-]).transform((val) => {
+]).transform((val, ctx) => {
   if (val instanceof Date) return val;
 
   let year: number, month: number, day: number;
@@ -11,7 +11,8 @@ const dateStringSchema = z.union([
   if (val.includes("T")) {
     const date = new Date(val);
     if (isNaN(date.getTime())) {
-      throw new Error("Fecha inválida");
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Fecha inválida" });
+      return z.NEVER;
     }
     return date;
   }
@@ -29,12 +30,14 @@ const dateStringSchema = z.union([
     }
     const date = new Date(year, month - 1, day, 12, 0, 0);
     if (isNaN(date.getTime())) {
-      throw new Error("Fecha inválida");
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Fecha inválida" });
+      return z.NEVER;
     }
     return date;
   }
 
-  throw new Error("Fecha inválida");
+  ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Fecha inválida" });
+  return z.NEVER;
 });
 
 export const reservationSchema = z.object({

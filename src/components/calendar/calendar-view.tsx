@@ -7,6 +7,7 @@ import { Calendar, Filter, Grid, Plus, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CalendarGrid } from "@/components/calendar/calendar-grid";
 import { CalendarTimeline } from "@/components/calendar/calendar-timeline";
@@ -20,6 +21,9 @@ interface Property {
   id: string;
   name: string;
   color?: string;
+  unitsAvailable: number;
+  dailyPrice: string;
+  monthlyPrice: string | null;
 }
 
 interface Client {
@@ -49,9 +53,10 @@ interface CalendarViewProps {
   initialReservations: CalendarReservation[];
   properties: Property[];
   clients: Client[];
+  plan?: string;
 }
 
-export function CalendarView({ initialReservations, properties, clients }: CalendarViewProps) {
+export function CalendarView({ initialReservations, properties, clients, plan = "FREE" }: CalendarViewProps) {
   const [reservations, setReservations] = useState<CalendarReservation[]>(initialReservations);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>("all");
   const [loading, setLoading] = useState(false);
@@ -116,9 +121,11 @@ export function CalendarView({ initialReservations, properties, clients }: Calen
     const result = await createReservation(data);
 
     if (result && 'error' in result) {
-      throw new Error(result.error);
+      toast.error(result.error);
+      return;
     }
 
+    toast.success("Reserva creada correctamente");
     setCreateDialogOpen(false);
     fetchReservations();
   };
@@ -205,8 +212,8 @@ export function CalendarView({ initialReservations, properties, clients }: Calen
                 bookingAirbnb: false,
                 notes: null,
                 payments: [],
-                startDate: r.startDate instanceof Date ? r.startDate.toISOString() : r.startDate,
-                endDate: r.endDate instanceof Date ? r.endDate.toISOString() : r.endDate,
+                startDate: r.startDate,
+                endDate: r.endDate,
                 totalPrice: String(r.totalPrice),
                 property: {
                   ...r.property,
@@ -241,14 +248,9 @@ export function CalendarView({ initialReservations, properties, clients }: Calen
             <DialogTitle>Nueva Reserva</DialogTitle>
           </DialogHeader>
           <ReservationForm
-            properties={properties.map(p => ({
-              id: p.id,
-              name: p.name,
-              unitsAvailable: 10,
-              dailyPrice: "0",
-              monthlyPrice: null,
-            }))}
+            properties={properties}
             clients={clients}
+            plan={plan as "FREE" | "PRO"}
             onSubmit={handleCreateReservation}
             onCancel={() => setCreateDialogOpen(false)}
           />

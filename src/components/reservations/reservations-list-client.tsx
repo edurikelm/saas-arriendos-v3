@@ -64,6 +64,7 @@ interface ReservationsListClientProps {
   initialReservations: Reservation[];
   properties: Property[];
   clients: Client[];
+  plan?: string;
 }
 
 const statusLabels: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -86,6 +87,7 @@ export function ReservationsListClient({
   initialReservations,
   properties,
   clients,
+  plan = "FREE",
 }: ReservationsListClientProps) {
   const [reservations, setReservations] = useState<Reservation[]>(initialReservations);
   const [viewMode, setViewMode] = useState<"list" | "table">("table");
@@ -428,6 +430,7 @@ export function ReservationsListClient({
               clients={clients}
               onSubmit={handleCreate}
               onCancel={() => setIsCreateOpen(false)}
+              plan={plan as "FREE" | "PRO"}
             />
           ) : (
             <p className="text-muted-foreground">
@@ -483,6 +486,7 @@ export function ReservationsListClient({
               }}
               onSubmit={handleEdit}
               onCancel={() => setEditingReservation(null)}
+              plan={plan as "FREE" | "PRO"}
             />
           )}
         </DialogContent>
