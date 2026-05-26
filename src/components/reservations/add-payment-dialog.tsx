@@ -42,6 +42,21 @@ function formatAmount(amount: number): string {
   }).format(amount);
 }
 
+function formatCurrencyInput(value: string): string {
+  // Remove non-numeric characters
+  const numericValue = value.replace(/\D/g, "");
+  if (!numericValue) return "";
+  // Format with thousands separator
+  return new Intl.NumberFormat("es-CL", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Number(numericValue));
+}
+
+function parseCurrencyInput(value: string): number {
+  return Number(value.replace(/\./g, ""));
+}
+
 export function AddPaymentDialog({
   reservationId,
   totalPrice,
@@ -59,8 +74,24 @@ export function AddPaymentDialog({
   const pendingAmount = Number(totalPrice) - paidAmount;
   const maxAmount = pendingAmount;
 
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value;
+    // If user is backspacing and removes a separator, handle gracefully
+    if (rawValue.length < amount.length && !rawValue.endsWith(".")) {
+      // Let the raw value through, then reformat
+      const cleaned = rawValue.replace(/\D/g, "");
+      setAmount(cleaned ? formatCurrencyInput(cleaned) : "");
+      return;
+    }
+    setAmount(formatCurrencyInput(rawValue));
+  };
+
+  const handleMaxClick = () => {
+    setAmount(formatCurrencyInput(String(maxAmount)));
+  };
+
   const handleSubmit = async () => {
-    const numAmount = Number(amount);
+    const numAmount = parseCurrencyInput(amount);
 
     if (!numAmount || numAmount <= 0) {
       toast.error("Ingresa un monto válido");
@@ -161,7 +192,18 @@ export function AddPaymentDialog({
               onValueChange={(v) => setMethod(v as PaymentMethod)}
             >
               <SelectTrigger className="h-9">
-                <SelectValue />
+                <SelectValue>
+                  {method === "MERCADO_PAGO" ? (
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="h-3 w-3" />
+                      Mercado Pago
+                    </div>
+                  ) : method === "CASH" ? (
+                    "Efectivo"
+                  ) : (
+                    "Transferencia"
+                  )}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="MERCADO_PAGO">
@@ -177,19 +219,29 @@ export function AddPaymentDialog({
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs">Monto</Label>
-            <Input
-              type="number"
-              placeholder="Ingresa el monto"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="h-9"
-              min={1}
-              max={maxAmount}
-            />
-            <p className="text-xs text-muted-foreground">
-              Máximo: {formatAmount(maxAmount)}
-            </p>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">Monto</Label>
+              <button
+                type="button"
+                onClick={handleMaxClick}
+                className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer font-medium"
+              >
+                Máximo: {formatAmount(maxAmount)}
+              </button>
+            </div>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                $
+              </span>
+              <Input
+                type="text"
+                inputMode="numeric"
+                placeholder="0"
+                value={amount}
+                onChange={handleAmountChange}
+                className="h-9 pl-7"
+              />
+            </div>
           </div>
 
           {method !== "MERCADO_PAGO" && (
