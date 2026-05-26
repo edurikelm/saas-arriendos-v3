@@ -3,13 +3,13 @@ import { generateMercadoPagoLink } from "@/lib/actions/payments";
 
 export async function POST(request: Request) {
   try {
-    const { reservationId, amount } = await request.json();
+    const { reservationId, amount, paymentType, title, description } = await request.json();
 
     if (!reservationId) {
       return NextResponse.json({ error: "reservationId es requerido" }, { status: 400 });
     }
 
-    const result = await generateMercadoPagoLink(reservationId, amount);
+    const result = await generateMercadoPagoLink(reservationId, amount, paymentType, title, description);
 
     if (result?.error) {
       return NextResponse.json({ error: result.error }, { status: 400 });

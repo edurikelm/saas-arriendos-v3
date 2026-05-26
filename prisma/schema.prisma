@@ -44,6 +44,11 @@ enum PaymentMethod {
   TRANSFER
 }
 
+enum PaymentType {
+  RESERVATION
+  EXTRA
+}
+
 enum PaymentStatus {
   PENDING
   COMPLETED
@@ -140,6 +145,9 @@ model Reservation {
 model Payment {
   id              String        @id @default(cuid())
   reservationId   String
+  paymentType     PaymentType   @default(RESERVATION)
+  title           String?
+  description     String?
   amount          Decimal       @db.Decimal(10, 2)
   method          PaymentMethod
   status          PaymentStatus @default(PENDING)

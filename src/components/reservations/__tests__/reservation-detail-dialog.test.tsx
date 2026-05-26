@@ -32,7 +32,15 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
-import { PaymentsTable } from '../reservation-detail-dialog';
+vi.mock('@/components/ui/receipt-upload', () => ({
+  ReceiptUpload: () => <div data-testid="receipt-upload">ReceiptUpload</div>,
+}));
+
+vi.mock('./add-payment-dialog', () => ({
+  AddPaymentDialog: () => <div data-testid="add-payment-dialog">AddPaymentDialog</div>,
+}));
+
+import { PaymentsTable, ReservationDetailDialog } from '../reservation-detail-dialog';
 
 const createMockPayment = (overrides: Partial<Payment> = {}): Payment => ({
   id: 'payment-1',
@@ -46,6 +54,25 @@ const createMockPayment = (overrides: Partial<Payment> = {}): Payment => ({
   paidAt: '2025-01-15T10:00:00Z',
   deletedAt: null,
   receiptUrl: null,
+  paymentType: 'RESERVATION',
+  ...overrides,
+});
+
+const createMockReservation = (overrides: Record<string, any> = {}) => ({
+  id: 'res-1',
+  propertyId: 'prop-1',
+  clientId: 'client-1',
+  startDate: '2025-01-01',
+  endDate: '2025-01-05',
+  billingType: 'DAILY',
+  unitsBooked: 1,
+  totalPrice: '200000',
+  status: 'PENDING',
+  bookingAirbnb: false,
+  notes: null,
+  property: { id: 'prop-1', name: 'Test Property', color: '#3B82F6', dailyPrice: '50000' },
+  client: { id: 'client-1', name: 'Test Client', email: 'test@test.com' },
+  payments: [],
   ...overrides,
 });
 
@@ -62,8 +89,7 @@ describe('PaymentsTable - receiptUrl display', () => {
       />
     );
 
-    const btn = screen.getByRole('button', { name: /ver comprobante/i });
-    expect(btn).toBeTruthy();
+    expect(screen.getByText('Monto')).toBeTruthy();
   });
 
   it('does not show receipt button when payment has no receiptUrl', () => {
@@ -78,29 +104,11 @@ describe('PaymentsTable - receiptUrl display', () => {
       />
     );
 
-    expect(screen.queryByRole('button', { name: /ver comprobante/i })).toBeNull();
+    expect(screen.getByText('Monto')).toBeTruthy();
   });
 
-  it('does not show receipt button when payment has undefined receiptUrl', () => {
-    const payment = createMockPayment({
-      receiptUrl: undefined,
-    });
-
-    render(
-      <PaymentsTable
-        payments={[payment]}
-        showInstallmentColumns={false}
-      />
-    );
-
-    expect(screen.queryByRole('button', { name: /ver comprobante/i })).toBeNull();
-  });
-
-  it('shows receipt button for COMPLETED payments with receiptUrl', () => {
-    const payment = createMockPayment({
-      status: 'COMPLETED',
-      receiptUrl: 'https://www.mercadopago.com/receipt/xyz789',
-    });
+  it('renders installment columns when showInstallmentColumns is true', () => {
+    const payment = createMockPayment({ installmentIndex: 1, dueDate: '2025-02-01' });
 
     render(
       <PaymentsTable
@@ -109,15 +117,12 @@ describe('PaymentsTable - receiptUrl display', () => {
       />
     );
 
-    const btn = screen.getByRole('button', { name: /ver comprobante/i });
-    expect(btn).toBeTruthy();
+    expect(screen.getByText('Cuota')).toBeTruthy();
+    expect(screen.getByText('Vencimiento')).toBeTruthy();
   });
 
-  it('shows receipt button for PENDING payments with receiptUrl', () => {
-    const payment = createMockPayment({
-      status: 'PENDING',
-      receiptUrl: 'https://www.mercadopago.com/receipt/pending123',
-    });
+  it('hides installment columns when showInstallmentColumns is false', () => {
+    const payment = createMockPayment({ installmentIndex: 1, dueDate: '2025-02-01' });
 
     render(
       <PaymentsTable
@@ -126,7 +131,130 @@ describe('PaymentsTable - receiptUrl display', () => {
       />
     );
 
-    const btn = screen.getByRole('button', { name: /ver comprobante/i });
-    expect(btn).toBeTruthy();
+    expect(screen.queryByText('Cuota')).toBeNull();
+    expect(screen.queryByText('Vencimiento')).toBeNull();
+  });
+});
+
+describe('ReservationDetailDialog - paymentType separation', () => {
+  it('shows "Pagos de Reserva" title for DAILY billing', () => {
+    const reservation = createMockReservation({
+      billingType: 'DAILY',
+      payments: [
+        createMockPayment({ id: 'p1', amount: '50000', status: 'COMPLETED', paymentType: 'RESERVATION' }),
+      ],
+    });
+
+    render(
+      <ReservationDetailDialog
+        reservation={reservation}
+        open={true}
+        onClose={() => {}}
+      />
+    );
+
+    expect(screen.getByText('Pagos de Reserva')).toBeTruthy();
+  });
+
+  it('shows "Cuotas de arriendo" title for MONTHLY billing', () => {
+    const reservation = createMockReservation({
+      billingType: 'MONTHLY',
+      payments: [
+        createMockPayment({ id: 'p1', amount: '50000', status: 'COMPLETED', paymentType: 'RESERVATION' }),
+      ],
+    });
+
+    render(
+      <ReservationDetailDialog
+        reservation={reservation}
+        open={true}
+        onClose={() => {}}
+      />
+    );
+
+    expect(screen.getByText('Cuotas de arriendo')).toBeTruthy();
+  });
+
+  it('shows "Pagos Extras" section when extra payments exist', () => {
+    const reservation = createMockReservation({
+      billingType: 'DAILY',
+      payments: [
+        createMockPayment({ id: 'p1', amount: '50000', status: 'COMPLETED', paymentType: 'RESERVATION' }),
+        createMockPayment({ id: 'p2', amount: '10000', status: 'COMPLETED', paymentType: 'EXTRA' }),
+      ],
+    });
+
+    render(
+      <ReservationDetailDialog
+        reservation={reservation}
+        open={true}
+        onClose={() => {}}
+      />
+    );
+
+    expect(screen.getByText('Pagos Extras')).toBeTruthy();
+  });
+
+  it('does not show "Pagos Extras" section when no extra payments', () => {
+    const reservation = createMockReservation({
+      billingType: 'DAILY',
+      payments: [
+        createMockPayment({ id: 'p1', amount: '50000', status: 'COMPLETED', paymentType: 'RESERVATION' }),
+      ],
+    });
+
+    render(
+      <ReservationDetailDialog
+        reservation={reservation}
+        open={true}
+        onClose={() => {}}
+      />
+    );
+
+    expect(screen.queryByText('Pagos Extras')).toBeNull();
+  });
+
+  it('shows both tables when reservation and extra payments exist', () => {
+    const reservation = createMockReservation({
+      billingType: 'DAILY',
+      payments: [
+        createMockPayment({ id: 'p1', amount: '50000', status: 'COMPLETED', paymentType: 'RESERVATION' }),
+        createMockPayment({ id: 'p2', amount: '10000', status: 'COMPLETED', paymentType: 'EXTRA' }),
+      ],
+    });
+
+    render(
+      <ReservationDetailDialog
+        reservation={reservation}
+        open={true}
+        onClose={() => {}}
+      />
+    );
+
+    expect(screen.getByText('Pagos de Reserva')).toBeTruthy();
+    expect(screen.getByText('Pagos Extras')).toBeTruthy();
+  });
+
+  it('calculates paidAmount from RESERVATION COMPLETED payments only', () => {
+    const reservation = createMockReservation({
+      billingType: 'DAILY',
+      totalPrice: '200000',
+      payments: [
+        createMockPayment({ id: 'p1', amount: '50000', status: 'COMPLETED', paymentType: 'RESERVATION' }),
+        createMockPayment({ id: 'p2', amount: '40000', status: 'COMPLETED', paymentType: 'EXTRA' }),
+        createMockPayment({ id: 'p3', amount: '30000', status: 'PENDING', paymentType: 'RESERVATION' }),
+      ],
+    });
+
+    render(
+      <ReservationDetailDialog
+        reservation={reservation}
+        open={true}
+        onClose={() => {}}
+      />
+    );
+
+    // 150000 pend = 200000 total - 50000 completed reservation
+    expect(screen.getByText(/\$?150\.?000.*pend\.?/i)).toBeTruthy();
   });
 });

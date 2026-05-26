@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -32,6 +33,7 @@ interface AddPaymentDialogProps {
 }
 
 type PaymentMethod = "MERCADO_PAGO" | "CASH" | "TRANSFER";
+type PaymentType = "RESERVATION" | "EXTRA";
 
 function formatAmount(amount: number): string {
   return new Intl.NumberFormat("es-CL", {
@@ -65,14 +67,18 @@ export function AddPaymentDialog({
   onOpenChange,
   onSuccess,
 }: AddPaymentDialogProps) {
+  const [paymentType, setPaymentType] = useState<PaymentType>("RESERVATION");
   const [method, setMethod] = useState<PaymentMethod>("MERCADO_PAGO");
   const [amount, setAmount] = useState("");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [paidAt, setPaidAt] = useState(format(new Date(), "yyyy-MM-dd"));
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const pendingAmount = Number(totalPrice) - paidAmount;
   const maxAmount = pendingAmount;
+  const isExtra = paymentType === "EXTRA";
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value;
@@ -98,9 +104,16 @@ export function AddPaymentDialog({
       return;
     }
 
-    if (numAmount > maxAmount) {
-      toast.error(`El monto no puede exceder el pendiente: ${formatAmount(maxAmount)}`);
-      return;
+    if (isExtra) {
+      if (!title.trim()) {
+        toast.error("El título es requerido para pagos extra");
+        return;
+      }
+    } else {
+      if (numAmount > maxAmount) {
+        toast.error(`El monto no puede exceder el pendiente: ${formatAmount(maxAmount)}`);
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -113,6 +126,9 @@ export function AddPaymentDialog({
           body: JSON.stringify({
             reservationId,
             amount: numAmount,
+            paymentType,
+            title: title || undefined,
+            description: description || undefined,
           }),
         });
         const result = await res.json();
@@ -126,6 +142,9 @@ export function AddPaymentDialog({
         formData.append("reservationId", reservationId);
         formData.append("amount", String(numAmount));
         formData.append("method", method);
+        formData.append("paymentType", paymentType);
+        if (title) formData.append("title", title);
+        if (description) formData.append("description", description);
         formData.append("status", "COMPLETED");
         formData.append("paidAt", (() => {
           const [y, m, d] = paidAt.split('-').map(Number);
@@ -148,6 +167,9 @@ export function AddPaymentDialog({
       }
 
       setAmount("");
+      setTitle("");
+      setDescription("");
+      setPaymentType("RESERVATION");
       setMethod("MERCADO_PAGO");
       setReceiptFile(null);
       onOpenChange(false);
@@ -170,6 +192,31 @@ export function AddPaymentDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2 relative">
+          <div className="flex gap-1 p-1 rounded-lg bg-muted/50 border border-border">
+            <button
+              type="button"
+              onClick={() => setPaymentType("RESERVATION")}
+              className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                !isExtra
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Pago de Reserva
+            </button>
+            <button
+              type="button"
+              onClick={() => setPaymentType("EXTRA")}
+              className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                isExtra
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Pago Extra
+            </button>
+          </div>
+
           <div className="p-3 rounded-md bg-muted/50 border border-border text-sm">
             <div className="flex justify-between mb-1">
               <span className="text-muted-foreground">Total reserva:</span>
@@ -221,13 +268,15 @@ export function AddPaymentDialog({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-xs">Monto</Label>
-              <button
-                type="button"
-                onClick={handleMaxClick}
-                className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer font-medium"
-              >
-                Máximo: {formatAmount(maxAmount)}
-              </button>
+              {!isExtra && (
+                <button
+                  type="button"
+                  onClick={handleMaxClick}
+                  className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer font-medium"
+                >
+                  Máximo: {formatAmount(maxAmount)}
+                </button>
+              )}
             </div>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
@@ -243,6 +292,33 @@ export function AddPaymentDialog({
               />
             </div>
           </div>
+
+          {isExtra && (
+            <>
+              <div className="space-y-2">
+                <Label className="text-xs">
+                  Título <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  type="text"
+                  placeholder="Ej: Limpieza extra, Daños menores"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="h-9"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs">Descripción (opcional)</Label>
+                <Textarea
+                  placeholder="Descripción opcional"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="min-h-[60px]"
+                />
+              </div>
+            </>
+          )}
 
           {method !== "MERCADO_PAGO" && (
             <div className="space-y-2">

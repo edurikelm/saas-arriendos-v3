@@ -58,6 +58,9 @@ export interface Payment {
   paidAt?: string | null;
   deletedAt?: string | null;
   receiptUrl?: string | null;
+  paymentType?: string | null;
+  title?: string | null;
+  description?: string | null;
 }
 
 interface Property {
@@ -181,6 +184,7 @@ export function PaymentsTable({
   onDeletePayment,
   onAttachReceipt,
   showInstallmentColumns,
+  showConceptColumn = false,
   generatingLinkId,
 }: {
   payments: Payment[];
@@ -189,6 +193,7 @@ export function PaymentsTable({
   onDeletePayment?: (paymentId: string) => void;
   onAttachReceipt?: (paymentId: string) => void;
   showInstallmentColumns: boolean;
+  showConceptColumn?: boolean;
   generatingLinkId?: string | null;
 }) {
   return (
@@ -198,6 +203,9 @@ export function PaymentsTable({
           <tr>
             {showInstallmentColumns && (
               <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Cuota</th>
+            )}
+            {showConceptColumn && (
+              <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Concepto</th>
             )}
             <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Monto</th>
             {showInstallmentColumns && (
@@ -217,6 +225,14 @@ export function PaymentsTable({
                 {showInstallmentColumns && (
                   <td className="px-2 py-2 font-medium">
                     {payment.installmentIndex ?? "—"}
+                  </td>
+                )}
+                {showConceptColumn && (
+                  <td className="px-2 py-2">
+                    <p className="font-medium text-foreground">{payment.title || "Cobro extra"}</p>
+                    {payment.description && (
+                      <p className="text-xs text-muted-foreground line-clamp-1">{payment.description}</p>
+                    )}
                   </td>
                 )}
                 <td className="px-2 py-2">{formatAmount(payment.amount)}</td>
@@ -363,8 +379,6 @@ export function PaymentsTable({
   );
 }
 
-
-
 export function ReservationDetailDialog({
   reservation,
   open,
@@ -380,8 +394,14 @@ export function ReservationDetailDialog({
 }: ReservationDetailProps) {
   const status = statusConfig[reservation.status] || statusConfig.PENDING;
   const nights = getNights(reservation.startDate, reservation.endDate);
-  const paidAmount = reservation.payments.filter((p) => p.status === "COMPLETED").reduce((sum, p) => sum + Number(p.amount), 0);
-  const pendingAmount = Number(reservation.totalPrice) - paidAmount;
+  const reservationPayments = reservation.payments.filter((p) => p.paymentType !== "EXTRA");
+  const extraPayments = reservation.payments.filter((p) => p.paymentType === "EXTRA");
+  const paidAmount = reservationPayments.filter((p) => p.status === "COMPLETED").reduce((sum, p) => sum + Number(p.amount), 0);
+  const pendingAmount = Math.max(Number(reservation.totalPrice) - paidAmount, 0);
+  const extraTotal = extraPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+  const extraPaidAmount = extraPayments.filter((p) => p.status === "COMPLETED").reduce((sum, p) => sum + Number(p.amount), 0);
+  const extraPendingAmount = Math.max(extraTotal - extraPaidAmount, 0);
+  const grandTotal = Number(reservation.totalPrice) + extraTotal;
 
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   const [generatingLinkId, setGeneratingLinkId] = useState<string | null>(null);
@@ -615,7 +635,7 @@ onRefresh?.(reservation.id);
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="w-[95vw] max-w-2xl">
+      <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-start justify-between mb-6">
           <div className="flex items-center gap-4">
             <div
@@ -635,7 +655,7 @@ onRefresh?.(reservation.id);
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 mb-6">
           <div className="p-3 rounded-md bg-muted/30 border border-border">
             <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
               <Calendar className="h-3 w-3" />
@@ -658,9 +678,7 @@ onRefresh?.(reservation.id);
           </div>
 
           <div className="p-3 rounded-md bg-primary/5 border border-primary/20">
-            <p className="text-xs text-muted-foreground mb-1">
-              {reservation.billingType === "DAILY" ? "Tarifa" : "Total arriendo"}
-            </p>
+            <p className="text-xs text-muted-foreground mb-1">Total Arriendo</p>
             <p className="text-xl font-bold text-primary">{formatPrice(reservation.totalPrice)}</p>
             {reservation.billingType === "MONTHLY" && reservation.property.monthlyPrice && (
               <p className="text-xs text-muted-foreground mt-1">
@@ -674,6 +692,21 @@ onRefresh?.(reservation.id);
             )}
             {pendingAmount > 0 && <p className="text-xs text-orange-600 mt-1">{formatPrice(pendingAmount)} pend.</p>}
           </div>
+
+          <div className="p-3 rounded-md bg-amber-500/5 border border-amber-500/20">
+            <p className="text-xs text-muted-foreground mb-1">Cobros Extras</p>
+            <p className="text-xl font-bold text-amber-600 dark:text-amber-400">{formatPrice(extraTotal)}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {extraPayments.length === 1 ? "1 cobro extra" : `${extraPayments.length} cobros extra`}
+            </p>
+            {extraPendingAmount > 0 && <p className="text-xs text-orange-600 mt-1">{formatPrice(extraPendingAmount)} pend.</p>}
+          </div>
+
+          <div className="p-3 rounded-md bg-emerald-500/5 border border-emerald-500/20">
+            <p className="text-xs text-muted-foreground mb-1">Total General</p>
+            <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{formatPrice(grandTotal)}</p>
+            <p className="text-xs text-muted-foreground mt-1">Arriendo + extras</p>
+          </div>
         </div>
 
         {reservation.notes && (
@@ -686,48 +719,69 @@ onRefresh?.(reservation.id);
           </div>
         )}
 
-        {(reservation.billingType === "MONTHLY" ||
-          (reservation.payments && reservation.payments.length > 0)) && (
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-medium">
-                {reservation.billingType === "MONTHLY" ? "Cuotas de arriendo" : "Pagos"}
-              </p>
-              {reservation.status !== "CANCELLED" && reservation.status !== "COMPLETED" && (
-                <div className="flex gap-2">
-                  {reservation.payments && reservation.payments.length > 0 && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs"
-                      onClick={handleRefreshPayments}
-                      disabled={isCheckingAllPayments}
-                    >
-                      <RefreshCw className={cn("h-3 w-3 mr-1", isCheckingAllPayments && "animate-spin")} />
-                      {isCheckingAllPayments ? "Verificando..." : "Verificar"}
-                    </Button>
+        {(reservationPayments.length > 0 || reservation.payments.length > 0) && (
+          <div className="mb-6 space-y-6">
+            {reservationPayments.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-medium">
+                    {reservation.billingType === "MONTHLY" ? "Cuotas de arriendo" : "Pagos de reserva"}
+                  </p>
+                  {reservation.status !== "CANCELLED" && reservation.status !== "COMPLETED" && (
+                    <div className="flex gap-2">
+                      {reservation.payments && reservation.payments.length > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={handleRefreshPayments}
+                          disabled={isCheckingAllPayments}
+                        >
+                          <RefreshCw className={cn("h-3 w-3 mr-1", isCheckingAllPayments && "animate-spin")} />
+                          {isCheckingAllPayments ? "Verificando..." : "Verificar"}
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => setShowAddPaymentDialog(true)}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Agregar Pago
+                      </Button>
+                    </div>
                   )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs"
-                    onClick={() => setShowAddPaymentDialog(true)}
-                  >
-                    <Plus className="h-3 w-3 mr-1" />
-                    Agregar Pago
-                  </Button>
                 </div>
-              )}
-            </div>
-            <PaymentsTable
-              payments={reservation.payments}
-              onGenerateLink={handleRegenerateLink}
-              onMarkPaid={handleMarkPaidClick}
-              onDeletePayment={handleDeletePayment}
-              onAttachReceipt={handleAttachReceiptClick}
-              showInstallmentColumns={reservation.billingType === "MONTHLY"}
-              generatingLinkId={generatingLinkId}
-            />
+                <PaymentsTable
+                  payments={reservationPayments}
+                  onGenerateLink={handleRegenerateLink}
+                  onMarkPaid={handleMarkPaidClick}
+                  onDeletePayment={handleDeletePayment}
+                  onAttachReceipt={handleAttachReceiptClick}
+                  showInstallmentColumns={reservation.billingType === "MONTHLY"}
+                  generatingLinkId={generatingLinkId}
+                />
+              </div>
+            )}
+
+            {extraPayments.length > 0 && (
+              <div>
+                <div className="mb-3">
+                  <p className="text-sm font-medium">Cobros extra</p>
+                </div>
+                <PaymentsTable
+                  payments={extraPayments}
+                  onGenerateLink={handleRegenerateLink}
+                  onMarkPaid={handleMarkPaidClick}
+                  onDeletePayment={handleDeletePayment}
+                  onAttachReceipt={handleAttachReceiptClick}
+                  showInstallmentColumns={false}
+                  showConceptColumn
+                  generatingLinkId={generatingLinkId}
+                />
+              </div>
+            )}
           </div>
         )}
 

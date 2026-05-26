@@ -99,6 +99,9 @@ export async function createPayment(data: unknown) {
     const status = data.get("status") as string;
     const paidAtStr = data.get("paidAt") as string | null;
     const receipt = data.get("receipt") as File | null;
+    const paymentType = data.get("paymentType") as string | null;
+    const title = data.get("title") as string | null;
+    const description = data.get("description") as string | null;
 
     let receiptUrl: string | undefined;
     if (receipt && receipt.size > 0) {
@@ -123,6 +126,9 @@ export async function createPayment(data: unknown) {
         status: status ?? "COMPLETED",
         paidAt: paidAtStr || undefined,
         receiptUrl: receiptUrl || undefined,
+        paymentType: paymentType || undefined,
+        title: title || undefined,
+        description: description || undefined,
       });
     } catch (e: any) {
       if (e.name === 'ZodError') {
@@ -153,26 +159,31 @@ export async function createPayment(data: unknown) {
     return { error: "No se pueden agregar pagos a una reserva cancelada" };
   }
 
-  const existingPayments = await prisma.payment.findMany({
-    where: {
-      reservationId: validated.reservationId,
-      status: { in: ["COMPLETED", "PENDING"] },
-      deletedAt: null,
-    },
-  });
+  if (validated.paymentType !== "EXTRA") {
+    const existingPayments = await prisma.payment.findMany({
+      where: {
+        reservationId: validated.reservationId,
+        status: { in: ["COMPLETED", "PENDING"] },
+        deletedAt: null,
+      },
+    });
 
-  const totalPaid = existingPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-  const newTotal = totalPaid + validated.amount;
+    const totalPaid = existingPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+    const newTotal = totalPaid + validated.amount;
 
-  if (newTotal > Number(reservation.totalPrice)) {
-    return {
-      error: `El monto excede el total de la reserva. Total: ${Number(reservation.totalPrice).toLocaleString("CLP")}, ya pagado: ${totalPaid.toLocaleString("CLP")}`,
-    };
+    if (newTotal > Number(reservation.totalPrice)) {
+      return {
+        error: `El monto excede el total de la reserva. Total: ${Number(reservation.totalPrice).toLocaleString("CLP")}, ya pagado: ${totalPaid.toLocaleString("CLP")}`,
+      };
+    }
   }
 
-const payment = await prisma.payment.create({
+  const payment = await prisma.payment.create({
     data: {
       reservationId: validated.reservationId,
+      paymentType: validated.paymentType ?? "RESERVATION",
+      title: validated.title ?? null,
+      description: validated.description ?? null,
       amount: validated.amount,
       method: validated.method as any,
       status: validated.status ?? "COMPLETED",
@@ -183,11 +194,23 @@ const payment = await prisma.payment.create({
     },
   });
 
-  if (validated.status === "COMPLETED" && newTotal >= Number(reservation.totalPrice)) {
-    await prisma.reservation.update({
-      where: { id: validated.reservationId },
-      data: { status: "CONFIRMED" },
+  if (validated.status === "COMPLETED" && validated.paymentType !== "EXTRA") {
+    const allPayments = await prisma.payment.findMany({
+      where: {
+        reservationId: validated.reservationId,
+        status: { in: ["COMPLETED", "PENDING"] },
+        deletedAt: null,
+      },
     });
+
+    const totalPaid = allPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+    if (totalPaid >= Number(reservation.totalPrice)) {
+      await prisma.reservation.update({
+        where: { id: validated.reservationId },
+        data: { status: "CONFIRMED" },
+      });
+    }
   }
 
   revalidatePath("/reservations");
@@ -196,7 +219,7 @@ const payment = await prisma.payment.create({
   return { success: true, payment: { ...payment, amount: String(payment.amount) } };
 }
 
-export async function generateMercadoPagoLink(reservationId: string, amount?: number) {
+export async function generateMercadoPagoLink(reservationId: string, amount?: number, paymentType?: string, title?: string, description?: string) {
   const session = await getSession();
   if (!session) return { error: "No autorizado" };
 
@@ -234,19 +257,22 @@ export async function generateMercadoPagoLink(reservationId: string, amount?: nu
     return { error: "El monto debe ser mayor a cero" };
   }
 
-  if (paymentAmount > pendingAmount) {
+  if (paymentType !== "EXTRA" && paymentAmount > pendingAmount) {
     return {
       error: `El monto excede el pendiente. Pendiente: ${pendingAmount.toLocaleString("CLP")}`,
     };
   }
 
-  const description = `Reserva ${reservation.property.name} - ${reservation.client.name} (pago parcial)`;
+  const mpDescription = title || `Reserva ${reservation.property.name} - ${reservation.client.name} (pago parcial)`;
 
   const expirationDate = addDays(new Date(), 7);
 
   const payment = await prisma.payment.create({
     data: {
       reservationId,
+      paymentType: (paymentType as any) ?? "RESERVATION",
+      title: title ?? null,
+      description: description ?? null,
       amount: paymentAmount,
       method: "MERCADO_PAGO",
       status: "PENDING",
@@ -270,8 +296,8 @@ export async function generateMercadoPagoLink(reservationId: string, amount?: nu
       body: JSON.stringify({
         items: [
           {
-            title: description,
-            description,
+            title: mpDescription,
+            description: mpDescription,
             quantity: 1,
             currency_id: "CLP",
             unit_price: paymentAmount,

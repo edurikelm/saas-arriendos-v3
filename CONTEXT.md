@@ -27,6 +27,7 @@ Sistema SaaS para gestión de arriendos de propiedades.
 
 ### Payment (Pago)
 - Una reserva puede tener múltiples pagos parciales
+- `paymentType: RESERVATION | EXTRA` — `RESERVATION` corresponde al arriendo; `EXTRA` es un cobro independiente (multa, limpieza, etc.) que no afecta el `totalPrice` de la reserva
 - `method: MERCADO_PAGO | CASH | TRANSFER`
 - `status: PENDING | COMPLETED | FAILED`
 - `mercadoPagoId` — preference_id de MP (para tracking de webhook)
@@ -37,6 +38,8 @@ Sistema SaaS para gestión de arriendos de propiedades.
 - `paid_at` — fecha y hora cuando el pago fue completado
 - `receiptUrl?` — comprobante de pago subido manualmente por el propietario vía Cloudinary (aplica a todos los métodos: CASH, TRANSFER, MERCADO_PAGO). La API de MP no expone `receipt_url` para pagos con tarjeta.
 - `deleted_at?` — soft delete para auditoría
+- `title?` — título del pago (obligatorio solo para `EXTRA`)
+- `description?` — descripción opcional (solo para `EXTRA`)
 
 ### Webhook de Pagos (Mercado Pago)
 
@@ -133,6 +136,7 @@ El webhook intenta matchear el pago en este orden:
 - **Billing Type** — DAILY o MONTHLY, elegido al momento de crear la reserva
 - **Units Booked** — cantidad de unidades reservadas dentro de la misma propiedad
 - **Última Noche** — `end_date` representa la última noche que duerme el huésped, no el día de check-out. El cálculo de noches es `(end_date - start_date + 1)`
+- **Payment Type** — `RESERVATION` (parte de la tarifa de arriendo, cuenta para `paidAmount`) o `EXTRA` (cobro independiente: multa, limpieza extra, etc., no cuenta para `paidAmount`)
 
 ## Patrones Next.js
 

@@ -835,6 +835,122 @@ describe('processMercadoPagoWebhook - idempotency', () => {
   });
 });
 
+describe('createPayment - paymentType EXTRA', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('skips maxAmount validation when paymentType is EXTRA', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    const { prisma } = await import('@/lib/db/prisma');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+
+    vi.mocked(prisma.reservation.findFirst).mockResolvedValue({
+      ...mockReservation,
+      totalPrice: 100000 as any,
+    });
+
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([
+      {
+        id: 'pay-1',
+        reservationId: 'res-1',
+        amount: 100000 as any,
+        method: 'CASH',
+        status: 'COMPLETED',
+        initPoint: null,
+        expiresAt: null,
+        deletedAt: null,
+        mercadoPagoId: null,
+        createdAt: new Date(),
+      },
+    ]);
+
+    vi.mocked(prisma.payment.create).mockResolvedValue({
+      id: 'pay-2',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      method: 'CASH',
+      status: 'COMPLETED',
+      paymentType: 'EXTRA',
+      title: 'Multa',
+      description: null,
+      initPoint: null,
+      expiresAt: null,
+      paidAt: null,
+      receiptUrl: null,
+      deletedAt: null,
+      mercadoPagoId: null,
+      createdAt: new Date(),
+    } as any);
+
+    const { createPayment } = await import('../payments');
+    const result = await createPayment({
+      reservationId: 'res-1',
+      amount: 50000,
+      method: 'CASH',
+      paymentType: 'EXTRA',
+      title: 'Multa',
+    });
+
+    expect(result).toHaveProperty('success', true);
+    expect(prisma.payment.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns error when paymentType is EXTRA without title', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    const { prisma } = await import('@/lib/db/prisma');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+
+    vi.mocked(prisma.reservation.findFirst).mockResolvedValue(mockReservation);
+
+    const { createPayment } = await import('../payments');
+    const result = await createPayment({
+      reservationId: 'res-1',
+      amount: 50000,
+      method: 'CASH',
+      paymentType: 'EXTRA',
+    });
+
+    expect(result).toHaveProperty('error');
+  });
+
+  it('still enforces maxAmount validation for RESERVATION payments', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    const { prisma } = await import('@/lib/db/prisma');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+
+    vi.mocked(prisma.reservation.findFirst).mockResolvedValue({
+      ...mockReservation,
+      totalPrice: 100000 as any,
+    });
+
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([
+      {
+        id: 'pay-1',
+        reservationId: 'res-1',
+        amount: 100000 as any,
+        method: 'CASH',
+        status: 'COMPLETED',
+        initPoint: null,
+        expiresAt: null,
+        deletedAt: null,
+        mercadoPagoId: null,
+        createdAt: new Date(),
+      },
+    ]);
+
+    const { createPayment } = await import('../payments');
+    const result = await createPayment({
+      reservationId: 'res-1',
+      amount: 50000,
+      method: 'CASH',
+    });
+
+    expect(result).toHaveProperty('error');
+    expect(result.error).toContain('excede');
+  });
+});
+
 describe('regeneratePaymentLink', () => {
   beforeEach(() => {
     vi.clearAllMocks();

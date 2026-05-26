@@ -34,3 +34,60 @@ describe('paymentSchema - receiptUrl', () => {
     expect(result.success).toBe(false);
   });
 });
+
+describe('paymentSchema - paymentType, title, description', () => {
+  it('accepts payment without paymentType (defaults to RESERVATION)', () => {
+    const result = paymentSchema.safeParse({
+      reservationId: 'res-1',
+      amount: 50000,
+      method: 'CASH',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.paymentType).toBe('RESERVATION');
+    }
+  });
+
+  it('accepts RESERVATION payment without title', () => {
+    const result = paymentSchema.safeParse({
+      reservationId: 'res-1',
+      amount: 50000,
+      method: 'CASH',
+      paymentType: 'RESERVATION',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts EXTRA payment with title', () => {
+    const result = paymentSchema.safeParse({
+      reservationId: 'res-1',
+      amount: 50000,
+      method: 'CASH',
+      paymentType: 'EXTRA',
+      title: 'Limpieza',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts EXTRA payment with title and description', () => {
+    const result = paymentSchema.safeParse({
+      reservationId: 'res-1',
+      amount: 50000,
+      method: 'CASH',
+      paymentType: 'EXTRA',
+      title: 'Multa',
+      description: 'Daños en la propiedad',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects EXTRA payment without title', () => {
+    const result = paymentSchema.safeParse({
+      reservationId: 'res-1',
+      amount: 50000,
+      method: 'CASH',
+      paymentType: 'EXTRA',
+    });
+    expect(result.success).toBe(false);
+  });
+});

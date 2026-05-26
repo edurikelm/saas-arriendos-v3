@@ -77,6 +77,9 @@ export async function getReservations(filters?: {
         where: { deletedAt: null },
         select: {
           id: true,
+          paymentType: true,
+          title: true,
+          description: true,
           amount: true,
           status: true,
           method: true,
@@ -122,6 +125,9 @@ export async function getReservations(filters?: {
     },
     payments: r.payments.map((p) => ({
       id: p.id,
+      paymentType: p.paymentType,
+      title: p.title ?? null,
+      description: p.description ?? null,
       amount: String(p.amount),
       status: p.status,
       method: p.method,
@@ -199,6 +205,9 @@ export async function getReservationById(id: string) {
       .map((p) => ({
         id: p.id,
         reservationId: p.reservationId,
+        paymentType: p.paymentType,
+        title: p.title ?? null,
+        description: p.description ?? null,
         amount: String(p.amount),
         status: p.status,
         method: p.method,

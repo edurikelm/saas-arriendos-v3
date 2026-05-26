@@ -14,11 +14,11 @@ import {
   subMonths,
   parseISO,
   differenceInDays,
+  getDay,
 } from "date-fns";
 import { es } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CalendarReservation } from "@/lib/actions/reservations";
 
 function getContrastColor(hexColor: string): string {
@@ -30,10 +30,55 @@ function getContrastColor(hexColor: string): string {
   return luminance > 0.5 ? "#000000" : "#FFFFFF";
 }
 
+function isReservationEnded(res: CalendarReservation): boolean {
+  const end = parseISO(res.endDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return end < today || res.status === "COMPLETED";
+}
+
 interface CalendarGridProps {
   reservations: CalendarReservation[];
   onSelectReservation?: (id: string) => void;
   onDateClick?: (date: Date) => void;
+}
+
+function getWeeks(days: Date[]): Date[][] {
+  const weeks: Date[][] = [];
+  for (let i = 0; i < days.length; i += 7) {
+    weeks.push(days.slice(i, i + 7));
+  }
+  return weeks;
+}
+
+interface WeekReservation {
+  res: CalendarReservation;
+  startCol: number;
+  span: number;
+  lane: number;
+}
+
+function assignLanes(weekReservations: WeekReservation[]): WeekReservation[] {
+  const lanes: { endCol: number }[] = [];
+  weekReservations.sort((a, b) => a.startCol - b.startCol);
+
+  for (const wr of weekReservations) {
+    let assigned = false;
+    for (let i = 0; i < lanes.length; i++) {
+      if (lanes[i].endCol <= wr.startCol) {
+        lanes[i] = { endCol: wr.startCol + wr.span };
+        wr.lane = i;
+        assigned = true;
+        break;
+      }
+    }
+    if (!assigned) {
+      wr.lane = lanes.length;
+      lanes.push({ endCol: wr.startCol + wr.span });
+    }
+  }
+
+  return weekReservations;
 }
 
 export function CalendarGrid({
@@ -49,35 +94,55 @@ export function CalendarGrid({
   const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
 
   const days = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
-
-  const reservationsByDate = useMemo(() => {
-    const map = new Map<string, CalendarReservation[]>();
-
-    reservations.forEach((res) => {
-      const start = parseISO(res.startDate);
-      const end = parseISO(res.endDate);
-      const totalDays = differenceInDays(end, start) + 1;
-
-      for (let i = 0; i < totalDays; i++) {
-        const date = new Date(start);
-        date.setDate(date.getDate() + i);
-        const dateKey = format(date, "yyyy-MM-dd");
-
-        if (!map.has(dateKey)) {
-          map.set(dateKey, []);
-        }
-        map.get(dateKey)!.push(res);
-      }
-    });
-
-    return map;
-  }, [reservations]);
+  const weeks = getWeeks(days);
 
   const navigateMonth = (direction: "prev" | "next") => {
     setCurrentDate((prev) =>
       direction === "prev" ? subMonths(prev, 1) : addMonths(prev, 1)
     );
   };
+
+  const weeksData = useMemo(() => {
+    return weeks.map((week) => {
+      const weekStart = week[0];
+      const weekEnd = week[6];
+
+      const intersecting = reservations.filter((res) => {
+        const start = parseISO(res.startDate);
+        const end = parseISO(res.endDate);
+        return start <= weekEnd && end >= weekStart;
+      });
+
+      const wrs: WeekReservation[] = intersecting.map((res) => {
+        const start = parseISO(res.startDate);
+        const end = parseISO(res.endDate);
+
+        const firstVisibleDay = start < weekStart ? weekStart : start;
+        const lastVisibleDay = end > weekEnd ? weekEnd : end;
+
+        const startCol = getDay(firstVisibleDay);
+        const span = differenceInDays(lastVisibleDay, firstVisibleDay) + 1;
+
+        return {
+          res,
+          startCol,
+          span,
+          lane: 0,
+        };
+      });
+
+      const withLanes = assignLanes(wrs);
+
+      return {
+        week,
+        weekReservations: withLanes,
+        numLanes:
+          withLanes.length > 0
+            ? Math.max(...withLanes.map((w) => w.lane)) + 1
+            : 0,
+      };
+    });
+  }, [weeks, reservations]);
 
   return (
     <div className="space-y-4">
@@ -86,80 +151,113 @@ export function CalendarGrid({
           {format(currentDate, "MMMM yyyy", { locale: es }).toUpperCase()}
         </h2>
         <div className="flex gap-2">
-          <Button variant="outline" size="icon" onClick={() => navigateMonth("prev")}>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => navigateMonth("prev")}
+          >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentDate(new Date())}
+          >
             HOY
           </Button>
-          <Button variant="outline" size="icon" onClick={() => navigateMonth("next")}>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => navigateMonth("next")}
+          >
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-px bg-border">
-        {["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"].map((day) => (
-          <div
-            key={day}
-            className="bg-muted p-1 sm:p-2 text-center text-xs sm:text-sm font-medium text-muted-foreground"
-          >
-            {day}
-          </div>
-        ))}
-
-        {days.map((day) => {
-          const dateKey = format(day, "yyyy-MM-dd");
-          const dayReservations = reservationsByDate.get(dateKey) || [];
-          const isCurrentMonth = isSameMonth(day, currentDate);
-          const isToday = isSameDay(day, new Date());
-
-          return (
+      <div className="border border-border rounded-lg overflow-hidden">
+        {/* Header de días */}
+        <div className="grid grid-cols-7 gap-x-px bg-border">
+          {["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"].map((day) => (
             <div
-              key={dateKey}
-              className={`
-                min-h-12 sm:min-h-20 lg:min-h-24 bg-background p-1 transition-colors hover:bg-muted/50 overflow-hidden
-                ${!isCurrentMonth ? "text-muted-foreground opacity-50" : ""}
-              `}
-              onClick={() => onDateClick?.(day)}
+              key={day}
+              className="bg-muted p-1 sm:p-2 text-center text-xs sm:text-sm font-medium text-muted-foreground border-b border-border"
             >
-              <div
-                className={`
-                  mb-1 flex h-7 w-7 items-center justify-center rounded-full text-sm
-                  ${isToday ? "bg-primary text-primary-foreground font-bold" : ""}
-                `}
-              >
-                {format(day, "d")}
-              </div>
+              {day}
+            </div>
+          ))}
+        </div>
 
-              <div className="space-y-1">
-                {dayReservations.slice(0, 3).map((res) => (
+        {/* Semanas */}
+        <div className="grid grid-cols-1">
+          {weeksData.map(({ week, weekReservations, numLanes }, weekIndex) => (
+            <div
+              key={weekIndex}
+              className={`relative grid grid-cols-7 gap-x-px bg-border ${
+                weekIndex < weeksData.length - 1 ? "border-b border-border" : ""
+              }`}
+              style={{
+                minHeight: numLanes > 0 ? `${96 + numLanes * 34}px` : undefined,
+              }}
+            >
+              {week.map((day) => {
+                const dateKey = format(day, "yyyy-MM-dd");
+                const isCurrentMonth = isSameMonth(day, currentDate);
+                const isToday = isSameDay(day, new Date());
+
+                return (
                   <div
-                    key={`${res.id}-${dateKey}`}
+                    key={dateKey}
+                    className={`bg-background p-1 transition-colors hover:bg-muted/50 min-h-12 sm:min-h-20 lg:min-h-24 h-full ${
+                      !isCurrentMonth
+                        ? "text-muted-foreground opacity-50"
+                        : ""
+                    }`}
+                    onClick={() => onDateClick?.(day)}
+                  >
+                    <div
+                      className={`mb-1 flex h-7 w-7 items-center justify-center rounded-full text-sm ${
+                        isToday
+                          ? "bg-primary text-primary-foreground font-bold"
+                          : ""
+                      }`}
+                    >
+                      {format(day, "d")}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {weekReservations.map((wr) => {
+                const ended = isReservationEnded(wr.res);
+                return (
+                  <div
+                    key={`${wr.res.id}-${weekIndex}`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      onSelectReservation?.(res.id);
+                      onSelectReservation?.(wr.res.id);
                     }}
+                    className={`absolute z-10 cursor-pointer rounded px-1.5 py-0.5 text-sm font-medium transition-colors hover:opacity-80 flex items-center h-8 ${
+                      ended ? "opacity-40" : ""
+                    }`}
                     style={{
-                      backgroundColor: res.property.color,
-                      color: getContrastColor(res.property.color),
+                      left: `${(wr.startCol / 7) * 100}%`,
+                      top: `${40 + wr.lane * 34}px`,
+                      width: `${(wr.span / 7) * 100}%`,
+                      backgroundColor: wr.res.property.color,
+                      color: getContrastColor(wr.res.property.color),
                     }}
-                    className="cursor-pointer truncate rounded px-1 py-0.5 text-xs font-medium transition-colors hover:opacity-80"
-                    title={`${res.client.name} - ${res.property.name}`}
+                    title={`${wr.res.client.name} - ${wr.res.property.name}`}
                   >
-                    {res.client.name} - {res.property.name}
+                    <span className="truncate">
+                      {wr.res.client.name} - {wr.res.property.name}
+                    </span>
                   </div>
-                ))}
-
-                {dayReservations.length > 3 && (
-                  <div className="text-xs text-muted-foreground">
-                    +{dayReservations.length - 3} más
-                  </div>
-                )}
-              </div>
+                );
+              })}
             </div>
-          );
-        })}
+          ))}
+        </div>
       </div>
     </div>
   );
