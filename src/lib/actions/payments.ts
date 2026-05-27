@@ -9,6 +9,26 @@ import { uploadImage } from "@/lib/actions/cloudinary";
 import { revalidatePath } from "next/cache";
 import { addDays } from "date-fns";
 
+function buildMercadoPagoNotificationUrl(paymentId: string) {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  return `${appUrl}/api/webhooks/mercadopago?source_news=webhooks&paymentId=${paymentId}`;
+}
+
+function buildMercadoPagoBackUrls(paymentId: string) {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  const resultUrl = `${appUrl}/payment/result?paymentId=${paymentId}`;
+
+  return {
+    success: `${resultUrl}&status=success`,
+    pending: `${resultUrl}&status=pending`,
+    failure: `${resultUrl}&status=failure`,
+  };
+}
+
+function getMercadoPagoInitPoint(data: { init_point?: string; sandbox_init_point?: string }) {
+  return data.init_point;
+}
+
 export async function getPaymentsByReservation(reservationId: string) {
   const session = await getSession();
   if (!session) return [];
@@ -304,7 +324,9 @@ export async function generateMercadoPagoLink(reservationId: string, amount?: nu
           },
         ],
         external_reference: externalReference,
-        notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/mercadopago`,
+        notification_url: buildMercadoPagoNotificationUrl(payment.id),
+        back_urls: buildMercadoPagoBackUrls(payment.id),
+        auto_return: "approved",
       }),
     });
 
@@ -319,18 +341,20 @@ export async function generateMercadoPagoLink(reservationId: string, amount?: nu
 
     console.log(`[MP GenerateLink] API success. Updating payment ${payment.id} with preference_id=${data.id}`);
 
+    const initPoint = getMercadoPagoInitPoint(data);
+
     await prisma.payment.update({
       where: { id: payment.id },
       data: {
         mercadoPagoId: String(data.id),
-        initPoint: data.init_point,
+        initPoint,
       },
     });
 
     return {
       success: true,
       payment,
-      initPoint: data.init_point,
+      initPoint,
       sandboxInitPoint: data.sandbox_init_point,
       expiresAt: expirationDate.toISOString(),
     };
@@ -347,70 +371,56 @@ export async function processMercadoPagoWebhook(payload: {
   external_reference: string;
   preference_id?: string;
   date_approved?: string;
+  hintedPaymentId?: string;
+  receipt_url?: string;
 }) {
-  const { id, status, external_reference, preference_id, date_approved } = payload;
+  const { id, status, external_reference, preference_id, date_approved, hintedPaymentId, receipt_url } = payload;
 
   console.log(`[MP Webhook] Processing. ID: ${id}, Status: ${status}, ExternalRef: ${external_reference}, PreferenceID: ${preference_id}`);
 
-  let payment = await prisma.payment.findFirst({
-    where: { mercadoPagoId: id, deletedAt: null },
-    include: {
-      reservation: true,
-    },
-  });
+  let payment: any = null;
+  const parts = external_reference ? external_reference.split(":") : [];
+  const reservationIdFromRef = parts[0] || null;
+  const paymentIdFromRef = parts.length > 1 ? parts[1] : null;
+  const hasValidPaymentIdInRef = Boolean(paymentIdFromRef && /^[a-z0-9]{20,}$/i.test(paymentIdFromRef));
 
-  if (!payment && external_reference) {
-    const parts = external_reference.split(":");
-    const reservationId = parts[0];
-    const paymentIdFromRef = parts.length > 1 ? parts[1] : null;
+  if (hintedPaymentId) {
+    payment = await prisma.payment.findFirst({
+      where: { id: hintedPaymentId, deletedAt: null },
+      include: { reservation: true },
+    });
+  }
 
-    console.log(`[MP Webhook] ExternalRef parts: reservationId=${reservationId}, paymentIdFromRef=${paymentIdFromRef}, partsCount=${parts.length}`);
+  if (!payment && hasValidPaymentIdInRef) {
+    payment = await prisma.payment.findFirst({
+      where: { id: paymentIdFromRef!, deletedAt: null },
+      include: { reservation: true },
+    });
 
-    if (reservationId) {
-      const isValidUUID = paymentIdFromRef && /^[a-z0-9]{20,}$/i.test(paymentIdFromRef);
-      console.log(`[MP Webhook] IsValidUUID=${isValidUUID} for paymentIdFromRef=${paymentIdFromRef}`);
+    if (payment && reservationIdFromRef && payment.reservationId !== reservationIdFromRef) {
+      payment = null;
+    }
+  }
 
-      if (isValidUUID) {
-        payment = await prisma.payment.findFirst({
-          where: {
-            id: paymentIdFromRef,
-            reservationId,
-            deletedAt: null,
-          },
-          include: { reservation: true },
-        });
-        console.log(`[MP Webhook] Tried exact match by paymentId=${paymentIdFromRef}, found: ${payment ? payment.id : 'null'}`);
-      }
+  if (!payment && preference_id) {
+    payment = await prisma.payment.findFirst({
+      where: { mercadoPagoId: preference_id, deletedAt: null },
+      include: { reservation: true },
+    });
 
-      if (!payment && preference_id) {
-        console.log(`[MP Webhook] Trying to match by preference_id=${preference_id}`);
-        payment = await prisma.payment.findFirst({
-          where: {
-            mercadoPagoId: preference_id,
-            reservationId,
-            deletedAt: null,
-          },
-          include: { reservation: true },
-        });
-        console.log(`[MP Webhook] Preference_id match result: ${payment ? payment.id : 'null'}`);
-      }
+    if (payment && reservationIdFromRef && payment.reservationId !== reservationIdFromRef) {
+      payment = null;
+    }
+  }
 
-      if (!payment && id && id.length > 10) {
-        console.log(`[MP Webhook] Trying to match by mercadoPagoId=${id}`);
-        payment = await prisma.payment.findFirst({
-          where: {
-            mercadoPagoId: id,
-            reservationId,
-            deletedAt: null,
-          },
-          include: { reservation: true },
-        });
-        console.log(`[MP Webhook] MercadoPagoId match result: ${payment ? payment.id : 'null'}`);
-      }
+  if (!payment) {
+    payment = await prisma.payment.findFirst({
+      where: { mercadoPagoId: id, deletedAt: null },
+      include: { reservation: true },
+    });
 
-      if (!payment) {
-        console.log(`[MP Webhook] Payment not found for reservationId=${reservationId}, paymentIdFromRef=${paymentIdFromRef}`);
-      }
+    if (payment && reservationIdFromRef && payment.reservationId !== reservationIdFromRef) {
+      payment = null;
     }
   }
 
@@ -453,6 +463,7 @@ export async function processMercadoPagoWebhook(payload: {
         status: newStatus,
         paidAt: date_approved ? new Date(date_approved) : new Date(),
         mercadoPagoId: id,
+        receiptUrl: receipt_url ?? undefined,
       },
     });
 
@@ -476,7 +487,7 @@ export async function processMercadoPagoWebhook(payload: {
   } else {
     await prisma.payment.update({
       where: { id: payment.id },
-      data: { status: newStatus, mercadoPagoId: id },
+      data: { status: newStatus, mercadoPagoId: id, receiptUrl: receipt_url ?? undefined },
     });
   }
 
@@ -533,7 +544,9 @@ export async function generatePaymentLink(paymentId: string) {
           },
         ],
         external_reference: externalReference,
-        notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/mercadopago`,
+        notification_url: buildMercadoPagoNotificationUrl(paymentId),
+        back_urls: buildMercadoPagoBackUrls(paymentId),
+        auto_return: "approved",
       }),
     });
 
@@ -546,10 +559,12 @@ export async function generatePaymentLink(paymentId: string) {
 
     const expiresAtDate = addDays(new Date(), 7);
 
+    const initPoint = getMercadoPagoInitPoint(data);
+
     await prisma.payment.update({
       where: { id: paymentId },
       data: {
-        initPoint: data.init_point,
+        initPoint,
         expiresAt: expiresAtDate,
         mercadoPagoId: String(data.id),
       },
@@ -560,7 +575,7 @@ export async function generatePaymentLink(paymentId: string) {
 
     return {
       success: true,
-      initPoint: data.init_point,
+      initPoint,
       sandboxInitPoint: data.sandbox_init_point,
       expiresAt: expiresAtDate.toISOString(),
     };
@@ -619,7 +634,9 @@ export async function regeneratePaymentLink(id: string) {
           },
         ],
         external_reference: externalReference,
-        notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/mercadopago`,
+        notification_url: buildMercadoPagoNotificationUrl(id),
+        back_urls: buildMercadoPagoBackUrls(id),
+        auto_return: "approved",
       }),
     });
 
@@ -632,10 +649,12 @@ export async function regeneratePaymentLink(id: string) {
 
     const expiresAtDate = data.expiration_date ? new Date(data.expiration_date) : addDays(new Date(), 7);
 
+    const initPoint = getMercadoPagoInitPoint(data);
+
     await prisma.payment.update({
       where: { id },
       data: {
-        initPoint: data.init_point,
+        initPoint,
         expiresAt: expiresAtDate,
         mercadoPagoId: data.id,
       },
@@ -644,7 +663,7 @@ export async function regeneratePaymentLink(id: string) {
     revalidatePath("/reservations");
     revalidatePath(`/reservations/${payment.reservationId}`);
 
-    return { success: true, initPoint: data.init_point, sandboxInitPoint: data.sandbox_init_point };
+    return { success: true, initPoint, sandboxInitPoint: data.sandbox_init_point };
   } catch (error: any) {
     return { error: `Error al regenerar link: ${error.message}` };
   }

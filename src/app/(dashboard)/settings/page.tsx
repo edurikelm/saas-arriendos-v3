@@ -1,7 +1,15 @@
 import { MercadoPagoSettings } from "@/components/settings/MercadoPagoSettings";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-export default function SettingsPage() {
+type SettingsPageProps = {
+  searchParams: Promise<{
+    mp?: string;
+  }>;
+};
+
+export default async function SettingsPage({ searchParams }: SettingsPageProps) {
+  const params = await searchParams;
+
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Configuración</h1>
@@ -12,7 +20,7 @@ export default function SettingsPage() {
             <CardTitle>Mercado Pago</CardTitle>
           </CardHeader>
           <CardContent>
-            <MercadoPagoSettings />
+            <MercadoPagoSettings oauthStatus={params.mp} />
           </CardContent>
         </Card>
       </div>

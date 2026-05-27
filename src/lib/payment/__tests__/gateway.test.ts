@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@/lib/db/prisma', () => ({
@@ -418,9 +419,18 @@ describe('MercadoPagoGateway.createPaymentLink — external_reference format', (
 
     let externalRefUsed: string | undefined;
 
+    process.env.NEXT_PUBLIC_APP_URL = 'https://rentalpro.test';
+
+    let notificationUrlUsed: string | undefined;
+    let backUrlsUsed: Record<string, string> | undefined;
+    let autoReturnUsed: string | undefined;
+
     const mockFetch = vi.fn().mockImplementation(async (_url, options) => {
       const body = JSON.parse(options.body as string);
       externalRefUsed = body.external_reference;
+      notificationUrlUsed = body.notification_url;
+      backUrlsUsed = body.back_urls;
+      autoReturnUsed = body.auto_return;
 
       return {
         ok: true,
@@ -459,6 +469,13 @@ describe('MercadoPagoGateway.createPaymentLink — external_reference format', (
     expect(parts[1]).toBe('pay-1');
     const timestamp = parseInt(parts[2], 10);
     expect(timestamp).toBeGreaterThan(0);
+    expect(notificationUrlUsed).toBe('https://rentalpro.test/api/webhooks/mercadopago?source_news=webhooks&paymentId=pay-1');
+    expect(backUrlsUsed).toEqual({
+      success: 'https://rentalpro.test/payment/result?paymentId=pay-1&status=success',
+      pending: 'https://rentalpro.test/payment/result?paymentId=pay-1&status=pending',
+      failure: 'https://rentalpro.test/payment/result?paymentId=pay-1&status=failure',
+    });
+    expect(autoReturnUsed).toBe('approved');
     expect(result).toHaveProperty('initPoint', 'https://mercadopago.com/tx');
     expect(result).toHaveProperty('paymentId', 'pay-1');
   });

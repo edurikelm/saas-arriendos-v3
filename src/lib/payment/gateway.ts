@@ -3,6 +3,22 @@ import { processMercadoPagoWebhook } from "@/lib/actions/payments";
 import { prisma } from "@/lib/db/prisma";
 import { addDays } from "date-fns";
 
+function buildMercadoPagoNotificationUrl(paymentId: string) {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  return `${appUrl}/api/webhooks/mercadopago?source_news=webhooks&paymentId=${paymentId}`;
+}
+
+function buildMercadoPagoBackUrls(paymentId: string) {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  const resultUrl = `${appUrl}/payment/result?paymentId=${paymentId}`;
+
+  return {
+    success: `${resultUrl}&status=success`,
+    pending: `${resultUrl}&status=pending`,
+    failure: `${resultUrl}&status=failure`,
+  };
+}
+
 export interface PaymentEvent {
   paymentId: string;
   status: "PENDING" | "COMPLETED" | "FAILED";
@@ -21,6 +37,10 @@ export interface PaymentGateway {
   createPaymentLink(reservationId: string, amount?: number): Promise<PaymentLinkResult>;
   getPaymentStatus(paymentId: string): Promise<string | null>;
   handleWebhook(rawPayload: unknown): Promise<PaymentEvent>;
+}
+
+function getMercadoPagoInitPoint(data: { init_point?: string; sandbox_init_point?: string }) {
+  return data.init_point;
 }
 
 function mapMercadoPagoStatus(status: string): PaymentEvent["status"] {
@@ -124,7 +144,9 @@ export class MercadoPagoGateway implements PaymentGateway {
             },
           ],
           external_reference: externalReference,
-          notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/mercadopago`,
+          notification_url: buildMercadoPagoNotificationUrl(payment.id),
+          back_urls: buildMercadoPagoBackUrls(payment.id),
+          auto_return: "approved",
         }),
       }
     );
@@ -137,16 +159,22 @@ export class MercadoPagoGateway implements PaymentGateway {
 
     const data = await response.json();
 
+    const initPoint = getMercadoPagoInitPoint(data);
+    if (!initPoint) {
+      await prisma.payment.delete({ where: { id: payment.id } });
+      throw new Error("Mercado Pago error: missing checkout URL");
+    }
+
     await prisma.payment.update({
       where: { id: payment.id },
       data: {
         mercadoPagoId: String(data.id),
-        initPoint: data.init_point,
+        initPoint,
       },
     });
 
     return {
-      initPoint: data.init_point,
+      initPoint,
       sandboxInitPoint: data.sandbox_init_point,
       expiresAt: expirationDate,
       paymentId: payment.id,

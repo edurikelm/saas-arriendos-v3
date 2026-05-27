@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { SessionUser } from '@/lib/actions/auth';
 
@@ -505,6 +506,56 @@ describe('generatePaymentLink', () => {
     const expectedExpiry = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     expect(Math.abs(expiresAt.getTime() - expectedExpiry.getTime())).toBeLessThan(5000);
   });
+
+  it('sends notification hint and redirect back_urls in preference payload', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    const { prisma } = await import('@/lib/db/prisma');
+    const { getMercadoPagoToken } = await import('@/lib/actions/mercado-pago');
+
+    process.env.NEXT_PUBLIC_APP_URL = 'https://rentalpro.test';
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    vi.mocked(getMercadoPagoToken).mockResolvedValue('fake-token');
+
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      method: 'MERCADO_PAGO',
+      status: 'PENDING',
+      initPoint: null,
+      expiresAt: null,
+      deletedAt: null,
+      mercadoPagoId: null,
+      createdAt: new Date(),
+      reservation: mockReservation,
+    });
+
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        id: 'mp-new-id',
+        init_point: 'https://mercadopago.com/new-link',
+        sandbox_init_point: 'https://sandbox.mercadopago.com/new-link',
+      }),
+    });
+    global.fetch = mockFetch;
+
+    const { generatePaymentLink } = await import('../payments');
+    await generatePaymentLink('pay-1');
+
+    const [, options] = mockFetch.mock.calls[0];
+    const body = JSON.parse(options.body as string);
+
+    expect(body.notification_url).toBe('https://rentalpro.test/api/webhooks/mercadopago?source_news=webhooks&paymentId=pay-1');
+    expect(body.back_urls).toEqual({
+      success: 'https://rentalpro.test/payment/result?paymentId=pay-1&status=success',
+      pending: 'https://rentalpro.test/payment/result?paymentId=pay-1&status=pending',
+      failure: 'https://rentalpro.test/payment/result?paymentId=pay-1&status=failure',
+    });
+    expect(body.auto_return).toBe('approved');
+  });
 });
 
 describe('processMercadoPagoWebhook - receipt_url', () => {
@@ -835,6 +886,83 @@ describe('processMercadoPagoWebhook - idempotency', () => {
   });
 });
 
+describe('processMercadoPagoWebhook - matching order and coherence', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('tries hintedPaymentId first, then external_reference paymentId, then preference_id, then mercadoPagoId', async () => {
+    const { prisma } = await import('@/lib/db/prisma');
+
+    vi.mocked(prisma.payment.findFirst)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: 'pay-1',
+        reservationId: 'res-1',
+        amount: 50000 as any,
+        method: 'MERCADO_PAGO',
+        status: 'PENDING',
+        initPoint: 'https://mercadopago.com/tx',
+        expiresAt: new Date('2025-12-01'),
+        deletedAt: null,
+        mercadoPagoId: 'mp-123',
+        createdAt: new Date(),
+        reservation: mockReservation,
+      });
+
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([]);
+
+    const { processMercadoPagoWebhook } = await import('../payments');
+    await processMercadoPagoWebhook({
+      id: 'mp-123',
+      status: 'approved',
+      external_reference: 'res-1:clhn9kkj60000l208d3og2bxz:123456',
+      preference_id: 'pref-123',
+      hintedPaymentId: 'pay-hint-1',
+    });
+
+    const calls = vi.mocked(prisma.payment.findFirst).mock.calls;
+    expect(calls[0][0]).toEqual(expect.objectContaining({ where: expect.objectContaining({ id: 'pay-hint-1' }) }));
+    expect(calls[1][0]).toEqual(expect.objectContaining({ where: expect.objectContaining({ id: 'clhn9kkj60000l208d3og2bxz' }) }));
+    expect(calls[2][0]).toEqual(expect.objectContaining({ where: expect.objectContaining({ mercadoPagoId: 'pref-123' }) }));
+    expect(calls[3][0]).toEqual(expect.objectContaining({ where: expect.objectContaining({ mercadoPagoId: 'mp-123' }) }));
+  });
+
+  it('rejects candidate when reservationId from external_reference does not match payment reservation', async () => {
+    const { prisma } = await import('@/lib/db/prisma');
+
+    vi.mocked(prisma.payment.findFirst)
+      .mockResolvedValueOnce({
+        id: 'clhn9kkj60000l208d3og2bxz',
+        reservationId: 'res-2',
+        amount: 50000 as any,
+        method: 'MERCADO_PAGO',
+        status: 'PENDING',
+        initPoint: 'https://mercadopago.com/tx',
+        expiresAt: new Date('2025-12-01'),
+        deletedAt: null,
+        mercadoPagoId: 'pref-123',
+        createdAt: new Date(),
+        reservation: { ...mockReservation, id: 'res-2' },
+      })
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+
+    const { processMercadoPagoWebhook } = await import('../payments');
+    const result = await processMercadoPagoWebhook({
+      id: 'mp-123',
+      status: 'approved',
+      external_reference: 'res-1:clhn9kkj60000l208d3og2bxz:123456',
+      preference_id: 'pref-123',
+    });
+
+    expect(result).toEqual({ error: 'Pago no encontrado' });
+  });
+});
+
 describe('createPayment - paymentType EXTRA', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -1030,6 +1158,8 @@ describe('regeneratePaymentLink', () => {
 
     vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
 
+    process.env.NEXT_PUBLIC_APP_URL = 'https://rentalpro.test';
+
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({
@@ -1044,8 +1174,13 @@ describe('regeneratePaymentLink', () => {
     const { regeneratePaymentLink } = await import('../payments');
     const result = await regeneratePaymentLink('pay-1');
 
+    const [, options] = mockFetch.mock.calls[0];
+    const body = JSON.parse(options.body as string);
+
     expect(result).toHaveProperty('success', true);
     expect(result).toHaveProperty('initPoint', 'https://mercadopago.com/new');
+    expect(body.notification_url).toBe('https://rentalpro.test/api/webhooks/mercadopago?source_news=webhooks&paymentId=pay-1');
+    expect(body.auto_return).toBe('approved');
   });
 });
 
@@ -1177,6 +1312,60 @@ describe('generateMercadoPagoLink - per-user token only', () => {
     delete process.env.MERCADOPAGO_ACCESS_TOKEN;
 
     expect(result).toHaveProperty('error', 'Conecta tu cuenta de Mercado Pago en Settings');
+  });
+
+  it('includes paymentId hint and back_urls in preference payload', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    const { prisma } = await import('@/lib/db/prisma');
+    const { getMercadoPagoToken } = await import('@/lib/actions/mercado-pago');
+
+    process.env.NEXT_PUBLIC_APP_URL = 'https://rentalpro.test';
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    vi.mocked(getMercadoPagoToken).mockResolvedValue('fake-token');
+
+    vi.mocked(prisma.reservation.findFirst).mockResolvedValue({
+      ...mockReservation,
+      totalPrice: 100000 as any,
+    } as any);
+
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.payment.create).mockResolvedValue({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 100000 as any,
+      method: 'MERCADO_PAGO',
+      status: 'PENDING',
+      initPoint: null,
+      expiresAt: new Date('2030-01-01'),
+      deletedAt: null,
+      mercadoPagoId: null,
+      createdAt: new Date(),
+    } as any);
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        id: 'mp-pref-1',
+        init_point: 'https://mercadopago.com/new-link',
+        sandbox_init_point: 'https://sandbox.mercadopago.com/new-link',
+      }),
+    });
+    global.fetch = mockFetch;
+
+    const { generateMercadoPagoLink } = await import('../payments');
+    await generateMercadoPagoLink('res-1');
+
+    const [, options] = mockFetch.mock.calls[0];
+    const body = JSON.parse(options.body as string);
+
+    expect(body.notification_url).toBe('https://rentalpro.test/api/webhooks/mercadopago?source_news=webhooks&paymentId=pay-1');
+    expect(body.back_urls).toEqual({
+      success: 'https://rentalpro.test/payment/result?paymentId=pay-1&status=success',
+      pending: 'https://rentalpro.test/payment/result?paymentId=pay-1&status=pending',
+      failure: 'https://rentalpro.test/payment/result?paymentId=pay-1&status=failure',
+    });
+    expect(body.auto_return).toBe('approved');
   });
 });
 

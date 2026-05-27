@@ -8,12 +8,43 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
-export function MercadoPagoSettings() {
+type MercadoPagoSettingsProps = {
+  oauthStatus?: string;
+};
+
+function getOauthStatusMessage(status?: string) {
+  switch (status) {
+    case "connected":
+      return { tone: "success", text: "Cuenta conectada correctamente con Mercado Pago." };
+    case "config_error":
+      return {
+        tone: "error",
+        text: "Falta configuración OAuth. Revisa NEXT_PUBLIC_APP_URL y MERCADOPAGO_OAUTH_CLIENT_ID.",
+      };
+    case "invalid_state":
+      return { tone: "error", text: "No pudimos validar la conexión OAuth. Intenta conectar nuevamente." };
+    case "oauth_error":
+      return { tone: "error", text: "Mercado Pago rechazó la autorización. Intenta nuevamente." };
+    case "oauth_token_error":
+      return { tone: "error", text: "Mercado Pago autorizó la cuenta, pero no pudimos obtener los tokens. Revisa la consola del servidor para ver el detalle de /oauth/token." };
+    case "oauth_missing_refresh_token":
+      return { tone: "error", text: "Mercado Pago no devolvió refresh_token. Confirma que offline access esté activo y vuelve a conectar." };
+    case "missing_params":
+      return { tone: "error", text: "Respuesta OAuth incompleta. Intenta nuevamente." };
+    case "unauthorized":
+      return { tone: "error", text: "Tu sesión expiró. Inicia sesión y vuelve a conectar." };
+    default:
+      return null;
+  }
+}
+
+export function MercadoPagoSettings({ oauthStatus }: MercadoPagoSettingsProps) {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [token, setToken] = useState("");
+  const [manualTokenEnabled, setManualTokenEnabled] = useState(false);
 
   useEffect(() => {
     async function loadInitialState() {
@@ -21,7 +52,7 @@ export function MercadoPagoSettings() {
         const result = await getMercadoPagoIntegration();
         if (result) {
           setIsConnected(result.isConnected);
-          console.log("[MP Settings] Initial state loaded - isConnected:", result.isConnected);
+          setManualTokenEnabled(result.manualTokenEnabled);
         }
       } catch (error) {
         console.error("[MP Settings] Error loading initial state:", error);
@@ -33,6 +64,12 @@ export function MercadoPagoSettings() {
   }, []);
 
   async function handleConnect() {
+    if (!manualTokenEnabled) {
+      setIsConnecting(true);
+      window.location.href = "/api/integrations/mercadopago/oauth/start";
+      return;
+    }
+
     if (!token.trim()) {
       toast.error("Por favor ingresa un token de Mercado Pago");
       return;
@@ -47,7 +84,6 @@ export function MercadoPagoSettings() {
         toast.success("Cuenta de Mercado Pago conectada exitosamente");
         setToken("");
         setIsConnected(true);
-        console.log("[MP Settings] Successfully connected");
       }
     } catch (error) {
       console.error("[MP Settings] Error connecting:", error);
@@ -66,7 +102,6 @@ export function MercadoPagoSettings() {
       } else {
         toast.success("Cuenta de Mercado Pago desconectada");
         setIsConnected(false);
-        console.log("[MP Settings] Successfully disconnected");
       }
     } catch (error) {
       console.error("[MP Settings] Error disconnecting:", error);
@@ -86,6 +121,8 @@ export function MercadoPagoSettings() {
     );
   }
 
+  const oauthMessage = getOauthStatusMessage(oauthStatus);
+
   return (
     <Card>
       <CardHeader>
@@ -93,6 +130,18 @@ export function MercadoPagoSettings() {
         <CardDescription>Gestiona la conexión con tu cuenta de Mercado Pago</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {oauthMessage ? (
+          <div
+            className={`rounded-md border px-3 py-2 text-sm ${
+              oauthMessage.tone === "success"
+                ? "border-green-300 bg-green-50 text-green-900"
+                : "border-red-300 bg-red-50 text-red-900"
+            }`}
+          >
+            {oauthMessage.text}
+          </div>
+        ) : null}
+
         <div className="flex items-center gap-2">
           <span
             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -118,18 +167,24 @@ export function MercadoPagoSettings() {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="mp-token">Access Token</Label>
-              <Input
-                id="mp-token"
-                type="password"
-                placeholder="APP_USR-xxxxxxxx-xxxxxxxx-..."
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-              />
-            </div>
+            {manualTokenEnabled ? (
+              <div className="space-y-2">
+                <Label htmlFor="mp-token">Access Token</Label>
+                <Input
+                  id="mp-token"
+                  type="password"
+                  placeholder="APP_USR-xxxxxxxx-xxxxxxxx-..."
+                  value={token}
+                  onChange={(e) => setToken(e.target.value)}
+                />
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Conecta tu cuenta con OAuth para habilitar cobros en Mercado Pago.
+              </p>
+            )}
             <Button onClick={handleConnect} disabled={isConnecting}>
-              {isConnecting ? "Conectando..." : "Conectar"}
+              {isConnecting ? "Conectando..." : manualTokenEnabled ? "Conectar" : "Conectar con Mercado Pago"}
             </Button>
           </div>
         )}

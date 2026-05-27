@@ -15,25 +15,103 @@ interface MercadoPagoWebhookPayload {
   };
 }
 
-export function verifyMercadoPagoSignature(headers: Headers, rawBody: string): boolean {
-  const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
-  if (!secret) {
-    console.warn("MERCADOPAGO_WEBHOOK_SECRET is not set. Webhook signature verification is disabled.");
-    return true;
+function getWebhookDataId(requestUrl: string, rawBody: string): string | null {
+  const url = new URL(requestUrl);
+  const queryDataId = url.searchParams.get("data.id") || url.searchParams.get("id");
+
+  if (queryDataId) {
+    return queryDataId;
   }
 
-  const signature = headers.get("x-signature") || headers.get("x-request-id");
-  if (!signature) {
-    console.error("Webhook request missing x-signature and x-request-id headers");
+  try {
+    const parsedBody = JSON.parse(rawBody) as Partial<MercadoPagoWebhookPayload>;
+    return parsedBody.data?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function parseWebhookEvent(rawBody: string, requestUrl: string): { action: string; paymentId: string; source: "query" | "body" } | { error: string } {
+  const url = new URL(requestUrl);
+  const queryPaymentId = url.searchParams.get("data.id") || url.searchParams.get("id");
+  const queryAction = url.searchParams.get("topic") || url.searchParams.get("type");
+
+  if (queryPaymentId && queryAction) {
+    return { action: queryAction, paymentId: queryPaymentId, source: "query" };
+  }
+
+  try {
+    const payload = JSON.parse(rawBody) as MercadoPagoWebhookPayload;
+
+    if (!payload.action || !payload.data?.id) {
+      return { error: "Invalid payload" };
+    }
+
+    return { action: payload.action, paymentId: payload.data.id, source: "body" };
+  } catch {
+    return { error: "Invalid payload" };
+  }
+}
+
+function parseSignatureHeader(signatureHeader: string): { ts: string | null; v1: string | null } {
+  const parts = signatureHeader.split(",").map((part) => part.trim());
+  const ts = parts.find((part) => part.startsWith("ts="))?.slice(3) ?? null;
+  const v1 = parts.find((part) => part.startsWith("v1="))?.slice(3) ?? null;
+
+  return { ts, v1 };
+}
+
+function allowsInvalidWebhookSignatureInDevelopment() {
+  return process.env.NODE_ENV !== "production" && process.env.MERCADOPAGO_WEBHOOK_ALLOW_INVALID_SIGNATURE === "true";
+}
+
+export function verifyMercadoPagoSignature(headers: Headers, rawBody: string, requestUrl: string): boolean {
+  const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("MERCADOPAGO_WEBHOOK_SECRET is not set. Webhook signature verification is disabled for non-production environments.");
+      return true;
+    }
+
+    console.error("MERCADOPAGO_WEBHOOK_SECRET is not set in production");
     return false;
   }
 
+  const signatureHeader = headers.get("x-signature");
+  const requestId = headers.get("x-request-id");
+
+  if (!signatureHeader || !requestId) {
+    console.error("Webhook request missing x-signature or x-request-id header");
+    return false;
+  }
+
+  const { ts, v1 } = parseSignatureHeader(signatureHeader);
+
+  if (!ts || !v1) {
+    console.error("Webhook request has invalid x-signature format");
+    return false;
+  }
+
+  const dataId = getWebhookDataId(requestUrl, rawBody);
+
+  if (!dataId) {
+    console.error("Webhook request missing data.id in query params or payload");
+    return false;
+  }
+
+  const manifest = `id:${dataId};request-id:${requestId};ts:${ts};`;
   const hmac = createHmac("sha256", secret);
-  hmac.update(rawBody, "utf-8");
+  hmac.update(manifest, "utf-8");
   const computedSignature = hmac.digest("hex");
 
-  if (computedSignature !== signature) {
-    console.error("Webhook signature mismatch");
+  if (computedSignature !== v1) {
+    console.error(`[MP Webhook] Signature mismatch. dataId=${dataId}, requestId=${requestId}, ts=${ts}`);
+
+    if (allowsInvalidWebhookSignatureInDevelopment()) {
+      console.warn("[MP Webhook] Continuing despite invalid signature because MERCADOPAGO_WEBHOOK_ALLOW_INVALID_SIGNATURE=true in non-production.");
+      return true;
+    }
+
     return false;
   }
 
@@ -96,48 +174,40 @@ export async function POST(request: Request) {
   try {
     const rawBody = await request.text();
 
-    if (!verifyMercadoPagoSignature(request.headers, rawBody)) {
+    if (!verifyMercadoPagoSignature(request.headers, rawBody, request.url)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    let payload: MercadoPagoWebhookPayload;
-    let paymentId: string;
-    let action: string;
-
-    const contentType = request.headers.get("content-type") || "";
     const url = new URL(request.url);
+    const hintedPaymentId = url.searchParams.get("paymentId");
 
-    if (contentType.includes("application/json") && url.searchParams.has("id")) {
-      const id = url.searchParams.get("id");
-      const topic = url.searchParams.get("topic");
-
-      if (!id || !topic) {
-        return NextResponse.json({ error: "Missing id or topic" }, { status: 400 });
-      }
-
-      action = topic;
-      paymentId = id;
-      console.log(`Mercado Pago webhook via query: topic=${topic}, id=${id}`);
-    } else {
-      payload = JSON.parse(rawBody);
-
-      if (!payload.action || !payload.data?.id) {
-        return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
-      }
-
-      action = payload.action;
-      paymentId = payload.data.id;
-      console.log(`Mercado Pago webhook via body: action=${action}, paymentId=${paymentId}`);
+    const event = parseWebhookEvent(rawBody, request.url);
+    if ("error" in event) {
+      return NextResponse.json({ error: event.error }, { status: 400 });
     }
+
+    const { action, paymentId, source } = event;
+    console.log(`Mercado Pago webhook via ${source}: action=${action}, paymentId=${paymentId}`);
 
     if (action === "payment" || action.startsWith("payment.")) {
       const { prisma } = await import("@/lib/db/prisma");
       const { getMercadoPagoToken } = await import("@/lib/actions/mercado-pago");
 
-      let payment = await prisma.payment.findFirst({
-        where: { mercadoPagoId: paymentId, deletedAt: null },
-        include: { reservation: true },
-      });
+      let payment = null;
+
+      if (hintedPaymentId) {
+        payment = await prisma.payment.findFirst({
+          where: { id: hintedPaymentId, deletedAt: null },
+          include: { reservation: true },
+        });
+      }
+
+      if (!payment) {
+        payment = await prisma.payment.findFirst({
+          where: { mercadoPagoId: paymentId, deletedAt: null },
+          include: { reservation: true },
+        });
+      }
 
       let accessToken: string | null = null;
 
@@ -149,13 +219,16 @@ export async function POST(request: Request) {
           console.warn(`[MP Webhook] No Mercado Pago token for user ${userId}, skipping webhook for payment ${paymentId}`);
           return NextResponse.json({ received: true, warning: "No token configured for payment owner" });
         }
-      } else {
+      } else if (!hintedPaymentId) {
         const tokenResult = await findTokenForPayment(paymentId);
         if (!tokenResult) {
           console.warn(`[MP Webhook] Could not determine owner for payment ${paymentId}. Attempted all active integrations.`);
           return NextResponse.json({ received: true, warning: "Could not find payment owner" });
         }
         accessToken = tokenResult.accessToken;
+      } else {
+        console.warn(`[MP Webhook] Hint paymentId=${hintedPaymentId} did not resolve a local payment for notification ${paymentId}`);
+        return NextResponse.json({ received: true, warning: "Could not resolve payment owner from hint" });
       }
 
       const paymentInfo = await getPaymentStatus(paymentId, accessToken);
@@ -171,6 +244,7 @@ export async function POST(request: Request) {
         external_reference: paymentInfo.external_reference || "",
         preference_id: paymentInfo.preference_id || "",
         date_approved: paymentInfo.date_approved,
+        hintedPaymentId: hintedPaymentId || undefined,
       });
 
       console.log(`Processed payment webhook: ${paymentId}`, result);
@@ -181,7 +255,28 @@ export async function POST(request: Request) {
       const { prisma } = await import("@/lib/db/prisma");
       const { getMercadoPagoToken } = await import("@/lib/actions/mercado-pago");
 
-      const tokenResult = await findTokenForPayment(paymentId);
+      let tokenResult: { accessToken: string; userId: string } | null = null;
+
+      if (hintedPaymentId) {
+        const hintedPayment = await prisma.payment.findFirst({
+          where: { id: hintedPaymentId, deletedAt: null },
+          include: { reservation: true },
+        });
+
+        if (hintedPayment) {
+          const ownerToken = await getMercadoPagoToken(hintedPayment.reservation.userId);
+          if (!ownerToken) {
+            console.warn(`[MP Webhook] No Mercado Pago token for hinted merchant_order payment owner ${hintedPayment.reservation.userId}`);
+            return NextResponse.json({ received: true, warning: "No token configured for payment owner" });
+          }
+
+          tokenResult = { accessToken: ownerToken, userId: hintedPayment.reservation.userId };
+        } else {
+          console.warn(`[MP Webhook] Hint paymentId=${hintedPaymentId} did not resolve a local payment for merchant_order ${paymentId}`);
+        }
+      }
+
+      tokenResult ??= await findTokenForPayment(paymentId);
 
       if (!tokenResult) {
         console.warn(`[MP Webhook] No valid token found to fetch merchant_order ${paymentId}`);
@@ -225,6 +320,7 @@ export async function POST(request: Request) {
             external_reference: merchantOrder.external_reference || "",
             preference_id: String(payment.preference_id || ""),
             date_approved: paymentInfo?.date_approved,
+            hintedPaymentId: hintedPaymentId || undefined,
           });
 
           console.log(`Processed merchant_order payment: ${payment.id}`, result);
