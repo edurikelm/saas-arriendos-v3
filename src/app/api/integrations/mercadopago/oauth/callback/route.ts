@@ -10,6 +10,22 @@ function settingsRedirect(status: string) {
   return NextResponse.redirect(new URL(`/settings?mp=${status}`, process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"));
 }
 
+function getSafeTokenExchangeContext(params: {
+  clientId: string;
+  clientSecret?: string;
+  redirectUri: string;
+  codeVerifier: string;
+  testToken: string;
+}) {
+  return {
+    clientIdTail: params.clientId.slice(-6),
+    hasClientSecret: Boolean(params.clientSecret),
+    redirectUri: params.redirectUri,
+    codeVerifierLength: params.codeVerifier.length,
+    testToken: params.testToken,
+  };
+}
+
 export async function GET(request: Request) {
   const session = await getSession();
   if (!session) {
@@ -51,13 +67,15 @@ export async function GET(request: Request) {
     return settingsRedirect("config_error");
   }
 
+  const redirectUri = `${appUrl}/api/integrations/mercadopago/oauth/callback`;
+  const testToken = process.env.MERCADOPAGO_OAUTH_TEST_TOKEN === "true" ? "true" : "false";
   const tokenBody: Record<string, string> = {
     grant_type: "authorization_code",
     client_id: clientId,
     code,
-    redirect_uri: `${appUrl}/api/integrations/mercadopago/oauth/callback`,
+    redirect_uri: redirectUri,
     code_verifier: codeVerifier,
-    test_token: process.env.MERCADOPAGO_OAUTH_TEST_TOKEN === "true" ? "true" : "false",
+    test_token: testToken,
   };
 
   if (clientSecret) {
@@ -78,6 +96,13 @@ export async function GET(request: Request) {
       status: tokenResponse.status,
       statusText: tokenResponse.statusText,
       body: errorText,
+      context: getSafeTokenExchangeContext({
+        clientId,
+        clientSecret,
+        redirectUri,
+        codeVerifier,
+        testToken,
+      }),
     });
     return settingsRedirect("oauth_token_error");
   }
