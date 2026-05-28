@@ -45,6 +45,7 @@ import { confirmPayment, revertPayment, generatePaymentLink, markPaymentAsPaid, 
 import { CheckCircle, Search } from "lucide-react";
 import { AddPaymentDialog } from "./add-payment-dialog";
 import { ReceiptUpload } from "@/components/ui/receipt-upload";
+import { ReservationDocumentsPanel } from "./reservation-documents-panel";
 
 export interface Payment {
   id: string;
@@ -108,6 +109,7 @@ export interface ReservationDetailProps {
   onMarkPaid?: (paymentId: string) => void;
   onAddPayment?: () => void;
   onCheckPaymentStatus?: (paymentId: string) => void;
+  plan?: "FREE" | "PRO" | null;
 }
 
 const statusConfig: Record<
@@ -391,6 +393,7 @@ export function ReservationDetailDialog({
   onCancel,
   onRefresh,
   onAddPayment,
+  plan = "FREE",
 }: ReservationDetailProps) {
   const status = statusConfig[reservation.status] || statusConfig.PENDING;
   const nights = getNights(reservation.startDate, reservation.endDate);
@@ -717,6 +720,10 @@ onRefresh?.(reservation.id);
             </div>
             <p className="text-sm">{reservation.notes}</p>
           </div>
+        )}
+
+        {reservation.billingType === "MONTHLY" && plan === "PRO" && (
+          <ReservationDocumentsPanel reservationId={reservation.id} />
         )}
 
         {(reservationPayments.length > 0 || reservation.payments.length > 0) && (

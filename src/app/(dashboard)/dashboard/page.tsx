@@ -14,6 +14,8 @@ import { getReservations } from "@/lib/actions/reservations";
 import { getProperties } from "@/lib/actions/properties";
 import { getClients } from "@/lib/actions/clients";
 import { DashboardPrototypeSwitcher } from "@/components/dashboard/dashboard-prototype-switcher";
+import { CollectionAlertsSection } from "@/components/dashboard/collection-alerts-section";
+import { classifyCollectionAlerts } from "@/lib/alerts/collection-alerts";
 import { MoreHorizontal, TrendingUp, TrendingDown, CheckCircle2, Clock, XCircle, AlertCircle } from "lucide-react";
 
 interface Property {
@@ -37,9 +39,13 @@ interface Payment {
   id: string;
   amount: string;
   status: string;
+  paymentType?: string | null;
   method: string;
   paidAt: string | null;
   deletedAt: string | null;
+  dueDate?: string | null;
+  initPoint?: string | null;
+  expiresAt?: string | null;
 }
 
 interface Reservation {
@@ -1036,6 +1042,26 @@ export default async function DashboardPage({
     clients: clients as unknown as Client[],
   };
 
+  const collectionAlerts = classifyCollectionAlerts(
+    data.reservations.flatMap((reservation) =>
+      reservation.payments.map((payment) => ({
+        id: payment.id,
+        status: payment.status,
+        paymentType: payment.paymentType ?? null,
+        method: payment.method,
+        dueDate: payment.dueDate ?? null,
+        initPoint: payment.initPoint ?? null,
+        expiresAt: payment.expiresAt ?? null,
+        reservation: {
+          id: reservation.id,
+          status: reservation.status,
+          client: { name: reservation.client.name },
+          property: { name: reservation.property.name },
+        },
+      }))
+    )
+  );
+
   return (
     <div className="space-y-6">
       <div>
@@ -1044,6 +1070,12 @@ export default async function DashboardPage({
           Resumen de tus propiedades y arriendos
         </p>
       </div>
+
+      <CollectionAlertsSection
+        vencidos={collectionAlerts.vencidos}
+        vencenHoy={collectionAlerts.vencenHoy}
+        proximos7Dias={collectionAlerts.proximos7Dias}
+      />
 
       {variant === "A" && <VariantA {...data} />}
       {variant === "B" && <VariantB {...data} />}

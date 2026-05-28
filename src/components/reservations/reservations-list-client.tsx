@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Calendar, Plus, Pencil, Trash2, Eye, Grid, List, Filter, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -89,6 +90,7 @@ export function ReservationsListClient({
   clients,
   plan = "FREE",
 }: ReservationsListClientProps) {
+  const searchParams = useSearchParams();
   const [reservations, setReservations] = useState<Reservation[]>(initialReservations);
   const [viewMode, setViewMode] = useState<"list" | "table">("table");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -123,6 +125,16 @@ export function ReservationsListClient({
   });
 
   const hasActiveFilters = Object.values(filters).some((v) => v !== "");
+
+  useEffect(() => {
+    const reservationId = searchParams.get("reservationId");
+    if (!reservationId) return;
+
+    const target = reservations.find((reservation) => reservation.id === reservationId);
+    if (target) {
+      setViewingReservation(target);
+    }
+  }, [searchParams, reservations]);
 
   const clearFilters = () => {
     setFilters({ propertyId: "", billingType: "", status: "", payment: "" });
@@ -444,6 +456,7 @@ export function ReservationsListClient({
         <ReservationDetailDialog
           reservation={viewingReservation}
           open={!!viewingReservation}
+          plan={plan as "FREE" | "PRO"}
           onClose={() => setViewingReservation(null)}
           onEdit={() => {
             setViewingReservation(null);

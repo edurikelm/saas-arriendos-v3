@@ -62,7 +62,7 @@ function formatPrice(price: string | number): string {
 }
 
 function getNights(startDate: string, endDate: string): number {
-  const diff = new Date(endDate).getTime() - new Date(startDate).getTime();
+  const diff = parseCalendarDate(endDate).getTime() - parseCalendarDate(startDate).getTime();
   return Math.round(diff / (1000 * 60 * 60 * 24)) + 1;
 }
 
@@ -81,10 +81,22 @@ function formatFullDate(dateString: string): string {
   });
 }
 
+function parseCalendarDate(dateString: string): Date {
+  const [year, month, day] = dateString.slice(0, 10).split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function isReservationEnded(res: Reservation): boolean {
+  const end = parseCalendarDate(res.endDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return end < today || res.status === "COMPLETED";
+}
+
 function getReservationsInDay(reservations: Reservation[], date: Date): Reservation[] {
   return reservations.filter((res) => {
-    const start = new Date(res.startDate);
-    const end = new Date(res.endDate);
+    const start = parseCalendarDate(res.startDate);
+    const end = parseCalendarDate(res.endDate);
     return date >= start && date <= end;
   });
 }
@@ -217,10 +229,12 @@ export function CalendarTimeline({ reservations, currentMonth, onSelectReservati
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
+  const today = new Date();
+  const dayWidth = 42;
 
   const activeReservations = reservations.filter((res) => {
-    const start = new Date(res.startDate);
-    const end = new Date(res.endDate);
+    const start = parseCalendarDate(res.startDate);
+    const end = parseCalendarDate(res.endDate);
     return start <= monthEnd && end >= monthStart;
   });
 
@@ -235,70 +249,142 @@ export function CalendarTimeline({ reservations, currentMonth, onSelectReservati
     return acc;
   }, {} as Record<string, { property: Property; reservations: Reservation[] }>);
 
+  const propertyGroups = Object.values(groupedByProperty).sort((a, b) =>
+    a.property.name.localeCompare(b.property.name)
+  );
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold capitalize">
-          {format(currentMonth, "MMMM yyyy", { locale: es })}
-        </h2>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={() => onMonthChange(subMonths(currentMonth, 1))}>
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+            Timeline de ocupacion
+          </p>
+          <h2 className="text-2xl font-bold capitalize tracking-tight">
+            {format(currentMonth, "MMMM yyyy", { locale: es })}
+          </h2>
+        </div>
+        <div className="flex items-center gap-2 rounded-full border bg-background/80 p-1 shadow-sm">
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => onMonthChange(subMonths(currentMonth, 1))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="sm" onClick={() => onMonthChange(new Date())}>
+          <Button variant="secondary" size="sm" className="h-8 rounded-full px-4" onClick={() => onMonthChange(new Date())}>
             Hoy
           </Button>
-          <Button variant="outline" size="icon" onClick={() => onMonthChange(addMonths(currentMonth, 1))}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => onMonthChange(addMonths(currentMonth, 1))}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <div className="min-w-3xl">
-          <div className="flex border-b border-zinc-200 dark:border-zinc-800">
-            <div className="w-48 shrink-0 p-2 font-medium text-sm">Propiedad</div>
-            {days.map((day) => (
-              <div key={day.toISOString()} className="w-8 shrink-0 text-xs text-muted-foreground text-center py-2 border-l border-zinc-100 dark:border-zinc-800">
-                {format(day, "d")}
+      <div className="overflow-hidden rounded-2xl border bg-gradient-to-br from-background via-background to-muted/30 shadow-sm">
+        <div className="overflow-x-auto">
+          <div className="min-w-max" style={{ width: 224 + days.length * dayWidth }}>
+            <div className="sticky top-0 z-20 flex border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+              <div className="sticky left-0 z-30 flex w-56 shrink-0 items-center border-r bg-background/95 px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground backdrop-blur">
+                Propiedad
               </div>
-            ))}
-          </div>
+              {days.map((day) => (
+                <div
+                  key={day.toISOString()}
+                  className={`shrink-0 border-r px-1 py-2 text-center ${isSameDay(day, today) ? "bg-primary/10" : ""}`}
+                  style={{ width: dayWidth }}
+                >
+                  <div className={`mx-auto flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold ${isSameDay(day, today) ? "bg-primary text-primary-foreground shadow-sm" : "text-foreground"}`}>
+                    {format(day, "d")}
+                  </div>
+                  <div className="mt-0.5 text-[10px] font-medium uppercase text-muted-foreground">
+                    {format(day, "EEE", { locale: es }).slice(0, 3)}
+                  </div>
+                </div>
+              ))}
+            </div>
 
-          {Object.values(groupedByProperty).map(({ property, reservations: propReservations }) => (
-            <div key={property.id} className="flex border-b border-zinc-100 dark:border-zinc-800">
-              <div className="w-48 shrink-0 p-2 flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full" style={{ backgroundColor: property.color || "#6366F1" }} />
-                <span className="text-sm font-medium truncate">{property.name}</span>
-              </div>
-              <div className="flex-1 relative h-12">
-                {propReservations.map((res) => {
-                  const start = new Date(res.startDate);
-                  const end = new Date(res.endDate);
-                  const leftOffset = start < monthStart ? 0 : Math.floor((start.getTime() - monthStart.getTime()) / (1000 * 60 * 60 * 24));
-                  const duration = Math.min(
-                    Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1,
-                    days.length - leftOffset
-                  );
-
-                  return (
-                    <button
-                      key={res.id}
-                      onClick={() => onSelectReservation(res.id)}
-                      className="absolute top-1 h-10 rounded-md px-2 text-xs text-white hover:brightness-110 transition-all flex items-center gap-1"
-                      style={{
-                        left: `${leftOffset * 32}px`,
-                        width: `${duration * 32 - 4}px`,
-                        backgroundColor: res.property.color || "#6366F1",
-                      }}
-                    >
-                      <span className="truncate">{res.client.name} - {res.property.name}</span>
-                    </button>
-                  );
-                })}
+          {propertyGroups.length === 0 ? (
+            <div className="flex min-h-56 items-center justify-center px-6 py-12 text-center">
+              <div className="max-w-sm rounded-2xl border bg-background/80 p-6 shadow-sm">
+                <Calendar className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
+                <h3 className="font-semibold">Sin reservas diarias este mes</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Cuando existan reservas, apareceran como barras por propiedad y rango de fechas.
+                </p>
               </div>
             </div>
-          ))}
+          ) : (
+            propertyGroups.map(({ property, reservations: propReservations }) => {
+              const sortedReservations = [...propReservations].sort((a, b) =>
+                new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
+              );
+              const rowHeight = Math.max(76, sortedReservations.length * 34 + 22);
+
+              return (
+                <div key={property.id} className="flex border-b last:border-b-0">
+                  <div className="sticky left-0 z-10 flex w-56 shrink-0 items-center border-r bg-background/95 px-4 py-3 backdrop-blur">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <div className="h-3 w-3 rounded-full shadow-sm ring-4 ring-muted" style={{ backgroundColor: property.color || "#6366F1" }} />
+                        <span className="truncate text-sm font-semibold">{property.name}</span>
+                      </div>
+                      <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                        <Home className="h-3 w-3" />
+                        {sortedReservations.length} {sortedReservations.length === 1 ? "reserva" : "reservas"}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="relative bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px)]" style={{ width: days.length * dayWidth, height: rowHeight, backgroundSize: `${dayWidth}px 100%` }}>
+                    {days.map((day, dayIndex) => isSameDay(day, today) ? (
+                      <div
+                        key={day.toISOString()}
+                        className="absolute top-0 h-full bg-primary/5 ring-1 ring-inset ring-primary/10"
+                        style={{ left: dayIndex * dayWidth, width: dayWidth }}
+                      />
+                    ) : null)}
+                    {sortedReservations.map((res, index) => {
+                      const start = parseCalendarDate(res.startDate);
+                      const end = parseCalendarDate(res.endDate);
+                      const leftOffset = start < monthStart ? 0 : Math.floor((start.getTime() - monthStart.getTime()) / (1000 * 60 * 60 * 24));
+                      const duration = Math.min(
+                        Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1,
+                        days.length - leftOffset
+                      );
+                      const status = statusConfig[res.status] || statusConfig.PENDING;
+                      const StatusIcon = status.icon;
+                      const isCancelled = res.status === "CANCELLED";
+                      const ended = isReservationEnded(res);
+
+                      return (
+                        <button
+                          key={res.id}
+                          onClick={() => onSelectReservation(res.id)}
+                          className={`group absolute flex h-8 items-center gap-2 overflow-hidden rounded-full border px-3 text-left text-xs shadow-sm transition-all hover:z-20 hover:-translate-y-0.5 hover:shadow-lg focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                            isCancelled
+                              ? "border-border bg-muted text-muted-foreground line-through"
+                              : ended
+                                ? "border-border bg-muted text-muted-foreground opacity-75 line-through decoration-muted-foreground/60"
+                                : "border-white/25 text-white"
+                          }`}
+                          style={{
+                            left: `${leftOffset * dayWidth + 4}px`,
+                            top: `${12 + index * 34}px`,
+                            width: `${Math.max(duration * dayWidth - 8, 34)}px`,
+                            backgroundColor: isCancelled || ended ? undefined : res.property.color || "#6366F1",
+                          }}
+                          title={`${res.client.name} - ${formatDate(res.startDate)} a ${formatDate(res.endDate)}`}
+                        >
+                          <StatusIcon className="h-3.5 w-3.5 shrink-0 opacity-90" />
+                          <span className="min-w-0 flex-1 truncate font-semibold">{res.client.name}</span>
+                          <span className="hidden shrink-0 rounded-full bg-black/10 px-1.5 py-0.5 font-medium sm:inline-flex">
+                            {getNights(res.startDate, res.endDate)}n
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
         </div>
       </div>
     </div>
@@ -314,10 +400,10 @@ export function CalendarList({ reservations, currentMonth, onSelectReservation }
   const monthEnd = endOfMonth(currentMonth);
 
   const monthReservations = reservations.filter((res) => {
-    const start = new Date(res.startDate);
-    const end = new Date(res.endDate);
+    const start = parseCalendarDate(res.startDate);
+    const end = parseCalendarDate(res.endDate);
     return start <= monthEnd && end >= monthStart;
-  }).sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+  }).sort((a, b) => parseCalendarDate(a.startDate).getTime() - parseCalendarDate(b.startDate).getTime());
 
   if (monthReservations.length === 0) {
     return (
@@ -345,7 +431,7 @@ export function CalendarList({ reservations, currentMonth, onSelectReservation }
               className="h-12 w-12 shrink-0 rounded-xl flex items-center justify-center text-white font-semibold text-lg"
               style={{ backgroundColor: res.property.color || "#6366F1" }}
             >
-              {format(new Date(res.startDate), "d")}
+              {format(parseCalendarDate(res.startDate), "d")}
             </div>
 
             <div className="flex-1 min-w-0 space-y-1">
@@ -391,8 +477,8 @@ export function CalendarWeekView({ reservations, currentMonth, onSelectReservati
   const days = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
   const weekReservations = reservations.filter((res) => {
-    const start = new Date(res.startDate);
-    const end = new Date(res.endDate);
+    const start = parseCalendarDate(res.startDate);
+    const end = parseCalendarDate(res.endDate);
     return start <= weekEnd && end >= weekStart;
   });
 
@@ -426,8 +512,8 @@ export function CalendarWeekView({ reservations, currentMonth, onSelectReservati
                 </div>
                 {days.map((day) => {
                   const dayReservations = weekReservations.filter((res) => {
-                    const start = new Date(res.startDate);
-                    const end = new Date(res.endDate);
+                    const start = parseCalendarDate(res.startDate);
+                    const end = parseCalendarDate(res.endDate);
                     const resStartHour = start.getHours();
                     const resEndHour = end.getHours() + 1;
                     return isSameDay(day, start) || isSameDay(day, end) || (day > start && day < end);
@@ -437,8 +523,8 @@ export function CalendarWeekView({ reservations, currentMonth, onSelectReservati
                     <div key={`${day.toISOString()}-${hour}`} className="relative p-1 border-l border-zinc-100 dark:border-zinc-800 min-h-12">
                       {dayReservations
                         .filter((res) => {
-                          const start = new Date(res.startDate);
-                          const end = new Date(res.endDate);
+                          const start = parseCalendarDate(res.startDate);
+                          const end = parseCalendarDate(res.endDate);
                           const resStartHour = start.getHours();
                           const resEndHour = end.getHours();
                           return isSameDay(day, start) ? resStartHour <= hour && resStartHour + 1 > hour :

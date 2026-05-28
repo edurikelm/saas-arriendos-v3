@@ -12,12 +12,11 @@ import {
   isSameDay,
   addMonths,
   subMonths,
-  parseISO,
   differenceInDays,
   getDay,
 } from "date-fns";
 import { es } from "date-fns/locale";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { CalendarReservation } from "@/lib/actions/reservations";
 
@@ -31,10 +30,19 @@ function getContrastColor(hexColor: string): string {
 }
 
 function isReservationEnded(res: CalendarReservation): boolean {
-  const end = parseISO(res.endDate);
+  const end = parseCalendarDate(res.endDate);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return end < today || res.status === "COMPLETED";
+}
+
+function getReservationColor(res: CalendarReservation): string {
+  return res.property.color || "#6366F1";
+}
+
+function parseCalendarDate(dateString: string): Date {
+  const [year, month, day] = dateString.slice(0, 10).split("-").map(Number);
+  return new Date(year, month - 1, day);
 }
 
 interface CalendarGridProps {
@@ -108,14 +116,14 @@ export function CalendarGrid({
       const weekEnd = week[6];
 
       const intersecting = reservations.filter((res) => {
-        const start = parseISO(res.startDate);
-        const end = parseISO(res.endDate);
+        const start = parseCalendarDate(res.startDate);
+        const end = parseCalendarDate(res.endDate);
         return start <= weekEnd && end >= weekStart;
       });
 
       const wrs: WeekReservation[] = intersecting.map((res) => {
-        const start = parseISO(res.startDate);
-        const end = parseISO(res.endDate);
+        const start = parseCalendarDate(res.startDate);
+        const end = parseCalendarDate(res.endDate);
 
         const firstVisibleDay = start < weekStart ? weekStart : start;
         const lastVisibleDay = end > weekEnd ? weekEnd : end;
@@ -145,29 +153,37 @@ export function CalendarGrid({
   }, [weeks, reservations]);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-base sm:text-xl font-semibold">
-          {format(currentDate, "MMMM yyyy", { locale: es }).toUpperCase()}
-        </h2>
-        <div className="flex gap-2">
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+            Calendario mensual
+          </p>
+          <h2 className="text-2xl font-bold capitalize tracking-tight">
+            {format(currentDate, "MMMM yyyy", { locale: es })}
+          </h2>
+        </div>
+        <div className="flex items-center gap-2 rounded-full border bg-background/80 p-1 shadow-sm">
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
+            className="h-8 w-8 rounded-full"
             onClick={() => navigateMonth("prev")}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
+            className="h-8 rounded-full px-4"
             onClick={() => setCurrentDate(new Date())}
           >
-            HOY
+            Hoy
           </Button>
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
+            className="h-8 w-8 rounded-full"
             onClick={() => navigateMonth("next")}
           >
             <ChevronRight className="h-4 w-4" />
@@ -175,13 +191,13 @@ export function CalendarGrid({
         </div>
       </div>
 
-      <div className="border border-border rounded-lg overflow-hidden">
+      <div className="overflow-hidden rounded-2xl border bg-gradient-to-br from-background via-background to-muted/30 shadow-sm">
         {/* Header de días */}
-        <div className="grid grid-cols-7 gap-x-px bg-border">
+        <div className="grid grid-cols-7 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
           {["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"].map((day) => (
             <div
               key={day}
-              className="bg-muted p-1 sm:p-2 text-center text-xs sm:text-sm font-medium text-muted-foreground border-b border-border"
+              className="border-r px-1 py-3 text-center text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground last:border-r-0 sm:text-xs"
             >
               {day}
             </div>
@@ -193,11 +209,11 @@ export function CalendarGrid({
           {weeksData.map(({ week, weekReservations, numLanes }, weekIndex) => (
             <div
               key={weekIndex}
-              className={`relative grid grid-cols-7 gap-x-px bg-border ${
+              className={`relative grid grid-cols-7 ${
                 weekIndex < weeksData.length - 1 ? "border-b border-border" : ""
               }`}
               style={{
-                minHeight: numLanes > 0 ? `${96 + numLanes * 34}px` : undefined,
+                minHeight: numLanes > 0 ? `${108 + numLanes * 36}px` : undefined,
               }}
             >
               {week.map((day) => {
@@ -208,21 +224,30 @@ export function CalendarGrid({
                 return (
                   <div
                     key={dateKey}
-                    className={`bg-background p-1 transition-colors hover:bg-muted/50 min-h-12 sm:min-h-20 lg:min-h-24 h-full ${
+                    className={`group h-full min-h-12 border-r bg-background/75 p-1.5 transition-colors last:border-r-0 hover:bg-muted/40 sm:min-h-20 sm:p-2 lg:min-h-24 ${
                       !isCurrentMonth
-                        ? "text-muted-foreground opacity-50"
+                        ? "bg-muted/25 text-muted-foreground"
                         : ""
                     }`}
                     onClick={() => onDateClick?.(day)}
                   >
-                    <div
-                      className={`mb-1 flex h-7 w-7 items-center justify-center rounded-full text-sm ${
-                        isToday
-                          ? "bg-primary text-primary-foreground font-bold"
-                          : ""
-                      }`}
-                    >
-                      {format(day, "d")}
+                    <div className="flex items-start justify-between gap-1">
+                      <div
+                        className={`flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold transition-transform group-hover:scale-105 ${
+                          isToday
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : isCurrentMonth
+                              ? "text-foreground"
+                              : "text-muted-foreground"
+                        }`}
+                      >
+                        {format(day, "d")}
+                      </div>
+                      {isToday && (
+                        <span className="hidden rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary sm:inline-flex">
+                          Hoy
+                        </span>
+                      )}
                     </div>
                   </div>
                 );
@@ -230,34 +255,53 @@ export function CalendarGrid({
 
               {weekReservations.map((wr) => {
                 const ended = isReservationEnded(wr.res);
+                const color = getReservationColor(wr.res);
                 return (
-                  <div
+                  <button
                     key={`${wr.res.id}-${weekIndex}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       onSelectReservation?.(wr.res.id);
                     }}
-                    className={`absolute z-10 cursor-pointer rounded px-1.5 py-0.5 text-sm font-medium transition-colors hover:opacity-80 flex items-center h-8 ${
-                      ended ? "opacity-40" : ""
+                    className={`absolute z-10 flex h-8 cursor-pointer items-center gap-1.5 overflow-hidden rounded-full border px-2 text-left text-xs font-semibold shadow-sm transition-all hover:z-20 hover:-translate-y-0.5 hover:shadow-lg focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:text-sm ${
+                      ended
+                        ? "border-border bg-muted text-muted-foreground opacity-75 line-through decoration-muted-foreground/60"
+                        : "border-white/25"
                     }`}
                     style={{
                       left: `${(wr.startCol / 7) * 100}%`,
-                      top: `${40 + wr.lane * 34}px`,
-                      width: `${(wr.span / 7) * 100}%`,
-                      backgroundColor: wr.res.property.color,
-                      color: getContrastColor(wr.res.property.color),
+                      top: `${48 + wr.lane * 36}px`,
+                      width: `calc(${(wr.span / 7) * 100}% - 6px)`,
+                      backgroundColor: ended ? undefined : color,
+                      color: ended ? undefined : getContrastColor(color),
                     }}
                     title={`${wr.res.client.name} - ${wr.res.property.name}`}
                   >
+                    <span
+                      className={`h-2 w-2 shrink-0 rounded-full ${ended ? "opacity-60" : "ring-2 ring-white/40"}`}
+                      style={{ backgroundColor: color }}
+                    />
                     <span className="truncate">
                       {wr.res.client.name} - {wr.res.property.name}
                     </span>
-                  </div>
+                  </button>
                 );
               })}
             </div>
           ))}
         </div>
+
+        {reservations.length === 0 && (
+          <div className="flex min-h-56 items-center justify-center border-t px-6 py-12 text-center">
+            <div className="max-w-sm rounded-2xl border bg-background/80 p-6 shadow-sm">
+              <Calendar className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
+              <h3 className="font-semibold">Sin reservas diarias este mes</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Las reservas activas aparecerán con color sólido; las pasadas quedan apagadas y tachadas.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

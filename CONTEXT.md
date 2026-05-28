@@ -41,27 +41,29 @@ Sistema SaaS para gestión de arriendos de propiedades.
 - `title?` — título del pago (obligatorio solo para `EXTRA`)
 - `description?` — descripción opcional (solo para `EXTRA`)
 
-### Webhook de Pagos (Mercado Pago)
+### Integración Mercado Pago
 
-**Token:** Cada owner configura su propio access token en `/settings` (guardado encriptado en `UserIntegration`). El token global `MERCADOPAGO_ACCESS_TOKEN` **no se usa en producción** — solo para desarrollo local. Ver ADR-0013.
+**OAuth:** Cada owner conecta su cuenta de Mercado Pago en `/settings` mediante OAuth Authorization Code + PKCE. El access token y refresh token se guardan encriptados en `UserIntegration` (provider `MERCADO_PAGO`). En producción no se usa `MERCADOPAGO_ACCESS_TOKEN`; el token manual solo existe para desarrollo/admin si `MP_MANUAL_TOKEN_ENABLED=true`. Ver ADR-0013.
 
-El `external_reference` enviado a MP tiene formato: `reservationId:paymentId:timestamp`
+**Checkout Pro:** Al generar link, RentalPro crea un `Payment` PENDING, llama a `/checkout/preferences` con el token del owner, guarda el `preference_id` en `Payment.mercadoPagoId` y guarda `init_point` en `Payment.initPoint`. Checkout Pro actual usa `init_point`; `sandbox_init_point` solo se conserva como metadata de respuesta.
+
+El `external_reference` enviado a MP tiene formato: `reservationId:paymentId:timestamp`. La `notification_url` incluye `source_news=webhooks&paymentId=<paymentId>` para resolver el owner sin iterar integraciones.
 
 **Flujo del webhook:**
-1. Recibir notificación con `payment_id`
-2. Buscar pago en BD (matching por `mercadoPagoId`, `external_reference`, `preference_id`)
-3. Si no se encuentra → 200 OK (sin reintentar)
-4. Obtener `userId` dueño del pago → `getMercadoPagoToken(userId)`
-5. Si no hay token → 200 OK con warning
-6. Consultar `GET /v1/payments/{id}` con el token del usuario
-7. Procesar actualización (mapear status MP → status interno, setear `paidAt`). El `receiptUrl` no se recibe del webhook — se sube manualmente desde la UI.
+1. Recibir `POST /api/webhooks/mercadopago` con firma `x-signature`/`x-request-id`.
+2. Extraer evento desde body JSON (`action`, `data.id`) o query params (`data.id/type`, `id/topic`).
+3. Resolver el owner por `paymentId` hint o por matching de pago.
+4. Obtener token válido del owner con `getMercadoPagoToken(userId)`; refresca OAuth si expiró.
+5. Consultar Mercado Pago con el token del owner (`GET /v1/payments/{id}` o `/merchant_orders/{id}`).
+6. Procesar actualización (mapear status MP → status interno, setear `paidAt` con `date_approved`). El `receiptUrl` no se recibe del webhook — se sube manualmente desde la UI.
+7. Responder 200 para errores no recuperables de negocio (pago no encontrado/token ausente) y evitar reintentos inútiles; responder 401 solo si la firma es inválida.
 
 El webhook intenta matchear el pago en este orden:
-1. Por `mercadoPagoId = payment_id` (el ID real del pago en MP)
-2. Por `paymentId` extraído del `external_reference` (validado con regex `/[a-z0-9]/`)
-3. Por `preference_id`
-4. Por `mercadoPagoId + reservationId`
-5. Si ninguno falla → error "Pago no encontrado" (sin fallback)
+1. Por `paymentId` hint de la `notification_url`.
+2. Por `paymentId` extraído del `external_reference` (validado con regex `/^[a-z0-9]{20,}$/i`).
+3. Por `preference_id` contra `Payment.mercadoPagoId`.
+4. Por `mercadoPagoId = payment_id`.
+5. Si ninguno funciona → error "Pago no encontrado" (sin fallback por fecha).
 
 ### ReservationChange (Auditoría de Cambios)
 - Registra por **cada campo modificado**: `{field, old_value, new_value, created_at}`
@@ -128,6 +130,7 @@ El webhook intenta matchear el pago en este orden:
 
 - Reservas **diarias** → mostradas como barra (inicio → fin)
 - Reservas **mensuales** → NO aparecen en calendario visual, solo en lista de reservas
+- Las fechas de reserva en el calendario son **date-only** del dominio. Aunque el backend pueda serializarlas como ISO (`toISOString()`), la UI debe calcular posiciones usando solo `YYYY-MM-DD` para evitar desfases por timezone. `end_date` es inclusivo: una reserva 25→30 ocupa 6 noches y debe visualizarse hasta el 30.
 
 ## Términos del Dominio
 
@@ -137,6 +140,25 @@ El webhook intenta matchear el pago en este orden:
 - **Units Booked** — cantidad de unidades reservadas dentro de la misma propiedad
 - **Última Noche** — `end_date` representa la última noche que duerme el huésped, no el día de check-out. El cálculo de noches es `(end_date - start_date + 1)`
 - **Payment Type** — `RESERVATION` (parte de la tarifa de arriendo, cuenta para `paidAmount`) o `EXTRA` (cobro independiente: multa, limpieza extra, etc., no cuenta para `paidAmount`)
+- **Canal Externo** — plataforma externa desde la cual se origina o sincroniza una reserva, como Airbnb, Booking.com o VRBO. Evitar usar "Booking" solo, porque se confunde con **Reserva**.
+- **Bloqueo de Canal Externo** — ocupación importada desde un **Canal Externo** que bloquea disponibilidad pero no cuenta como **Reserva** hasta que el owner la convierta manualmente.
+- **Calendario Externo** — feed de calendario de un **Canal Externo** asociado a una propiedad para importar ocupaciones.
+- **Recordatorio de Pago** — aviso asociado a un pago pendiente o vencido de una **Reserva** activa.
+- **Documento de Reserva** — archivo asociado a una **Reserva** mensual, como contrato, anexo, inventario o respaldo firmado. No incluye comprobantes de pago.
+- **Reporte de Cobranza** — vista financiera que muestra total reservado, pagado, pendiente y vencido de reservas, con segmentación general o por **Billing Type**, y pagos extra separados del saldo de arriendo.
+
+## Relaciones
+
+- Un **Bloqueo de Canal Externo** usa la misma convención de **Última Noche** que una **Reserva**: si el canal entrega un día de salida exclusivo, RentalPro lo interpreta como la noche anterior.
+- Una propiedad puede tener varios **Calendarios Externos** activos, incluso del mismo **Canal Externo**.
+- Un **Calendario Externo** puede sincronizarse manualmente y también en una cadencia automática diaria.
+- El calendario exportado de una propiedad incluye **Reservas** activas y **Bloqueos de Canal Externo** activos, evitando reexportar bloqueos hacia el mismo **Canal Externo** que los originó.
+- Cuando una **Reserva** interna se solapa con un **Bloqueo de Canal Externo**, la **Reserva** prevalece y el bloqueo externo queda como conflicto visible para el owner.
+- Para disponibilidad, una **Reserva** y un **Bloqueo de Canal Externo** consumen unidades de la propiedad; cada bloqueo externo consume 1 unidad y solo la **Reserva** afecta pagos y reportes financieros.
+- Un **Recordatorio de Pago** pertenece a un **Pago** pendiente, se dirige al **Owner** y solo se emite para reservas en estado **PENDING** o **CONFIRMED**.
+- Un **Documento de Reserva** pertenece a una **Reserva** con **Billing Type** mensual.
+- Un **Documento de Reserva** se conserva aunque la **Reserva** sea cancelada.
+- Un **Reporte de Cobranza** agrupa datos de **Reservas** y **Pagos**; puede mostrarse para todos los **Billing Type** o filtrado por diario/mensual, y separa los **Payment Type** extra en columnas de pagado y pendiente.
 
 ## Patrones Next.js
 

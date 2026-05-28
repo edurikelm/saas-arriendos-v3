@@ -3,6 +3,12 @@
 import { prisma } from "@/lib/db/prisma";
 import { getSession } from "@/lib/actions/auth";
 import { startOfMonth, endOfMonth, subMonths, format, startOfYear, endOfYear, isAfter, isBefore } from "date-fns";
+import {
+  buildCollectionReportRows,
+  type CollectionDebtStatusFilter,
+  type CollectionBillingFilter,
+  type CollectionReportRow,
+} from "@/lib/actions/reports-collection";
 
 export interface RevenueReport {
   month: string;
@@ -339,4 +345,86 @@ export async function getReservationsReport(options?: {
       createdAt: r.createdAt,
     };
   });
+}
+
+export interface CollectionReportFilters {
+  billingType?: CollectionBillingFilter;
+  propertyId?: string;
+  clientId?: string;
+  dueDateFrom?: Date;
+  dueDateTo?: Date;
+  debtStatus?: CollectionDebtStatusFilter;
+}
+
+export async function getCollectionReport(filters?: CollectionReportFilters): Promise<CollectionReportRow[]> {
+  const session = await getSession();
+  if (!session) return [];
+
+  const reservations = await prisma.reservation.findMany({
+    where: {
+      userId: session.userId,
+      ...(filters?.propertyId ? { propertyId: filters.propertyId } : {}),
+      ...(filters?.clientId ? { clientId: filters.clientId } : {}),
+      status: { not: "CANCELLED" },
+      ...(filters?.billingType && filters.billingType !== "GENERAL"
+        ? { billingType: filters.billingType }
+        : {}),
+    },
+    select: {
+      id: true,
+      propertyId: true,
+      clientId: true,
+      billingType: true,
+      status: true,
+      startDate: true,
+      totalPrice: true,
+      property: {
+        select: {
+          name: true,
+        },
+      },
+      client: {
+        select: {
+          name: true,
+        },
+      },
+      payments: {
+        where: {
+          deletedAt: null,
+        },
+        select: {
+          amount: true,
+          status: true,
+          paymentType: true,
+          dueDate: true,
+          deletedAt: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  return buildCollectionReportRows(
+    reservations.map((reservation) => ({
+      id: reservation.id,
+      propertyId: reservation.propertyId,
+      propertyName: reservation.property.name,
+      clientId: reservation.clientId,
+      clientName: reservation.client.name,
+      billingType: reservation.billingType,
+      status: reservation.status,
+      startDate: reservation.startDate,
+      totalPrice: Number(reservation.totalPrice),
+      payments: reservation.payments.map((payment) => ({
+        amount: Number(payment.amount),
+        status: payment.status,
+        paymentType: payment.paymentType,
+        dueDate: payment.dueDate,
+        deletedAt: payment.deletedAt,
+      })),
+    })),
+    filters
+  );
 }

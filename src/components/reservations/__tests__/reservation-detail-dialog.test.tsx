@@ -40,6 +40,10 @@ vi.mock('./add-payment-dialog', () => ({
   AddPaymentDialog: () => <div data-testid="add-payment-dialog">AddPaymentDialog</div>,
 }));
 
+vi.mock('../reservation-documents-panel', () => ({
+  ReservationDocumentsPanel: () => <div data-testid="reservation-documents-panel">ReservationDocumentsPanel</div>,
+}));
+
 import { PaymentsTable, ReservationDetailDialog } from '../reservation-detail-dialog';
 
 const createMockPayment = (overrides: Partial<Payment> = {}): Payment => ({
@@ -137,7 +141,35 @@ describe('PaymentsTable - receiptUrl display', () => {
 });
 
 describe('ReservationDetailDialog - paymentType separation', () => {
-  it('shows "Pagos de Reserva" title for DAILY billing', () => {
+  it('shows reservation documents panel only for MONTHLY + PRO', () => {
+    const reservation = createMockReservation({
+      billingType: 'MONTHLY',
+    });
+
+    const { rerender } = render(
+      <ReservationDetailDialog
+        reservation={reservation}
+        open={true}
+        onClose={() => {}}
+        plan="PRO"
+      />
+    );
+
+    expect(screen.getByTestId('reservation-documents-panel')).toBeTruthy();
+
+    rerender(
+      <ReservationDetailDialog
+        reservation={reservation}
+        open={true}
+        onClose={() => {}}
+        plan="FREE"
+      />
+    );
+
+    expect(screen.queryByTestId('reservation-documents-panel')).toBeNull();
+  });
+
+  it('shows "Pagos de reserva" title for DAILY billing', () => {
     const reservation = createMockReservation({
       billingType: 'DAILY',
       payments: [
@@ -153,7 +185,7 @@ describe('ReservationDetailDialog - paymentType separation', () => {
       />
     );
 
-    expect(screen.getByText('Pagos de Reserva')).toBeTruthy();
+    expect(screen.getByText('Pagos de reserva')).toBeTruthy();
   });
 
   it('shows "Cuotas de arriendo" title for MONTHLY billing', () => {
@@ -175,7 +207,7 @@ describe('ReservationDetailDialog - paymentType separation', () => {
     expect(screen.getByText('Cuotas de arriendo')).toBeTruthy();
   });
 
-  it('shows "Pagos Extras" section when extra payments exist', () => {
+  it('shows "Cobros extra" section when extra payments exist', () => {
     const reservation = createMockReservation({
       billingType: 'DAILY',
       payments: [
@@ -192,10 +224,10 @@ describe('ReservationDetailDialog - paymentType separation', () => {
       />
     );
 
-    expect(screen.getByText('Pagos Extras')).toBeTruthy();
+    expect(screen.getByText('Cobros extra')).toBeTruthy();
   });
 
-  it('does not show "Pagos Extras" section when no extra payments', () => {
+  it('does not show "Cobros extra" section when no extra payments', () => {
     const reservation = createMockReservation({
       billingType: 'DAILY',
       payments: [
@@ -211,7 +243,7 @@ describe('ReservationDetailDialog - paymentType separation', () => {
       />
     );
 
-    expect(screen.queryByText('Pagos Extras')).toBeNull();
+    expect(screen.queryByText('Cobros extra')).toBeNull();
   });
 
   it('shows both tables when reservation and extra payments exist', () => {
@@ -231,8 +263,8 @@ describe('ReservationDetailDialog - paymentType separation', () => {
       />
     );
 
-    expect(screen.getByText('Pagos de Reserva')).toBeTruthy();
-    expect(screen.getByText('Pagos Extras')).toBeTruthy();
+    expect(screen.getByText('Pagos de reserva')).toBeTruthy();
+    expect(screen.getByText('Cobros extra')).toBeTruthy();
   });
 
   it('calculates paidAmount from RESERVATION COMPLETED payments only', () => {

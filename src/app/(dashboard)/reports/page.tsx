@@ -7,8 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
-import { getDashboardStats, getRevenueReport, getOccupancyReport, getYearlySummary, getReservationsReport } from "@/lib/actions/reports";
+import { getDashboardStats, getRevenueReport, getOccupancyReport, getYearlySummary, getReservationsReport, getCollectionReport } from "@/lib/actions/reports";
 import type { DashboardStats, RevenueReport, OccupancyReport } from "@/lib/actions/reports";
+import type { CollectionReportRow } from "@/lib/actions/reports-collection";
 import { getProperties } from "@/lib/actions/properties";
 import { exportToExcel, exportToPDF, type ReservationDetail, type PropertySummary } from "@/lib/export-utils";
 import { startOfMonth, endOfMonth, subMonths, format } from "date-fns";
@@ -50,6 +51,14 @@ export default function ReportsPage() {
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [reservationDetails, setReservationDetails] = useState<ReservationDetail[]>([]);
   const [exportLoading, setExportLoading] = useState(false);
+  const [collectionRows, setCollectionRows] = useState<CollectionReportRow[]>([]);
+  const [collectionBillingType, setCollectionBillingType] = useState<"GENERAL" | "DAILY" | "MONTHLY">("GENERAL");
+  const [collectionClientId, setCollectionClientId] = useState<string>("all");
+  const [collectionDebtStatus, setCollectionDebtStatus] = useState<"ACTIVE" | "ALL" | "OVERDUE" | "UPCOMING" | "PAID">("ACTIVE");
+  const [collectionDueRange, setCollectionDueRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
+    from: undefined,
+    to: undefined,
+  });
 
   useEffect(() => {
     const loadInitial = async () => {
@@ -65,7 +74,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     fetchData();
-  }, [selectedYear, quickRange, dateRange, selectedProperty, selectedStatus]);
+  }, [selectedYear, quickRange, dateRange, selectedProperty, selectedStatus, collectionBillingType, collectionClientId, collectionDebtStatus, collectionDueRange]);
 
   const effectiveDateRange = useMemo(() => {
     const now = new Date();
@@ -100,7 +109,7 @@ export default function ReportsPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [statsData, revenue, occupancy, yearly, reservations] = await Promise.all([
+      const [statsData, revenue, occupancy, yearly, reservations, collection] = await Promise.all([
         getDashboardStats(),
         getRevenueReport({
           months: effectiveDateRange.from ? undefined : 12,
@@ -120,6 +129,14 @@ export default function ReportsPage() {
           startDate: effectiveDateRange.from || undefined,
           endDate: effectiveDateRange.to || undefined,
         }),
+        getCollectionReport({
+          propertyId: selectedProperty !== "all" ? selectedProperty : undefined,
+          billingType: collectionBillingType,
+          clientId: collectionClientId !== "all" ? collectionClientId : undefined,
+          debtStatus: collectionDebtStatus,
+          dueDateFrom: collectionDueRange.from,
+          dueDateTo: collectionDueRange.to,
+        }),
       ]);
 
       setStats(statsData);
@@ -138,6 +155,7 @@ export default function ReportsPage() {
         paymentStatus: r.paymentStatus,
         createdAt: new Date(r.createdAt),
       })));
+      setCollectionRows(collection || []);
     } catch (error) {
       console.error("Error fetching reports:", error);
     } finally {
@@ -173,6 +191,12 @@ export default function ReportsPage() {
   }, [reservationDetails]);
 
   const isFreePlan = session?.plan === "FREE";
+
+  const collectionClients = useMemo(() => {
+    const map = new Map<string, string>();
+    collectionRows.forEach((row) => map.set(row.clientId, row.clientName));
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [collectionRows]);
 
   const handleQuickRangeChange = (value: QuickRange) => {
     if (isFreePlan && value !== "current_month") {
@@ -510,6 +534,103 @@ export default function ReportsPage() {
               </CardContent>
             </Card>
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Reporte de Cobranza</CardTitle>
+              <CardDescription>
+                Deuda activa por reserva con arriendo y extras separados
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <Select value={collectionBillingType} onValueChange={(value) => setCollectionBillingType((value ?? "GENERAL") as "GENERAL" | "DAILY" | "MONTHLY")}>
+                  <SelectTrigger className="w-full sm:w-44">
+                    <SelectValue placeholder="Tipo arriendo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="GENERAL">General</SelectItem>
+                    <SelectItem value="DAILY">Diario</SelectItem>
+                    <SelectItem value="MONTHLY">Mensual</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={collectionClientId} onValueChange={(value) => setCollectionClientId(value ?? "all")}>
+                  <SelectTrigger className="w-full sm:w-52">
+                    <SelectValue placeholder="Cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los clientes</SelectItem>
+                    {collectionClients.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={collectionDebtStatus} onValueChange={(value) => setCollectionDebtStatus((value ?? "ACTIVE") as "ACTIVE" | "ALL" | "OVERDUE" | "UPCOMING" | "PAID")}>
+                  <SelectTrigger className="w-full sm:w-44">
+                    <SelectValue placeholder="Estado deuda" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ACTIVE">Deuda activa</SelectItem>
+                    <SelectItem value="OVERDUE">Vencida</SelectItem>
+                    <SelectItem value="UPCOMING">Por vencer</SelectItem>
+                    <SelectItem value="PAID">Pagada</SelectItem>
+                    <SelectItem value="ALL">Todos</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <DateRangePicker date={collectionDueRange} onDateChange={setCollectionDueRange} />
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left">
+                      <th className="py-2 pr-3">Propiedad</th>
+                      <th className="py-2 pr-3">Cliente</th>
+                      <th className="py-2 pr-3">Tipo</th>
+                      <th className="py-2 pr-3">Estado reserva</th>
+                      <th className="py-2 pr-3">Total arriendo</th>
+                      <th className="py-2 pr-3">Pagado</th>
+                      <th className="py-2 pr-3">Pendiente</th>
+                      <th className="py-2 pr-3">Vencido</th>
+                      <th className="py-2 pr-3">Próx. vencimiento</th>
+                      <th className="py-2 pr-3">Extras pagados</th>
+                      <th className="py-2 pr-3">Extras pendientes</th>
+                      <th className="py-2 pr-3">Total por cobrar</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {collectionRows.length === 0 ? (
+                      <tr>
+                        <td className="py-6 text-center text-muted-foreground" colSpan={12}>
+                          Sin reservas para los filtros seleccionados
+                        </td>
+                      </tr>
+                    ) : (
+                      collectionRows.map((row) => (
+                        <tr key={row.reservationId} className="border-b last:border-0">
+                          <td className="py-2 pr-3">{row.propertyName}</td>
+                          <td className="py-2 pr-3">{row.clientName}</td>
+                          <td className="py-2 pr-3">{row.billingType === "DAILY" ? "Diario" : "Mensual"}</td>
+                          <td className="py-2 pr-3">{row.reservationStatus}</td>
+                          <td className="py-2 pr-3">{row.totalRent.toLocaleString("CLP")}</td>
+                          <td className="py-2 pr-3">{row.paid.toLocaleString("CLP")}</td>
+                          <td className="py-2 pr-3">{row.pending.toLocaleString("CLP")}</td>
+                          <td className="py-2 pr-3">{row.overdue.toLocaleString("CLP")}</td>
+                          <td className="py-2 pr-3">{row.nextDueDate ? format(row.nextDueDate, "dd-MM-yyyy") : "-"}</td>
+                          <td className="py-2 pr-3">{row.extrasPaid.toLocaleString("CLP")}</td>
+                          <td className="py-2 pr-3">{row.extrasPending.toLocaleString("CLP")}</td>
+                          <td className="py-2 pr-3 font-medium">{row.totalToCollect.toLocaleString("CLP")}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
 
           {yearlySummary && (
             <Card>

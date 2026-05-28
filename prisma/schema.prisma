@@ -55,6 +55,20 @@ enum PaymentStatus {
   FAILED
 }
 
+enum ReservationDocumentCategory {
+  CONTRATO
+  ANEXO
+  INVENTARIO
+  OTRO
+}
+
+enum ReservationDocumentType {
+  PDF
+  JPG
+  PNG
+  WEBP
+}
+
 enum IntegrationProvider {
   MERCADO_PAGO
   STRIPE
@@ -136,6 +150,7 @@ model Reservation {
   client       ReservationClient @relation(fields: [clientId], references: [id])
   payments     Payment[]
   changes      ReservationChange[]
+  documents    ReservationDocument[]
 
   @@index([userId])
   @@index([propertyId])
@@ -220,4 +235,23 @@ model UserIntegration {
 
   @@unique([userId, provider])
   @@index([userId])
+}
+
+model ReservationDocument {
+  id          String                      @id @default(cuid())
+  reservationId String
+  category    ReservationDocumentCategory
+  documentType ReservationDocumentType
+  fileName    String
+  filePath    String
+  fileSize    Int
+  mimeType    String
+  deletedAt   DateTime?
+  createdAt   DateTime                    @default(now())
+  updatedAt   DateTime                    @updatedAt
+
+  reservation Reservation @relation(fields: [reservationId], references: [id])
+
+  @@index([reservationId])
+  @@index([reservationId, deletedAt])
 }
