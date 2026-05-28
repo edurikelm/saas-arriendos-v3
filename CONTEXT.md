@@ -131,6 +131,7 @@ El webhook intenta matchear el pago en este orden:
 - Reservas **diarias** → mostradas como barra (inicio → fin)
 - Reservas **mensuales** → NO aparecen en calendario visual, solo en lista de reservas
 - Las fechas de reserva en el calendario son **date-only** del dominio. Aunque el backend pueda serializarlas como ISO (`toISOString()`), la UI debe calcular posiciones usando solo `YYYY-MM-DD` para evitar desfases por timezone. `end_date` es inclusivo: una reserva 25→30 ocupa 6 noches y debe visualizarse hasta el 30.
+- La vista mensual prioriza no generar scroll vertical en desktop: si una semana tiene más de 2 reservas superpuestas, muestra 2 barras y un botón `+N más`; al hacer click, esa semana se expande y el botón cambia a `Ocultar`. La vista timeline sigue siendo la vista densa para revisar todas las reservas por propiedad.
 
 ## Términos del Dominio
 
@@ -210,6 +211,8 @@ Toda tabla DEBE envolverse en `<div className="overflow-x-auto">`. No se esconde
 #### Barras de filtro y búsqueda
 Se apilan vertical en mobile: `flex flex-col sm:flex-row sm:items-center gap-2`. Inputs y selects usan `w-full sm:w-auto`.
 
+En páginas de datos con varios filtros (ej. `/reservations`), la barra de filtros puede ser colapsable. Debe conservar visible el encabezado con icono, título y contador de resultados (`filtradas / total`) aunque los controles estén ocultos. El botón de alternancia usa copy explícito `Ocultar`/`Mostrar`; `Limpiar filtros` solo aparece cuando hay filtros activos.
+
 #### Diálogos modales
 Todo `DialogContent` usa `w-[95vw]` como ancho base + `max-w-{tamaño}`.
 
@@ -218,6 +221,13 @@ Progresión: `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3` (o 4).
 
 #### Calendario
 Grid de 7 columnas en todas las resoluciones. Celdas: `min-h-12 sm:min-h-20 lg:min-h-24`.
+
+### Base UI / Botones y Links
+
+- El componente `Button` (Base UI) asume botón nativo (`nativeButton=true` por defecto).
+- Para navegación, **no** usar `render={<Link .../>}` en `Button`, porque rompe la semántica esperada y genera warning en consola.
+- Enlaces con apariencia de botón deben implementarse con `Link` + `buttonVariants(...)` desde `src/components/ui/button.tsx`.
+- Mantener `Button` para acciones reales (`onClick`, submit de formularios, etc.).
 
 ### Ver también
 

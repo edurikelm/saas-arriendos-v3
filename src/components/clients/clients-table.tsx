@@ -29,6 +29,16 @@ interface ClientsTableProps {
   initialClients: Client[];
 }
 
+function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+}
+
 export function ClientsTable({ initialClients }: ClientsTableProps) {
   const [clients, setClients] = useState<Client[]>(initialClients);
   const [searchQuery, setSearchQuery] = useState("");
@@ -131,39 +141,46 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
               </Button>
             </div>
           ) : (
-            <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>
+                  {filteredClients.length} de {clients.length} clientes
+                </span>
+              </div>
+
+              <div className="rounded-2xl border border-zinc-200/70 bg-zinc-950/[0.02] p-2 shadow-sm dark:border-zinc-800/80 dark:bg-zinc-950/30">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800">
+                  <table className="w-full min-w-[980px] border-separate border-spacing-y-2 text-sm">
+                    <thead className="sticky top-0 z-10 bg-zinc-100/90 backdrop-blur dark:bg-zinc-950/90">
                     <tr>
-                      <th className="text-left p-4 font-medium text-zinc-600 dark:text-zinc-400">Nombre</th>
-                      <th className="text-left p-4 font-medium text-zinc-600 dark:text-zinc-400">Email</th>
-                      <th className="text-left p-4 font-medium text-zinc-600 dark:text-zinc-400">Teléfono</th>
-                      <th className="text-left p-4 font-medium text-zinc-600 dark:text-zinc-400">RUT</th>
-                      <th className="text-center p-4 font-medium text-zinc-600 dark:text-zinc-400">Reservas</th>
-                      <th className="text-right p-4 font-medium text-zinc-600 dark:text-zinc-400">Acciones</th>
+                      <th className="rounded-l-xl px-4 py-3 text-left font-medium text-zinc-600 dark:text-zinc-400">Nombre</th>
+                      <th className="px-4 py-3 text-left font-medium text-zinc-600 dark:text-zinc-400">Email</th>
+                      <th className="px-4 py-3 text-left font-medium text-zinc-600 dark:text-zinc-400">Teléfono</th>
+                      <th className="px-4 py-3 text-left font-medium text-zinc-600 dark:text-zinc-400">RUT</th>
+                      <th className="px-4 py-3 text-center font-medium text-zinc-600 dark:text-zinc-400">Reservas</th>
+                      <th className="rounded-r-xl px-4 py-3 text-right font-medium text-zinc-600 dark:text-zinc-400">Acciones</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                  <tbody>
                     {filteredClients.map((client) => (
-                      <tr key={client.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50 transition-colors">
-                        <td className="p-4">
+                      <tr key={client.id} className="group relative transition-transform duration-200 hover:-translate-y-0.5">
+                        <td className="relative rounded-l-xl border-y border-l border-zinc-200/70 bg-white p-4 shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
                           <div className="flex items-center gap-3">
-                            <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-medium">
-                              {client.name[0]}
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground shadow-lg ring-2 ring-white/10">
+                              {getInitials(client.name)}
                             </div>
-                            <span className="font-medium text-zinc-900 dark:text-zinc-100">{client.name}</span>
+                            <span className="font-semibold text-zinc-900 dark:text-zinc-100">{client.name}</span>
                           </div>
                         </td>
-                        <td className="p-4 text-zinc-600 dark:text-zinc-400">{client.email}</td>
-                        <td className="p-4 text-zinc-600 dark:text-zinc-400">{client.phone || "-"}</td>
-                        <td className="p-4 text-zinc-600 dark:text-zinc-400">{client.rut || "-"}</td>
-                        <td className="p-4 text-center">
+                        <td className="border-y border-zinc-200/70 bg-white p-4 text-zinc-600 shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:text-zinc-400 dark:group-hover:bg-zinc-900/60">{client.email}</td>
+                        <td className="border-y border-zinc-200/70 bg-white p-4 text-zinc-600 shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:text-zinc-400 dark:group-hover:bg-zinc-900/60">{client.phone || "-"}</td>
+                        <td className="border-y border-zinc-200/70 bg-white p-4 text-zinc-600 shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:text-zinc-400 dark:group-hover:bg-zinc-900/60">{client.rut || "-"}</td>
+                        <td className="border-y border-zinc-200/70 bg-white p-4 text-center shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
                           <Badge variant="secondary" className="text-xs">
                             {client.reservationsCount}
                           </Badge>
                         </td>
-                        <td className="p-4 text-right">
+                        <td className="rounded-r-xl border-y border-r border-zinc-200/70 bg-white p-4 text-right shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
                           <DropdownMenu>
                             <DropdownMenuTrigger className="cursor-pointer rounded-md p-1.5 hover:bg-muted transition-colors">
                               <MoreHorizontal className="h-4 w-4" />
@@ -183,7 +200,8 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                  </table>
+                </div>
               </div>
             </div>
           )}
@@ -191,7 +209,7 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
       </Card>
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="w-[95vw] sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Nuevo Cliente</DialogTitle>
           </DialogHeader>
@@ -203,7 +221,7 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
       </Dialog>
 
       <Dialog open={!!editingClient} onOpenChange={() => setEditingClient(null)}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="w-[95vw] sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Editar Cliente</DialogTitle>
           </DialogHeader>

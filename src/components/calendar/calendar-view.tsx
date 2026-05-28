@@ -1,12 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { format } from "date-fns";
-import { es } from "date-fns/locale/es";
-import { Calendar, Filter, Grid, Plus, SlidersHorizontal } from "lucide-react";
+import { Filter, Grid, Plus, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CalendarGrid } from "@/components/calendar/calendar-grid";
@@ -131,67 +129,49 @@ export function CalendarView({ initialReservations, properties, clients, plan = 
   };
 
   const dailyReservations = reservations.filter((r) => r.billingType === "DAILY");
+  const headerActions = (
+    <>
+      <Button variant="default" size="sm" onClick={() => setCreateDialogOpen(true)}>
+        <Plus className="h-4 w-4 mr-2" />
+        Nueva Reserva
+      </Button>
+      <div className="flex overflow-hidden rounded-md border">
+        <button
+          type="button"
+          onClick={() => setViewMode("grid")}
+          className={`p-2 ${viewMode === "grid" ? "bg-muted" : ""}`}
+        >
+          <Grid className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => setViewMode("timeline")}
+          className={`p-2 ${viewMode === "timeline" ? "bg-muted" : ""}`}
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+        </button>
+      </div>
+      <Filter className="h-4 w-4 text-muted-foreground" />
+      <Select value={selectedPropertyId} onValueChange={(v) => setSelectedPropertyId(v || "all")}>
+        <SelectTrigger className="w-48">
+          <SelectValue placeholder="Todas las propiedades" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Todas las propiedades</SelectItem>
+          {properties.map((property) => (
+            <SelectItem key={property.id} value={property.id}>
+              {property.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </>
+  );
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Calendar className="h-8 w-8 text-primary" />
-          <div>
-            <h1 className="text-3xl font-bold">Calendario</h1>
-            <p className="text-sm text-muted-foreground">
-              Reservas del {format(currentMonth, "MMMM yyyy", { locale: es })}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Reservas Diarias</CardTitle>
-              <CardDescription>
-                Visualiza las reservas diarias en el calendario
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="default" size="sm" onClick={() => setCreateDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Nueva Reserva
-              </Button>
-              <div className="flex border rounded-md">
-                <button
-                  onClick={() => setViewMode("grid")}
-                  className={`p-2 ${viewMode === "grid" ? "bg-muted" : ""}`}
-                >
-                  <Grid className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => setViewMode("timeline")}
-                  className={`p-2 ${viewMode === "timeline" ? "bg-muted" : ""}`}
-                >
-                  <SlidersHorizontal className="h-4 w-4" />
-                </button>
-              </div>
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <Select value={selectedPropertyId} onValueChange={(v) => setSelectedPropertyId(v || "all")}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Todas las propiedades" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas las propiedades</SelectItem>
-                  {properties.map((property) => (
-                    <SelectItem key={property.id} value={property.id}>
-                      {property.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
+    <div className="space-y-6 lg:h-[calc(100vh-7rem)] lg:min-h-0">
+      <Card className="lg:h-full lg:min-h-0 lg:gap-0 lg:py-3">
+        <CardContent className="pt-3 lg:h-full lg:min-h-0 lg:pb-0">
           {loading ? (
             <div className="flex h-96 items-center justify-center">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -200,6 +180,7 @@ export function CalendarView({ initialReservations, properties, clients, plan = 
             <CalendarGrid
               reservations={dailyReservations}
               onSelectReservation={handleSelectReservation}
+              headerActions={headerActions}
             />
           ) : (
             <CalendarTimeline
@@ -228,6 +209,7 @@ export function CalendarView({ initialReservations, properties, clients, plan = 
               currentMonth={currentMonth}
               onSelectReservation={handleSelectReservation}
               onMonthChange={setCurrentMonth}
+              headerActions={headerActions}
             />
           )}
         </CardContent>
@@ -243,9 +225,12 @@ export function CalendarView({ initialReservations, properties, clients, plan = 
       )}
 
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
+        <DialogContent className="w-[95vw] max-w-2xl gap-0 p-0">
+          <DialogHeader className="border-b border-border/60 px-5 py-4 pr-12">
             <DialogTitle>Nueva Reserva</DialogTitle>
+            <DialogDescription>
+              Completa los datos principales de la estadía y confirma la reserva.
+            </DialogDescription>
           </DialogHeader>
           <ReservationForm
             properties={properties}

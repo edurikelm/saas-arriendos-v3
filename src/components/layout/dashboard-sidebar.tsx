@@ -33,19 +33,23 @@ export function DashboardSidebar({ open, onClose }: DashboardSidebarProps) {
       )}
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 h-screen w-64 bg-sidebar text-sidebar-foreground transition-transform duration-300 lg:z-40 lg:translate-x-0",
+          "fixed left-0 top-0 z-50 h-screen w-64 border-r border-sidebar-border bg-sidebar/95 text-sidebar-foreground shadow-xl backdrop-blur-xl transition-transform duration-300 lg:z-40 lg:translate-x-0 lg:shadow-none",
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between p-6 lg:hidden">
-            <h1 className="text-2xl font-bold">RentalPro</h1>
-            <button onClick={onClose} className="p-2 hover:bg-sidebar-accent rounded-lg">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">RentalPro</h1>
+              <p className="text-xs text-sidebar-foreground/60">Gestión de arriendos</p>
+            </div>
+            <button onClick={onClose} className="rounded-lg p-2 hover:bg-sidebar-accent">
               <X className="h-5 w-5" />
             </button>
           </div>
-          <div className="hidden lg:block p-6">
-            <h1 className="text-2xl font-bold">RentalPro</h1>
+          <div className="hidden p-6 lg:block">
+            <h1 className="text-2xl font-bold tracking-tight">RentalPro</h1>
+            <p className="mt-1 text-xs text-sidebar-foreground/60">Gestión de arriendos</p>
           </div>
           <nav className="flex-1 space-y-1 px-3">
             {navItems.map((item) => {
@@ -57,8 +61,10 @@ export function DashboardSidebar({ open, onClose }: DashboardSidebarProps) {
                   href={item.href}
                   onClick={onClose}
                   className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                    isActive
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm ring-1 ring-sidebar-ring/10"
+                      : "text-sidebar-foreground/85 hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground"
                   )}
                 >
                   <Icon className="h-5 w-5" />
@@ -68,7 +74,7 @@ export function DashboardSidebar({ open, onClose }: DashboardSidebarProps) {
             })}
           </nav>
           <div className="border-t border-sidebar-border p-3">
-            <Link href="/" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
+            <Link href="/" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-sidebar-foreground/85 hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground">
               <FileText className="h-5 w-5" />
               Licencia
             </Link>

@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Calendar, Plus, Pencil, Trash2, Eye, Grid, List, Filter, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { ReservationForm } from "@/components/reservations/reservation-form";
 import { ReservationDetailDialog } from "@/components/reservations/reservation-detail-dialog";
@@ -19,7 +19,6 @@ import {
   getReservations,
 } from "@/lib/actions/reservations";
 import type { ReservationInput } from "@/lib/validations/reservation";
-import { getPaymentStatus } from "@/lib/reservation-payment";
 
 interface Property {
   id: string;
@@ -84,6 +83,15 @@ function getNights(startDate: string, endDate: string): number {
   return differenceInDays(new Date(endDate), new Date(startDate)) + 1;
 }
 
+function formatPrice(price: string | number): string {
+  return new Intl.NumberFormat("es-CL", {
+    style: "currency",
+    currency: "CLP",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Number(price));
+}
+
 export function ReservationsListClient({
   initialReservations,
   properties,
@@ -96,6 +104,7 @@ export function ReservationsListClient({
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
   const [viewingReservation, setViewingReservation] = useState<Reservation | null>(null);
+  const [showFilters, setShowFilters] = useState(true);
 
   const [filters, setFilters] = useState({
     propertyId: "",
@@ -123,6 +132,16 @@ export function ReservationsListClient({
 
     return true;
   });
+
+  const totalReserved = filteredReservations.reduce((sum, res) => sum + Number(res.totalPrice), 0);
+  const totalPaid = filteredReservations.reduce(
+    (sum, res) => sum + res.payments
+      .filter((payment) => payment.status === "COMPLETED")
+      .reduce((paymentSum, payment) => paymentSum + Number(payment.amount), 0),
+    0,
+  );
+  const activeCount = filteredReservations.filter((res) => res.status !== "CANCELLED" && res.status !== "COMPLETED").length;
+  const pendingAmount = Math.max(totalReserved - totalPaid, 0);
 
   const hasActiveFilters = Object.values(filters).some((v) => v !== "");
 
@@ -242,65 +261,140 @@ export function ReservationsListClient({
             </div>
           ) : (
             <>
-              <div className="flex flex-wrap items-center gap-3 p-4 bg-muted/50 rounded-lg border mb-6">
-                <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Filtros:</span>
+              <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-2xl border border-blue-500/15 bg-blue-500/[0.06] p-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-blue-500">Reservas filtradas</p>
+                  <p className="mt-2 text-2xl font-bold tabular-nums text-foreground">{filteredReservations.length}</p>
+                  <p className="text-xs text-muted-foreground">{activeCount} activas o pendientes</p>
                 </div>
-
-                <select
-                  value={filters.propertyId}
-                  onChange={(e) => setFilters({ ...filters, propertyId: e.target.value })}
-                  className="h-8 sm:h-9 px-2 sm:px-3 rounded-md border bg-background text-xs sm:text-sm"
-                >
-                  <option value="">Todas las propiedades</option>
-                  {properties.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-
-                <select
-                  value={filters.billingType}
-                  onChange={(e) => setFilters({ ...filters, billingType: e.target.value })}
-                  className="h-8 sm:h-9 px-2 sm:px-3 rounded-md border bg-background text-xs sm:text-sm"
-                >
-                  <option value="">Todos los tipos</option>
-                  <option value="DAILY">Diario</option>
-                  <option value="MONTHLY">Mensual</option>
-                </select>
-
-                <select
-                  value={filters.status}
-                  onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-                  className="h-8 sm:h-9 px-2 sm:px-3 rounded-md border bg-background text-xs sm:text-sm"
-                >
-                  <option value="">Todos los estados</option>
-                  <option value="PENDING">Pendiente</option>
-                  <option value="CONFIRMED">Confirmada</option>
-                  <option value="CANCELLED">Cancelada</option>
-                  <option value="COMPLETED">Completada</option>
-                </select>
-
-                <select
-                  value={filters.payment}
-                  onChange={(e) => setFilters({ ...filters, payment: e.target.value })}
-                  className="h-8 sm:h-9 px-2 sm:px-3 rounded-md border bg-background text-xs sm:text-sm"
-                >
-                  <option value="">Todos los pagos</option>
-                  <option value="paid">Pagado</option>
-                  <option value="pending">Pendiente</option>
-                  <option value="overpaid">Exceso</option>
-                </select>
-
-                {hasActiveFilters && (
-                  <Button variant="ghost" size="sm" onClick={clearFilters}>
-                    <X className="h-4 w-4 mr-1" />
-                    Limpiar
-                  </Button>
-                )}
+                <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[0.06] p-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-emerald-500">Cobrado</p>
+                  <p className="mt-2 text-2xl font-bold tabular-nums text-foreground">{formatPrice(totalPaid)}</p>
+                  <p className="text-xs text-muted-foreground">Pagos completados</p>
+                </div>
+                <div className="rounded-2xl border border-amber-500/15 bg-amber-500/[0.06] p-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-amber-500">Por cobrar</p>
+                  <p className="mt-2 text-2xl font-bold tabular-nums text-foreground">{formatPrice(pendingAmount)}</p>
+                  <p className="text-xs text-muted-foreground">Saldo de la selección</p>
+                </div>
+                <div className="rounded-2xl border border-zinc-500/15 bg-zinc-500/[0.06] p-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Total reservado</p>
+                  <p className="mt-2 text-2xl font-bold tabular-nums text-foreground">{formatPrice(totalReserved)}</p>
+                  <p className="text-xs text-muted-foreground">Valor bruto</p>
+                </div>
               </div>
 
-              {viewMode === "table" ? (
+              <div className="mb-6 overflow-hidden rounded-2xl border border-foreground/10 bg-gradient-to-br from-muted/40 via-muted/20 to-background shadow-sm">
+                <div className="flex flex-col gap-4 p-4 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="flex items-start justify-between gap-3 lg:w-52">
+                    <div className="flex items-start gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-blue-500/20 bg-blue-500/10 text-blue-400">
+                      <Filter className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Filtros</p>
+                      <p className="text-xs text-muted-foreground">
+                        {filteredReservations.length} de {reservations.length} reservas
+                      </p>
+                    </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowFilters((current) => !current)}
+                      className="h-8 rounded-lg px-2 text-xs lg:hidden"
+                    >
+                      {showFilters ? "Ocultar" : "Mostrar"}
+                    </Button>
+                  </div>
+
+                  <div className={`${showFilters ? "grid" : "hidden"} flex-1 gap-3 sm:grid-cols-2 xl:grid-cols-4`}>
+                    <label>
+                      <select
+                        value={filters.propertyId}
+                        onChange={(e) => setFilters({ ...filters, propertyId: e.target.value })}
+                        className="h-10 w-full rounded-xl border border-foreground/10 bg-background/80 px-3 text-sm font-medium text-foreground shadow-inner outline-none transition-colors hover:border-foreground/20 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15"
+                      >
+                        <option value="">Todas las propiedades</option>
+                        {properties.map((p) => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label>
+                      <select
+                        value={filters.billingType}
+                        onChange={(e) => setFilters({ ...filters, billingType: e.target.value })}
+                        className="h-10 w-full rounded-xl border border-foreground/10 bg-background/80 px-3 text-sm font-medium text-foreground shadow-inner outline-none transition-colors hover:border-foreground/20 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15"
+                      >
+                        <option value="">Todos los tipos</option>
+                        <option value="DAILY">Diario</option>
+                        <option value="MONTHLY">Mensual</option>
+                      </select>
+                    </label>
+
+                    <label>
+                      <select
+                        value={filters.status}
+                        onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                        className="h-10 w-full rounded-xl border border-foreground/10 bg-background/80 px-3 text-sm font-medium text-foreground shadow-inner outline-none transition-colors hover:border-foreground/20 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15"
+                      >
+                        <option value="">Todos los estados</option>
+                        <option value="PENDING">Pendiente</option>
+                        <option value="CONFIRMED">Confirmada</option>
+                        <option value="CANCELLED">Cancelada</option>
+                        <option value="COMPLETED">Completada</option>
+                      </select>
+                    </label>
+
+                    <label>
+                      <select
+                        value={filters.payment}
+                        onChange={(e) => setFilters({ ...filters, payment: e.target.value })}
+                        className="h-10 w-full rounded-xl border border-foreground/10 bg-background/80 px-3 text-sm font-medium text-foreground shadow-inner outline-none transition-colors hover:border-foreground/20 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15"
+                      >
+                        <option value="">Todos los pagos</option>
+                        <option value="paid">Pagado</option>
+                        <option value="pending">Pendiente</option>
+                        <option value="overpaid">Exceso</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  <div className="flex gap-2 lg:flex-col">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowFilters((current) => !current)}
+                      className="hidden h-10 shrink-0 rounded-xl lg:inline-flex"
+                    >
+                      <Filter className="mr-1.5 h-4 w-4" />
+                      {showFilters ? "Ocultar" : "Mostrar"}
+                    </Button>
+                    {hasActiveFilters && (
+                      <Button variant="outline" size="sm" onClick={clearFilters} className="h-10 shrink-0 rounded-xl">
+                        <X className="mr-1.5 h-4 w-4" />
+                        Limpiar filtros
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {filteredReservations.length === 0 ? (
+                <div className="rounded-2xl border border-dashed bg-muted/20 p-10 text-center">
+                  <Calendar className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+                  <h3 className="text-lg font-medium">No hay reservas con estos filtros</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">Prueba limpiar los filtros o crea una nueva reserva.</p>
+                  {hasActiveFilters && (
+                    <Button className="mt-4" variant="outline" onClick={clearFilters}>
+                      <X className="mr-2 h-4 w-4" />
+                      Limpiar filtros
+                    </Button>
+                  )}
+                </div>
+              ) : viewMode === "table" ? (
                 <div className="overflow-x-auto">
                   <ReservationTable
                     reservations={filteredReservations}
@@ -432,9 +526,12 @@ export function ReservationsListClient({
       </Card>
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
+        <DialogContent className="w-[95vw] max-w-2xl gap-0 p-0">
+          <DialogHeader className="border-b border-border/60 px-5 py-4 pr-12">
             <DialogTitle>Nueva Reserva</DialogTitle>
+            <DialogDescription>
+              Completa los datos principales de la estadía y confirma la reserva.
+            </DialogDescription>
           </DialogHeader>
           {properties.length > 0 && clients.length > 0 ? (
             <ReservationForm
@@ -479,9 +576,12 @@ export function ReservationsListClient({
       )}
 
       <Dialog open={!!editingReservation} onOpenChange={() => setEditingReservation(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
+        <DialogContent className="w-[95vw] max-w-2xl gap-0 p-0">
+          <DialogHeader className="border-b border-border/60 px-5 py-4 pr-12">
             <DialogTitle>Editar Reserva</DialogTitle>
+            <DialogDescription>
+              Ajusta los datos de la estadía manteniendo el registro de cambios.
+            </DialogDescription>
           </DialogHeader>
           {editingReservation && properties.length > 0 && clients.length > 0 && (
             <ReservationForm

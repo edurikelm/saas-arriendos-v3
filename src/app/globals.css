@@ -177,3 +177,17 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  .dashboard-shell-bg {
+    background:
+      radial-gradient(circle at top right, color-mix(in oklch, var(--primary) 10%, transparent), transparent 28rem),
+      var(--background);
+  }
+
+  .dark .dashboard-shell-bg {
+    background:
+      radial-gradient(circle at top right, color-mix(in oklch, var(--primary) 14%, transparent), transparent 30rem),
+      var(--background);
+  }
+}

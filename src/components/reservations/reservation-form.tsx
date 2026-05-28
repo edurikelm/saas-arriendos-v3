@@ -132,7 +132,6 @@ export function ReservationForm({
 
   const selectedPropertyId = watch("propertyId");
   const selectedProperty = properties.find((p) => p.id === selectedPropertyId);
-  const selectedClientId = watch("clientId");
 
   useEffect(() => {
     if (selectedPropertyId) {
@@ -152,42 +151,46 @@ export function ReservationForm({
   };
 
   return (
-    <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
+    <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-5 px-5 pt-4 pb-5">
       <input type="hidden" {...register("startDate")} />
       <input type="hidden" {...register("endDate")} />
-      <div className="space-y-2">
-        <Label>Propiedad *</Label>
-        <Combobox
-          options={properties.map(p => ({ value: p.id, label: p.name, subtitle: `${p.unitsAvailable} disp.` }))}
-          value={selectedPropertyId}
-          onValueChange={(value) => setValue("propertyId", value || "")}
-          placeholder="Seleccionar propiedad"
-          showSearch={false}
-        />
-        {errors.propertyId && (
-          <p className="text-sm text-red-500">{errors.propertyId.message}</p>
-        )}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label className="text-[13px] text-muted-foreground">Propiedad *</Label>
+          <Combobox
+            className="h-9 w-full bg-background/40"
+            options={properties.map(p => ({ value: p.id, label: p.name, subtitle: `${p.unitsAvailable} disp.` }))}
+            value={selectedPropertyId}
+            onValueChange={(value) => setValue("propertyId", value || "")}
+            placeholder="Seleccionar propiedad"
+            showSearch={false}
+          />
+          {errors.propertyId && (
+            <p className="text-sm text-red-500">{errors.propertyId.message}</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-[13px] text-muted-foreground">Cliente *</Label>
+          <Combobox
+            className="h-9 w-full bg-background/40"
+            options={clientsList.map(c => ({ value: c.id, label: c.name, subtitle: c.email }))}
+            value={watch("clientId")}
+            onValueChange={(value) => setValue("clientId", value || "")}
+            placeholder="Seleccionar cliente"
+            searchPlaceholder="Buscar cliente por nombre o email..."
+            notFoundMessage="No se encontraron clientes"
+            footerAction={isAtFreeLimit ? undefined : { label: "Crear nuevo cliente...", onClick: () => setIsCreateClientOpen(true) }}
+            footerDisabledMessage={isAtFreeLimit ? "Límite de 5 clientes alcanzado (plan FREE)" : undefined}
+          />
+          {errors.clientId && (
+            <p className="text-sm text-red-500">{errors.clientId.message}</p>
+          )}
+        </div>
       </div>
 
       <div className="space-y-2">
-        <Label>Cliente *</Label>
-        <Combobox
-          options={clientsList.map(c => ({ value: c.id, label: c.name, subtitle: c.email }))}
-          value={watch("clientId")}
-          onValueChange={(value) => setValue("clientId", value || "")}
-          placeholder="Seleccionar cliente"
-          searchPlaceholder="Buscar cliente por nombre o email..."
-          notFoundMessage="No se encontraron clientes"
-          footerAction={isAtFreeLimit ? undefined : { label: "Crear nuevo cliente...", onClick: () => setIsCreateClientOpen(true) }}
-          footerDisabledMessage={isAtFreeLimit ? "Límite de 5 clientes alcanzado (plan FREE)" : undefined}
-        />
-        {errors.clientId && (
-          <p className="text-sm text-red-500">{errors.clientId.message}</p>
-        )}
-      </div>
-
-      <div className="space-y-2">
-        <Label>Tipo de Facturación *</Label>
+        <Label className="text-[13px] text-muted-foreground">Tipo de Facturación *</Label>
         <div className="flex flex-col sm:flex-row gap-2">
           <button
             type="button"
@@ -196,10 +199,10 @@ export function ReservationForm({
               setMonths(undefined);
               setValue("months", undefined);
             }}
-            className={`flex-1 h-14 rounded-lg border-2 transition-all flex flex-col items-center justify-center gap-0.5 ${
+            className={`flex-1 h-[3.25rem] rounded-lg border transition-all flex flex-col items-center justify-center gap-0.5 hover:bg-muted/40 ${
               !isMonthly
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-border"
+                ? "border-primary/70 bg-primary/5 text-primary ring-1 ring-primary/25"
+                : "border-border/80 bg-background/30"
             }`}
           >
             <span className="text-xs font-medium">Diario</span>
@@ -214,10 +217,10 @@ export function ReservationForm({
               setValue("billingType", "MONTHLY");
             }}
             disabled={!selectedProperty?.monthlyPrice}
-            className={`flex-1 h-14 rounded-lg border-2 transition-all flex flex-col items-center justify-center gap-0.5 ${
+            className={`flex-1 h-[3.25rem] rounded-lg border transition-all flex flex-col items-center justify-center gap-0.5 hover:bg-muted/40 ${
               isMonthly
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-border"
+                ? "border-primary/70 bg-primary/5 text-primary ring-1 ring-primary/25"
+                : "border-border/80 bg-background/30"
             } ${!selectedProperty?.monthlyPrice ? "opacity-50 cursor-not-allowed" : ""}`}
           >
             <span className="text-xs font-medium">Mensual</span>
@@ -238,7 +241,7 @@ export function ReservationForm({
 
       {!isMonthly ? (
         <div className="space-y-2">
-          <Label>Fechas de Estadía *</Label>
+          <Label className="text-[13px] text-muted-foreground">Fechas de Estadía *</Label>
           <DateRangePicker
             date={dateRange}
             onDateChange={handleDateRangeChange}
@@ -252,55 +255,56 @@ export function ReservationForm({
           )}
         </div>
       ) : (
-        <div className="space-y-2">
-          <Label>Fecha de Inicio *</Label>
-          <DateRangePicker
-            date={{ from: dateRange.from, to: undefined }}
-            onDateChange={(date) => {
-              setDateRange({ from: date.from, to: undefined });
-              setValue("startDate", date.from ? formatDateForInput(date.from) : "");
-              if (months && date.from) {
-                const end = calculateEndDate(date.from, months);
-                setDateRange({ from: date.from, to: end });
-                setValue("endDate", formatDateForInput(end));
-              } else {
-                setValue("endDate", "");
-              }
-            }}
-            className="w-full"
-            blockedDates={blockedDates}
-            mode="single"
-          />
-          {errors.startDate && (
-            <p className="text-sm text-red-500">{errors.startDate.message}</p>
-          )}
-        </div>
-      )}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label className="text-[13px] text-muted-foreground">Fecha de Inicio *</Label>
+            <DateRangePicker
+              date={{ from: dateRange.from, to: undefined }}
+              onDateChange={(date) => {
+                setDateRange({ from: date.from, to: undefined });
+                setValue("startDate", date.from ? formatDateForInput(date.from) : "");
+                if (months && date.from) {
+                  const end = calculateEndDate(date.from, months);
+                  setDateRange({ from: date.from, to: end });
+                  setValue("endDate", formatDateForInput(end));
+                } else {
+                  setValue("endDate", "");
+                }
+              }}
+              className="w-full"
+              blockedDates={blockedDates}
+              mode="single"
+            />
+            {errors.startDate && (
+              <p className="text-sm text-red-500">{errors.startDate.message}</p>
+            )}
+          </div>
 
-      {isMonthly && (
-        <div className="space-y-2">
-          <Label htmlFor="months">Cantidad de Meses *</Label>
-          <Input
-            id="months"
-            type="number"
-            min={1}
-            max={12}
-            {...register("months", { valueAsNumber: true })}
-            value={months || ""}
-            onChange={(e) => {
-              const val = e.target.value ? Number(e.target.value) : undefined;
-              handleMonthsChange(val);
-            }}
-            placeholder="Ej: 3"
-          />
-          {errors.months && (
-            <p className="text-sm text-red-500">{errors.months.message}</p>
-          )}
+          <div className="space-y-2">
+            <Label htmlFor="months" className="text-[13px] text-muted-foreground">Cantidad de Meses *</Label>
+            <Input
+              id="months"
+              type="number"
+              min={1}
+              max={12}
+              {...register("months", { valueAsNumber: true })}
+              value={months || ""}
+              onChange={(e) => {
+                const val = e.target.value ? Number(e.target.value) : undefined;
+                handleMonthsChange(val);
+              }}
+              className="h-9 bg-background/40"
+              placeholder="Ej: 3"
+            />
+            {errors.months && (
+              <p className="text-sm text-red-500">{errors.months.message}</p>
+            )}
+          </div>
         </div>
       )}
 
       {selectedProperty && dateRange.from && endDate && (
-        <div className="rounded-lg bg-muted p-4 space-y-1">
+        <div className="rounded-lg border border-border/70 bg-background/40 p-3 space-y-1">
           {isMonthly && months ? (
             <>
               <div className="flex justify-between text-sm">
@@ -322,7 +326,7 @@ export function ReservationForm({
           ) : null}
           <div className="flex justify-between items-baseline">
             <span className="text-sm text-muted-foreground">Monto total</span>
-            <span className="text-2xl font-bold text-primary">
+            <span className="text-xl font-semibold text-primary">
               ${(
                 isMonthly && months
                   ? months * Number(selectedProperty.monthlyPrice) * (watch("unitsBooked") || 1)
@@ -336,13 +340,14 @@ export function ReservationForm({
       )}
 
       <div className="space-y-2">
-        <Label htmlFor="unitsBooked">Unidades Reservadas *</Label>
+        <Label htmlFor="unitsBooked" className="text-[13px] text-muted-foreground">Unidades Reservadas *</Label>
         <Input
           id="unitsBooked"
           type="number"
           min={1}
           max={selectedProperty?.unitsAvailable || 1}
           {...register("unitsBooked", { valueAsNumber: true })}
+          className="h-9 bg-background/40"
         />
         {errors.unitsBooked && (
           <p className="text-sm text-red-500">{errors.unitsBooked.message}</p>
@@ -354,20 +359,21 @@ export function ReservationForm({
         )}
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/30 px-3 py-2">
         <Switch
           id="bookingAirbnb"
           checked={watch("bookingAirbnb")}
           onCheckedChange={(checked) => setValue("bookingAirbnb", checked)}
         />
-        <Label htmlFor="bookingAirbnb">Reserva de Airbnb</Label>
+        <Label htmlFor="bookingAirbnb" className="text-[13px]">Reserva de Airbnb</Label>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="notes">Notas</Label>
+        <Label htmlFor="notes" className="text-[13px] text-muted-foreground">Notas</Label>
         <Textarea
           id="notes"
           {...register("notes")}
+          className="min-h-20 bg-background/40"
           placeholder="Notas para esta reserva (ej: necesita sofá cama)..."
         />
         {errors.notes && (
@@ -375,13 +381,13 @@ export function ReservationForm({
         )}
       </div>
 
-      <div className="flex justify-end gap-4">
+      <div className="flex flex-col-reverse gap-2 border-t border-border/60 pt-4 sm:flex-row sm:justify-end">
         {onCancel && (
-          <Button type="button" variant="outline" onClick={onCancel}>
+          <Button type="button" variant="outline" onClick={onCancel} className="w-full sm:w-auto">
             Cancelar
           </Button>
         )}
-        <Button type="submit" disabled={isSubmitting}>
+        <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
           {isSubmitting ? "Guardando..." : "Guardar Reserva"}
         </Button>
       </div>

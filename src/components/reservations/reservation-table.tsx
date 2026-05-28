@@ -8,6 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { getPaymentStatus } from "@/lib/reservation-payment";
 
+type PillTone = "green" | "blue" | "purple" | "amber" | "red" | "slate";
+
 interface Payment {
   id: string;
   amount: string;
@@ -52,6 +54,24 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
   COMPLETED: { label: "Completada", variant: "outline", icon: CheckCircle2 },
 };
 
+const toneClassNames: Record<PillTone, string> = {
+  green: "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300",
+  blue: "border-blue-500/20 bg-blue-500/10 text-blue-600 dark:text-blue-300",
+  purple: "border-purple-500/20 bg-purple-500/10 text-purple-600 dark:text-purple-300",
+  amber: "border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-300",
+  red: "border-red-500/25 bg-red-500/10 text-red-600 dark:text-red-300",
+  slate: "border-zinc-500/20 bg-zinc-500/10 text-zinc-600 dark:text-zinc-300",
+};
+
+const dotClassNames: Record<PillTone, string> = {
+  green: "bg-emerald-500",
+  blue: "bg-blue-500",
+  purple: "bg-purple-500",
+  amber: "bg-amber-500",
+  red: "bg-red-500",
+  slate: "bg-zinc-500",
+};
+
 function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString("es-CL", {
     day: "numeric",
@@ -68,12 +88,22 @@ function formatFullDate(dateString: string): string {
 }
 
 function formatPrice(price: string | number): string {
-  return new Intl.NumberFormat("CLP", {
+  return new Intl.NumberFormat("es-CL", {
     style: "currency",
     currency: "CLP",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(Number(price));
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
 }
 
 function getNights(startDate: string, endDate: string): number {
@@ -88,7 +118,10 @@ function getMonths(startDate: string, endDate: string): number {
   return months >= 1 ? months : 1;
 }
 
-function getTemporalStatus(startDate: string, endDate: string, billingType: string): { label: string; variant: "default" | "secondary" | "outline" | "destructive"; color: string; sublabel?: string } {
+function getTemporalStatus(startDate: string, endDate: string, billingType: string, status?: string): { label: string; variant: "default" | "secondary" | "outline" | "destructive"; color: string; sublabel?: string } {
+  if (status === "CANCELLED") return { label: "Cancelada", variant: "destructive", color: "#EF4444" };
+  if (status === "COMPLETED") return { label: "Finalizada", variant: "outline", color: "#6B7280" };
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const start = new Date(startDate);
@@ -105,6 +138,48 @@ function getTemporalStatus(startDate: string, endDate: string, billingType: stri
   }
   const nightsLeft = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   return { label: "Activa", variant: "default", color: "#10B981", sublabel: `${nightsLeft} noches` };
+}
+
+function getReservationTone(status: string, startDate: string, endDate: string): PillTone {
+  if (status === "CANCELLED") return "red";
+  if (status === "COMPLETED") return "slate";
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  if (today >= start && today <= end) return "green";
+  if (today < start) return "blue";
+  return "slate";
+}
+
+function getPaymentTone(paidAmount: number, totalPrice: number): PillTone {
+  if (paidAmount >= totalPrice && totalPrice > 0) return "green";
+  if (paidAmount > 0) return "amber";
+  return "red";
+}
+
+function ReservationPill({ tone, label }: { tone: PillTone; label: string }) {
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs font-semibold ${toneClassNames[tone]}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${dotClassNames[tone]}`} />
+      {label}
+    </span>
+  );
+}
+
+function PaymentProgress({ paidAmount, totalPrice, tone }: { paidAmount: number; totalPrice: number; tone: PillTone }) {
+  const progress = totalPrice > 0 ? Math.min(Math.max((paidAmount / totalPrice) * 100, 0), 100) : 0;
+
+  return (
+    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-200/70 dark:bg-zinc-800">
+      <div
+        className={`h-full rounded-full ${dotClassNames[tone]} transition-all duration-500`}
+        style={{ width: `${progress}%` }}
+      />
+    </div>
+  );
 }
 
 interface ReservationCardBaseProps {
@@ -505,6 +580,88 @@ export function ReservationCardKanban({ reservation, onEdit, onView, onCancel, o
   );
 }
 
+function ReservationMobileCard({ reservation, onEdit, onView, onDelete }: {
+  reservation: Reservation;
+  onEdit?: (id: string) => void;
+  onView?: (id: string) => void;
+  onDelete?: (id: string) => void;
+}) {
+  const paidAmount = reservation.payments
+    .filter((p) => p.status === "COMPLETED")
+    .reduce((sum, p) => sum + Number(p.amount), 0);
+  const totalPrice = Number(reservation.totalPrice);
+  const paymentStatus = getPaymentStatus({ paidAmount, totalPrice, status: reservation.status });
+  const temporal = getTemporalStatus(reservation.startDate, reservation.endDate, reservation.billingType, reservation.status);
+  const stateTone = getReservationTone(reservation.status, reservation.startDate, reservation.endDate);
+  const paymentTone = getPaymentTone(paidAmount, totalPrice);
+  const duration = reservation.billingType === "MONTHLY"
+    ? `${getMonths(reservation.startDate, reservation.endDate)} meses`
+    : `${getNights(reservation.startDate, reservation.endDate)} noches`;
+
+  return (
+    <article className="group relative overflow-hidden rounded-2xl border border-zinc-800/80 bg-zinc-950/40 p-4 shadow-sm transition-all duration-300 hover:border-zinc-700 hover:bg-zinc-950/70">
+      <div className={`absolute inset-y-0 left-0 w-1 ${dotClassNames[stateTone]}`} />
+      <div className="flex items-start justify-between gap-3 pl-2">
+        <div className="flex min-w-0 items-center gap-3">
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white shadow-lg ring-2 ring-white/10"
+            style={{ backgroundColor: reservation.property.color || "#6366F1" }}
+          >
+            {getInitials(reservation.client.name)}
+          </div>
+          <div className="min-w-0">
+            <h3 className="truncate font-semibold text-zinc-100">{reservation.client.name}</h3>
+            <p className="truncate text-xs text-zinc-500">{reservation.client.email}</p>
+          </div>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-900 hover:text-zinc-100">
+            <MoreHorizontal className="h-4 w-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {onView && <DropdownMenuItem onClick={() => onView(reservation.id)}>Ver</DropdownMenuItem>}
+            {onEdit && <DropdownMenuItem onClick={() => onEdit(reservation.id)}>Editar</DropdownMenuItem>}
+            {onDelete && <DropdownMenuItem variant="destructive" onClick={() => onDelete(reservation.id)}>Eliminar</DropdownMenuItem>}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-3 pl-2 text-sm">
+        <div>
+          <p className="text-xs text-zinc-500">Propiedad</p>
+          <p className="mt-1 flex items-center gap-2 font-medium text-zinc-200">
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: reservation.property.color || "#6366F1" }} />
+            {reservation.property.name}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-zinc-500">Total</p>
+          <p className="mt-1 text-right font-bold tabular-nums text-zinc-100">{formatPrice(reservation.totalPrice)}</p>
+        </div>
+        <div className="col-span-2">
+          <p className="text-xs text-zinc-500">Fechas</p>
+          <p className="mt-1 font-medium text-zinc-200">{formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}</p>
+          <p className="text-xs text-zinc-500">{duration}</p>
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-2 pl-2">
+        <ReservationPill tone={stateTone} label={temporal.label} />
+        <ReservationPill tone={reservation.billingType === "DAILY" ? "blue" : "purple"} label={reservation.billingType === "DAILY" ? "Diario" : "Mensual"} />
+        <ReservationPill tone={paymentTone} label={paymentStatus.label} />
+      </div>
+
+      <div className="mt-3 pl-2">
+        <div className="flex items-center justify-between text-xs text-zinc-500">
+          <span>Pagado</span>
+          <span className="tabular-nums">{formatPrice(paidAmount)} / {formatPrice(totalPrice)}</span>
+        </div>
+        <PaymentProgress paidAmount={paidAmount} totalPrice={totalPrice} tone={paymentTone} />
+      </div>
+    </article>
+  );
+}
+
 export function ReservationTable({ reservations, onEdit, onView, onCancel, onDelete }: {
   reservations: Reservation[];
   onEdit?: (id: string) => void;
@@ -539,12 +696,25 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
   };
 
   return (
-    <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800">
+    <div className="space-y-4">
+      <div className="grid gap-3 md:hidden">
+        {sorted.map((res) => (
+          <ReservationMobileCard
+            key={res.id}
+            reservation={res}
+            onView={onView}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
+        ))}
+      </div>
+
+      <div className="hidden rounded-2xl border border-zinc-200/70 bg-zinc-950/[0.02] p-2 shadow-sm dark:border-zinc-800/80 dark:bg-zinc-950/30 md:block">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1200px] border-separate border-spacing-y-2 text-sm">
+          <thead className="sticky top-0 z-10 bg-zinc-100/90 backdrop-blur dark:bg-zinc-950/90">
             <tr>
-              <th className="text-left p-4 font-medium text-zinc-600 dark:text-zinc-400">
+              <th className="rounded-l-xl px-4 py-3 text-left font-medium text-zinc-600 dark:text-zinc-400">
                 <button
                   onClick={() => toggleSort("client")}
                   className="flex items-center gap-1 hover:text-zinc-900 dark:hover:text-zinc-100"
@@ -553,7 +723,7 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                   <ArrowUpDown className="h-3 w-3" />
                 </button>
               </th>
-              <th className="text-left p-4 font-medium text-zinc-600 dark:text-zinc-400">
+              <th className="px-4 py-3 text-left font-medium text-zinc-600 dark:text-zinc-400">
                 <button
                   onClick={() => toggleSort("createdAt")}
                   className="flex items-center gap-1 hover:text-zinc-900 dark:hover:text-zinc-100"
@@ -562,10 +732,10 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                   <ArrowUpDown className="h-3 w-3" />
                 </button>
               </th>
-              <th className="text-left p-4 font-medium text-zinc-600 dark:text-zinc-400">Propiedad</th>
-              <th className="text-left p-4 font-medium text-zinc-600 dark:text-zinc-400">Fechas</th>
-              <th className="text-left p-4 font-medium text-zinc-600 dark:text-zinc-400">Tipo</th>
-              <th className="text-right p-4 font-medium text-zinc-600 dark:text-zinc-400">
+              <th className="px-4 py-3 text-left font-medium text-zinc-600 dark:text-zinc-400">Propiedad</th>
+              <th className="px-4 py-3 text-left font-medium text-zinc-600 dark:text-zinc-400">Fechas</th>
+              <th className="px-4 py-3 text-left font-medium text-zinc-600 dark:text-zinc-400">Tipo</th>
+              <th className="px-4 py-3 text-right font-medium text-zinc-600 dark:text-zinc-400">
                 <button
                   onClick={() => toggleSort("totalPrice")}
                   className="flex items-center gap-1 ml-auto hover:text-zinc-900 dark:hover:text-zinc-100"
@@ -574,128 +744,105 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                   <ArrowUpDown className="h-3 w-3" />
                 </button>
               </th>
-              <th className="text-center p-4 font-medium text-zinc-600 dark:text-zinc-400">Estado</th>
-              <th className="text-center p-4 font-medium text-zinc-600 dark:text-zinc-400">Pago</th>
-              <th className="text-right p-4 font-medium text-zinc-600 dark:text-zinc-400">Acciones</th>
+              <th className="px-4 py-3 text-center font-medium text-zinc-600 dark:text-zinc-400">Estado</th>
+              <th className="px-4 py-3 text-center font-medium text-zinc-600 dark:text-zinc-400">Pago</th>
+              <th className="rounded-r-xl px-4 py-3 text-right font-medium text-zinc-600 dark:text-zinc-400">Acciones</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+          <tbody>
             {sorted.map((res) => {
-              const status = statusConfig[res.status] || statusConfig.PENDING;
               const paidAmount = res.payments
                 .filter((p) => p.status === "COMPLETED")
                 .reduce((sum, p) => sum + Number(p.amount), 0);
               const totalPrice = Number(res.totalPrice);
-              let paymentColor = "#EF4444";
-              if (paidAmount === totalPrice && totalPrice > 0) {
-                paymentColor = "#10B981";
-              } else if (paidAmount > 0) {
-                paymentColor = "#F59E0B";
-              }
               const paymentStatus = getPaymentStatus({
                 paidAmount,
                 totalPrice,
                 status: res.status,
               });
+              const temporal = getTemporalStatus(res.startDate, res.endDate, res.billingType, res.status);
+              const stateTone = getReservationTone(res.status, res.startDate, res.endDate);
+              const paymentTone = getPaymentTone(paidAmount, totalPrice);
+              const duration = res.billingType === "MONTHLY" ? `${getMonths(res.startDate, res.endDate)} meses` : `${getNights(res.startDate, res.endDate)} noches`;
               return (
-                <tr key={res.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50 transition-colors">
-                  <td className="p-4">
+                <tr key={res.id} className="group relative transition-transform duration-200 hover:-translate-y-0.5">
+                  <td className="relative rounded-l-xl border-y border-l border-zinc-200/70 bg-white p-4 shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
+                    <div className={`absolute inset-y-3 left-0 w-1 rounded-r-full ${dotClassNames[stateTone]}`} />
                     <div className="flex items-center gap-3">
                       <div
-                        className="h-8 w-8 rounded-full flex items-center justify-center text-white text-xs font-medium shrink-0"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white shadow-lg ring-2 ring-white/10"
                         style={{ backgroundColor: res.property.color || "#6366F1" }}
                       >
-                        {res.client.name[0]}
+                        {getInitials(res.client.name)}
                       </div>
-                      <div>
-                        <p className="font-medium text-zinc-900 dark:text-zinc-100">{res.client.name}</p>
-                        <p className="text-xs text-zinc-500">{res.client.email}</p>
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-zinc-900 dark:text-zinc-100">{res.client.name}</p>
+                        <p className="truncate text-xs text-zinc-500">{res.client.email}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="p-4 text-sm text-zinc-500">
+                  <td className="border-y border-zinc-200/70 bg-white p-4 text-sm text-zinc-500 shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
                     {formatFullDate(res.createdAt)}
                   </td>
-                  <td className="p-4">
+                  <td className="border-y border-zinc-200/70 bg-white p-4 shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
                     <div className="flex items-center gap-2">
                       <div
-                        className="h-2 w-2 rounded-full"
-                        style={{ backgroundColor: res.property.color }}
+                        className="h-2.5 w-2.5 rounded-full ring-2 ring-white/10"
+                        style={{ backgroundColor: res.property.color || "#6366F1" }}
                       />
-                      <span className="text-zinc-700 dark:text-zinc-300">{res.property.name}</span>
+                      <span className="font-medium text-zinc-700 dark:text-zinc-300">{res.property.name}</span>
                     </div>
                   </td>
-                  <td className="p-4">
-                    <div className="text-zinc-600 dark:text-zinc-400">
-                      <span>{formatDate(res.startDate)}</span>
-                      <span className="mx-1 text-zinc-300">→</span>
-                      <span>{formatDate(res.endDate)}</span>
-                      <span className="ml-1 text-xs text-zinc-400">({res.billingType === "MONTHLY" ? `${getMonths(res.startDate, res.endDate)} meses` : `${getNights(res.startDate, res.endDate)} noches`})</span>
+                  <td className="border-y border-zinc-200/70 bg-white p-4 shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
+                    <div className="space-y-0.5 text-zinc-700 dark:text-zinc-300">
+                      <p className="font-medium">{formatDate(res.startDate)} - {formatDate(res.endDate)}</p>
+                      <p className="text-xs text-zinc-500">{duration}</p>
                     </div>
                   </td>
-                  <td className="p-4">
-                    <span className={`text-xs px-2 py-1 rounded-full ${res.billingType === "DAILY" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"}`}>
-                      {res.billingType === "DAILY" ? "Diario" : "Mensual"}
-                    </span>
+                  <td className="border-y border-zinc-200/70 bg-white p-4 shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
+                    <ReservationPill tone={res.billingType === "DAILY" ? "blue" : "purple"} label={res.billingType === "DAILY" ? "Diario" : "Mensual"} />
                   </td>
-                  <td className="p-4 text-right">
-                    <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                  <td className="border-y border-zinc-200/70 bg-white p-4 text-right shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
+                    <span className="font-bold tabular-nums text-zinc-900 dark:text-zinc-100">
                       {formatPrice(res.totalPrice)}
                     </span>
                   </td>
-                  <td className="p-4 text-center">
-                    {(() => {
-                      const temporal = getTemporalStatus(res.startDate, res.endDate, res.billingType);
-                      return (
-                        <div className="flex flex-col items-center justify-center gap-1">
-                          <div className="flex items-center justify-center gap-1.5">
-                            <span
-                              className="h-2 w-2 rounded-full"
-                              style={{ backgroundColor: temporal.color }}
-                            />
-                            <Badge variant={temporal.variant} className="text-xs">
-                              {temporal.label}
-                            </Badge>
-                          </div>
-                          {temporal.sublabel && (
-                            <span className="text-xs text-zinc-500">{temporal.sublabel}</span>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </td>
-                  <td className="p-4 text-center">
+                  <td className="border-y border-zinc-200/70 bg-white p-4 text-center shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
                     <div className="flex flex-col items-center justify-center gap-1">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <span
-                          className="h-2 w-2 rounded-full shrink-0"
-                          style={{ backgroundColor: paymentStatus.color }}
-                        />
-                        <Badge variant={paymentStatus.variant} className="text-xs">
-                          {paymentStatus.label}
-                        </Badge>
-                      </div>
-                      <span className="text-xs text-muted-foreground">
-                        {formatPrice(paidAmount)} / {formatPrice(totalPrice)}
-                      </span>
+                      <ReservationPill tone={stateTone} label={temporal.label} />
+                      {temporal.sublabel && (
+                        <span className="text-xs text-zinc-500">{temporal.sublabel}</span>
+                      )}
                     </div>
                   </td>
-                  <td className="p-4 text-right">
+                  <td className="border-y border-zinc-200/70 bg-white p-4 text-center shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
+                    <div className="mx-auto w-36">
+                      <ReservationPill tone={paymentTone} label={paymentStatus.label} />
+                      <span className="mt-1 block text-xs tabular-nums text-muted-foreground">
+                        {formatPrice(paidAmount)} / {formatPrice(totalPrice)}
+                      </span>
+                      <PaymentProgress paidAmount={paidAmount} totalPrice={totalPrice} tone={paymentTone} />
+                    </div>
+                  </td>
+                  <td className="rounded-r-xl border-y border-r border-zinc-200/70 bg-white p-4 text-right shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
+                    <div className="flex items-center justify-end gap-1 opacity-70 transition-opacity group-hover:opacity-100">
+                      {onView && (
+                        <Button size="sm" variant="ghost" onClick={() => onView(res.id)}>
+                          Ver
+                        </Button>
+                      )}
+                      {onEdit && (
+                        <Button size="sm" variant="ghost" onClick={() => onEdit(res.id)}>
+                          Editar
+                        </Button>
+                      )}
                     <DropdownMenu>
-                      <DropdownMenuTrigger className="cursor-pointer rounded-md p-1.5 hover:bg-muted transition-colors">
+                      <DropdownMenuTrigger className="cursor-pointer rounded-md p-1.5 transition-colors hover:bg-muted">
                         <MoreHorizontal className="h-4 w-4" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        {onView && (
-                          <DropdownMenuItem onClick={() => onView(res.id)}>
-                            Ver
-                          </DropdownMenuItem>
-                        )}
-                        {onEdit && (
-                          <DropdownMenuItem onClick={() => onEdit(res.id)}>
-                            Editar
-                          </DropdownMenuItem>
-                        )}
+                        {onView && <DropdownMenuItem onClick={() => onView(res.id)}>Ver detalle</DropdownMenuItem>}
+                        {onEdit && <DropdownMenuItem onClick={() => onEdit(res.id)}>Editar reserva</DropdownMenuItem>}
                         {onDelete && (
                           <DropdownMenuItem variant="destructive" onClick={() => onDelete(res.id)}>
                             Eliminar
@@ -703,12 +850,14 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                         )}
                       </DropdownMenuContent>
                     </DropdownMenu>
+                    </div>
                   </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

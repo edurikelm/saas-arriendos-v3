@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameMonth, addMonths, subMonths, startOfWeek, endOfWeek } from "date-fns";
 import { es } from "date-fns/locale/es";
 import { ChevronLeft, ChevronRight, Calendar, Clock, User, Home, CreditCard, CheckCircle2, XCircle, AlertCircle, Plus } from "lucide-react";
@@ -220,11 +220,12 @@ export function CalendarMonthGrid({ reservations, currentMonth, onSelectReservat
   );
 }
 
-export function CalendarTimeline({ reservations, currentMonth, onSelectReservation, onMonthChange }: {
+export function CalendarTimeline({ reservations, currentMonth, onSelectReservation, onMonthChange, headerActions }: {
   reservations: Reservation[];
   currentMonth: Date;
   onSelectReservation: (id: string) => void;
   onMonthChange: (date: Date) => void;
+  headerActions?: ReactNode;
 }) {
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -254,9 +255,9 @@ export function CalendarTimeline({ reservations, currentMonth, onSelectReservati
   );
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
+    <div className="space-y-3">
+      <div className="grid gap-3 lg:grid-cols-[1fr_auto_1fr] lg:items-end">
+        <div className="min-w-0 leading-tight">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
             Timeline de ocupacion
           </p>
@@ -264,7 +265,7 @@ export function CalendarTimeline({ reservations, currentMonth, onSelectReservati
             {format(currentMonth, "MMMM yyyy", { locale: es })}
           </h2>
         </div>
-        <div className="flex items-center gap-2 rounded-full border bg-background/80 p-1 shadow-sm">
+        <div className="flex w-fit items-center gap-2 rounded-full border bg-background/80 p-1 shadow-sm lg:justify-self-center">
           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => onMonthChange(subMonths(currentMonth, 1))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -275,6 +276,11 @@ export function CalendarTimeline({ reservations, currentMonth, onSelectReservati
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
+        {headerActions && (
+          <div className="flex flex-wrap items-center gap-2 lg:justify-self-end">
+            {headerActions}
+          </div>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-2xl border bg-gradient-to-br from-background via-background to-muted/30 shadow-sm">

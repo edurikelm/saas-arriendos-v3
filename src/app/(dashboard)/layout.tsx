@@ -19,6 +19,7 @@ export default async function DashboardLayout({
       children={children}
       userName={session?.email?.split("@")[0] ?? null}
       userRole={session?.role ?? null}
+      userPlan={session?.plan ?? null}
     />
   );
 }

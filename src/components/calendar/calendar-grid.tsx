@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, type CSSProperties, type ReactNode } from "react";
 import {
   startOfMonth,
   endOfMonth,
@@ -49,6 +49,7 @@ interface CalendarGridProps {
   reservations: CalendarReservation[];
   onSelectReservation?: (id: string) => void;
   onDateClick?: (date: Date) => void;
+  headerActions?: ReactNode;
 }
 
 function getWeeks(days: Date[]): Date[][] {
@@ -93,8 +94,10 @@ export function CalendarGrid({
   reservations,
   onSelectReservation,
   onDateClick,
+  headerActions,
 }: CalendarGridProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(() => new Set());
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -152,18 +155,32 @@ export function CalendarGrid({
     });
   }, [weeks, reservations]);
 
+  const maxVisibleLanes = 2;
+
+  const toggleExpandedWeek = (weekIndex: number) => {
+    setExpandedWeeks((prev) => {
+      const next = new Set(prev);
+      if (next.has(weekIndex)) {
+        next.delete(weekIndex);
+      } else {
+        next.add(weekIndex);
+      }
+      return next;
+    });
+  };
+
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
+    <div className="space-y-3 lg:flex lg:h-full lg:min-h-0 lg:flex-col">
+      <div className="grid gap-3 lg:grid-cols-[1fr_auto_1fr] lg:items-end">
+        <div className="min-w-0 leading-tight">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-            Calendario mensual
+            Calendario mensual de reservas diarias
           </p>
           <h2 className="text-2xl font-bold capitalize tracking-tight">
             {format(currentDate, "MMMM yyyy", { locale: es })}
           </h2>
         </div>
-        <div className="flex items-center gap-2 rounded-full border bg-background/80 p-1 shadow-sm">
+        <div className="flex w-fit items-center gap-2 rounded-full border bg-background/80 p-1 shadow-sm lg:justify-self-center">
           <Button
             variant="ghost"
             size="icon"
@@ -189,9 +206,14 @@ export function CalendarGrid({
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
+        {headerActions && (
+          <div className="flex flex-wrap items-center gap-2 lg:justify-self-end">
+            {headerActions}
+          </div>
+        )}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border bg-gradient-to-br from-background via-background to-muted/30 shadow-sm">
+      <div className="overflow-hidden rounded-2xl border bg-gradient-to-br from-background via-background to-muted/30 shadow-sm lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
         {/* Header de días */}
         <div className="grid grid-cols-7 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
           {["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"].map((day) => (
@@ -205,17 +227,25 @@ export function CalendarGrid({
         </div>
 
         {/* Semanas */}
-        <div className="grid grid-cols-1">
-          {weeksData.map(({ week, weekReservations, numLanes }, weekIndex) => (
-            <div
-              key={weekIndex}
-              className={`relative grid grid-cols-7 ${
-                weekIndex < weeksData.length - 1 ? "border-b border-border" : ""
-              }`}
-              style={{
-                minHeight: numLanes > 0 ? `${108 + numLanes * 36}px` : undefined,
-              }}
-            >
+        <div className="grid grid-cols-1 lg:min-h-0 lg:flex-1">
+          {weeksData.map(({ week, weekReservations, numLanes }, weekIndex) => {
+            const expanded = expandedWeeks.has(weekIndex);
+            const visibleReservations = expanded
+              ? weekReservations
+              : weekReservations.filter((wr) => wr.lane < maxVisibleLanes);
+            const hiddenCount = weekReservations.length - visibleReservations.length;
+
+            return (
+              <div
+                key={weekIndex}
+                className={`relative grid min-h-[var(--week-min-height)] grid-cols-7 overflow-hidden bg-background transition-[min-height] lg:min-h-[var(--week-lg-height)] ${
+                  weekIndex < weeksData.length - 1 ? "border-b border-border" : ""
+                }`}
+                style={{
+                  "--week-min-height": numLanes > 0 ? `${82 + numLanes * 30}px` : "0px",
+                  "--week-lg-height": expanded ? `${82 + numLanes * 30}px` : "0px",
+                } as CSSProperties}
+              >
               {week.map((day) => {
                 const dateKey = format(day, "yyyy-MM-dd");
                 const isCurrentMonth = isSameMonth(day, currentDate);
@@ -224,7 +254,7 @@ export function CalendarGrid({
                 return (
                   <div
                     key={dateKey}
-                    className={`group h-full min-h-12 border-r bg-background/75 p-1.5 transition-colors last:border-r-0 hover:bg-muted/40 sm:min-h-20 sm:p-2 lg:min-h-24 ${
+                    className={`group h-full min-h-12 border-r bg-background/75 p-1.5 transition-colors last:border-r-0 hover:bg-muted/40 sm:min-h-20 sm:p-2 lg:min-h-0 ${
                       !isCurrentMonth
                         ? "bg-muted/25 text-muted-foreground"
                         : ""
@@ -253,7 +283,7 @@ export function CalendarGrid({
                 );
               })}
 
-              {weekReservations.map((wr) => {
+              {visibleReservations.map((wr) => {
                 const ended = isReservationEnded(wr.res);
                 const color = getReservationColor(wr.res);
                 return (
@@ -263,14 +293,14 @@ export function CalendarGrid({
                       e.stopPropagation();
                       onSelectReservation?.(wr.res.id);
                     }}
-                    className={`absolute z-10 flex h-8 cursor-pointer items-center gap-1.5 overflow-hidden rounded-full border px-2 text-left text-xs font-semibold shadow-sm transition-all hover:z-20 hover:-translate-y-0.5 hover:shadow-lg focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:text-sm ${
+                    className={`absolute z-10 flex h-7 cursor-pointer items-center gap-1.5 overflow-hidden rounded-full border px-2 text-left text-xs font-semibold shadow-sm transition-all hover:z-20 hover:-translate-y-0.5 hover:shadow-lg focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                       ended
                         ? "border-border bg-muted text-muted-foreground opacity-75 line-through decoration-muted-foreground/60"
                         : "border-white/25"
                     }`}
                     style={{
                       left: `${(wr.startCol / 7) * 100}%`,
-                      top: `${48 + wr.lane * 36}px`,
+                      top: `${42 + wr.lane * 30}px`,
                       width: `calc(${(wr.span / 7) * 100}% - 6px)`,
                       backgroundColor: ended ? undefined : color,
                       color: ended ? undefined : getContrastColor(color),
@@ -287,8 +317,22 @@ export function CalendarGrid({
                   </button>
                 );
               })}
+
+              {(hiddenCount > 0 || expanded) && (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    toggleExpandedWeek(weekIndex);
+                  }}
+                  className="absolute bottom-2 right-2 z-20 rounded-full border border-primary/30 bg-primary px-3 py-1 text-xs font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {expanded ? "Ocultar" : `+${hiddenCount} más`}
+                </button>
+              )}
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {reservations.length === 0 && (

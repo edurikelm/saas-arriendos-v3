@@ -10,16 +10,17 @@ interface DashboardLayoutClientProps {
   children: ReactNode;
   userName: string | null;
   userRole: string | null;
+  userPlan: string | null;
 }
 
-export function DashboardLayoutClient({ children, userName, userRole }: DashboardLayoutClientProps) {
+export function DashboardLayoutClient({ children, userName, userRole, userPlan }: DashboardLayoutClientProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="dashboard-shell-bg min-h-screen bg-background">
       <DashboardSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="lg:pl-64">
-        <div className="sticky top-0 z-30 flex items-center gap-4 bg-navbar px-4 py-3 lg:hidden">
+        <div className="sticky top-0 z-30 flex items-center gap-4 border-b bg-navbar/90 px-4 py-3 shadow-sm backdrop-blur-xl lg:hidden">
           <Button
             variant="ghost"
             size="icon"
@@ -30,7 +31,7 @@ export function DashboardLayoutClient({ children, userName, userRole }: Dashboar
           </Button>
           <span className="font-bold text-lg">RentalPro</span>
         </div>
-        <DashboardNavbar userName={userName} userRole={userRole ?? undefined} />
+        <DashboardNavbar userName={userName} userRole={userRole ?? undefined} userPlan={userPlan} />
         <main className="p-4 lg:p-6">{children}</main>
       </div>
     </div>
