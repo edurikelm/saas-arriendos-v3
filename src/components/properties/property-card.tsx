@@ -44,13 +44,13 @@ interface PropertyCardBaseProps {
 
 export function PropertyCardGrid({ property, onEdit, onDelete }: PropertyCardBaseProps) {
   return (
-    <div className="group/card relative overflow-hidden rounded-xl border border-border bg-card transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-foreground/5 hover:border-foreground/20">
+    <div className="group/card relative overflow-hidden rounded-xl border border-border bg-card transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-foreground/5 hover:border-foreground/20">
       <div
         className="absolute inset-x-0 top-0 h-1"
         style={{ backgroundColor: property.color }}
       />
 
-      <div className="relative aspect-[16/11] overflow-hidden">
+      <div className="relative aspect-[16/9] overflow-hidden">
         {property.mainImage ? (
           <Image
             src={property.mainImage}
@@ -63,11 +63,11 @@ export function PropertyCardGrid({ property, onEdit, onDelete }: PropertyCardBas
         ) : (
           <div className="flex size-full items-center justify-center bg-linear-to-br from-muted/80 to-muted">
             <div
-              className="flex size-20 items-center justify-center rounded-full transition-transform duration-500 group-hover/card:scale-110"
+              className="flex size-16 items-center justify-center rounded-full transition-transform duration-500 group-hover/card:scale-105"
               style={{ backgroundColor: property.color + "20" }}
             >
               <span
-                className="text-3xl font-semibold"
+                className="text-2xl font-semibold"
                 style={{ color: property.color }}
               >
                 {property.name[0]}
@@ -76,9 +76,9 @@ export function PropertyCardGrid({ property, onEdit, onDelete }: PropertyCardBas
           </div>
         )}
 
-        <div className="absolute inset-x-0 bottom-0 h-24 bg-linear-to-t from-black/50 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-20 bg-linear-to-t from-black/50 to-transparent" />
 
-        <div className="absolute left-4 bottom-4 flex items-center gap-2">
+        <div className="absolute left-3 bottom-3 flex items-center gap-2">
           <div
             className="size-2.5 rounded-full ring-1 ring-white/30"
             style={{ backgroundColor: property.color }}
@@ -90,7 +90,7 @@ export function PropertyCardGrid({ property, onEdit, onDelete }: PropertyCardBas
 
         <div
           className={cn(
-            "absolute right-3 top-3 flex gap-1 transition-all duration-200",
+            "absolute right-2.5 top-2.5 flex gap-1 transition-all duration-200",
             "opacity-0 group-hover/card:opacity-100",
             "translate-y-1 group-hover/card:translate-y-0"
           )}
@@ -104,11 +104,11 @@ export function PropertyCardGrid({ property, onEdit, onDelete }: PropertyCardBas
         </div>
       </div>
 
-      <div className="px-5 py-4">
+      <div className="px-4 py-3.5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="text-[15px] font-semibold truncate">{property.name}</h3>
-            <div className="mt-1 flex items-center gap-3 text-[13px] text-muted-foreground">
+            <h3 className="text-sm font-semibold truncate">{property.name}</h3>
+            <div className="mt-1 flex items-center gap-2.5 text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
                 <MapPin className="size-3" />
                 {typeLabels[property.type] || property.type}
@@ -121,15 +121,15 @@ export function PropertyCardGrid({ property, onEdit, onDelete }: PropertyCardBas
           </div>
         </div>
 
-        <div className="mt-4 flex items-baseline justify-between">
+        <div className="mt-3 flex items-baseline justify-between">
           <div className="flex items-baseline gap-1">
-            <span suppressHydrationWarning className="text-lg font-bold tabular-nums">
+            <span suppressHydrationWarning className="text-base font-bold tabular-nums">
               {formatPrice(property.dailyPrice)}
             </span>
-            <span className="text-[12px] text-muted-foreground">/noche</span>
+            <span className="text-[11px] text-muted-foreground">/noche</span>
           </div>
           {property.monthlyPrice ? (
-            <span suppressHydrationWarning className="text-[13px] font-medium text-muted-foreground tabular-nums">
+            <span suppressHydrationWarning className="text-xs font-medium text-muted-foreground tabular-nums">
               {formatPrice(property.monthlyPrice)}<span className="text-[11px]">/mes</span>
             </span>
           ) : (

@@ -179,6 +179,71 @@
 }
 
 @layer utilities {
+  @keyframes rentalpro-dialog-overlay-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes rentalpro-dialog-overlay-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
+  @keyframes rentalpro-dialog-content-in {
+    from {
+      opacity: 0;
+      transform: scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes rentalpro-dialog-content-out {
+    from {
+      opacity: 1;
+      transform: scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: scale(0.98);
+    }
+  }
+
+  [data-slot="dialog-overlay"][data-open] {
+    animation: rentalpro-dialog-overlay-in 150ms ease-out both;
+  }
+
+  [data-slot="dialog-overlay"][data-closed] {
+    animation: rentalpro-dialog-overlay-out 120ms ease-in both;
+  }
+
+  [data-slot="dialog-content"][data-open] {
+    animation: rentalpro-dialog-content-in 150ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  [data-slot="dialog-content"][data-closed] {
+    animation: rentalpro-dialog-content-out 120ms ease-in both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-slot="dialog-overlay"][data-open],
+    [data-slot="dialog-overlay"][data-closed],
+    [data-slot="dialog-content"][data-open],
+    [data-slot="dialog-content"][data-closed] {
+      animation: none;
+    }
+  }
+
   .dashboard-shell-bg {
     background:
       radial-gradient(circle at top right, color-mix(in oklch, var(--primary) 10%, transparent), transparent 28rem),

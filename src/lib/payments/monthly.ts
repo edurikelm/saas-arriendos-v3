@@ -19,7 +19,7 @@ export function generateMonthlyPayments(
   const start = new Date(startDate);
 
   for (let i = 0; i < months; i++) {
-    const dueDate = new Date(start.getFullYear(), start.getMonth() + i + 1, 1);
+    const dueDate = new Date(start.getFullYear(), start.getMonth() + i, 1);
     const amount = new Decimal(monthlyPrice.toString()).mul(unitsBooked);
 
     payments.push({

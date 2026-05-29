@@ -13,9 +13,8 @@ import {
   ExternalLink,
   Copy,
   Plus,
-  Trash,
-  FileImage,
   Loader2,
+  MoreHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,10 +34,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { confirmPayment, revertPayment, generatePaymentLink, markPaymentAsPaid, attachReceipt } from "@/lib/actions/payments";
@@ -46,6 +47,7 @@ import { CheckCircle, Search } from "lucide-react";
 import { AddPaymentDialog } from "./add-payment-dialog";
 import { ReceiptUpload } from "@/components/ui/receipt-upload";
 import { ReservationDocumentsPanel } from "./reservation-documents-panel";
+import { getInclusiveMonths } from "@/lib/reservation-dates";
 
 export interface Payment {
   id: string;
@@ -173,10 +175,7 @@ function getNights(startDate: string, endDate: string): number {
 }
 
 function getMonths(startDate: string, endDate: string): number {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
-  return months >= 1 ? months : 1;
+  return getInclusiveMonths(startDate, endDate);
 }
 
 export function PaymentsTable({
@@ -199,175 +198,190 @@ export function PaymentsTable({
   generatingLinkId?: string | null;
 }) {
   return (
-    <div className="overflow-x-auto rounded-md border border-border">
+    <div className="overflow-x-auto rounded-xl border border-border/70">
       <table className="w-full text-xs">
-        <thead className="bg-muted/50">
+        <thead className="bg-muted/30">
           <tr>
             {showInstallmentColumns && (
-              <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Cuota</th>
+              <th className="px-3 py-2 text-left font-medium text-muted-foreground">Cuota</th>
             )}
             {showConceptColumn && (
-              <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Concepto</th>
+              <th className="px-3 py-2 text-left font-medium text-muted-foreground">Concepto</th>
             )}
-            <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Monto</th>
+            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Monto</th>
             {showInstallmentColumns && (
-              <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Vencimiento</th>
+              <th className="px-3 py-2 text-left font-medium text-muted-foreground">Vencimiento</th>
             )}
-            <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Fecha Pago</th>
-            <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Medio</th>
-            <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Estado</th>
-            <th className="px-2 py-1.5 text-center font-medium text-muted-foreground w-[120px]">Acciones</th>
+            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Fecha Pago</th>
+            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Medio</th>
+            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Estado</th>
+            <th className="px-3 py-2 text-right font-medium text-muted-foreground w-[180px]">Acciones</th>
           </tr>
         </thead>
         <tbody>
           {[...payments].sort((a, b) => (a.installmentIndex ?? 0) - (b.installmentIndex ?? 0)).map((payment) => {
             const statusCfg = paymentStatusConfig[payment.status] || paymentStatusConfig.PENDING;
+            const isPending = payment.status === "PENDING";
+            const isCompleted = payment.status === "COMPLETED";
+            const isMercadoPago = payment.method === "MERCADO_PAGO";
+            const canGenerateLink = isPending && isMercadoPago && !payment.initPoint && onGenerateLink;
+            const canCopyLink = isPending && isMercadoPago && payment.initPoint;
+            const canMarkPaid = isPending && onMarkPaid;
+            const canDelete = isPending && !isMercadoPago && onDeletePayment;
+            const canViewReceipt = Boolean(payment.receiptUrl);
+            const canAttachReceipt = isCompleted && !payment.receiptUrl && onAttachReceipt;
+            const primaryAction = canGenerateLink
+              ? "generate"
+              : canCopyLink
+                ? "copy"
+                : canMarkPaid
+                  ? "markPaid"
+                  : canViewReceipt
+                    ? "viewReceipt"
+                    : null;
+            const secondaryActions = [
+              canMarkPaid && primaryAction !== "markPaid" ? "markPaid" : null,
+              canDelete ? "delete" : null,
+              canViewReceipt && primaryAction !== "viewReceipt" ? "viewReceipt" : null,
+              canAttachReceipt ? "attachReceipt" : null,
+            ].filter(Boolean) as Array<"markPaid" | "delete" | "viewReceipt" | "attachReceipt">;
+
+            const renderActionButton = (action: typeof primaryAction) => {
+              if (!action) return null;
+
+              if (action === "generate") {
+                return (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-xs"
+                    disabled={generatingLinkId === payment.id}
+                    onClick={() => onGenerateLink?.(payment.id)}
+                  >
+                    {generatingLinkId === payment.id ? (
+                      <Loader2 className="mr-1 size-3 animate-spin" />
+                    ) : (
+                      <ExternalLink className="mr-1 size-3" />
+                    )}
+                    Generar link
+                  </Button>
+                );
+              }
+
+              if (action === "copy") {
+                return (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => {
+                      navigator.clipboard.writeText(payment.initPoint!);
+                      toast.success("Link copiado al portapapeles");
+                    }}
+                  >
+                    <Copy className="mr-1 size-3" />
+                    Copiar link
+                  </Button>
+                );
+              }
+
+              if (action === "markPaid") {
+                return (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => onMarkPaid?.(payment.id)}
+                  >
+                    <Check className="mr-1 size-3" />
+                    Marcar pagado
+                  </Button>
+                );
+              }
+
+              if (action === "viewReceipt") {
+                return (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => window.open(payment.receiptUrl!, "_blank")}
+                  >
+                    <FileText className="mr-1 size-3" />
+                    Ver comp.
+                  </Button>
+                );
+              }
+
+              return null;
+            };
+
+            const renderMenuItem = (action: (typeof secondaryActions)[number]) => {
+              if (action === "markPaid") {
+                return <DropdownMenuItem onClick={() => onMarkPaid?.(payment.id)}>Marcar como pagado</DropdownMenuItem>;
+              }
+
+              if (action === "delete") {
+                return <DropdownMenuItem variant="destructive" onClick={() => onDeletePayment?.(payment.id)}>Eliminar pago</DropdownMenuItem>;
+              }
+
+              if (action === "viewReceipt") {
+                return <DropdownMenuItem onClick={() => window.open(payment.receiptUrl!, "_blank")}>Ver comprobante</DropdownMenuItem>;
+              }
+
+              return <DropdownMenuItem onClick={() => onAttachReceipt?.(payment.id)}>Adjuntar comprobante</DropdownMenuItem>;
+            };
+
             return (
-              <tr key={payment.id} className="border-t border-border">
+              <tr key={payment.id} className="border-t border-border/60 transition-colors hover:bg-muted/20">
                 {showInstallmentColumns && (
-                  <td className="px-2 py-2 font-medium">
+                  <td className="px-3 py-3 font-medium">
                     {payment.installmentIndex ?? "—"}
                   </td>
                 )}
                 {showConceptColumn && (
-                  <td className="px-2 py-2">
+                  <td className="px-3 py-3">
                     <p className="font-medium text-foreground">{payment.title || "Cobro extra"}</p>
                     {payment.description && (
                       <p className="text-xs text-muted-foreground line-clamp-1">{payment.description}</p>
                     )}
                   </td>
                 )}
-                <td className="px-2 py-2">{formatAmount(payment.amount)}</td>
+                <td className="px-3 py-3 font-medium">{formatAmount(payment.amount)}</td>
                 {showInstallmentColumns && (
-                  <td className="px-2 py-2">
+                  <td className="px-3 py-3">
                     {payment.dueDate ? formatDueDate(payment.dueDate) : "—"}
                   </td>
                 )}
-                <td className="px-2 py-2 text-muted-foreground text-xs">
+                <td className="px-3 py-3 text-muted-foreground text-xs">
                   {payment.paidAt ? formatDate(payment.paidAt) : "—"}
                 </td>
-                <td className="px-2 py-2">
+                <td className="px-3 py-3">
                   {payment.method === "MERCADO_PAGO" ? "Mercado Pago" : payment.method === "CASH" ? "Efectivo" : payment.method === "TRANSFER" ? "Transferencia" : "—"}
                 </td>
-                <td className="px-2 py-2">
-                  <Badge variant={statusCfg.variant} className={cn("text-xs", statusCfg.className)}>{statusCfg.label}</Badge>
+                <td className="px-3 py-3">
+                  <Badge variant={statusCfg.variant} className={cn("h-5 text-[11px] font-medium", statusCfg.className)}>{statusCfg.label}</Badge>
                 </td>
-                <td className="px-2 py-2">
-                  <div className="flex items-center justify-center gap-0.5">
-                    {payment.receiptUrl && (
-                      <Tooltip>
-                        <TooltipTrigger
+                <td className="px-3 py-3">
+                  <div className="flex items-center justify-end gap-1">
+                    {renderActionButton(primaryAction)}
+                    {secondaryActions.length > 0 && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
                           render={
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="size-7"
-                              onClick={() => window.open(payment.receiptUrl!, "_blank")}
-                            >
-                              <FileText className="size-3.5" />
+                            <Button size="icon" variant="ghost" className="size-7" aria-label="Más acciones">
+                              <MoreHorizontal className="size-3.5" />
                             </Button>
                           }
                         />
-                        <TooltipContent>Ver comprobante</TooltipContent>
-                      </Tooltip>
+                        <DropdownMenuContent align="end" className="w-44">
+                          {secondaryActions.map((action) => (
+                            <div key={action}>{renderMenuItem(action)}</div>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
-                    {payment.status === "PENDING" && payment.method === "MERCADO_PAGO" && !payment.initPoint && onGenerateLink && (
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="size-7"
-                              disabled={generatingLinkId === payment.id}
-                              onClick={() => onGenerateLink(payment.id)}
-                            >
-                              {generatingLinkId === payment.id ? (
-                                <Loader2 className="size-3.5 animate-spin" />
-                              ) : (
-                                <ExternalLink className="size-3.5" />
-                              )}
-                            </Button>
-                          }
-                        />
-                        <TooltipContent>Generar link de pago</TooltipContent>
-                      </Tooltip>
-                    )}
-                    {payment.status === "PENDING" && payment.method === "MERCADO_PAGO" && payment.initPoint && (
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="size-7"
-                              onClick={() => {
-                                navigator.clipboard.writeText(payment.initPoint!);
-                                toast.success("Link copiado al portapapeles");
-                              }}
-                            >
-                              <Copy className="size-3.5" />
-                            </Button>
-                          }
-                        />
-                        <TooltipContent>Copiar link de pago</TooltipContent>
-                      </Tooltip>
-                    )}
-                    {payment.status === "PENDING" && onMarkPaid && (
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="size-7"
-                              onClick={() => onMarkPaid(payment.id)}
-                            >
-                              <Check className="size-3.5" />
-                            </Button>
-                          }
-                        />
-                        <TooltipContent>Marcar como pagado</TooltipContent>
-                      </Tooltip>
-                    )}
-                    {payment.status === "PENDING" && payment.method !== "MERCADO_PAGO" && onDeletePayment && (
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="size-7 text-destructive hover:text-destructive"
-                              onClick={() => onDeletePayment(payment.id)}
-                            >
-                              <Trash className="size-3.5" />
-                            </Button>
-                          }
-                        />
-                        <TooltipContent>Eliminar pago</TooltipContent>
-                      </Tooltip>
-                    )}
-                    {payment.status === "COMPLETED" && !payment.receiptUrl && onAttachReceipt && (
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="size-7"
-                              onClick={() => onAttachReceipt(payment.id)}
-                            >
-                              <FileImage className="size-3.5" />
-                            </Button>
-                          }
-                        />
-                        <TooltipContent>Adjuntar comprobante</TooltipContent>
-                      </Tooltip>
-                    )}
-                    {payment.status === "COMPLETED" && payment.method === "MERCADO_PAGO" && !payment.initPoint && !payment.receiptUrl && (
-                      <span className="text-muted-foreground text-[10px]">—</span>
-                    )}
-                    {payment.status !== "PENDING" && payment.status !== "COMPLETED" && (
+                    {!primaryAction && secondaryActions.length === 0 && (
                       <span className="text-muted-foreground text-[10px]">—</span>
                     )}
                   </div>
@@ -405,6 +419,8 @@ export function ReservationDetailDialog({
   const extraPaidAmount = extraPayments.filter((p) => p.status === "COMPLETED").reduce((sum, p) => sum + Number(p.amount), 0);
   const extraPendingAmount = Math.max(extraTotal - extraPaidAmount, 0);
   const grandTotal = Number(reservation.totalPrice) + extraTotal;
+  const totalPaid = paidAmount + extraPaidAmount;
+  const totalPending = pendingAmount + extraPendingAmount;
 
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   const [generatingLinkId, setGeneratingLinkId] = useState<string | null>(null);
@@ -420,6 +436,7 @@ export function ReservationDetailDialog({
   const [attachReceiptPaymentId, setAttachReceiptPaymentId] = useState<string | null>(null);
   const [attachReceiptFile, setAttachReceiptFile] = useState<File | null>(null);
   const [isAttachingReceipt, setIsAttachingReceipt] = useState(false);
+  const [paymentToDelete, setPaymentToDelete] = useState<string | null>(null);
 
   const handleCopyLink = (initPoint: string) => {
     navigator.clipboard.writeText(initPoint);
@@ -520,7 +537,6 @@ export function ReservationDetailDialog({
   };
 
   const handleDeletePayment = (paymentId: string) => {
-    if (!confirm("¿Eliminar este pago?")) return;
     toast.success("Pago eliminado", {
       action: {
         label: "Deshacer",
@@ -637,80 +653,97 @@ onRefresh?.(reservation.id);
 
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-start justify-between mb-6">
-          <div className="flex items-center gap-4">
-            <div
-              className="h-12 w-12 rounded-lg flex items-center justify-center text-white font-bold"
-              style={{ backgroundColor: reservation.property.color || "#3B82F6" }}
-            >
-              {reservation.property.name[0]}
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onClose();
+      }}
+    >
+      <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-y-auto p-0">
+        <div className="space-y-6 p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-4 pr-8">
+            <div className="flex items-center gap-3 min-w-0">
+              <div
+                className="h-12 w-12 shrink-0 rounded-xl flex items-center justify-center text-white font-bold shadow-sm"
+                style={{ backgroundColor: reservation.property.color || "#3B82F6" }}
+              >
+                {reservation.property.name[0]}
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <DialogTitle className="text-base leading-tight truncate">{reservation.property.name}</DialogTitle>
+                  <Badge variant={status.variant} className="h-5 text-[11px]">{status.label}</Badge>
+                  {reservation.bookingAirbnb && <Badge variant="outline" className="h-5 text-[11px]">Airbnb</Badge>}
+                </div>
+                <p className="text-xs text-muted-foreground">#{reservation.id.slice(0, 8)}</p>
+              </div>
             </div>
-            <div>
-              <DialogTitle className="text-base">{reservation.property.name}</DialogTitle>
-              <p className="text-xs text-muted-foreground">#{reservation.id.slice(0, 8)}</p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_1.35fr]">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+              <div className="rounded-xl border border-border/70 bg-muted/20 p-3.5">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Calendar className="h-3 w-3" />
+                  Período
+                </div>
+                <p className="mt-2 text-sm font-medium text-foreground">
+                  {formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}
+                </p>
+                <p className="text-xs text-muted-foreground">{reservation.billingType === "MONTHLY" ? `${getMonths(reservation.startDate, reservation.endDate)} meses` : `${nights} noches`}</p>
+              </div>
+
+              <div className="rounded-xl border border-border/70 bg-muted/20 p-3.5">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <User className="h-3 w-3" />
+                  Huésped
+                </div>
+                <p className="mt-2 font-medium text-sm">{reservation.client.name}</p>
+                <p className="text-xs text-muted-foreground truncate">{reservation.client.email}</p>
+                {reservation.client.phone && <p className="text-xs text-muted-foreground">{reservation.client.phone}</p>}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Total general</p>
+                  <p className="mt-1 text-3xl font-semibold tracking-tight text-emerald-500">{formatPrice(grandTotal)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Arriendo + cobros extra</p>
+                </div>
+                {totalPending > 0 && (
+                  <div className="rounded-lg border border-orange-500/20 bg-orange-500/10 px-3 py-2 text-left sm:text-right">
+                    <p className="text-xs text-muted-foreground">Pendiente</p>
+                    <p className="text-sm font-semibold text-orange-500">{formatPrice(totalPending)}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                <div className="rounded-lg bg-background/40 p-3">
+                  <p className="text-xs text-muted-foreground">Arriendo</p>
+                  <p className="text-sm font-medium">{formatPrice(reservation.totalPrice)}</p>
+                  {reservation.billingType === "MONTHLY" && reservation.property.monthlyPrice && (
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">{formatPrice(reservation.property.monthlyPrice)}/mes × {getMonths(reservation.startDate, reservation.endDate)}</p>
+                  )}
+                  {reservation.billingType === "DAILY" && reservation.property.dailyPrice && (
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">{formatPrice(reservation.property.dailyPrice)}/noche × {nights}</p>
+                  )}
+                  {pendingAmount > 0 && <p className="mt-0.5 text-[11px] text-orange-500">{formatPrice(pendingAmount)} pend.</p>}
+                </div>
+                <div className="rounded-lg bg-background/40 p-3">
+                  <p className="text-xs text-muted-foreground">Extras</p>
+                  <p className="text-sm font-medium">{formatPrice(extraTotal)}</p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">{extraPayments.length === 1 ? "1 cobro" : `${extraPayments.length} cobros`}</p>
+                </div>
+                <div className="rounded-lg bg-background/40 p-3">
+                  <p className="text-xs text-muted-foreground">Pagado</p>
+                  <p className="text-sm font-medium">{formatPrice(totalPaid)}</p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">Pendiente {formatPrice(totalPending)}</p>
+                </div>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {reservation.bookingAirbnb && <Badge variant="outline" className="h-5 text-xs">Airbnb</Badge>}
-            <Badge variant={status.variant} className="h-5 text-xs">{status.label}</Badge>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 mb-6">
-          <div className="p-3 rounded-md bg-muted/30 border border-border">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-              <Calendar className="h-3 w-3" />
-              Período
-            </div>
-            <p className="font-medium text-sm">{formatDate(reservation.startDate)}</p>
-            <p className="text-xs text-muted-foreground">hasta</p>
-            <p className="font-medium text-sm">{formatDate(reservation.endDate)}</p>
-            <p className="text-xs text-muted-foreground mt-1">{reservation.billingType === "MONTHLY" ? `${getMonths(reservation.startDate, reservation.endDate)} meses` : `${nights} noches`}</p>
-          </div>
-
-          <div className="p-3 rounded-md bg-muted/30 border border-border">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-              <User className="h-3 w-3" />
-              Huésped
-            </div>
-            <p className="font-medium text-sm">{reservation.client.name}</p>
-            <p className="text-xs text-muted-foreground truncate">{reservation.client.email}</p>
-            {reservation.client.phone && <p className="text-xs text-muted-foreground">{reservation.client.phone}</p>}
-          </div>
-
-          <div className="p-3 rounded-md bg-primary/5 border border-primary/20">
-            <p className="text-xs text-muted-foreground mb-1">Total Arriendo</p>
-            <p className="text-xl font-bold text-primary">{formatPrice(reservation.totalPrice)}</p>
-            {reservation.billingType === "MONTHLY" && reservation.property.monthlyPrice && (
-              <p className="text-xs text-muted-foreground mt-1">
-                ({formatPrice(reservation.property.monthlyPrice)}/mes × {getMonths(reservation.startDate, reservation.endDate)} meses)
-              </p>
-            )}
-            {reservation.billingType === "DAILY" && reservation.property.dailyPrice && (
-              <p className="text-xs text-muted-foreground mt-1">
-                ({formatPrice(reservation.property.dailyPrice)}/noche × {nights} noches)
-              </p>
-            )}
-            {pendingAmount > 0 && <p className="text-xs text-orange-600 mt-1">{formatPrice(pendingAmount)} pend.</p>}
-          </div>
-
-          <div className="p-3 rounded-md bg-amber-500/5 border border-amber-500/20">
-            <p className="text-xs text-muted-foreground mb-1">Cobros Extras</p>
-            <p className="text-xl font-bold text-amber-600 dark:text-amber-400">{formatPrice(extraTotal)}</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {extraPayments.length === 1 ? "1 cobro extra" : `${extraPayments.length} cobros extra`}
-            </p>
-            {extraPendingAmount > 0 && <p className="text-xs text-orange-600 mt-1">{formatPrice(extraPendingAmount)} pend.</p>}
-          </div>
-
-          <div className="p-3 rounded-md bg-emerald-500/5 border border-emerald-500/20">
-            <p className="text-xs text-muted-foreground mb-1">Total General</p>
-            <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{formatPrice(grandTotal)}</p>
-            <p className="text-xs text-muted-foreground mt-1">Arriendo + extras</p>
-          </div>
-        </div>
 
         {reservation.notes && (
           <div className="p-3 rounded-md bg-muted/30 border border-border mb-6">
@@ -764,7 +797,7 @@ onRefresh?.(reservation.id);
                   payments={reservationPayments}
                   onGenerateLink={handleRegenerateLink}
                   onMarkPaid={handleMarkPaidClick}
-                  onDeletePayment={handleDeletePayment}
+                  onDeletePayment={setPaymentToDelete}
                   onAttachReceipt={handleAttachReceiptClick}
                   showInstallmentColumns={reservation.billingType === "MONTHLY"}
                   generatingLinkId={generatingLinkId}
@@ -781,7 +814,7 @@ onRefresh?.(reservation.id);
                   payments={extraPayments}
                   onGenerateLink={handleRegenerateLink}
                   onMarkPaid={handleMarkPaidClick}
-                  onDeletePayment={handleDeletePayment}
+                  onDeletePayment={setPaymentToDelete}
                   onAttachReceipt={handleAttachReceiptClick}
                   showInstallmentColumns={false}
                   showConceptColumn
@@ -879,6 +912,21 @@ onRefresh?.(reservation.id);
           onOpenChange={setShowAddPaymentDialog}
           onSuccess={() => onRefresh?.(reservation.id)}
         />
+        <ConfirmDialog
+          open={!!paymentToDelete}
+          onOpenChange={(open) => {
+            if (!open) setPaymentToDelete(null);
+          }}
+          title="Eliminar pago"
+          description="El pago pendiente se eliminará del registro. Podrás deshacerlo desde la notificación inmediatamente después."
+          confirmLabel="Eliminar pago"
+          onConfirm={() => {
+            if (!paymentToDelete) return;
+            handleDeletePayment(paymentToDelete);
+            setPaymentToDelete(null);
+          }}
+        />
+        </div>
       </DialogContent>
     </Dialog>
   );

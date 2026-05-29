@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PropertyFormSections as PropertyForm } from "@/components/properties/property-form-sections";
 import { PropertyCardGrid } from "@/components/properties/property-card";
 import { toast } from "sonner";
@@ -54,6 +55,7 @@ export function PropertiesClient({ initialProperties, usedColors }: PropertiesCl
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
+  const [propertyToDelete, setPropertyToDelete] = useState<Property | null>(null);
 
   const handleCreate = async (data: PropertyInput) => {
     const result = await createProperty(data);
@@ -121,10 +123,10 @@ export function PropertiesClient({ initialProperties, usedColors }: PropertiesCl
     });
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("¿Estás seguro de eliminar esta propiedad?")) return;
+  const handleDelete = async () => {
+    if (!propertyToDelete) return;
 
-    const result = await deleteProperty(id);
+    const result = await deleteProperty(propertyToDelete.id);
 
     if (result.error) {
       toast.error(result.error);
@@ -132,7 +134,8 @@ export function PropertiesClient({ initialProperties, usedColors }: PropertiesCl
     }
 
     toast.success("Propiedad eliminada");
-    setProperties((prev) => prev.filter((p) => p.id !== id));
+    setProperties((prev) => prev.filter((p) => p.id !== propertyToDelete.id));
+    setPropertyToDelete(null);
     startTransition(() => {
       router.refresh();
     });
@@ -207,13 +210,13 @@ export function PropertiesClient({ initialProperties, usedColors }: PropertiesCl
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3 lg:gap-4">
           {filteredProperties.map((property) => (
             <PropertyCardGrid
               key={property.id}
               property={property}
               onEdit={() => setEditingProperty(property)}
-              onDelete={() => handleDelete(property.id)}
+              onDelete={() => setPropertyToDelete(property)}
             />
           ))}
         </div>
@@ -241,6 +244,17 @@ export function PropertiesClient({ initialProperties, usedColors }: PropertiesCl
           )}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!propertyToDelete}
+        onOpenChange={(open) => {
+          if (!open) setPropertyToDelete(null);
+        }}
+        title="Eliminar propiedad"
+        description={`Se eliminará ${propertyToDelete?.name ?? "esta propiedad"}. Esta acción no se puede deshacer.`}
+        confirmLabel="Eliminar propiedad"
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

@@ -312,6 +312,9 @@ describe('createReservation MONTHLY', () => {
     expect(paymentCalls[1][0].data.installmentIndex).toBe(2);
     expect(paymentCalls[2][0].data.installmentIndex).toBe(3);
     expect(paymentCalls[0][0].data.amount.toString()).toBe('300000');
+    expect(paymentCalls[0][0].data.dueDate).toEqual(new Date(2025, 0, 1));
+    expect(paymentCalls[1][0].data.dueDate).toEqual(new Date(2025, 1, 1));
+    expect(paymentCalls[2][0].data.dueDate).toEqual(new Date(2025, 2, 1));
   });
 
   it('retorna error si billingType MONTHLY pero property no tiene monthlyPrice', async () => {

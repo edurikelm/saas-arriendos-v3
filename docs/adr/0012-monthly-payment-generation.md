@@ -20,7 +20,8 @@ Cuando se crea una reserva con `billing_type: MONTHLY`:
 
 - Se generan N registros `Payment` en la misma transacción atómica
 - Cada `Payment` tiene `amount = monthly_price × units_booked`
-- `due_date` = día 1 normalizado de cada mes (ej: start Mar 15 → Apr 1, May 1, Jun 1...)
+- `due_date` = día 1 de cada mes cubierto por la reserva, empezando por el mes de `start_date` (ej: Sep 1 → Sep 1, Oct 1, Nov 1)
+- `end_date` es inclusivo también para MONTHLY: Sep 1 → Nov 30 cuenta como 3 meses, con salida/entrega calculada aparte como Dec 1 si se necesita mostrarla
 - `installment_index` = 1, 2, 3... para identificar cada cuota
 - Todos start con `status: PENDING`, `method: MERCADO_PAGO`
 - `init_point` se genera **bajo demanda** (cuando el propietario quiere cobrar), no al crear la reserva

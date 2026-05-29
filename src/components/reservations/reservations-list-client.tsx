@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { ReservationForm } from "@/components/reservations/reservation-form";
 import { ReservationDetailDialog } from "@/components/reservations/reservation-detail-dialog";
 import { ReservationTable } from "@/components/reservations/reservation-table";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import {
   createReservation,
@@ -105,6 +106,12 @@ export function ReservationsListClient({
   const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
   const [viewingReservation, setViewingReservation] = useState<Reservation | null>(null);
   const [showFilters, setShowFilters] = useState(true);
+  const [confirmAction, setConfirmAction] = useState<null | {
+    title: string;
+    description: string;
+    confirmLabel: string;
+    onConfirm: () => Promise<void>;
+  }>(null);
 
   const [filters, setFilters] = useState({
     propertyId: "",
@@ -175,8 +182,7 @@ export function ReservationsListClient({
     handleRefresh();
   };
 
-  const handleCancel = async (id: string) => {
-    if (!confirm("¿Estás seguro de cancelar esta reserva?")) return;
+  const performCancel = async (id: string) => {
     const result = await cancelReservation(id, "cancelled_by_user");
     if (result?.error) {
       toast.error(result.error);
@@ -186,8 +192,19 @@ export function ReservationsListClient({
     handleRefresh();
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("¿Estás seguro de eliminar esta reserva? Esta acción no se puede deshacer.")) return;
+  const handleCancel = (id: string, afterConfirm?: () => void) => {
+    setConfirmAction({
+      title: "Cancelar reserva",
+      description: "La reserva quedará cancelada, pero se mantendrán los pagos completados como registro financiero.",
+      confirmLabel: "Cancelar reserva",
+      onConfirm: async () => {
+        await performCancel(id);
+        afterConfirm?.();
+      },
+    });
+  };
+
+  const performDelete = async (id: string) => {
     const result = await deleteReservation(id);
     if (result?.error) {
       toast.error(result.error);
@@ -195,6 +212,18 @@ export function ReservationsListClient({
     }
     toast.success("Reserva eliminada");
     handleRefresh();
+  };
+
+  const handleDelete = (id: string) => {
+    setIsCreateOpen(false);
+    setEditingReservation(null);
+    setViewingReservation(null);
+    setConfirmAction({
+      title: "Eliminar reserva",
+      description: "Esta acción no se puede deshacer. Se eliminará la reserva seleccionada del listado.",
+      confirmLabel: "Eliminar reserva",
+      onConfirm: () => performDelete(id),
+    });
   };
 
   const handleEdit = async (data: ReservationInput) => {
@@ -561,9 +590,7 @@ export function ReservationsListClient({
           }}
           onCancel={() => {
             if (!viewingReservation) return;
-            if (!confirm("¿Estás seguro de cancelar esta reserva?")) return;
-            handleCancel(viewingReservation.id);
-            setViewingReservation(null);
+            handleCancel(viewingReservation.id, () => setViewingReservation(null));
           }}
           onRefresh={async (reservationId) => {
             const updated = await getReservations();
@@ -604,6 +631,20 @@ export function ReservationsListClient({
           )}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!confirmAction}
+        onOpenChange={(open) => {
+          if (!open) setConfirmAction(null);
+        }}
+        title={confirmAction?.title ?? "Confirmar acción"}
+        description={confirmAction?.description ?? "Esta acción requiere confirmación."}
+        confirmLabel={confirmAction?.confirmLabel}
+        onConfirm={async () => {
+          await confirmAction?.onConfirm();
+          setConfirmAction(null);
+        }}
+      />
     </div>
   );
 }

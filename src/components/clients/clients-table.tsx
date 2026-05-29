@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ClientForm } from "@/components/clients/client-form";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -44,6 +45,7 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
 
   const handleCreate = async (data: ClientInput) => {
     const result = await createClient(data);
@@ -79,10 +81,10 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
     );
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("¿Estás seguro de eliminar este cliente?")) return;
+  const handleDelete = async () => {
+    if (!clientToDelete) return;
 
-    const result = await deleteClient(id);
+    const result = await deleteClient(clientToDelete.id);
 
     if (result.error) {
       toast.error(result.error);
@@ -90,7 +92,8 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
     }
 
     toast.success("Cliente eliminado");
-    setClients((prev) => prev.filter((c) => c.id !== id));
+    setClients((prev) => prev.filter((c) => c.id !== clientToDelete.id));
+    setClientToDelete(null);
   };
 
   const filteredClients = clients.filter(
@@ -190,7 +193,7 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
                                 <Pencil className="h-4 w-4 mr-2" />
                                 Editar
                               </DropdownMenuItem>
-                              <DropdownMenuItem variant="destructive" onClick={() => handleDelete(client.id)}>
+                              <DropdownMenuItem variant="destructive" onClick={() => setClientToDelete(client)}>
                                 <Trash2 className="h-4 w-4 mr-2" />
                                 Eliminar
                               </DropdownMenuItem>
@@ -240,6 +243,17 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
           )}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!clientToDelete}
+        onOpenChange={(open) => {
+          if (!open) setClientToDelete(null);
+        }}
+        title="Eliminar cliente"
+        description={`Se eliminará ${clientToDelete?.name ?? "este cliente"}. Esta acción no se puede deshacer.`}
+        confirmLabel="Eliminar cliente"
+        onConfirm={handleDelete}
+      />
     </>
   );
 }

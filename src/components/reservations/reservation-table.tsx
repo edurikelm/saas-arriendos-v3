@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { getPaymentStatus } from "@/lib/reservation-payment";
+import { getInclusiveMonths } from "@/lib/reservation-dates";
 
 type PillTone = "green" | "blue" | "purple" | "amber" | "red" | "slate";
 
@@ -112,10 +113,7 @@ function getNights(startDate: string, endDate: string): number {
 }
 
 function getMonths(startDate: string, endDate: string): number {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
-  return months >= 1 ? months : 1;
+  return getInclusiveMonths(startDate, endDate);
 }
 
 function getTemporalStatus(startDate: string, endDate: string, billingType: string, status?: string): { label: string; variant: "default" | "secondary" | "outline" | "destructive"; color: string; sublabel?: string } {
@@ -597,6 +595,9 @@ function ReservationMobileCard({ reservation, onEdit, onView, onDelete }: {
   const duration = reservation.billingType === "MONTHLY"
     ? `${getMonths(reservation.startDate, reservation.endDate)} meses`
     : `${getNights(reservation.startDate, reservation.endDate)} noches`;
+  const runAfterMenuClose = (action: () => void) => {
+    window.setTimeout(action, 0);
+  };
 
   return (
     <article className="group relative overflow-hidden rounded-2xl border border-zinc-800/80 bg-zinc-950/40 p-4 shadow-sm transition-all duration-300 hover:border-zinc-700 hover:bg-zinc-950/70">
@@ -619,9 +620,9 @@ function ReservationMobileCard({ reservation, onEdit, onView, onDelete }: {
             <MoreHorizontal className="h-4 w-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {onView && <DropdownMenuItem onClick={() => onView(reservation.id)}>Ver</DropdownMenuItem>}
-            {onEdit && <DropdownMenuItem onClick={() => onEdit(reservation.id)}>Editar</DropdownMenuItem>}
-            {onDelete && <DropdownMenuItem variant="destructive" onClick={() => onDelete(reservation.id)}>Eliminar</DropdownMenuItem>}
+            {onView && <DropdownMenuItem onClick={() => runAfterMenuClose(() => onView(reservation.id))}>Ver</DropdownMenuItem>}
+            {onEdit && <DropdownMenuItem onClick={() => runAfterMenuClose(() => onEdit(reservation.id))}>Editar</DropdownMenuItem>}
+            {onDelete && <DropdownMenuItem variant="destructive" onClick={() => runAfterMenuClose(() => onDelete(reservation.id))}>Eliminar</DropdownMenuItem>}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -671,6 +672,9 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
 }) {
   const [sortField, setSortField] = useState<"startDate" | "totalPrice" | "client" | "createdAt">("createdAt");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const runAfterMenuClose = (action: () => void) => {
+    window.setTimeout(action, 0);
+  };
 
   const sorted = [...reservations].sort((a, b) => {
     let cmp = 0;
@@ -826,30 +830,20 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                   </td>
                   <td className="rounded-r-xl border-y border-r border-zinc-200/70 bg-white p-4 text-right shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
                     <div className="flex items-center justify-end gap-1 opacity-70 transition-opacity group-hover:opacity-100">
-                      {onView && (
-                        <Button size="sm" variant="ghost" onClick={() => onView(res.id)}>
-                          Ver
-                        </Button>
-                      )}
-                      {onEdit && (
-                        <Button size="sm" variant="ghost" onClick={() => onEdit(res.id)}>
-                          Editar
-                        </Button>
-                      )}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger className="cursor-pointer rounded-md p-1.5 transition-colors hover:bg-muted">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {onView && <DropdownMenuItem onClick={() => onView(res.id)}>Ver detalle</DropdownMenuItem>}
-                        {onEdit && <DropdownMenuItem onClick={() => onEdit(res.id)}>Editar reserva</DropdownMenuItem>}
-                        {onDelete && (
-                          <DropdownMenuItem variant="destructive" onClick={() => onDelete(res.id)}>
-                            Eliminar
-                          </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger className="cursor-pointer rounded-md p-1.5 transition-colors hover:bg-muted">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {onView && <DropdownMenuItem onClick={() => runAfterMenuClose(() => onView(res.id))}>Ver detalle</DropdownMenuItem>}
+                          {onEdit && <DropdownMenuItem onClick={() => runAfterMenuClose(() => onEdit(res.id))}>Editar reserva</DropdownMenuItem>}
+                          {onDelete && (
+                            <DropdownMenuItem variant="destructive" onClick={() => runAfterMenuClose(() => onDelete(res.id))}>
+                              Eliminar
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </td>
                 </tr>

@@ -77,7 +77,7 @@ El webhook intenta matchear el pago en este orden:
 
 ### Precio
 - Si `billing_type: DAILY` → total = noches × daily_price (noches = end_date - start_date + 1)
-- Si `billing_type: MONTHLY` → total = meses × monthly_price (precio fijo, no se mezcla con diario)
+- Si `billing_type: MONTHLY` → total = meses inclusivos × monthly_price (ej: 1 sept → 30 nov = 3 meses; precio fijo, no se mezcla con diario)
 - El precio monthly es un descuento para estadías largas, no un umbral automático
 
 ### Pagos
@@ -86,7 +86,7 @@ El webhook intenta matchear el pago en este orden:
 - Pagos manuales: el propietario registra efectivo/transferencia con `paid_at` y `method`; puede adjuntar comprobante (imagen) al crear el pago, al marcarlo como pagado, o después en un pago ya completado. Esto también aplica a pagos de Mercado Pago ya completados.
 - Reservas pueden estar CONFIRMED con saldo pendiente
 - **Arriendos mensuales (MONTHLY):** se generan N pagos pendientes al crear la reserva, uno por cada mes
-- **Generación de pagos:** `amount = monthly_price × units_booked`, `due_date` = día 1 de cada mes
+- **Generación de pagos:** `amount = monthly_price × units_booked`, `due_date` = día 1 de cada mes cubierto, empezando por el mes de `start_date`
 - **Link MP:** se genera bajo demanda (no al crear la reserva), vence en 7 días
 - Al cancelar: DELETE pagos PENDING, KEEP pagos COMPLETED (auditoría financiera)
 
