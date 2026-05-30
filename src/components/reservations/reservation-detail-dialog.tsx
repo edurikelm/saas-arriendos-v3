@@ -15,6 +15,7 @@ import {
   Plus,
   Loader2,
   MoreHorizontal,
+  MessageCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +46,7 @@ import { toast } from "sonner";
 import { confirmPayment, revertPayment, generatePaymentLink, markPaymentAsPaid, attachReceipt } from "@/lib/actions/payments";
 import { CheckCircle, Search } from "lucide-react";
 import { AddPaymentDialog } from "./add-payment-dialog";
+import { SendPaymentLinkDialog } from "./send-payment-link-dialog";
 import { ReceiptUpload } from "@/components/ui/receipt-upload";
 import { ReservationDocumentsPanel } from "./reservation-documents-panel";
 import { getInclusiveMonths } from "@/lib/reservation-dates";
@@ -184,6 +186,7 @@ export function PaymentsTable({
   onMarkPaid,
   onDeletePayment,
   onAttachReceipt,
+  onSendLink,
   showInstallmentColumns,
   showConceptColumn = false,
   generatingLinkId,
@@ -191,8 +194,9 @@ export function PaymentsTable({
   payments: Payment[];
   onGenerateLink?: (paymentId: string) => void;
   onMarkPaid?: (paymentId: string) => void;
-  onDeletePayment?: (paymentId: string) => void;
+onDeletePayment?: (paymentId: string) => void;
   onAttachReceipt?: (paymentId: string) => void;
+  onSendLink?: (payment: Payment) => void;
   showInstallmentColumns: boolean;
   showConceptColumn?: boolean;
   generatingLinkId?: string | null;
@@ -230,6 +234,7 @@ export function PaymentsTable({
             const canDelete = isPending && !isMercadoPago && onDeletePayment;
             const canViewReceipt = Boolean(payment.receiptUrl);
             const canAttachReceipt = isCompleted && !payment.receiptUrl && onAttachReceipt;
+            const canSendLink = isPending && isMercadoPago && payment.initPoint && onSendLink;
             const primaryAction = canGenerateLink
               ? "generate"
               : canCopyLink
@@ -239,12 +244,13 @@ export function PaymentsTable({
                   : canViewReceipt
                     ? "viewReceipt"
                     : null;
-            const secondaryActions = [
+const secondaryActions = [
               canMarkPaid && primaryAction !== "markPaid" ? "markPaid" : null,
               canDelete ? "delete" : null,
               canViewReceipt && primaryAction !== "viewReceipt" ? "viewReceipt" : null,
               canAttachReceipt ? "attachReceipt" : null,
-            ].filter(Boolean) as Array<"markPaid" | "delete" | "viewReceipt" | "attachReceipt">;
+              canSendLink ? "sendLink" : null,
+            ].filter(Boolean) as Array<"markPaid" | "delete" | "viewReceipt" | "attachReceipt" | "sendLink">;
 
             const renderActionButton = (action: typeof primaryAction) => {
               if (!action) return null;
@@ -325,8 +331,12 @@ export function PaymentsTable({
                 return <DropdownMenuItem variant="destructive" onClick={() => onDeletePayment?.(payment.id)}>Eliminar pago</DropdownMenuItem>;
               }
 
-              if (action === "viewReceipt") {
+if (action === "viewReceipt") {
                 return <DropdownMenuItem onClick={() => window.open(payment.receiptUrl!, "_blank")}>Ver comprobante</DropdownMenuItem>;
+              }
+
+              if (action === "sendLink") {
+                return <DropdownMenuItem onClick={() => onSendLink?.(payment)}>Enviar link</DropdownMenuItem>;
               }
 
               return <DropdownMenuItem onClick={() => onAttachReceipt?.(payment.id)}>Adjuntar comprobante</DropdownMenuItem>;
@@ -437,6 +447,7 @@ export function ReservationDetailDialog({
   const [attachReceiptFile, setAttachReceiptFile] = useState<File | null>(null);
   const [isAttachingReceipt, setIsAttachingReceipt] = useState(false);
   const [paymentToDelete, setPaymentToDelete] = useState<string | null>(null);
+  const [sendLinkPayment, setSendLinkPayment] = useState<Payment | null>(null);
 
   const handleCopyLink = (initPoint: string) => {
     navigator.clipboard.writeText(initPoint);
@@ -793,12 +804,13 @@ onRefresh?.(reservation.id);
                     </div>
                   )}
                 </div>
-                <PaymentsTable
+<PaymentsTable
                   payments={reservationPayments}
                   onGenerateLink={handleRegenerateLink}
                   onMarkPaid={handleMarkPaidClick}
                   onDeletePayment={setPaymentToDelete}
                   onAttachReceipt={handleAttachReceiptClick}
+                  onSendLink={setSendLinkPayment}
                   showInstallmentColumns={reservation.billingType === "MONTHLY"}
                   generatingLinkId={generatingLinkId}
                 />
@@ -810,12 +822,13 @@ onRefresh?.(reservation.id);
                 <div className="mb-3">
                   <p className="text-sm font-medium">Cobros extra</p>
                 </div>
-                <PaymentsTable
+<PaymentsTable
                   payments={extraPayments}
                   onGenerateLink={handleRegenerateLink}
                   onMarkPaid={handleMarkPaidClick}
                   onDeletePayment={setPaymentToDelete}
                   onAttachReceipt={handleAttachReceiptClick}
+                  onSendLink={setSendLinkPayment}
                   showInstallmentColumns={false}
                   showConceptColumn
                   generatingLinkId={generatingLinkId}
@@ -912,7 +925,7 @@ onRefresh?.(reservation.id);
           onOpenChange={setShowAddPaymentDialog}
           onSuccess={() => onRefresh?.(reservation.id)}
         />
-        <ConfirmDialog
+<ConfirmDialog
           open={!!paymentToDelete}
           onOpenChange={(open) => {
             if (!open) setPaymentToDelete(null);
@@ -925,6 +938,19 @@ onRefresh?.(reservation.id);
             handleDeletePayment(paymentToDelete);
             setPaymentToDelete(null);
           }}
+        />
+
+        <SendPaymentLinkDialog
+          open={!!sendLinkPayment}
+          onOpenChange={(open: boolean) => {
+            if (!open) setSendLinkPayment(null);
+          }}
+          payment={sendLinkPayment!}
+          client={reservation.client}
+          propertyName={reservation.property.name}
+          reservationStartDate={reservation.startDate}
+          reservationEndDate={reservation.endDate}
+          billingType={reservation.billingType}
         />
         </div>
       </DialogContent>

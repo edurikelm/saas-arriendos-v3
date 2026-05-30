@@ -1,10 +1,13 @@
-export default function HomePage() {
-  return (
-    <main className="flex min-h-screen items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">RentalPro</h1>
-        <p className="text-muted-foreground">Sistema de Administración de Arriendos</p>
-      </div>
-    </main>
-  );
+import { redirect } from "next/navigation";
+import { getSession } from "@/lib/actions/auth";
+import { LandingPage } from "@/components/landing/landing-page";
+
+export default async function HomePage() {
+  const session = await getSession();
+
+  if (session) {
+    redirect("/dashboard");
+  }
+
+  return <LandingPage />;
 }
