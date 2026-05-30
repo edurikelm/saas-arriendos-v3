@@ -155,7 +155,7 @@ export function CalendarGrid({
     });
   }, [weeks, reservations]);
 
-  const maxVisibleLanes = 2;
+  const maxVisibleLanes = 1;
 
   const toggleExpandedWeek = (weekIndex: number) => {
     setExpandedWeeks((prev) => {
@@ -170,29 +170,29 @@ export function CalendarGrid({
   };
 
   return (
-    <div className="space-y-3 lg:flex lg:h-full lg:min-h-0 lg:flex-col">
-      <div className="grid gap-3 lg:grid-cols-[1fr_auto_1fr] lg:items-end">
+    <div className="space-y-2 lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:space-y-3">
+      <div className="grid gap-2 sm:gap-3 lg:grid-cols-[1fr_auto_1fr] lg:items-end">
         <div className="min-w-0 leading-tight">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground sm:text-xs">
             Calendario mensual de reservas diarias
           </p>
-          <h2 className="text-2xl font-bold capitalize tracking-tight">
+          <h2 className="text-lg font-bold capitalize tracking-tight sm:text-2xl">
             {format(currentDate, "MMMM yyyy", { locale: es })}
           </h2>
         </div>
-        <div className="flex w-fit items-center gap-2 rounded-full border bg-background/80 p-1 shadow-sm lg:justify-self-center">
+        <div className="flex w-fit items-center gap-1 rounded-full border bg-background/80 p-0.5 shadow-sm sm:gap-2 sm:p-1 lg:justify-self-center">
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 rounded-full"
+            className="h-7 w-7 rounded-full sm:h-8 sm:w-8"
             onClick={() => navigateMonth("prev")}
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </Button>
           <Button
             variant="secondary"
             size="sm"
-            className="h-8 rounded-full px-4"
+            className="h-7 rounded-full px-2.5 text-xs sm:h-8 sm:px-4"
             onClick={() => setCurrentDate(new Date())}
           >
             Hoy
@@ -200,10 +200,10 @@ export function CalendarGrid({
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 rounded-full"
+            className="h-7 w-7 rounded-full sm:h-8 sm:w-8"
             onClick={() => navigateMonth("next")}
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </Button>
         </div>
         {headerActions && (
@@ -219,7 +219,7 @@ export function CalendarGrid({
           {["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"].map((day) => (
             <div
               key={day}
-              className="border-r px-1 py-3 text-center text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground last:border-r-0 sm:text-xs"
+              className="border-r px-1 py-1.5 text-center text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground last:border-r-0 sm:py-2 sm:text-[10px] md:py-2.5 md:text-xs"
             >
               {day}
             </div>
@@ -242,8 +242,8 @@ export function CalendarGrid({
                   weekIndex < weeksData.length - 1 ? "border-b border-border" : ""
                 }`}
                 style={{
-                  "--week-min-height": numLanes > 0 ? `${82 + numLanes * 30}px` : "0px",
-                  "--week-lg-height": expanded ? `${82 + numLanes * 30}px` : "0px",
+                  "--week-min-height": numLanes > 0 ? `${56 + numLanes * 30}px` : "0px",
+                  "--week-lg-height": expanded ? `${56 + numLanes * 30}px` : "0px",
                 } as CSSProperties}
               >
               {week.map((day) => {
@@ -254,7 +254,7 @@ export function CalendarGrid({
                 return (
                   <div
                     key={dateKey}
-                    className={`group h-full min-h-12 border-r bg-background/75 p-1.5 transition-colors last:border-r-0 hover:bg-muted/40 sm:min-h-20 sm:p-2 lg:min-h-0 ${
+                    className={`group h-full min-h-9 border-r bg-background/75 p-1 transition-colors last:border-r-0 hover:bg-muted/40 sm:min-h-10 sm:p-1.5 md:min-h-12 lg:min-h-0 ${
                       !isCurrentMonth
                         ? "bg-muted/25 text-muted-foreground"
                         : ""
@@ -263,7 +263,7 @@ export function CalendarGrid({
                   >
                     <div className="flex items-start justify-between gap-1">
                       <div
-                        className={`flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold transition-transform group-hover:scale-105 ${
+                        className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold transition-transform group-hover:scale-105 sm:h-6 sm:w-6 sm:text-xs md:h-7 md:w-7 md:text-sm ${
                           isToday
                             ? "bg-primary text-primary-foreground shadow-sm"
                             : isCurrentMonth
@@ -274,7 +274,7 @@ export function CalendarGrid({
                         {format(day, "d")}
                       </div>
                       {isToday && (
-                        <span className="hidden rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary sm:inline-flex">
+                        <span className="hidden rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary md:inline-flex">
                           Hoy
                         </span>
                       )}
@@ -293,22 +293,22 @@ export function CalendarGrid({
                       e.stopPropagation();
                       onSelectReservation?.(wr.res.id);
                     }}
-                    className={`absolute z-10 flex h-7 cursor-pointer items-center gap-1.5 overflow-hidden rounded-full border px-2 text-left text-xs font-semibold shadow-sm transition-all hover:z-20 hover:-translate-y-0.5 hover:shadow-lg focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                    className={`absolute z-10 flex h-6 cursor-pointer items-center gap-1 overflow-hidden rounded-full border px-1.5 text-left text-[10px] font-semibold shadow-sm transition-all hover:z-20 hover:-translate-y-0.5 hover:shadow-lg focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-6 sm:gap-1.5 sm:px-2 sm:text-xs ${
                       ended
                         ? "border-border bg-muted text-muted-foreground opacity-75 line-through decoration-muted-foreground/60"
                         : "border-white/25"
                     }`}
                     style={{
                       left: `${(wr.startCol / 7) * 100}%`,
-                      top: `${42 + wr.lane * 30}px`,
-                      width: `calc(${(wr.span / 7) * 100}% - 6px)`,
+                      top: `${32 + wr.lane * 28}px`,
+                      width: `calc(${(wr.span / 7) * 100}% - 4px)`,
                       backgroundColor: ended ? undefined : color,
                       color: ended ? undefined : getContrastColor(color),
                     }}
                     title={`${wr.res.client.name} - ${wr.res.property.name}`}
                   >
                     <span
-                      className={`h-2 w-2 shrink-0 rounded-full ${ended ? "opacity-60" : "ring-2 ring-white/40"}`}
+                      className={`h-1.5 w-1.5 shrink-0 rounded-full sm:h-2 sm:w-2 ${ended ? "opacity-60" : "ring-1 ring-white/40 sm:ring-2"}`}
                       style={{ backgroundColor: color }}
                     />
                     <span className="truncate">
@@ -325,9 +325,19 @@ export function CalendarGrid({
                     event.stopPropagation();
                     toggleExpandedWeek(weekIndex);
                   }}
-                  className="absolute bottom-2 right-2 z-20 rounded-full border border-primary/30 bg-primary px-3 py-1 text-xs font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="absolute bottom-1 right-1 z-20 flex items-center gap-1 rounded-full border border-primary/30 bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:bottom-1.5 sm:right-1.5 sm:px-2.5 sm:py-0.5 sm:text-[11px]"
                 >
-                  {expanded ? "Ocultar" : `+${hiddenCount} más`}
+                  {expanded ? (
+                    <>
+                      <span className="hidden sm:inline">Ocultar</span>
+                      <span className="sm:hidden">−</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="hidden sm:inline">+{hiddenCount} más</span>
+                      <span className="sm:hidden">+{hiddenCount}</span>
+                    </>
+                  )}
                 </button>
               )}
             </div>

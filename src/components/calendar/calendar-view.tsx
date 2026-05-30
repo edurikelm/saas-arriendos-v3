@@ -133,7 +133,8 @@ export function CalendarView({ initialReservations, properties, clients, plan = 
     <>
       <Button variant="default" size="sm" onClick={() => setCreateDialogOpen(true)}>
         <Plus className="h-4 w-4 mr-2" />
-        Nueva Reserva
+        <span className="hidden sm:inline">Nueva Reserva</span>
+        <span className="sm:hidden">Nueva</span>
       </Button>
       <div className="flex overflow-hidden rounded-md border">
         <button
@@ -151,13 +152,13 @@ export function CalendarView({ initialReservations, properties, clients, plan = 
           <SlidersHorizontal className="h-4 w-4" />
         </button>
       </div>
-      <Filter className="h-4 w-4 text-muted-foreground" />
+      <Filter className="h-4 w-4 text-muted-foreground hidden sm:block" />
       <Select value={selectedPropertyId} onValueChange={(v) => setSelectedPropertyId(v || "all")}>
-        <SelectTrigger className="w-48">
-          <SelectValue placeholder="Todas las propiedades" />
+        <SelectTrigger className="w-32 sm:w-48">
+          <SelectValue placeholder="Propiedades" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">Todas las propiedades</SelectItem>
+          <SelectItem value="all">Todas</SelectItem>
           {properties.map((property) => (
             <SelectItem key={property.id} value={property.id}>
               {property.name}
