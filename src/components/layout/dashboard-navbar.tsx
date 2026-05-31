@@ -41,7 +41,7 @@ export function DashboardNavbar({ userName, userRole, userPlan }: DashboardNavba
   }, []);
 
   return (
-    <header className="sticky top-0 z-30 border-b bg-navbar/90 text-navbar-foreground shadow-sm backdrop-blur-xl">
+    <header className="sticky top-0 z-30 hidden border-b bg-navbar/90 text-navbar-foreground shadow-sm backdrop-blur-xl lg:block">
       <div className="flex min-h-18 items-center justify-between gap-4 px-4 py-3 lg:px-6">
         <div className="hidden min-w-0 lg:block">
           <div className="flex items-center gap-3">

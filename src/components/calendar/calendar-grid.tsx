@@ -12,7 +12,6 @@ import {
   isSameDay,
   addMonths,
   subMonths,
-  differenceInDays,
   getDay,
 } from "date-fns";
 import { es } from "date-fns/locale";
@@ -133,7 +132,7 @@ export function CalendarGrid({
         const lastVisibleDay = end > weekEnd ? weekEnd : end;
 
         const startCol = getDay(firstVisibleDay);
-        const span = differenceInDays(lastVisibleDay, firstVisibleDay) + 1;
+        const span = getDay(lastVisibleDay) - getDay(firstVisibleDay) + 1;
 
         return {
           res,
@@ -215,20 +214,20 @@ export function CalendarGrid({
       </div>
 
       <div className="overflow-hidden rounded-2xl border bg-gradient-to-br from-background via-background to-muted/30 shadow-sm lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
-        {/* Header de días */}
-        <div className="grid grid-cols-7 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-          {["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"].map((day) => (
-            <div
-              key={day}
-              className="border-r px-1 py-1.5 text-center text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground last:border-r-0 sm:py-2 sm:text-[10px] md:py-2.5 md:text-xs"
-            >
-              {day}
-            </div>
-          ))}
-        </div>
-
         {/* Semanas */}
         <div className="grid grid-cols-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+          {/* Header de días - sticky dentro del scroll */}
+          <div className="sticky top-0 z-10 grid grid-cols-7 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+            {["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"].map((day) => (
+              <div
+                key={day}
+                className="border-r px-1 py-1.5 text-center text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground last:border-r-0 sm:py-2 sm:text-[10px] md:py-2.5 md:text-xs"
+              >
+                {day}
+              </div>
+            ))}
+          </div>
+
           {weeksData.map(({ week, weekReservations, numLanes }, weekIndex) => {
             const isExpanded = expandedWeeks.has(weekIndex);
             const isHovered = hoveredWeek === weekIndex;
