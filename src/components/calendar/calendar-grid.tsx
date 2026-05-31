@@ -98,6 +98,7 @@ export function CalendarGrid({
 }: CalendarGridProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(() => new Set());
+  const [hoveredWeek, setHoveredWeek] = useState<number | null>(null);
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -155,7 +156,7 @@ export function CalendarGrid({
     });
   }, [weeks, reservations]);
 
-  const maxVisibleLanes = 1;
+  const maxVisibleLanes = 2;
 
   const toggleExpandedWeek = (weekIndex: number) => {
     setExpandedWeeks((prev) => {
@@ -227,24 +228,30 @@ export function CalendarGrid({
         </div>
 
         {/* Semanas */}
-        <div className="grid grid-cols-1 lg:min-h-0 lg:flex-1">
+        <div className="grid grid-cols-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
           {weeksData.map(({ week, weekReservations, numLanes }, weekIndex) => {
-            const expanded = expandedWeeks.has(weekIndex);
-            const visibleReservations = expanded
+            const isExpanded = expandedWeeks.has(weekIndex);
+            const isHovered = hoveredWeek === weekIndex;
+            const shouldExpand = isExpanded || isHovered;
+            const visibleReservations = shouldExpand
               ? weekReservations
               : weekReservations.filter((wr) => wr.lane < maxVisibleLanes);
-            const hiddenCount = weekReservations.length - visibleReservations.length;
+            const hiddenReservations = weekReservations.filter((wr) => wr.lane >= maxVisibleLanes);
+            const hiddenCount = hiddenReservations.length;
 
             return (
               <div
                 key={weekIndex}
-                className={`relative grid min-h-[var(--week-min-height)] grid-cols-7 overflow-hidden bg-background transition-[min-height] lg:min-h-[var(--week-lg-height)] ${
+                className={`relative grid grid-cols-7 overflow-hidden bg-background transition-[min-height] ${
                   weekIndex < weeksData.length - 1 ? "border-b border-border" : ""
                 }`}
                 style={{
-                  "--week-min-height": numLanes > 0 ? `${56 + numLanes * 30}px` : "0px",
-                  "--week-lg-height": expanded ? `${56 + numLanes * 30}px` : "0px",
+                  minHeight: shouldExpand
+                    ? `${56 + numLanes * 30}px`
+                    : `${56 + Math.min(numLanes, maxVisibleLanes) * 30}px`,
                 } as CSSProperties}
+                onMouseEnter={() => setHoveredWeek(weekIndex)}
+                onMouseLeave={() => setHoveredWeek(null)}
               >
               {week.map((day) => {
                 const dateKey = format(day, "yyyy-MM-dd");
@@ -318,24 +325,50 @@ export function CalendarGrid({
                 );
               })}
 
-              {(hiddenCount > 0 || expanded) && (
+              {hiddenCount > 0 && !shouldExpand && (
+                <div className="absolute bottom-1 right-1 z-20 flex items-center gap-1.5 sm:bottom-1.5 sm:right-1.5">
+                  <div className="flex -space-x-1">
+                    {hiddenReservations.slice(0, 4).map((wr, idx) => {
+                      const color = getReservationColor(wr.res);
+                      return (
+                        <span
+                          key={idx}
+                          className="h-4 w-4 rounded-full border-2 border-background shadow-sm transition-transform hover:scale-110 hover:z-10"
+                          style={{ backgroundColor: color }}
+                          title={`${wr.res.client.name} - ${wr.res.property.name}`}
+                        />
+                      );
+                    })}
+                    {hiddenCount > 4 && (
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-muted text-[8px] font-bold text-muted-foreground">
+                        +{hiddenCount - 4}
+                      </span>
+                    )}
+                  </div>
+                  <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary">
+                    +{hiddenCount}
+                  </span>
+                </div>
+              )}
+
+              {(hiddenCount > 0 || isExpanded) && (
                 <button
                   type="button"
                   onClick={(event) => {
                     event.stopPropagation();
                     toggleExpandedWeek(weekIndex);
                   }}
-                  className="absolute bottom-1 right-1 z-20 flex items-center gap-1 rounded-full border border-primary/30 bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:bottom-1.5 sm:right-1.5 sm:px-2.5 sm:py-0.5 sm:text-[11px]"
+                  className="absolute bottom-1 left-1 z-20 flex items-center gap-1 rounded-full border border-border/50 bg-background/90 px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground backdrop-blur-sm transition-all hover:bg-muted hover:text-foreground sm:bottom-1.5 sm:left-1.5 sm:px-2 sm:text-[10px]"
                 >
-                  {expanded ? (
+                  {isExpanded ? (
                     <>
-                      <span className="hidden sm:inline">Ocultar</span>
+                      <span className="hidden sm:inline">Colapsar</span>
                       <span className="sm:hidden">−</span>
                     </>
                   ) : (
                     <>
-                      <span className="hidden sm:inline">+{hiddenCount} más</span>
-                      <span className="sm:hidden">+{hiddenCount}</span>
+                      <span className="hidden sm:inline">Expandir</span>
+                      <span className="sm:hidden">+</span>
                     </>
                   )}
                 </button>

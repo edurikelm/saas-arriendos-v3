@@ -66,10 +66,7 @@ export function CalendarView({ initialReservations, properties, clients, plan = 
   const fetchReservations = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        year: currentMonth.getFullYear().toString(),
-        month: (currentMonth.getMonth() + 1).toString(),
-      });
+      const params = new URLSearchParams();
 
       if (selectedPropertyId !== "all") {
         params.append("propertyId", selectedPropertyId);
@@ -85,11 +82,11 @@ export function CalendarView({ initialReservations, properties, clients, plan = 
     } finally {
       setLoading(false);
     }
-  }, [currentMonth, selectedPropertyId]);
+  }, [selectedPropertyId]);
 
   useEffect(() => {
     fetchReservations();
-  }, [fetchReservations]);
+  }, [selectedPropertyId]);
 
   const handleSelectReservation = async (id: string) => {
     try {
