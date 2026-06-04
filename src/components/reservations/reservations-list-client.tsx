@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { Calendar, Plus, Pencil, Trash2, Eye, Grid, List, Filter, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -136,24 +136,32 @@ export function ReservationsListClient({
       setReservations(data.data);
       setTotal(data.total);
       setTotalPages(data.totalPages);
+      return data as { data: Reservation[]; total: number; page: number; totalPages: number };
     } catch {
-      // ignore
+      return null;
     }
   }, [page, limit, filters.propertyId, filters.billingType, filters.status]);
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching on mount
-    fetchReservations();
-  }, [page, fetchReservations]);
+  const skipNextFetchRef = useRef(false);
 
+  // Fetch when page, limit, or server-relevant filters change
+  useEffect(() => {
+    if (skipNextFetchRef.current) {
+      skipNextFetchRef.current = false;
+      return;
+    }
+    fetchReservations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, limit, filters.propertyId, filters.billingType, filters.status, fetchReservations]);
+
+  // Reset to page 1 when server-relevant filters change
   useEffect(() => {
     if (page !== 1) {
+      skipNextFetchRef.current = true;
       goToPage(1);
-    } else {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching on filter change
-      fetchReservations();
     }
-  }, [filters.propertyId, filters.billingType, filters.status, goToPage, fetchReservations, page]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.propertyId, filters.billingType, filters.status, goToPage]);
 
   const filteredReservations = useMemo(() => {
     if (!filters.payment) return reservations;
@@ -627,9 +635,11 @@ export function ReservationsListClient({
             handleCancel(viewingReservation.id, () => setViewingReservation(null));
           }}
           onRefresh={async (reservationId) => {
-            await fetchReservations();
-            const fresh = reservations.find((r) => r.id === reservationId);
-            if (fresh) setViewingReservation(fresh);
+            const data = await fetchReservations();
+            if (data?.data) {
+              const fresh = data.data.find((r) => r.id === reservationId);
+              if (fresh) setViewingReservation(fresh);
+            }
           }}
         />
       )}

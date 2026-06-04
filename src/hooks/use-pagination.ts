@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 interface UsePaginationOptions {
   total: number;
@@ -23,7 +23,7 @@ export function usePagination(options: UsePaginationOptions): UsePaginationRetur
   const [limit, setLimitState] = useState(defaultLimit);
 
   useEffect(() => {
-    if (page > totalPages) {
+    if (page > totalPages && totalPages > 0) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- reset page when total decreases
       setPage(1);
     }
@@ -34,28 +34,28 @@ export function usePagination(options: UsePaginationOptions): UsePaginationRetur
     end: Math.min(page * limit, total),
   };
 
-  const goToPage = (p: number) => {
+  const goToPage = useCallback((p: number) => {
     if (p >= 1 && p <= totalPages) {
       setPage(p);
     }
-  };
+  }, [totalPages]);
 
-  const nextPage = () => {
+  const nextPage = useCallback(() => {
     if (page < totalPages) {
       setPage((p) => p + 1);
     }
-  };
+  }, [page, totalPages]);
 
-  const prevPage = () => {
+  const prevPage = useCallback(() => {
     if (page > 1) {
       setPage((p) => p - 1);
     }
-  };
+  }, [page]);
 
-  const setLimit = (newLimit: number) => {
+  const setLimit = useCallback((newLimit: number) => {
     setLimitState(newLimit);
     setPage(1);
-  };
+  }, []);
 
   return { page, limit, goToPage, nextPage, prevPage, setLimit, range };
 }
