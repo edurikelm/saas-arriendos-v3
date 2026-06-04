@@ -151,7 +151,6 @@ export function ReservationsListClient({
       return;
     }
     fetchReservations();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, limit, filters.propertyId, filters.billingType, filters.status, fetchReservations]);
 
   // Reset to page 1 when server-relevant filters change

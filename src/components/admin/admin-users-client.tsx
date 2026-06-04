@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Users, Shield, Trash2, Search, Plus } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -64,7 +64,7 @@ export function AdminUsersClient({ initialUsers, initialTotal }: AdminUsersClien
   const [createForm, setCreateForm] = useState({ email: "", password: "", name: "", plan: "FREE" as "FREE" | "PRO" });
   const [creating, setCreating] = useState(false);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -88,12 +88,12 @@ export function AdminUsersClient({ initialUsers, initialTotal }: AdminUsersClien
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, search, planFilter]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching on dependency change
     fetchUsers();
-  }, [page, search, planFilter]);
+  }, [fetchUsers]);
 
   const handleSelectUser = async (user: User) => {
     setSelectedUser(user);

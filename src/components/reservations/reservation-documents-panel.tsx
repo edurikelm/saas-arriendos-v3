@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +31,7 @@ export function ReservationDocumentsPanel({ reservationId }: { reservationId: st
   const [category, setCategory] = useState<ReservationDocument["category"]>("CONTRATO");
   const [file, setFile] = useState<File | null>(null);
 
-  const loadDocuments = async () => {
+  const loadDocuments = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/reservation-documents?reservationId=${reservationId}`);
@@ -46,12 +46,12 @@ export function ReservationDocumentsPanel({ reservationId }: { reservationId: st
     } finally {
       setLoading(false);
     }
-  };
+  }, [reservationId]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching
     loadDocuments();
-  }, [reservationId]);
+  }, [loadDocuments]);
 
   const handleUpload = async () => {
     if (!file) return;

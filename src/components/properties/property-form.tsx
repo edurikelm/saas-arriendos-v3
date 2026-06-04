@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { propertySchema, type PropertyInput } from "@/lib/validations/property";
 import { useState } from "react";
@@ -58,7 +58,7 @@ export function PropertyForm({ initialData, onSubmit, onCancel, usedColors = [] 
     register,
     handleSubmit,
     setValue,
-    watch,
+    control,
     formState: { errors },
   } = useForm<PropertyInput>({
     resolver: zodResolver(propertySchema),
@@ -75,6 +75,9 @@ export function PropertyForm({ initialData, onSubmit, onCancel, usedColors = [] 
       images: initialData?.images || [],
     },
   });
+
+  const selectedColor = useWatch({ control, name: "color" });
+  const selectedType = useWatch({ control, name: "type" });
 
   const handleFormSubmit = async (data: PropertyInput) => {
     setIsSubmitting(true);
@@ -160,7 +163,7 @@ export function PropertyForm({ initialData, onSubmit, onCancel, usedColors = [] 
               <div className="space-y-2">
                 <Label htmlFor="type">Tipo de Propiedad</Label>
               <Select
-                value={watch("type")}
+                value={selectedType}
                 onValueChange={(value) => setValue("type", value as PropertyInput["type"])}
               >
                   <SelectTrigger>
@@ -251,7 +254,7 @@ export function PropertyForm({ initialData, onSubmit, onCancel, usedColors = [] 
                         onClick={() => !isUsed && setValue("color", color)}
                         disabled={isUsed}
                         className={`w-8 h-8 rounded-full border-2 ${
-                          watch("color") === color ? "border-black" : "border-transparent"
+                          selectedColor === color ? "border-black" : "border-transparent"
                         } ${isUsed ? "opacity-30 cursor-not-allowed" : "cursor-pointer"}`}
                         style={{ backgroundColor: color }}
                         title={isUsed ? "Color en uso por otra propiedad" : color}

@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { propertySchema, type PropertyInput } from "@/lib/validations/property";
 import { useState } from "react";
@@ -58,7 +58,7 @@ export function PropertyFormSections({ initialData, onSubmit, onCancel, usedColo
     register,
     handleSubmit,
     setValue,
-    watch,
+    control,
     formState: { errors },
   } = useForm<PropertyInput>({
     resolver: zodResolver(propertySchema),
@@ -75,6 +75,9 @@ export function PropertyFormSections({ initialData, onSubmit, onCancel, usedColo
       images: initialData?.images || [],
     },
   });
+
+  const selectedColor = useWatch({ control, name: "color" });
+  const selectedType = useWatch({ control, name: "type" });
 
   const handleFormSubmit = async (data: PropertyInput) => {
     setIsSubmitting(true);
@@ -177,7 +180,7 @@ export function PropertyFormSections({ initialData, onSubmit, onCancel, usedColo
                 Tipo de propiedad
               </Label>
               <Select
-                value={watch("type")}
+                value={selectedType}
                 onValueChange={(value) => setValue("type", value as PropertyInput["type"])}
               >
                 <SelectTrigger className="w-full">
@@ -249,7 +252,7 @@ export function PropertyFormSections({ initialData, onSubmit, onCancel, usedColo
                       disabled={isUsed}
                       className={cn(
                         "h-8 w-8 rounded-md transition-transform hover:scale-110",
-                        watch("color") === color ? "ring-2 ring-offset-2 ring-primary" : "",
+                        selectedColor === color ? "ring-2 ring-offset-2 ring-primary" : "",
                         isUsed && "opacity-30 cursor-not-allowed"
                       )}
                       style={{ backgroundColor: color }}

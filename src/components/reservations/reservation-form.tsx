@@ -1,6 +1,6 @@
 "use client";
 
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { reservationSchema, type ReservationInput } from "@/lib/validations/reservation";
 import { z } from "zod";
@@ -85,7 +85,7 @@ export function ReservationForm({
     register,
     handleSubmit,
     setValue,
-    watch,
+    control,
     formState: { errors },
   } = useForm<ReservationFormData>({
     resolver: zodResolver(reservationSchema),
@@ -102,7 +102,11 @@ export function ReservationForm({
     },
   });
 
-  const billingType = watch("billingType");
+  const billingType = useWatch({ control, name: "billingType" });
+  const selectedPropertyId = useWatch({ control, name: "propertyId" });
+  const clientId = useWatch({ control, name: "clientId" });
+  const unitsBooked = useWatch({ control, name: "unitsBooked" });
+  const bookingAirbnb = useWatch({ control, name: "bookingAirbnb" });
   const isMonthly = billingType === "MONTHLY";
   const isAtFreeLimit = plan === "FREE" && clientsList.length >= 5;
 
@@ -129,14 +133,13 @@ export function ReservationForm({
       setValue("endDate", formatDateForInput(end));
     }
   };
-
-  const selectedPropertyId = watch("propertyId");
   const selectedProperty = properties.find((p) => p.id === selectedPropertyId);
 
   useEffect(() => {
     if (selectedPropertyId) {
       getBlockedDates(selectedPropertyId).then(setBlockedDates);
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear availability when no property selected
       setBlockedDates([]);
     }
   }, [selectedPropertyId]);
@@ -175,7 +178,7 @@ export function ReservationForm({
           <Combobox
             className="h-9 w-full bg-background/40"
             options={clientsList.map(c => ({ value: c.id, label: c.name, subtitle: c.email }))}
-            value={watch("clientId")}
+            value={clientId}
             onValueChange={(value) => setValue("clientId", value || "")}
             placeholder="Seleccionar cliente"
             searchPlaceholder="Buscar cliente por nombre o email..."
@@ -309,7 +312,7 @@ export function ReservationForm({
             <>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Total reserva</span>
-                <span className="font-medium">{months} mes(es) × {watch("unitsBooked") || 1} unidad(es)</span>
+                <span className="font-medium">{months} mes(es) × {unitsBooked || 1} unidad(es)</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Período</span>
@@ -321,7 +324,7 @@ export function ReservationForm({
           ) : !isMonthly ? (
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Total reserva</span>
-              <span className="font-medium">{Math.ceil((dateRange.to!.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24)) + 1} noches × {watch("unitsBooked") || 1} unidad(es)</span>
+              <span className="font-medium">{Math.ceil((dateRange.to!.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24)) + 1} noches × {unitsBooked || 1} unidad(es)</span>
             </div>
           ) : null}
           <div className="flex justify-between items-baseline">
@@ -329,10 +332,10 @@ export function ReservationForm({
             <span className="text-xl font-semibold text-primary">
               ${(
                 isMonthly && months
-                  ? months * Number(selectedProperty.monthlyPrice) * (watch("unitsBooked") || 1)
+                  ? months * Number(selectedProperty.monthlyPrice) * (unitsBooked || 1)
                   : (Math.ceil((dateRange.to!.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24)) + 1) *
                     Number(selectedProperty.dailyPrice) *
-                    (watch("unitsBooked") || 1)
+                    (unitsBooked || 1)
               ).toLocaleString("CLP")}
             </span>
           </div>
@@ -362,7 +365,7 @@ export function ReservationForm({
       <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/30 px-3 py-2">
         <Switch
           id="bookingAirbnb"
-          checked={watch("bookingAirbnb")}
+          checked={bookingAirbnb}
           onCheckedChange={(checked) => setValue("bookingAirbnb", checked)}
         />
         <Label htmlFor="bookingAirbnb" className="text-[13px]">Reserva de Airbnb</Label>

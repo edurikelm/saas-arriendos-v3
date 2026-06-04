@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { BarChart3, TrendingUp, Building2, Users, Calendar, DollarSign, FileSpreadsheet, FileText } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -40,10 +40,6 @@ export default function ReportsPage() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [loading, setLoading] = useState(true);
   const [quickRange, setQuickRange] = useState<QuickRange>("current_month");
-  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
-    from: startOfMonth(new Date()),
-    to: endOfMonth(new Date()),
-  });
   const [customRange, setCustomRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
     from: undefined,
     to: undefined,
@@ -103,14 +99,7 @@ export default function ReportsPage() {
     return { from: startOfMonth(now), to: endOfMonth(now) };
   }, [quickRange, customRange]);
 
-  useEffect(() => {
-    if (quickRange !== "custom") return;
-    if (!customRange.from || !customRange.to) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync local state to a derived prop
-    setDateRange({ from: customRange.from, to: customRange.to });
-  }, [customRange, quickRange]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const [statsData, revenue, occupancy, yearly, reservations, collection] = await Promise.all([
@@ -173,12 +162,12 @@ export default function ReportsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [effectiveDateRange, selectedYear, selectedProperty, selectedStatus, collectionBillingType, collectionClientId, collectionDebtStatus, collectionDueRange, collectionPage, collectionLimit]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching
     fetchData();
-  }, [selectedYear, quickRange, dateRange, selectedProperty, selectedStatus, collectionBillingType, collectionClientId, collectionDebtStatus, collectionDueRange, collectionPage]);
+  }, [fetchData]);
 
   const maxRevenue = Math.max(...revenueData.map((r) => r.totalRevenue), 1);
 
@@ -223,16 +212,16 @@ export default function ReportsPage() {
     if (value === "custom") return;
     const now = new Date();
     if (value === "current_month") {
-      setDateRange({ from: startOfMonth(now), to: endOfMonth(now) });
+      setCustomRange({ from: startOfMonth(now), to: endOfMonth(now) });
     } else if (value === "prev_month") {
       const prev = subMonths(now, 1);
-      setDateRange({ from: startOfMonth(prev), to: endOfMonth(prev) });
+      setCustomRange({ from: startOfMonth(prev), to: endOfMonth(prev) });
     } else if (value === "last_3") {
-      setDateRange({ from: startOfMonth(subMonths(now, 2)), to: endOfMonth(now) });
+      setCustomRange({ from: startOfMonth(subMonths(now, 2)), to: endOfMonth(now) });
     } else if (value === "last_6") {
-      setDateRange({ from: startOfMonth(subMonths(now, 5)), to: endOfMonth(now) });
+      setCustomRange({ from: startOfMonth(subMonths(now, 5)), to: endOfMonth(now) });
     } else {
-      setDateRange({ from: undefined, to: undefined });
+      setCustomRange({ from: undefined, to: undefined });
     }
   };
 
