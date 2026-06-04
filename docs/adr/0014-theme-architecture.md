@@ -51,12 +51,37 @@ Los tokens `--navbar` y `--navbar-foreground` se registran en `@theme inline` ig
 
 - **`src/app/globals.css`** — Variables CSS en `:root` y `.dark`, mapeo `@theme inline`, `@custom-variant dark (&:where(.dark, .dark *))`, estilos base en `@layer base`
 - **`src/components/providers/theme-provider.tsx`** — Context local de tema, `localStorage`, detección de sistema y class toggling en `<html>`, `"use client"`
-- **`src/app/layout.tsx`** — `<ThemeProvider>` envuelve `{children}` y `<Toaster />`, `<html suppressHydrationWarning>`, `<meta name="color-scheme">`
+ - **`src/app/layout.tsx`** — `<ThemeProvider>` envuelve `{children}` y `<Toaster />`, `<html suppressHydrationWarning>`, `<meta name="color-scheme">`, y contiene un **script inline síncrono** anti-flash en `<head>` que lee `localStorage` y aplica `.dark`/`.light` antes del primer paint
 - **`src/components/layout/dashboard-navbar.tsx`** — Toggle con dropdown (Claro / Oscuro / Sistema) + `bg-navbar`
 - **`src/components/layout/dashboard-layout-client.tsx`** — Layout principal, mobile top bar usa `bg-navbar`
 - **`src/components/layout/admin-layout-client.tsx`** — Layout admin, mobile top bar usa `bg-navbar`
 - **`src/components/layout/dashboard-sidebar.tsx`** — Sidebar con `bg-sidebar`
 - **`src/components/ui/sonner.tsx`** — Toaster que consume `useTheme()` para heredar el tema
+
+### Anti-flash (FART) — script inline síncrono
+
+En SSR Next.js no puede saber la preferencia del usuario. Si el HTML se envía sin clase de tema y el cliente tiene `dark` guardado, se produce un **flash blanco** (FART: *Flash of Alternate Rendered Theme*) mientras React hidrata y el `ThemeProvider` aplica la clase.
+
+La solución es un script inline en `<head>` que corre **antes** del primer paint:
+
+```tsx
+<head>
+  <script dangerouslySetInnerHTML={{ __html: `
+    (function() {
+      try {
+        var theme = localStorage.getItem('rentalpro-theme') || 'system';
+        if (theme === 'system') {
+          theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.classList.add(theme);
+        document.documentElement.style.colorScheme = theme;
+      } catch (e) {}
+    })()
+  `}} />
+</head>
+```
+
+El `ThemeProvider` luego toma el control sin remover/reaplicar la clase si ya está correcta, evitando micro-flashes en la hidratación.
 
 ### Dependencia
 
@@ -69,9 +94,10 @@ Los tokens `--navbar` y `--navbar-foreground` se registran en `@theme inline` ig
 - El tema sigue la preferencia del SO por defecto (`defaultTheme="system"`)
 - El usuario puede sobrescribir manualmente y volver a "Sistema"
 - La preferencia persiste en localStorage entre sesiones
-- `suppressHydrationWarning` previene advertencias de hidratación cuando el tema guardado difiere del SSR por defecto
-- `disableTransitionOnChange` previene animaciones indeseadas al cambiar tema
-- `<meta name="color-scheme">` asegura que scrollbars y form controls nativos sigan el tema
+ - `suppressHydrationWarning` previene advertencias de hidratación cuando el tema guardado difiere del SSR por defecto
+ - `disableTransitionOnChange` previene animaciones indeseadas al cambiar tema
+ - `<meta name="color-scheme">` asegura que scrollbars y form controls nativos sigan el tema
+ - El script inline anti-flash elimina el FART (flash blanco al cargar en dark mode)
 - Todos los componentes shadcn/ui responden automáticamente via `dark:` variants
 - `@theme inline` genera utility classes (`bg-background`, `text-primary`) desde variables CSS
 
