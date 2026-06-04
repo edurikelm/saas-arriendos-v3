@@ -49,6 +49,7 @@ export function ReservationDocumentsPanel({ reservationId }: { reservationId: st
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching
     loadDocuments();
   }, [reservationId]);
 

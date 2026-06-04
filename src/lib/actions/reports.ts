@@ -1,8 +1,9 @@
 "use server";
 
 import { prisma } from "@/lib/db/prisma";
+import type { Prisma } from "@prisma/client";
 import { getSession } from "@/lib/actions/auth";
-import { startOfMonth, endOfMonth, subMonths, format, startOfYear, endOfYear, isAfter, isBefore } from "date-fns";
+import { startOfMonth, endOfMonth, subMonths, format, startOfYear, endOfYear } from "date-fns";
 import {
   buildCollectionReportRows,
   type CollectionDebtStatusFilter,
@@ -171,7 +172,7 @@ export async function getOccupancyReport(options?: {
   const session = await getSession();
   if (!session) return [];
 
-  const where: any = {
+  const where: Prisma.ReservationWhereInput = {
     userId: session.userId,
     status: { not: "CANCELLED" },
   };
@@ -288,7 +289,7 @@ export async function getReservationsReport(options?: {
   const session = await getSession();
   if (!session) return [];
 
-  const where: any = {
+  const where: Prisma.ReservationWhereInput = {
     userId: session.userId,
   };
 
@@ -296,7 +297,7 @@ export async function getReservationsReport(options?: {
     where.propertyId = options.propertyId;
   }
 
-  if (options?.status) {
+  if (options?.status && (options.status === "PENDING" || options.status === "CONFIRMED" || options.status === "CANCELLED" || options.status === "COMPLETED")) {
     where.status = options.status;
   }
 

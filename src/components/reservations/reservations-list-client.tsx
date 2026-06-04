@@ -104,7 +104,6 @@ export function ReservationsListClient({
   const [reservations, setReservations] = useState<Reservation[]>(initialData.data);
   const [total, setTotal] = useState(initialData.total);
   const [totalPages, setTotalPages] = useState(initialData.totalPages);
-  const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "table">("table");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
@@ -127,7 +126,6 @@ export function ReservationsListClient({
   const { page, limit, goToPage, setLimit } = usePagination({ total, totalPages, defaultPage: 1, defaultLimit: 10 });
 
   const fetchReservations = useCallback(async () => {
-    setLoading(true);
     try {
       const params = new URLSearchParams({ page: page.toString(), limit: limit.toString() });
       if (filters.propertyId) params.append("propertyId", filters.propertyId);
@@ -138,22 +136,24 @@ export function ReservationsListClient({
       setReservations(data.data);
       setTotal(data.total);
       setTotalPages(data.totalPages);
-    } finally {
-      setLoading(false);
+    } catch {
+      // ignore
     }
   }, [page, limit, filters.propertyId, filters.billingType, filters.status]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching on mount
     fetchReservations();
-  }, [page]);
+  }, [page, fetchReservations]);
 
   useEffect(() => {
     if (page !== 1) {
       goToPage(1);
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching on filter change
       fetchReservations();
     }
-  }, [filters.propertyId, filters.billingType, filters.status]);
+  }, [filters.propertyId, filters.billingType, filters.status, goToPage, fetchReservations, page]);
 
   const filteredReservations = useMemo(() => {
     if (!filters.payment) return reservations;
@@ -188,6 +188,7 @@ export function ReservationsListClient({
 
     const target = reservations.find((reservation) => reservation.id === reservationId);
     if (target) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync URL param to UI state
       setViewingReservation(target);
     }
   }, [searchParams, reservations]);

@@ -1,4 +1,5 @@
-// @ts-nocheck
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-nocheck — TODO(P1-tests): migrate to per-line @ts-expect-error or proper types
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@/lib/db/prisma', () => ({

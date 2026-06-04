@@ -25,6 +25,7 @@ export function ClientForm({
   const [serverError, setServerError] = useState(externalServerError);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync local state to a derived prop
     setServerError(externalServerError);
   }, [externalServerError]);
 

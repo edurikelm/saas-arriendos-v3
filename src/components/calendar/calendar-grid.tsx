@@ -64,6 +64,24 @@ interface WeekReservation {
   startCol: number;
   span: number;
   lane: number;
+  continuesFromPreviousWeek: boolean;
+  continuesIntoNextWeek: boolean;
+}
+
+function getContinuationRadiusClass(wr: WeekReservation): string {
+  if (wr.continuesFromPreviousWeek && wr.continuesIntoNextWeek) {
+    return "rounded-sm";
+  }
+
+  if (wr.continuesFromPreviousWeek) {
+    return "rounded-l-sm rounded-r-full";
+  }
+
+  if (wr.continuesIntoNextWeek) {
+    return "rounded-l-full rounded-r-sm";
+  }
+
+  return "rounded-full";
 }
 
 function assignLanes(weekReservations: WeekReservation[]): WeekReservation[] {
@@ -98,6 +116,7 @@ export function CalendarGrid({
   const [currentDate, setCurrentDate] = useState(new Date());
   const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(() => new Set());
   const [hoveredWeek, setHoveredWeek] = useState<number | null>(null);
+  const [hoveredReservationId, setHoveredReservationId] = useState<string | null>(null);
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -139,6 +158,8 @@ export function CalendarGrid({
           startCol,
           span,
           lane: 0,
+          continuesFromPreviousWeek: start < weekStart,
+          continuesIntoNextWeek: end > weekEnd,
         };
       });
 
@@ -156,6 +177,17 @@ export function CalendarGrid({
   }, [weeks, reservations]);
 
   const maxVisibleLanes = 2;
+  const expandableWeekIndexes = useMemo(() => {
+    return weeksData.reduce<number[]>((indexes, weekData, weekIndex) => {
+      if (weekData.weekReservations.some((wr) => wr.lane >= maxVisibleLanes)) {
+        indexes.push(weekIndex);
+      }
+
+      return indexes;
+    }, []);
+  }, [weeksData]);
+  const allExpandableWeeksExpanded = expandableWeekIndexes.length > 0
+    && expandableWeekIndexes.every((weekIndex) => expandedWeeks.has(weekIndex));
 
   const toggleExpandedWeek = (weekIndex: number) => {
     setExpandedWeeks((prev) => {
@@ -165,6 +197,24 @@ export function CalendarGrid({
       } else {
         next.add(weekIndex);
       }
+      return next;
+    });
+  };
+
+  const toggleAllExpandableWeeks = () => {
+    setExpandedWeeks((prev) => {
+      const next = new Set(prev);
+
+      if (allExpandableWeeksExpanded) {
+        for (const weekIndex of expandableWeekIndexes) {
+          next.delete(weekIndex);
+        }
+      } else {
+        for (const weekIndex of expandableWeekIndexes) {
+          next.add(weekIndex);
+        }
+      }
+
       return next;
     });
   };
@@ -206,8 +256,19 @@ export function CalendarGrid({
             <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </Button>
         </div>
-        {headerActions && (
+        {(expandableWeekIndexes.length > 0 || headerActions) && (
           <div className="flex flex-wrap items-center gap-2 lg:justify-self-end">
+            {expandableWeekIndexes.length > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 rounded-full px-3 text-xs"
+                onClick={toggleAllExpandableWeeks}
+              >
+                {allExpandableWeeksExpanded ? "Colapsar todas" : "Expandir todas"}
+              </Button>
+            )}
             {headerActions}
           </div>
         )}
@@ -237,6 +298,10 @@ export function CalendarGrid({
               : weekReservations.filter((wr) => wr.lane < maxVisibleLanes);
             const hiddenReservations = weekReservations.filter((wr) => wr.lane >= maxVisibleLanes);
             const hiddenCount = hiddenReservations.length;
+            const compactLineHeight = 7;
+            const collapsedCompactHeight = !shouldExpand && hiddenCount > 0
+              ? hiddenCount * compactLineHeight + 6
+              : 0;
 
             return (
               <div
@@ -247,7 +312,7 @@ export function CalendarGrid({
                 style={{
                   minHeight: shouldExpand
                     ? `${56 + numLanes * 30}px`
-                    : `${56 + Math.min(numLanes, maxVisibleLanes) * 30}px`,
+                    : `${56 + Math.min(numLanes, maxVisibleLanes) * 30 + collapsedCompactHeight}px`,
                 } as CSSProperties}
                 onMouseEnter={() => setHoveredWeek(weekIndex)}
                 onMouseLeave={() => setHoveredWeek(null)}
@@ -292,6 +357,8 @@ export function CalendarGrid({
               {visibleReservations.map((wr) => {
                 const ended = isReservationEnded(wr.res);
                 const color = getReservationColor(wr.res);
+                const radiusClass = getContinuationRadiusClass(wr);
+                const isReservationHovered = hoveredReservationId === wr.res.id;
                 return (
                   <button
                     key={`${wr.res.id}-${weekIndex}`}
@@ -299,7 +366,13 @@ export function CalendarGrid({
                       e.stopPropagation();
                       onSelectReservation?.(wr.res.id);
                     }}
-                    className={`absolute z-10 flex h-6 cursor-pointer items-center gap-1 overflow-hidden rounded-full border px-1.5 text-left text-[10px] font-semibold shadow-sm transition-all hover:z-20 hover:-translate-y-0.5 hover:shadow-lg focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-6 sm:gap-1.5 sm:px-2 sm:text-xs ${
+                    onMouseEnter={() => setHoveredReservationId(wr.res.id)}
+                    onMouseLeave={() => setHoveredReservationId(null)}
+                    onFocus={() => setHoveredReservationId(wr.res.id)}
+                    onBlur={() => setHoveredReservationId(null)}
+                    className={`absolute flex h-6 cursor-pointer items-center gap-1 overflow-hidden border px-1.5 text-left text-[10px] font-semibold shadow-sm transition-all hover:z-20 hover:-translate-y-0.5 hover:shadow-lg focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-6 sm:gap-1.5 sm:px-2 sm:text-xs ${radiusClass} ${
+                      isReservationHovered ? "z-20 -translate-y-0.5 shadow-lg" : "z-10"
+                    } ${
                       ended
                         ? "border-border bg-muted text-muted-foreground opacity-75 line-through decoration-muted-foreground/60"
                         : "border-white/25"
@@ -324,31 +397,36 @@ export function CalendarGrid({
                 );
               })}
 
-              {hiddenCount > 0 && !shouldExpand && (
-                <div className="absolute bottom-1 right-1 z-20 flex items-center gap-1.5 sm:bottom-1.5 sm:right-1.5">
-                  <div className="flex -space-x-1">
-                    {hiddenReservations.slice(0, 4).map((wr, idx) => {
-                      const color = getReservationColor(wr.res);
-                      return (
-                        <span
-                          key={idx}
-                          className="h-4 w-4 rounded-full border-2 border-background shadow-sm transition-transform hover:scale-110 hover:z-10"
-                          style={{ backgroundColor: color }}
-                          title={`${wr.res.client.name} - ${wr.res.property.name}`}
-                        />
-                      );
-                    })}
-                    {hiddenCount > 4 && (
-                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-muted text-[8px] font-bold text-muted-foreground">
-                        +{hiddenCount - 4}
-                      </span>
-                    )}
-                  </div>
-                  <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary">
-                    +{hiddenCount}
-                  </span>
-                </div>
-              )}
+              {hiddenCount > 0 && !shouldExpand && hiddenReservations.map((wr, compactIndex) => {
+                const color = getReservationColor(wr.res);
+                const radiusClass = getContinuationRadiusClass(wr);
+                const isReservationHovered = hoveredReservationId === wr.res.id;
+                return (
+                  <button
+                    key={`${wr.res.id}-${weekIndex}-compact`}
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSelectReservation?.(wr.res.id);
+                    }}
+                    onMouseEnter={() => setHoveredReservationId(wr.res.id)}
+                    onMouseLeave={() => setHoveredReservationId(null)}
+                    onFocus={() => setHoveredReservationId(wr.res.id)}
+                    onBlur={() => setHoveredReservationId(null)}
+                    className={`absolute cursor-pointer shadow-sm transition-all hover:z-20 hover:h-2 hover:opacity-100 focus-visible:z-30 focus-visible:h-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${radiusClass} ${
+                      isReservationHovered ? "z-20 h-2 opacity-100" : "z-10 h-1.5 opacity-90"
+                    }`}
+                    style={{
+                      left: `${(wr.startCol / 7) * 100}%`,
+                      top: `${92 + compactIndex * compactLineHeight}px`,
+                      width: `calc(${(wr.span / 7) * 100}% - 4px)`,
+                      backgroundColor: color,
+                    }}
+                    aria-label={`${wr.res.client.name} - ${wr.res.property.name}`}
+                    title={`${wr.res.client.name} - ${wr.res.property.name}`}
+                  />
+                );
+              })}
 
               {(hiddenCount > 0 || isExpanded) && (
                 <button

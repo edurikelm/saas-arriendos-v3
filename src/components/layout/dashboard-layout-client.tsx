@@ -5,7 +5,7 @@ import { DashboardSidebar } from "@/components/layout/dashboard-sidebar";
 import { DashboardNavbar } from "@/components/layout/dashboard-navbar";
 import { Bell, LogOut, Menu, Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useTheme } from "next-themes";
+import { useTheme } from "@/components/providers/theme-provider";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +29,7 @@ export function DashboardLayoutClient({ children, userName, userRole, userPlan }
   const initial = (userName?.[0] ?? "R").toUpperCase();
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration safety
     setMounted(true);
   }, []);
 

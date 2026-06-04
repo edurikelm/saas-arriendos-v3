@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { updateUserPlan, deleteUser, createOwner, getUserStats } from "@/lib/actions/super-admin";
+import { updateUserPlan, deleteUser, createOwner } from "@/lib/actions/super-admin";
 
 interface User {
   id: string;
@@ -91,6 +91,7 @@ export function AdminUsersClient({ initialUsers, initialTotal }: AdminUsersClien
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching on dependency change
     fetchUsers();
   }, [page, search, planFilter]);
 

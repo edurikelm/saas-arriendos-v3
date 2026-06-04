@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/db/prisma";
+import type { Prisma } from "@prisma/client";
 import { getSession } from "@/lib/actions/auth";
 import { propertySchema, type PropertyInput } from "@/lib/validations/property";
 import { revalidatePath } from "next/cache";
@@ -11,8 +12,8 @@ export async function getProperties(type?: string) {
   const session = await getSession();
   if (!session) return [];
 
-  const where: { userId: string; type?: any } = { userId: session.userId };
-  if (type && type !== "all") {
+  const where: Prisma.PropertyWhereInput = { userId: session.userId };
+  if (type && type !== "all" && (type === "APARTMENT" || type === "HOUSE" || type === "CABIN" || type === "HOSTEL" || type === "HOTEL" || type === "OFFICE" || type === "COMMERCIAL")) {
     where.type = type;
   }
 
@@ -143,7 +144,7 @@ export async function createProperty(data: PropertyInput) {
     data: {
       userId: session.userId,
       name: validated.name,
-      type: validated.type as any,
+      type: validated.type,
       unitsAvailable: validated.unitsAvailable,
       dailyPrice: validated.dailyPrice,
       monthlyPrice: validated.monthlyPrice ?? null,
@@ -193,7 +194,7 @@ export async function updateProperty(id: string, data: PropertyInput) {
     where: { id },
     data: {
       name: validated.name,
-      type: validated.type as any,
+      type: validated.type,
       unitsAvailable: validated.unitsAvailable,
       dailyPrice: validated.dailyPrice,
       monthlyPrice: validated.monthlyPrice ?? null,

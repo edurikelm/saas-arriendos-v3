@@ -6,7 +6,6 @@ import { es } from "date-fns/locale";
 import {
   Calendar,
   User,
-  CreditCard,
   Check,
   RefreshCw,
   FileText,
@@ -15,7 +14,6 @@ import {
   Plus,
   Loader2,
   MoreHorizontal,
-  MessageCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,8 +41,7 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { confirmPayment, revertPayment, generatePaymentLink, markPaymentAsPaid, attachReceipt } from "@/lib/actions/payments";
-import { CheckCircle, Search } from "lucide-react";
+import { markPaymentAsPaid, attachReceipt } from "@/lib/actions/payments";
 import { AddPaymentDialog } from "./add-payment-dialog";
 import { SendPaymentLinkDialog } from "./send-payment-link-dialog";
 import { ReceiptUpload } from "@/components/ui/receipt-upload";
@@ -111,7 +108,6 @@ export interface ReservationDetailProps {
   onCancel?: () => void;
   onRefresh?: (reservationId: string) => void;
   onMarkPaid?: (paymentId: string) => void;
-  onAddPayment?: () => void;
   onCheckPaymentStatus?: (paymentId: string) => void;
   plan?: "FREE" | "PRO" | null;
 }
@@ -135,12 +131,6 @@ const paymentStatusConfig: Record<
   FAILED: { label: "Fallido", variant: "destructive", className: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-800" },
 };
 
-const paymentMethodLabels: Record<string, string> = {
-  MERCADO_PAGO: "Mercado Pago",
-  CASH: "Efectivo",
-  TRANSFER: "Transferencia",
-};
-
 function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString("es-CL", {
     day: "numeric",
@@ -150,7 +140,7 @@ function formatDate(dateString: string): string {
 }
 
 function formatDueDate(dateString: string): string {
-  return format(new Date(dateString), "d MMM yyyy", { locale: es } as any);
+  return format(new Date(dateString), "d MMM yyyy", { locale: es });
 }
 
 function formatAmount(amount: string | number): string {
@@ -416,9 +406,10 @@ export function ReservationDetailDialog({
   onEdit,
   onCancel,
   onRefresh,
-  onAddPayment,
   plan = "FREE",
 }: ReservationDetailProps) {
+  void onCopyLink;
+  void onConfirmPayment;
   const status = statusConfig[reservation.status] || statusConfig.PENDING;
   const nights = getNights(reservation.startDate, reservation.endDate);
   const reservationPayments = reservation.payments.filter((p) => p.paymentType !== "EXTRA");
@@ -432,7 +423,6 @@ export function ReservationDetailDialog({
   const totalPaid = paidAmount + extraPaidAmount;
   const totalPending = pendingAmount + extraPendingAmount;
 
-  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   const [generatingLinkId, setGeneratingLinkId] = useState<string | null>(null);
   const [showMarkPaidModal, setShowMarkPaidModal] = useState(false);
   const [markPaidPaymentId, setMarkPaidPaymentId] = useState<string | null>(null);
@@ -448,12 +438,6 @@ export function ReservationDetailDialog({
   const [isAttachingReceipt, setIsAttachingReceipt] = useState(false);
   const [paymentToDelete, setPaymentToDelete] = useState<string | null>(null);
   const [sendLinkPayment, setSendLinkPayment] = useState<Payment | null>(null);
-
-  const handleCopyLink = (initPoint: string) => {
-    navigator.clipboard.writeText(initPoint);
-    toast.success("Link copiado al portapapeles");
-    onCopyLink?.(initPoint);
-  };
 
   const handleRegenerateLink = async (paymentId: string) => {
     setGeneratingLinkId(paymentId);
@@ -474,27 +458,6 @@ export function ReservationDetailDialog({
     } finally {
       setGeneratingLinkId(null);
     }
-  };
-
-  const handleConfirmPayment = async (paymentId: string) => {
-    const result = await confirmPayment(paymentId);
-    if (result?.error) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success("Pago confirmado");
-    onRefresh?.(reservation.id);
-    onConfirmPayment?.(paymentId);
-  };
-
-  const handleRevertPayment = async (paymentId: string) => {
-    const result = await revertPayment(paymentId);
-    if (result?.error) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success("Pago revertido a pendiente");
-    onRefresh?.(reservation.id);
   };
 
   const handleMarkPaidClick = (paymentId: string) => {
@@ -636,8 +599,8 @@ onRefresh?.(reservation.id);
   };
 
   const handleGenerateLink = async (amount: number) => {
+    void amount;
     if (amount <= 0) return;
-    setIsGeneratingLink(true);
     try {
       const res = await fetch("/api/payments/generate-link", {
         method: "POST",
@@ -656,13 +619,9 @@ onRefresh?.(reservation.id);
       onRefresh?.(reservation.id);
     } catch {
       toast.error("Error al generar link");
-    } finally {
-      setIsGeneratingLink(false);
     }
   };
-
-
-
+  void handleGenerateLink;
   return (
     <Dialog
       open={open}
@@ -948,8 +907,6 @@ onRefresh?.(reservation.id);
           payment={sendLinkPayment!}
           client={reservation.client}
           propertyName={reservation.property.name}
-          reservationStartDate={reservation.startDate}
-          reservationEndDate={reservation.endDate}
           billingType={reservation.billingType}
         />
         </div>

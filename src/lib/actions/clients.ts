@@ -6,6 +6,7 @@ import { getSession } from "@/lib/actions/auth";
 import { clientSchema, type ClientInput } from "@/lib/validations/client";
 import { revalidatePath } from "next/cache";
 import type { PaginatedResponse } from "@/types/pagination";
+import { ZodError } from "zod";
 
 const FREE_CLIENT_LIMIT = 5;
 
@@ -33,7 +34,7 @@ export async function getClients(params?: {
   const limit = params?.limit || 10;
   const skip = (page - 1) * limit;
 
-  const where: any = { userId: session.userId };
+  const where: Prisma.ReservationClientWhereInput = { userId: session.userId };
   if (params?.search) {
     where.OR = [
       { name: { contains: params.search, mode: "insensitive" } },
@@ -100,8 +101,8 @@ export async function createClient(data: unknown) {
   let validated: ClientInput;
   try {
     validated = clientSchema.parse(data);
-  } catch (e: any) {
-    if (e.name === 'ZodError') {
+  } catch (e) {
+    if (e instanceof ZodError) {
       return { error: "Datos inválidos", details: e.errors };
     }
     return { error: "Datos inválidos" };
@@ -150,8 +151,8 @@ export async function updateClient(id: string, data: unknown) {
   let validated: ClientInput;
   try {
     validated = clientSchema.parse(data);
-  } catch (e: any) {
-    if (e.name === 'ZodError') {
+  } catch (e) {
+    if (e instanceof ZodError) {
       return { error: "Datos inválidos", details: e.errors };
     }
     return { error: "Datos inválidos" };

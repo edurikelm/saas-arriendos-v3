@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameMonth, addMonths, subMonths, startOfWeek, endOfWeek } from "date-fns";
 import { es } from "date-fns/locale/es";
-import { ChevronLeft, ChevronRight, Calendar, Clock, User, Home, CreditCard, CheckCircle2, XCircle, AlertCircle, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, Home, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface Payment {
@@ -472,7 +471,7 @@ export function CalendarList({ reservations, currentMonth, onSelectReservation }
   );
 }
 
-export function CalendarWeekView({ reservations, currentMonth, onSelectReservation }: {
+export function CalendarWeekView({ reservations, onSelectReservation }: {
   reservations: Reservation[];
   currentMonth: Date;
   onSelectReservation: (id: string) => void;
@@ -520,8 +519,6 @@ export function CalendarWeekView({ reservations, currentMonth, onSelectReservati
                   const dayReservations = weekReservations.filter((res) => {
                     const start = parseCalendarDate(res.startDate);
                     const end = parseCalendarDate(res.endDate);
-                    const resStartHour = start.getHours();
-                    const resEndHour = end.getHours() + 1;
                     return isSameDay(day, start) || isSameDay(day, end) || (day > start && day < end);
                   });
 

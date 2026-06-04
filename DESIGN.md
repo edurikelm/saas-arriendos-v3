@@ -268,7 +268,7 @@ El sidebar utiliza variables CSS propias para mantener contraste en navegación:
 - Icon: `Moon` (light mode) / `Sun` (dark mode)
 - Size: `h-5 w-5`
 - Position: Antes del icono de Bell
-- Implementation: `next-themes` con `useTheme()` hook
+- Implementation: `@/components/providers/theme-provider` con `useTheme()` hook
 
 ---
 
@@ -388,7 +388,7 @@ Usar siempre `p-4 lg:p-6` para contenido principal.
 
 ## Dark Mode Implementation
 
-El dark mode se activa con la clase `.dark` en el elemento html. El toggle está en el navbar (DashboardNavbar) y usa `next-themes`:
+El dark mode se activa con la clase `.dark` en el elemento html. El toggle está en el navbar (DashboardNavbar) y usa el provider local de tema:
 
 ```tsx
 // Toggle button

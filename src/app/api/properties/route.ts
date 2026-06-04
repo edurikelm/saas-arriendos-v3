@@ -32,10 +32,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(result, { status: 201 });
-  } catch (error: any) {
-    if (error.name === "ZodError") {
-      return NextResponse.json({ error: "Datos inválidos", details: error.errors }, { status: 400 });
-    }
+  } catch (error) {
     console.error("Error creating property:", error);
     return NextResponse.json({ error: "Error al crear propiedad" }, { status: 500 });
   }

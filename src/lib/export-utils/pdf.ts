@@ -45,7 +45,8 @@ export function exportToPDF(
     footStyles: { fillColor: [229, 231, 235], textColor: [0, 0, 0], fontStyle: "bold" },
   });
 
-  const finalY = (doc as any).lastAutoTable.finalY || 40;
+  const lastAutoTable = (doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable;
+  const finalY = lastAutoTable?.finalY ?? 40;
 
   doc.text("Detalle de Reservaciones", 14, finalY + 15);
 

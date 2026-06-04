@@ -5,24 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getSystemStats, getRecentOwners } from "@/lib/actions/super-admin";
 
-interface SystemStats {
-  totalUsers: number;
-  totalProperties: number;
-  totalReservations: number;
-  totalRevenue: number;
-}
-
-interface RecentOwner {
-  id: string;
-  email: string;
-  plan: string;
-  createdAt: Date;
-  _count: {
-    properties: number;
-    reservations: number;
-  };
-}
-
 export default async function AdminDashboardPage() {
   const [stats, recentOwners] = await Promise.all([
     getSystemStats(),

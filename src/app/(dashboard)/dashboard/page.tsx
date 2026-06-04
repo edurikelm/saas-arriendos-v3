@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { CollectionAlertsSection } from "@/components/dashboard/collection-alerts-section";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardAction,
@@ -238,13 +238,13 @@ function EmptyState({ title, description }: { title: string; description: string
 }
 
 export default async function DashboardPage() {
-  const [reservations, properties] = await Promise.all([
+  const [reservationsResult, properties] = await Promise.all([
     getReservations(),
     getProperties(),
   ]);
 
   const data = {
-    reservations: reservations as unknown as Reservation[],
+    reservations: (reservationsResult as unknown as { data: Reservation[] }).data,
     properties: properties as unknown as Property[],
   };
 

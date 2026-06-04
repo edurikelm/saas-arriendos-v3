@@ -79,15 +79,16 @@ export function ClientsTable({ initialData }: ClientsTableProps) {
   }, [page, limit, searchQuery]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching on dependency change
     fetchClients();
-  }, [page, limit]);
+  }, [page, limit, fetchClients]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       goToPage(1);
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, goToPage]);
 
   const handleCreate = async (data: ClientInput) => {
     const result = await createClient(data);

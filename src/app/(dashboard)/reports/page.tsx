@@ -1,21 +1,22 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { BarChart3, TrendingUp, Building2, Users, Calendar, DollarSign, Download, FileSpreadsheet, FileText } from "lucide-react";
+import { BarChart3, TrendingUp, Building2, Users, Calendar, DollarSign, FileSpreadsheet, FileText } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { getDashboardStats, getRevenueReport, getOccupancyReport, getYearlySummary, getReservationsReport, getCollectionReport } from "@/lib/actions/reports";
-import type { DashboardStats, RevenueReport, OccupancyReport } from "@/lib/actions/reports";
+import type { DashboardStats, RevenueReport, OccupancyReport, ReservationReport } from "@/lib/actions/reports";
 import type { CollectionReportRow } from "@/lib/actions/reports-collection";
 import { Pagination } from "@/components/ui/pagination";
-import type { PaginatedResponse } from "@/types/pagination";
 import { getProperties } from "@/lib/actions/properties";
 import { exportToExcel, exportToPDF, type ReservationDetail, type PropertySummary } from "@/lib/export-utils";
 import { startOfMonth, endOfMonth, subMonths, format } from "date-fns";
 import { es } from "date-fns/locale/es";
+
+type YearlySummary = Awaited<ReturnType<typeof getYearlySummary>>;
 
 type QuickRange = "current_month" | "prev_month" | "last_3" | "last_6" | "all" | "custom";
 
@@ -35,7 +36,7 @@ export default function ReportsPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [revenueData, setRevenueData] = useState<RevenueReport[]>([]);
   const [occupancyData, setOccupancyData] = useState<OccupancyReport[]>([]);
-  const [yearlySummary, setYearlySummary] = useState<any>(null);
+  const [yearlySummary, setYearlySummary] = useState<YearlySummary>(null);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [loading, setLoading] = useState(true);
   const [quickRange, setQuickRange] = useState<QuickRange>("current_month");
@@ -78,10 +79,6 @@ export default function ReportsPage() {
     loadInitial();
   }, []);
 
-  useEffect(() => {
-    fetchData();
-  }, [selectedYear, quickRange, dateRange, selectedProperty, selectedStatus, collectionBillingType, collectionClientId, collectionDebtStatus, collectionDueRange, collectionPage]);
-
   const effectiveDateRange = useMemo(() => {
     const now = new Date();
     if (quickRange === "current_month") {
@@ -109,6 +106,7 @@ export default function ReportsPage() {
   useEffect(() => {
     if (quickRange !== "custom") return;
     if (!customRange.from || !customRange.to) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync local state to a derived prop
     setDateRange({ from: customRange.from, to: customRange.to });
   }, [customRange, quickRange]);
 
@@ -151,7 +149,7 @@ export default function ReportsPage() {
       setRevenueData(revenue || []);
       setOccupancyData(occupancy || []);
       setYearlySummary(yearly);
-      setReservationDetails((reservations || []).map((r: any) => ({
+      setReservationDetails((reservations || []).map((r: ReservationReport) => ({
         id: r.id,
         propertyName: r.propertyName,
         clientName: r.clientName,
@@ -176,6 +174,11 @@ export default function ReportsPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching
+    fetchData();
+  }, [selectedYear, quickRange, dateRange, selectedProperty, selectedStatus, collectionBillingType, collectionClientId, collectionDebtStatus, collectionDueRange, collectionPage]);
 
   const maxRevenue = Math.max(...revenueData.map((r) => r.totalRevenue), 1);
 

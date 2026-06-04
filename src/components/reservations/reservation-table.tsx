@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Calendar, Clock, User, Home, CreditCard, MapPin, CheckCircle2, XCircle, AlertCircle, ChevronRight, ArrowUpDown, Filter, MoreHorizontal } from "lucide-react";
+import { Calendar, Clock, User, CreditCard, CheckCircle2, XCircle, AlertCircle, ChevronRight, ArrowUpDown, MoreHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { getPaymentStatus } from "@/lib/reservation-payment";
 import { getInclusiveMonths } from "@/lib/reservation-dates";
@@ -189,6 +188,7 @@ interface ReservationCardBaseProps {
 }
 
 export function ReservationCardMinimal({ reservation, onEdit, onView, onCancel, onDelete }: ReservationCardBaseProps) {
+  void onDelete;
   const status = statusConfig[reservation.status] || statusConfig.PENDING;
   const StatusIcon = status.icon;
   const paidAmount = reservation.payments
@@ -280,9 +280,13 @@ export function ReservationCardMinimal({ reservation, onEdit, onView, onCancel, 
 }
 
 export function ReservationCardCompact({ reservation, onEdit, onView, onCancel, onDelete }: ReservationCardBaseProps) {
+  void onCancel;
   const status = statusConfig[reservation.status] || statusConfig.PENDING;
   const StatusIcon = status.icon;
   const nights = getNights(reservation.startDate, reservation.endDate);
+  void onDelete;
+  void StatusIcon;
+  void nights;
 
   return (
     <div className="group flex items-center gap-4 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 bg-white dark:bg-zinc-950 p-4 transition-all duration-200 hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-lg hover:shadow-black/5">
@@ -337,6 +341,13 @@ export function ReservationCardEditorial({ reservation, onEdit, onView, onCancel
   const status = statusConfig[reservation.status] || statusConfig.PENDING;
   const StatusIcon = status.icon;
   const nights = getNights(reservation.startDate, reservation.endDate);
+  const isUpcoming = new Date(reservation.startDate) > new Date();
+  const isPast = new Date(reservation.endDate) < new Date();
+  void onDelete;
+  void StatusIcon;
+  void nights;
+  void isUpcoming;
+  void isPast;
   const paidAmount = reservation.payments
     .filter((p) => p.status === "COMPLETED")
     .reduce((sum, p) => sum + Number(p.amount), 0);
@@ -440,8 +451,11 @@ export function ReservationCardEditorial({ reservation, onEdit, onView, onCancel
 }
 
 export function ReservationCardTimeline({ reservation, onEdit, onView, onCancel, onDelete }: ReservationCardBaseProps) {
+  void onCancel;
   const status = statusConfig[reservation.status] || statusConfig.PENDING;
   const StatusIcon = status.icon;
+  void onDelete;
+  void StatusIcon;
   const nights = getNights(reservation.startDate, reservation.endDate);
   const startDate = new Date(reservation.startDate);
   const endDate = new Date(reservation.endDate);
@@ -450,6 +464,10 @@ export function ReservationCardTimeline({ reservation, onEdit, onView, onCancel,
   const isUpcoming = startDate > today;
   const isActive = startDate <= today && endDate >= today;
   const isPast = endDate < today;
+  void nights;
+  void isUpcoming;
+  void isActive;
+  void isPast;
 
   return (
     <div className="group relative">
@@ -525,6 +543,9 @@ export function ReservationCardTimeline({ reservation, onEdit, onView, onCancel,
 export function ReservationCardKanban({ reservation, onEdit, onView, onCancel, onDelete }: ReservationCardBaseProps) {
   const status = statusConfig[reservation.status] || statusConfig.PENDING;
   const nights = getNights(reservation.startDate, reservation.endDate);
+  void onCancel;
+  void onDelete;
+  void nights;
 
   return (
     <div className="group rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 bg-white dark:bg-zinc-950 p-4 transition-all duration-200 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 cursor-pointer"
@@ -670,6 +691,7 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
   onCancel?: (id: string) => void;
   onDelete?: (id: string) => void;
 }) {
+  void onCancel;
   const [sortField, setSortField] = useState<"startDate" | "totalPrice" | "client" | "createdAt">("createdAt");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const runAfterMenuClose = (action: () => void) => {
@@ -864,6 +886,8 @@ export function ReservationTableCards({ reservations, onEdit, onView, onCancel, 
   onCancel?: (id: string) => void;
   onDelete?: (id: string) => void;
 }) {
+  void onCancel;
+  void onDelete;
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
       {reservations.map((res) => {

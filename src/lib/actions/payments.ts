@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/db/prisma";
+import type { Prisma } from "@prisma/client";
 import { getSession } from "@/lib/actions/auth";
 import { getMercadoPagoToken } from "@/lib/actions/mercado-pago";
 import { paymentSchema, type PaymentInput } from "@/lib/validations/payment";
@@ -8,6 +9,7 @@ import { fileSchema } from "@/lib/validations/file";
 import { uploadImage } from "@/lib/actions/cloudinary";
 import { revalidatePath } from "next/cache";
 import { addDays } from "date-fns";
+import { ZodError } from "zod";
 
 function buildMercadoPagoNotificationUrl(paymentId: string) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -58,7 +60,7 @@ export async function getPayments(filters?: {
   const session = await getSession();
   if (!session) return [];
 
-  const where: any = {};
+  const where: Prisma.PaymentWhereInput = {};
 
   if (filters?.reservationId) {
     const reservation = await prisma.reservation.findFirst({
@@ -69,11 +71,11 @@ export async function getPayments(filters?: {
     where.reservationId = filters.reservationId;
   }
 
-  if (filters?.status) {
+  if (filters?.status && (filters.status === "PENDING" || filters.status === "COMPLETED" || filters.status === "FAILED")) {
     where.status = filters.status;
   }
 
-  if (filters?.method) {
+  if (filters?.method && (filters.method === "MERCADO_PAGO" || filters.method === "CASH" || filters.method === "TRANSFER")) {
     where.method = filters.method;
   }
 
@@ -150,8 +152,8 @@ export async function createPayment(data: unknown) {
         title: title || undefined,
         description: description || undefined,
       });
-    } catch (e: any) {
-      if (e.name === 'ZodError') {
+    } catch (e) {
+      if (e instanceof ZodError) {
         return { error: "Datos inválidos", details: e.errors };
       }
       return { error: "Datos inválidos" };
@@ -159,8 +161,8 @@ export async function createPayment(data: unknown) {
   } else {
     try {
       validated = paymentSchema.parse(data);
-    } catch (e: any) {
-      if (e.name === 'ZodError') {
+    } catch (e) {
+      if (e instanceof ZodError) {
         return { error: "Datos inválidos", details: e.errors };
       }
       return { error: "Datos inválidos" };
@@ -205,7 +207,7 @@ export async function createPayment(data: unknown) {
       title: validated.title ?? null,
       description: validated.description ?? null,
       amount: validated.amount,
-      method: validated.method as any,
+      method: validated.method,
       status: validated.status ?? "COMPLETED",
       initPoint: validated.initPoint,
       expiresAt: validated.expiresAt ? new Date(validated.expiresAt) : null,
@@ -239,7 +241,7 @@ export async function createPayment(data: unknown) {
   return { success: true, payment: { ...payment, amount: String(payment.amount) } };
 }
 
-export async function generateMercadoPagoLink(reservationId: string, amount?: number, paymentType?: string, title?: string, description?: string) {
+export async function generateMercadoPagoLink(reservationId: string, amount?: number, paymentType?: "RESERVATION" | "EXTRA", title?: string, description?: string) {
   const session = await getSession();
   if (!session) return { error: "No autorizado" };
 
@@ -290,7 +292,7 @@ export async function generateMercadoPagoLink(reservationId: string, amount?: nu
   const payment = await prisma.payment.create({
     data: {
       reservationId,
-      paymentType: (paymentType as any) ?? "RESERVATION",
+      paymentType: paymentType ?? "RESERVATION",
       title: title ?? null,
       description: description ?? null,
       amount: paymentAmount,
@@ -358,10 +360,11 @@ export async function generateMercadoPagoLink(reservationId: string, amount?: nu
       sandboxInitPoint: data.sandbox_init_point,
       expiresAt: expirationDate.toISOString(),
     };
-  } catch (error: any) {
-    console.error(`[MP GenerateLink] Exception, deleting payment ${payment.id}:`, error.message);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[MP GenerateLink] Exception, deleting payment ${payment.id}:`, message);
     await prisma.payment.delete({ where: { id: payment.id } });
-    return { error: `Error al generar link: ${error.message}` };
+    return { error: `Error al generar link: ${message}` };
   }
 }
 
@@ -378,7 +381,7 @@ export async function processMercadoPagoWebhook(payload: {
 
   console.log(`[MP Webhook] Processing. ID: ${id}, Status: ${status}, ExternalRef: ${external_reference}, PreferenceID: ${preference_id}`);
 
-  let payment: any = null;
+  let payment: Prisma.PaymentGetPayload<{ include: { reservation: true } }> | null = null;
   const parts = external_reference ? external_reference.split(":") : [];
   const reservationIdFromRef = parts[0] || null;
   const paymentIdFromRef = parts.length > 1 ? parts[1] : null;
@@ -579,8 +582,9 @@ export async function generatePaymentLink(paymentId: string) {
       sandboxInitPoint: data.sandbox_init_point,
       expiresAt: expiresAtDate.toISOString(),
     };
-  } catch (error: any) {
-    return { error: `Error al generar link: ${error.message}` };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { error: `Error al generar link: ${message}` };
   }
 }
 
@@ -664,8 +668,9 @@ export async function regeneratePaymentLink(id: string) {
     revalidatePath(`/reservations/${payment.reservationId}`);
 
     return { success: true, initPoint, sandboxInitPoint: data.sandbox_init_point };
-  } catch (error: any) {
-    return { error: `Error al regenerar link: ${error.message}` };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { error: `Error al regenerar link: ${message}` };
   }
 }
 
@@ -973,7 +978,8 @@ export async function checkMercadoPagoPaymentStatus(paymentId: string) {
     }
 
     return { success: true, newStatus: payment.status, alreadyUpdated: false };
-  } catch (error: any) {
-    return { error: `Error al verificar pago: ${error.message}` };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { error: `Error al verificar pago: ${message}` };
   }
 }

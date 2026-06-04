@@ -1,16 +1,36 @@
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-import { FlatCompat } from "@eslint/eslintrc";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
+import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
+import nextTypescript from "eslint-config-next/typescript";
 
 const eslintConfig = [
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  {
+    ignores: [
+      ".next/**",
+      "node_modules/**",
+      "out/**",
+      "build/**",
+      "next-env.d.ts",
+      ".agents/**",
+      ".opencode/**",
+    ],
+  },
+  {
+    files: ["**/*.{ts,tsx,js,jsx,mjs}"],
+  },
+  ...nextCoreWebVitals,
+  ...nextTypescript,
+  {
+    // P1-tests: relax no-explicit-any for test files (mocks/fixtures).
+    // Code in lib/actions, components, api routes, etc. remains strict.
+    // See docs/handoffs/lint-cleanup.md for the rationale.
+    files: [
+      "**/__tests__/**/*.{ts,tsx}",
+      "**/*.test.{ts,tsx}",
+      "**/__mocks__/**/*.{ts,tsx}",
+    ],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "warn",
+    },
+  },
 ];
 
 export default eslintConfig;

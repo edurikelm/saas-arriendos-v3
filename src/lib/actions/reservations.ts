@@ -1,11 +1,13 @@
 "use server";
 
 import { prisma } from "@/lib/db/prisma";
+import type { Prisma } from "@prisma/client";
 import { getSession } from "@/lib/actions/auth";
 import { reservationSchema, reservationUpdateSchema, type ReservationInput, type ReservationUpdateInput } from "@/lib/validations/reservation";
 import { revalidatePath } from "next/cache";
-import { addDays, differenceInDays, differenceInMonths, startOfDay, endOfDay, addMonths } from "date-fns";
+import { addDays, differenceInDays, differenceInMonths, addMonths } from "date-fns";
 import { generateMonthlyPayments } from "@/lib/payments/monthly";
+import { ZodError } from "zod";
 
 export type CalendarReservation = {
   id: string;
@@ -41,17 +43,17 @@ export async function getReservations(params?: {
   const limit = params?.limit || 10;
   const skip = (page - 1) * limit;
 
-  const where: any = { userId: session.userId };
+  const where: Prisma.ReservationWhereInput = { userId: session.userId };
 
   if (params?.propertyId) {
     where.propertyId = params.propertyId;
   }
 
-  if (params?.status) {
+  if (params?.status && (params.status === "PENDING" || params.status === "CONFIRMED" || params.status === "CANCELLED" || params.status === "COMPLETED")) {
     where.status = params.status;
   }
 
-  if (params?.billingType) {
+  if (params?.billingType && (params.billingType === "DAILY" || params.billingType === "MONTHLY")) {
     where.billingType = params.billingType;
   }
 
@@ -267,7 +269,7 @@ function calculateEndDate(startDate: Date, months: number): Date {
 }
 
 function calculateTotalPrice(
-  property: { dailyPrice: any; monthlyPrice: any | null },
+  property: { dailyPrice: Prisma.Decimal | number; monthlyPrice: Prisma.Decimal | number | null },
   billingType: "DAILY" | "MONTHLY",
   startDate: Date,
   endDate: Date,
@@ -366,8 +368,8 @@ export async function createReservation(data: unknown) {
   let validated: ReservationInput;
   try {
     validated = reservationSchema.parse(data);
-  } catch (e: any) {
-    if (e.name === 'ZodError') {
+  } catch (e) {
+    if (e instanceof ZodError) {
       return { error: "Datos inválidos", details: e.errors };
     }
     return { error: "Datos inválidos" };
@@ -381,7 +383,7 @@ export async function createReservation(data: unknown) {
     return { error: "Propiedad no encontrada" };
   }
 
-  let startDate = new Date(validated.startDate);
+  const startDate = new Date(validated.startDate);
   let endDate = new Date(validated.endDate);
 
   if (validated.billingType === 'MONTHLY') {
@@ -475,8 +477,8 @@ export async function updateReservation(id: string, data: unknown) {
   let validated: ReservationUpdateInput;
   try {
     validated = reservationUpdateSchema.parse(data);
-  } catch (e: any) {
-    if (e.name === 'ZodError') {
+  } catch (e) {
+    if (e instanceof ZodError) {
       return { error: "Datos inválidos", details: e.errors };
     }
     return { error: "Datos inválidos" };
@@ -489,7 +491,7 @@ export async function updateReservation(id: string, data: unknown) {
 
   if (!existing) return { error: "Reserva no encontrada" };
 
-  const updateData: any = {};
+  const updateData: Prisma.ReservationUncheckedUpdateInput = {};
   const changes: { field: string; old: string; new: string }[] = [];
 
   if (validated.propertyId !== undefined && validated.propertyId !== existing.propertyId) {
@@ -568,7 +570,7 @@ export async function updateReservation(id: string, data: unknown) {
   }
 
   if (validated.status !== undefined && validated.status !== existing.status) {
-    updateData.status = validated.status as any;
+    updateData.status = validated.status;
     changes.push({
       field: "status",
       old: existing.status,
@@ -586,10 +588,10 @@ export async function updateReservation(id: string, data: unknown) {
   }
 
   if (changes.length > 0) {
-    const propertyId = updateData.propertyId || existing.propertyId;
-    const startDate = updateData.startDate || existing.startDate;
-    const endDate = updateData.endDate || existing.endDate;
-    const unitsBooked = updateData.unitsBooked || existing.unitsBooked;
+    const propertyId = (typeof updateData.propertyId === "string" ? updateData.propertyId : existing.propertyId);
+    const startDate = (updateData.startDate instanceof Date ? updateData.startDate : existing.startDate);
+    const endDate = (updateData.endDate instanceof Date ? updateData.endDate : existing.endDate);
+    const unitsBooked = (typeof updateData.unitsBooked === "number" ? updateData.unitsBooked : existing.unitsBooked);
 
     const availability = await checkAvailability(
       propertyId,
@@ -603,7 +605,7 @@ export async function updateReservation(id: string, data: unknown) {
       return { error: availability.reason };
     }
 
-    const propertyForPrice = updateData.propertyId
+    const propertyForPrice = typeof updateData.propertyId === "string"
       ? await prisma.property.findUnique({ where: { id: updateData.propertyId } })
       : existing.property;
 
@@ -730,7 +732,7 @@ export async function getCalendarReservations(options?: {
   const startDate = new Date(year, month, 1);
   const endDate = new Date(year, month + 1, 0, 23, 59, 59);
 
-  const where: any = {
+  const where: Prisma.ReservationWhereInput = {
     userId: session.userId,
     billingType: "DAILY",
     OR: [

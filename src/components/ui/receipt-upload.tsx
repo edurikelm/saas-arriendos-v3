@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+import Image from "next/image";
 import { ImageUp, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -67,7 +68,7 @@ export function ReceiptUpload({ onFileSelect, maxSizeMb = 5, accept = "image/jpe
     <div className="space-y-2">
       {preview ? (
         <div className="relative inline-block">
-          <img src={preview} alt="Preview" className="max-h-32 rounded-md border" />
+          <Image src={preview} alt="Preview" width={200} height={128} className="max-h-32 rounded-md border" />
           <button
             type="button"
             onClick={handleRemove}

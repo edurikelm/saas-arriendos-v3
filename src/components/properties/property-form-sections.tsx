@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { propertySchema, type PropertyInput } from "@/lib/validations/property";
@@ -177,7 +178,7 @@ export function PropertyFormSections({ initialData, onSubmit, onCancel, usedColo
               </Label>
               <Select
                 value={watch("type")}
-                onValueChange={(value) => setValue("type", value as any)}
+                onValueChange={(value) => setValue("type", value as PropertyInput["type"])}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Seleccionar tipo" />
@@ -267,7 +268,7 @@ export function PropertyFormSections({ initialData, onSubmit, onCancel, usedColo
               <div className="relative aspect-video rounded-lg border-2 border-dashed border-border bg-muted/30 overflow-hidden">
                 {mainImage ? (
                   <>
-                    <img src={mainImage} alt="Main" className="w-full h-full object-cover" />
+                    <Image src={mainImage} alt="Main" width={400} height={225} className="w-full h-full object-cover" />
                     <button
                       type="button"
                       onClick={() => removeImage(0, true)}
@@ -306,7 +307,7 @@ export function PropertyFormSections({ initialData, onSubmit, onCancel, usedColo
               <div className="grid grid-cols-4 gap-2">
                 {images.map((img, i) => (
                   <div key={i} className="relative aspect-square rounded-md overflow-hidden border border-border">
-                    <img src={img} alt="" className="w-full h-full object-cover" />
+                    <Image src={img} alt="" width={100} height={100} className="w-full h-full object-cover" />
                     <button
                       type="button"
                       onClick={() => removeImage(i, false)}

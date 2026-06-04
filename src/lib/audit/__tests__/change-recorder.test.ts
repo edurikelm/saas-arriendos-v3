@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { recordChanges, diffObjects, createChangeRecorder, type ChangeRecord } from '../change-recorder';
+import { recordChanges, diffObjects, createChangeRecorder } from '../change-recorder';
 
 vi.mock('@/lib/db/prisma', () => ({
   prisma: {

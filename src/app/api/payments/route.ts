@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(result, { status: 201 });
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error creating payment:", error);
     return NextResponse.json({ error: "Error al crear pago" }, { status: 500 });
   }

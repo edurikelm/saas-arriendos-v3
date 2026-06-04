@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { logoutAction } from "@/lib/actions/auth";
-import { useTheme } from "next-themes";
+import { useTheme } from "@/components/providers/theme-provider";
 import { useEffect, useState } from "react";
 
 interface DashboardNavbarProps {
@@ -30,6 +30,7 @@ export function DashboardNavbar({ userName, userRole, userPlan }: DashboardNavba
   const planLabel = isSuperAdmin ? "ADMIN" : userPlan ?? "FREE";
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration safety
     setMounted(true);
     setDateLabel(
       new Intl.DateTimeFormat("es-CL", {

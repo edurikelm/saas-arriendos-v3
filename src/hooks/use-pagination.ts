@@ -24,6 +24,7 @@ export function usePagination(options: UsePaginationOptions): UsePaginationRetur
 
   useEffect(() => {
     if (page > totalPages) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset page when total decreases
       setPage(1);
     }
   }, [totalPages, page]);

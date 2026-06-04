@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db/prisma";
-import { loginSchema, registerSchema, registerApiSchema, type LoginInput, type RegisterInput, type RegisterApiInput } from "@/lib/validations/auth";
+import { loginSchema, registerApiSchema, type LoginInput, type RegisterApiInput } from "@/lib/validations/auth";
 import { SignJWT, jwtVerify } from "jose";
 import { hash, compare } from "bcryptjs";
 

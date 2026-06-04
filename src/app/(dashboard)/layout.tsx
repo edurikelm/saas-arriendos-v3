@@ -16,10 +16,11 @@ export default async function DashboardLayout({
 
   return (
     <DashboardLayoutClient
-      children={children}
       userName={session?.email?.split("@")[0] ?? null}
       userRole={session?.role ?? null}
       userPlan={session?.plan ?? null}
-    />
+    >
+      {children}
+    </DashboardLayoutClient>
   );
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPropertyById, updateProperty, deleteProperty } from "@/lib/actions/properties";
 import { propertySchema } from "@/lib/validations/property";
+import { ZodError } from "zod";
 
 export async function GET(
   request: Request,
@@ -36,8 +37,8 @@ export async function PUT(
     }
 
     return NextResponse.json(result);
-  } catch (error: any) {
-    if (error.name === "ZodError") {
+  } catch (error) {
+    if (error instanceof ZodError) {
       return NextResponse.json({ error: "Datos inválidos", details: error.errors }, { status: 400 });
     }
     console.error("Error updating property:", error);

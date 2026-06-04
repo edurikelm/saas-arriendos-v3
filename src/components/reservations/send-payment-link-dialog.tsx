@@ -36,8 +36,6 @@ interface SendPaymentLinkDialogProps {
   payment: Payment;
   client: Client;
   propertyName: string;
-  reservationStartDate: string;
-  reservationEndDate: string;
   billingType: string;
 }
 
@@ -74,7 +72,7 @@ function getDefaultTemplate(params: {
   template += `Monto: ${amount}`;
   
   if (dueDate) {
-    template += `\nVencimiento: ${format(new Date(dueDate), "d MMM yyyy", { locale: es as any })}`;
+    template += `\nVencimiento: ${format(new Date(dueDate), "d MMM yyyy", { locale: es })}`;
   } else if (month) {
     template += `\nCorrespondiente a: ${month}`;
   }
@@ -102,26 +100,26 @@ export function SendPaymentLinkDialog({
   payment,
   client,
   propertyName,
-  reservationStartDate,
-  reservationEndDate,
   billingType,
 }: SendPaymentLinkDialogProps) {
-  if (!payment || !payment.initPoint) return null;
-
   const [message, setMessage] = useState(() =>
-    getDefaultTemplate({
-      clientName: client.name,
-      propertyName,
-      amount: formatAmount(payment.amount),
-      dueDate: payment.dueDate,
-      month: payment.dueDate ? formatMonthYear(payment.dueDate) : undefined,
-      link: payment.initPoint || "",
-      installmentIndex: payment.installmentIndex,
-      title: payment.title,
-      billingType,
-    })
+    payment && payment.initPoint
+      ? getDefaultTemplate({
+          clientName: client.name,
+          propertyName,
+          amount: formatAmount(payment.amount),
+          dueDate: payment.dueDate,
+          month: payment.dueDate ? formatMonthYear(payment.dueDate) : undefined,
+          link: payment.initPoint || "",
+          installmentIndex: payment.installmentIndex,
+          title: payment.title,
+          billingType,
+        })
+      : ""
   );
   const [copied, setCopied] = useState(false);
+
+  if (!payment || !payment.initPoint) return null;
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(message);

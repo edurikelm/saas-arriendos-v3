@@ -14,15 +14,6 @@ export interface ChangeRecorderMeta {
   entityId: string;
 }
 
-function isPrimitive(value: unknown): value is string | number | boolean | null {
-  return (
-    value === null ||
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean"
-  );
-}
-
 function serializeValue(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (value instanceof Date) return value.toISOString();

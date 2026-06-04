@@ -23,7 +23,7 @@ import type { PropertyInput } from "@/lib/validations/property";
 interface Property {
   id: string;
   name: string;
-  type: string;
+  type: "HOUSE" | "APARTMENT" | "CABIN" | "HOSTEL" | "HOTEL" | "OFFICE" | "COMMERCIAL";
   unitsAvailable: number;
   dailyPrice: string;
   monthlyPrice: string | null;
@@ -231,7 +231,7 @@ export function PropertiesClient({ initialProperties, usedColors }: PropertiesCl
             <PropertyForm
               initialData={{
                 name: editingProperty.name,
-                type: editingProperty.type as any,
+                type: editingProperty.type,
                 unitsAvailable: editingProperty.unitsAvailable,
                 dailyPrice: Number(editingProperty.dailyPrice),
                 monthlyPrice: editingProperty.monthlyPrice ? Number(editingProperty.monthlyPrice) : null,

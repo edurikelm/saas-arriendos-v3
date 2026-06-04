@@ -1,7 +1,6 @@
 "use client";
 
 import { ReactNode, useState } from "react";
-import { useRouter } from "next/navigation";
 import { DashboardSidebarAdmin } from "@/components/layout/dashboard-sidebar-admin";
 import { DashboardNavbar } from "@/components/layout/dashboard-navbar";
 import { Menu } from "lucide-react";
@@ -16,7 +15,6 @@ interface AdminLayoutClientProps {
 export function AdminLayoutClient({ children, userName, userRole }: AdminLayoutClientProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const router = useRouter();
 
   return (
     <div className="min-h-screen bg-background">

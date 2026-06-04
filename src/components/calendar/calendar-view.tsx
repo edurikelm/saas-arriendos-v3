@@ -85,8 +85,9 @@ export function CalendarView({ initialReservations, properties, clients, plan = 
   }, [selectedPropertyId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching on dependency change
     fetchReservations();
-  }, [selectedPropertyId]);
+  }, [selectedPropertyId, fetchReservations]);
 
   const handleSelectReservation = async (id: string) => {
     try {

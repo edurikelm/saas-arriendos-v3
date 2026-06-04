@@ -34,7 +34,7 @@ export async function PUT(
     }
 
     return NextResponse.json(result);
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error updating reservation:", error);
     return NextResponse.json({ error: "Error al actualizar reserva" }, { status: 500 });
   }

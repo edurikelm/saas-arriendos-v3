@@ -16,9 +16,10 @@ export default async function AdminLayout({
 
   return (
     <AdminLayoutClient
-      children={children}
       userName={session.email.split("@")[0]}
       userRole={session.role}
-    />
+    >
+      {children}
+    </AdminLayoutClient>
   );
 }

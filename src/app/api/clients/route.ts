@@ -27,8 +27,8 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(result, { status: 201 });
-  } catch (error: any) {
-    console.error("Error creating client:", error);
-    return NextResponse.json({ error: "Error al crear cliente" }, { status: 500 });
+  } catch (error) {
+    console.error("Error fetching clients:", error);
+    return NextResponse.json({ error: "Error al obtener clientes" }, { status: 500 });
   }
 }

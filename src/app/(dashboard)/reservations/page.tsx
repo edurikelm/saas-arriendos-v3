@@ -18,9 +18,9 @@ export default async function ReservationsPage() {
 
   return (
     <ReservationsListClient
-      initialData={reservationsData as any}
-      properties={properties as any}
-      clients={clients as any}
+      initialData={reservationsData}
+      properties={properties}
+      clients={clients.map((c) => ({ id: c.id, name: c.name, email: c.email }))}
       plan={session?.plan ?? "FREE"}
     />
   );

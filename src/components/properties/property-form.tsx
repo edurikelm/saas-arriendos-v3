@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { propertySchema, type PropertyInput } from "@/lib/validations/property";
@@ -17,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 
 const PROPERTY_TYPES = [
   { value: "HOUSE", label: "Casa" },
@@ -159,10 +159,10 @@ export function PropertyForm({ initialData, onSubmit, onCancel, usedColors = [] 
 
               <div className="space-y-2">
                 <Label htmlFor="type">Tipo de Propiedad</Label>
-                <Select
-                  value={watch("type")}
-                  onValueChange={(value) => setValue("type", value as any)}
-                >
+              <Select
+                value={watch("type")}
+                onValueChange={(value) => setValue("type", value as PropertyInput["type"])}
+              >
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccionar tipo" />
                   </SelectTrigger>
@@ -289,9 +289,11 @@ export function PropertyForm({ initialData, onSubmit, onCancel, usedColors = [] 
                 <div className="border-2 border-dashed rounded-lg p-4 text-center">
                   {mainImage ? (
                     <div className="relative">
-                      <img
+                      <Image
                         src={mainImage}
                         alt="Main"
+                        width={400}
+                        height={225}
                         className="mx-auto max-h-48 rounded object-cover"
                       />
                       <Button
@@ -345,9 +347,11 @@ export function PropertyForm({ initialData, onSubmit, onCancel, usedColors = [] 
                     <div className="grid grid-cols-3 gap-2 mt-4">
                       {images.map((img, index) => (
                         <div key={index} className="relative">
-                          <img
+                          <Image
                             src={img}
                             alt={`Image ${index + 1}`}
+                            width={100}
+                            height={96}
                             className="w-full h-24 object-cover rounded"
                           />
                           <button

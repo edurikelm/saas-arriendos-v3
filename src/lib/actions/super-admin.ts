@@ -2,8 +2,9 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import type { Prisma } from "@prisma/client";
 import { getSession } from "@/lib/actions/auth";
-import { superAdminSchema, updateUserPlanSchema, createOwnerSchema } from "@/lib/validations/super-admin";
+import { updateUserPlanSchema, createOwnerSchema } from "@/lib/validations/super-admin";
 import { hash } from "bcryptjs";
 import { revalidatePath } from "next/cache";
 
@@ -47,7 +48,7 @@ export async function getAllUsers(options?: {
   const limit = options?.limit || 20;
   const skip = (page - 1) * limit;
 
-  const where: any = { role: "OWNER" };
+  const where: Prisma.UserProfileWhereInput = { role: "OWNER" };
 
   if (options?.search) {
     where.OR = [
@@ -56,7 +57,7 @@ export async function getAllUsers(options?: {
     ];
   }
 
-  if (options?.plan) {
+  if (options?.plan && (options.plan === "FREE" || options.plan === "PRO")) {
     where.plan = options.plan;
   }
 
@@ -165,8 +166,6 @@ export async function deleteUser(userId: string) {
 export async function getSystemStats() {
   const authError = await requireSuperAdmin();
   if (authError) return null;
-
-  const session = await getSession();
 
   const [
     totalUsers,

@@ -33,7 +33,7 @@ export async function POST(request: Request) {
 
     const result = await createReservationDocument({
       reservationId,
-      category: category as any,
+      category: category as "CONTRATO" | "ANEXO" | "INVENTARIO" | "OTRO",
       file,
     });
 
