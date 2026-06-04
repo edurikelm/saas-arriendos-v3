@@ -5,15 +5,17 @@ import { getSession } from "@/lib/actions/auth";
 import { CalendarView } from "@/components/calendar/calendar-view";
 
 export default async function CalendarPage() {
-  const [session, properties, clients, reservations] = await Promise.all([
+  const [session, properties, clientsResult, reservations] = await Promise.all([
     getSession(),
     getProperties(),
-    getClients(),
+    getClients({ limit: 1000 }),
     getCalendarReservations({
       year: new Date().getFullYear(),
       month: new Date().getMonth() + 1,
     }),
   ]);
+
+  const clients = Array.isArray(clientsResult) ? [] : clientsResult.data;
 
   return (
     <CalendarView

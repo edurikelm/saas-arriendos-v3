@@ -7,6 +7,7 @@ vi.mock("@/lib/db/prisma", () => ({
     reservationClient: {
       count: vi.fn(),
       create: vi.fn(),
+      findMany: vi.fn(),
     },
   },
 }));
@@ -108,5 +109,128 @@ describe("createClient", () => {
     });
 
     expect(result).toEqual({ error: "Error al crear el cliente" });
+  });
+});
+
+describe("getClients pagination", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const mockClientRow = {
+    id: "client-1",
+    userId: "user-1",
+    name: "Test",
+    email: "test@test.com",
+    phone: null,
+    rut: null,
+    notes: null,
+    createdAt: new Date("2025-01-01"),
+    reservations: [] as { id: string }[],
+  };
+
+  it("devuelve forma PaginatedResponse con data, total, page, totalPages", async () => {
+    const { getSession } = await import("@/lib/actions/auth");
+    const { prisma } = await import("@/lib/db/prisma");
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    vi.mocked(prisma.reservationClient.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.reservationClient.count).mockResolvedValue(0);
+
+    const { getClients } = await import("../clients");
+    const result = await getClients();
+
+    expect(result).toHaveProperty("data");
+    expect(result).toHaveProperty("total");
+    expect(result).toHaveProperty("page");
+    expect(result).toHaveProperty("totalPages");
+    expect(Array.isArray((result as any).data)).toBe(true);
+  });
+
+  it("calcula totalPages correctamente: 45 elementos con limit 20 = 3 páginas", async () => {
+    const { getSession } = await import("@/lib/actions/auth");
+    const { prisma } = await import("@/lib/db/prisma");
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    vi.mocked(prisma.reservationClient.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.reservationClient.count).mockResolvedValue(45);
+
+    const { getClients } = await import("../clients");
+    const result = await getClients({ page: 1, limit: 20 });
+
+    expect((result as any).totalPages).toBe(3);
+    expect((result as any).total).toBe(45);
+  });
+
+  it("calcula skip correctamente para page=2, limit=20", async () => {
+    const { getSession } = await import("@/lib/actions/auth");
+    const { prisma } = await import("@/lib/db/prisma");
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    vi.mocked(prisma.reservationClient.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.reservationClient.count).mockResolvedValue(40);
+
+    const { getClients } = await import("../clients");
+    await getClients({ page: 2, limit: 20 });
+
+    expect(prisma.reservationClient.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 20, take: 20 })
+    );
+  });
+
+  it("construye filtro OR cuando se pasa search", async () => {
+    const { getSession } = await import("@/lib/actions/auth");
+    const { prisma } = await import("@/lib/db/prisma");
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    vi.mocked(prisma.reservationClient.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.reservationClient.count).mockResolvedValue(0);
+
+    const { getClients } = await import("../clients");
+    await getClients({ search: "juan" });
+
+    expect(prisma.reservationClient.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: [
+            { name: { contains: "juan", mode: "insensitive" } },
+            { email: { contains: "juan", mode: "insensitive" } },
+          ],
+        }),
+      })
+    );
+  });
+
+  it("mapea las propiedades del cliente al formato esperado", async () => {
+    const { getSession } = await import("@/lib/actions/auth");
+    const { prisma } = await import("@/lib/db/prisma");
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    vi.mocked(prisma.reservationClient.findMany).mockResolvedValue([
+      mockClientRow,
+    ]);
+    vi.mocked(prisma.reservationClient.count).mockResolvedValue(1);
+
+    const { getClients } = await import("../clients");
+    const result = await getClients({ page: 1, limit: 20 });
+
+    const data = (result as any).data;
+    expect(data).toHaveLength(1);
+    expect(data[0]).toEqual({
+      id: "client-1",
+      name: "Test",
+      email: "test@test.com",
+      phone: null,
+      rut: null,
+      notes: null,
+      createdAt: "2025-01-01T00:00:00.000Z",
+      userId: "user-1",
+      reservationsCount: 0,
+    });
+  });
+
+  it("retorna [] cuando no hay sesión", async () => {
+    const { getSession } = await import("@/lib/actions/auth");
+    vi.mocked(getSession).mockResolvedValue(null);
+
+    const { getClients } = await import("../clients");
+    const result = await getClients();
+
+    expect(result).toEqual([]);
   });
 });

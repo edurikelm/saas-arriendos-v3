@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { Calendar, Plus, Pencil, Trash2, Eye, Grid, List, Filter, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,13 +11,14 @@ import { ReservationForm } from "@/components/reservations/reservation-form";
 import { ReservationDetailDialog } from "@/components/reservations/reservation-detail-dialog";
 import { ReservationTable } from "@/components/reservations/reservation-table";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Pagination } from "@/components/ui/pagination";
+import { usePagination } from "@/hooks/use-pagination";
 import { toast } from "sonner";
 import {
   createReservation,
   updateReservation,
   cancelReservation,
   deleteReservation,
-  getReservations,
 } from "@/lib/actions/reservations";
 import type { ReservationInput } from "@/lib/validations/reservation";
 
@@ -62,7 +63,7 @@ interface Reservation {
 }
 
 interface ReservationsListClientProps {
-  initialReservations: Reservation[];
+  initialData: { data: Reservation[]; total: number; page: number; totalPages: number };
   properties: Property[];
   clients: Client[];
   plan?: string;
@@ -94,13 +95,16 @@ function formatPrice(price: string | number): string {
 }
 
 export function ReservationsListClient({
-  initialReservations,
+  initialData,
   properties,
   clients,
   plan = "FREE",
 }: ReservationsListClientProps) {
   const searchParams = useSearchParams();
-  const [reservations, setReservations] = useState<Reservation[]>(initialReservations);
+  const [reservations, setReservations] = useState<Reservation[]>(initialData.data);
+  const [total, setTotal] = useState(initialData.total);
+  const [totalPages, setTotalPages] = useState(initialData.totalPages);
+  const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "table">("table");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
@@ -120,14 +124,41 @@ export function ReservationsListClient({
     payment: "",
   });
 
-  const filteredReservations = reservations.filter((res) => {
-    if (filters.propertyId && res.propertyId !== filters.propertyId) return false;
+  const { page, limit, goToPage, setLimit } = usePagination({ total, totalPages, defaultPage: 1, defaultLimit: 10 });
 
-    if (filters.billingType && res.billingType !== filters.billingType) return false;
+  const fetchReservations = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ page: page.toString(), limit: limit.toString() });
+      if (filters.propertyId) params.append("propertyId", filters.propertyId);
+      if (filters.billingType) params.append("billingType", filters.billingType);
+      if (filters.status) params.append("status", filters.status);
+      const res = await fetch(`/api/reservations?${params}`);
+      const data = await res.json();
+      setReservations(data.data);
+      setTotal(data.total);
+      setTotalPages(data.totalPages);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, limit, filters.propertyId, filters.billingType, filters.status]);
 
-    if (filters.status && res.status !== filters.status) return false;
+  useEffect(() => {
+    fetchReservations();
+  }, [page]);
 
-    if (filters.payment) {
+  useEffect(() => {
+    if (page !== 1) {
+      goToPage(1);
+    } else {
+      fetchReservations();
+    }
+  }, [filters.propertyId, filters.billingType, filters.status]);
+
+  const filteredReservations = useMemo(() => {
+    if (!filters.payment) return reservations;
+
+    return reservations.filter((res) => {
       const paidAmount = res.payments
         .filter((p) => p.status === "COMPLETED")
         .reduce((sum, p) => sum + Number(p.amount), 0);
@@ -135,10 +166,9 @@ export function ReservationsListClient({
       if (filters.payment === "paid" && paidAmount < totalPrice) return false;
       if (filters.payment === "pending" && paidAmount > 0) return false;
       if (filters.payment === "overpaid" && paidAmount <= totalPrice) return false;
-    }
-
-    return true;
-  });
+      return true;
+    });
+  }, [reservations, filters.payment]);
 
   const totalReserved = filteredReservations.reduce((sum, res) => sum + Number(res.totalPrice), 0);
   const totalPaid = filteredReservations.reduce(
@@ -167,8 +197,7 @@ export function ReservationsListClient({
   };
 
   const handleRefresh = async () => {
-    const updated = await getReservations();
-    setReservations(updated as unknown as Reservation[]);
+    await fetchReservations();
   };
 
   const handleCreate = async (data: ReservationInput) => {
@@ -551,6 +580,10 @@ export function ReservationsListClient({
               )}
             </>
           )}
+
+          {total > limit && (
+            <Pagination page={page} totalPages={totalPages} total={total} limit={limit} onPageChange={goToPage} onLimitChange={setLimit} />
+          )}
         </CardContent>
       </Card>
 
@@ -593,10 +626,8 @@ export function ReservationsListClient({
             handleCancel(viewingReservation.id, () => setViewingReservation(null));
           }}
           onRefresh={async (reservationId) => {
-            const updated = await getReservations();
-            const freshList = updated as unknown as Reservation[];
-            setReservations(freshList);
-            const fresh = freshList.find((r) => r.id === reservationId);
+            await fetchReservations();
+            const fresh = reservations.find((r) => r.id === reservationId);
             if (fresh) setViewingReservation(fresh);
           }}
         />

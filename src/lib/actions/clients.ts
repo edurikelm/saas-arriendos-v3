@@ -5,34 +5,69 @@ import { prisma } from "@/lib/db/prisma";
 import { getSession } from "@/lib/actions/auth";
 import { clientSchema, type ClientInput } from "@/lib/validations/client";
 import { revalidatePath } from "next/cache";
+import type { PaginatedResponse } from "@/types/pagination";
 
 const FREE_CLIENT_LIMIT = 5;
 
-export async function getClients() {
+export interface ClientRow {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  rut: string | null;
+  notes: string | null;
+  createdAt: string;
+  userId: string;
+  reservationsCount: number;
+}
+
+export async function getClients(params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
+}): Promise<PaginatedResponse<ClientRow> | []> {
   const session = await getSession();
   if (!session) return [];
 
-  const clients = await prisma.reservationClient.findMany({
-    where: { userId: session.userId },
-    include: {
-      reservations: {
-        select: { id: true },
-      },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const page = params?.page || 1;
+  const limit = params?.limit || 10;
+  const skip = (page - 1) * limit;
 
-  return clients.map((client) => ({
-    id: client.id,
-    name: client.name,
-    email: client.email,
-    phone: client.phone,
-    rut: client.rut,
-    notes: client.notes,
-    createdAt: client.createdAt.toISOString(),
-    userId: client.userId,
-    reservationsCount: client.reservations.length,
-  }));
+  const where: any = { userId: session.userId };
+  if (params?.search) {
+    where.OR = [
+      { name: { contains: params.search, mode: "insensitive" } },
+      { email: { contains: params.search, mode: "insensitive" } },
+    ];
+  }
+
+  const [clients, total] = await Promise.all([
+    prisma.reservationClient.findMany({
+      where,
+      include: { reservations: { select: { id: true } } },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+    }),
+    prisma.reservationClient.count({ where }),
+  ]);
+
+  return {
+    data: clients.map((client) => ({
+      id: client.id,
+      name: client.name,
+      email: client.email,
+      phone: client.phone,
+      rut: client.rut,
+      notes: client.notes,
+      createdAt: client.createdAt.toISOString(),
+      userId: client.userId,
+      reservationsCount: client.reservations.length,
+    })),
+    total,
+    page,
+    totalPages: Math.ceil(total / limit),
+  };
 }
 
 export async function getClientById(id: string) {

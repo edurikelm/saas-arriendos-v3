@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Users, Plus, Pencil, Trash2, Search, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,9 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ClientForm } from "@/components/clients/client-form";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Pagination } from "@/components/ui/pagination";
+import { usePagination } from "@/hooks/use-pagination";
+import type { PaginatedResponse } from "@/types/pagination";
 import { toast } from "sonner";
 import { createClient, updateClient, deleteClient } from "@/lib/actions/clients";
 import type { ClientInput } from "@/lib/validations/client";
@@ -27,7 +30,7 @@ interface Client {
 }
 
 interface ClientsTableProps {
-  initialClients: Client[];
+  initialData: PaginatedResponse<Client>;
 }
 
 function getInitials(name: string): string {
@@ -40,12 +43,51 @@ function getInitials(name: string): string {
     .toUpperCase();
 }
 
-export function ClientsTable({ initialClients }: ClientsTableProps) {
-  const [clients, setClients] = useState<Client[]>(initialClients);
+export function ClientsTable({ initialData }: ClientsTableProps) {
+  const [clients, setClients] = useState<Client[]>(initialData.data);
+  const [total, setTotal] = useState(initialData.total);
+  const [totalPages, setTotalPages] = useState(initialData.totalPages);
   const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
+
+  const { page, limit, goToPage, setLimit, range } = usePagination({
+    total,
+    totalPages,
+    defaultPage: initialData.page,
+    defaultLimit: 10,
+  });
+
+  const fetchClients = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+      });
+      if (searchQuery) params.append("search", searchQuery);
+      const res = await fetch(`/api/clients?${params}`);
+      const data: PaginatedResponse<Client> = await res.json();
+      setClients(data.data);
+      setTotal(data.total);
+      setTotalPages(data.totalPages);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, limit, searchQuery]);
+
+  useEffect(() => {
+    fetchClients();
+  }, [page, limit]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      goToPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const handleCreate = async (data: ClientInput) => {
     const result = await createClient(data);
@@ -61,7 +103,7 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
 
     toast.success("Cliente creado correctamente");
     setIsCreateOpen(false);
-    setClients((prev) => [result.client!, ...prev]);
+    fetchClients();
   };
 
   const handleUpdate = async (data: ClientInput) => {
@@ -76,9 +118,7 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
 
     toast.success("Cliente actualizado correctamente");
     setEditingClient(null);
-    setClients((prev) =>
-      prev.map((c) => (c.id === editingClient.id ? { ...c, ...result.client } : c))
-    );
+    fetchClients();
   };
 
   const handleDelete = async () => {
@@ -92,17 +132,9 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
     }
 
     toast.success("Cliente eliminado");
-    setClients((prev) => prev.filter((c) => c.id !== clientToDelete.id));
     setClientToDelete(null);
+    fetchClients();
   };
-
-  const filteredClients = clients.filter(
-    (client) =>
-      client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      client.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (client.phone && client.phone.includes(searchQuery)) ||
-      (client.rut && client.rut.includes(searchQuery))
-  );
 
   return (
     <>
@@ -133,7 +165,7 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
             />
           </div>
 
-          {filteredClients.length === 0 ? (
+          {clients.length === 0 && !loading ? (
             <div className="text-center py-12">
               <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
               <h3 className="text-lg font-medium mb-2">No hay clientes</h3>
@@ -147,7 +179,7 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
             <div className="space-y-4">
               <div className="flex items-center justify-between text-sm text-muted-foreground">
                 <span>
-                  {filteredClients.length} de {clients.length} clientes
+                  Mostrando {range.start}-{range.end} de {total} clientes
                 </span>
               </div>
 
@@ -165,7 +197,7 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredClients.map((client) => (
+                    {clients.map((client) => (
                       <tr key={client.id} className="group relative transition-transform duration-200 hover:-translate-y-0.5">
                         <td className="relative rounded-l-xl border-y border-l border-zinc-200/70 bg-white p-4 shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
                           <div className="flex items-center gap-3">
@@ -206,6 +238,17 @@ export function ClientsTable({ initialClients }: ClientsTableProps) {
                   </table>
                 </div>
               </div>
+
+              {total > limit && (
+                <Pagination
+                  page={page}
+                  totalPages={totalPages}
+                  total={total}
+                  limit={limit}
+                  onPageChange={goToPage}
+                  onLimitChange={setLimit}
+                />
+              )}
             </div>
           )}
         </CardContent>

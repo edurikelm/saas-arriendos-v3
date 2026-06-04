@@ -1,36 +1,20 @@
 import { NextResponse } from "next/server";
-import { getReservations, createReservation } from "@/lib/actions/reservations";
+import { getReservations } from "@/lib/actions/reservations";
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const filters = {
-      propertyId: searchParams.get("propertyId") || undefined,
-      status: searchParams.get("status") || undefined,
-      startDate: searchParams.get("startDate") || undefined,
-      endDate: searchParams.get("endDate") || undefined,
-    };
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "10");
+    const search = searchParams.get("search") || undefined;
+    const propertyId = searchParams.get("propertyId") || undefined;
+    const status = searchParams.get("status") || undefined;
+    const billingType = searchParams.get("billingType") || undefined;
 
-    const reservations = await getReservations(filters);
-    return NextResponse.json(reservations);
+    const result = await getReservations({ page, limit, search, propertyId, status, billingType });
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Error fetching reservations:", error);
     return NextResponse.json({ error: "Error al obtener reservas" }, { status: 500 });
-  }
-}
-
-export async function POST(request: Request) {
-  try {
-    const data = await request.json();
-    const result = await createReservation(data);
-
-    if (result?.error) {
-      return NextResponse.json({ error: result.error }, { status: 400 });
-    }
-
-    return NextResponse.json(result, { status: 201 });
-  } catch (error: any) {
-    console.error("Error creating reservation:", error);
-    return NextResponse.json({ error: "Error al crear reserva" }, { status: 500 });
   }
 }

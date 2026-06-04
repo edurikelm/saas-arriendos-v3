@@ -7,16 +7,18 @@ import { ReservationsListClient } from "@/components/reservations/reservations-l
 export const dynamic = "force-dynamic";
 
 export default async function ReservationsPage() {
-  const [session, reservations, properties, clients] = await Promise.all([
+  const [session, reservationsData, properties, clientsResult] = await Promise.all([
     getSession(),
-    getReservations(),
+    getReservations({ page: 1, limit: 10 }),
     getProperties(),
-    getClients(),
+    getClients({ limit: 1000 }),
   ]);
+
+  const clients = Array.isArray(clientsResult) ? [] : clientsResult.data;
 
   return (
     <ReservationsListClient
-      initialReservations={reservations as any}
+      initialData={reservationsData as any}
       properties={properties as any}
       clients={clients as any}
       plan={session?.plan ?? "FREE"}

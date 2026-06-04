@@ -9,6 +9,7 @@ import {
   type CollectionBillingFilter,
   type CollectionReportRow,
 } from "@/lib/actions/reports-collection";
+import type { PaginatedResponse } from "@/types/pagination";
 
 export interface RevenueReport {
   month: string;
@@ -354,9 +355,11 @@ export interface CollectionReportFilters {
   dueDateFrom?: Date;
   dueDateTo?: Date;
   debtStatus?: CollectionDebtStatusFilter;
+  page?: number;
+  limit?: number;
 }
 
-export async function getCollectionReport(filters?: CollectionReportFilters): Promise<CollectionReportRow[]> {
+export async function getCollectionReport(filters?: CollectionReportFilters): Promise<PaginatedResponse<CollectionReportRow> | []> {
   const session = await getSession();
   if (!session) return [];
 
@@ -406,7 +409,7 @@ export async function getCollectionReport(filters?: CollectionReportFilters): Pr
     },
   });
 
-  return buildCollectionReportRows(
+  const rows = buildCollectionReportRows(
     reservations.map((reservation) => ({
       id: reservation.id,
       propertyId: reservation.propertyId,
@@ -427,4 +430,13 @@ export async function getCollectionReport(filters?: CollectionReportFilters): Pr
     })),
     filters
   );
+
+  const page = filters?.page || 1;
+  const limit = filters?.limit || 10;
+  const total = rows.length;
+  const totalPages = Math.ceil(total / limit);
+  const skip = (page - 1) * limit;
+  const data = rows.slice(skip, skip + limit);
+
+  return { data, total, page, totalPages };
 }

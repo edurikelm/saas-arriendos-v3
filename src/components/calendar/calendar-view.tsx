@@ -75,7 +75,7 @@ export function CalendarView({ initialReservations, properties, clients, plan = 
       const res = await fetch(`/api/reservations?${params}`);
       if (res.ok) {
         const data = await res.json();
-        setReservations(data);
+        setReservations(data.data || data);
       }
     } catch (error) {
       console.error("Error fetching reservations:", error);

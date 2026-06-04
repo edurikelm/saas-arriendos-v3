@@ -24,78 +24,102 @@ export type CalendarReservation = {
   };
 };
 
-export async function getReservations(filters?: {
+export async function getReservations(params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
   propertyId?: string;
   status?: string;
+  billingType?: string;
   startDate?: string;
   endDate?: string;
 }) {
   const session = await getSession();
-  if (!session) return [];
+  if (!session) return { data: [], total: 0, page: 1, totalPages: 0 };
+
+  const page = params?.page || 1;
+  const limit = params?.limit || 10;
+  const skip = (page - 1) * limit;
 
   const where: any = { userId: session.userId };
 
-  if (filters?.propertyId) {
-    where.propertyId = filters.propertyId;
+  if (params?.propertyId) {
+    where.propertyId = params.propertyId;
   }
 
-  if (filters?.status) {
-    where.status = filters.status;
+  if (params?.status) {
+    where.status = params.status;
   }
 
-  if (filters?.startDate && filters?.endDate) {
+  if (params?.billingType) {
+    where.billingType = params.billingType;
+  }
+
+  if (params?.startDate && params?.endDate) {
     where.startDate = {
-      gte: new Date(filters.startDate),
+      gte: new Date(params.startDate),
     };
     where.endDate = {
-      lte: new Date(filters.endDate),
+      lte: new Date(params.endDate),
     };
   }
 
-  const reservations = await prisma.reservation.findMany({
-    where,
-    include: {
-      property: {
-        select: {
-          id: true,
-          name: true,
-          color: true,
-          dailyPrice: true,
-          monthlyPrice: true,
-          unitsAvailable: true,
-        },
-      },
-      client: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          phone: true,
-        },
-      },
-      payments: {
-        where: { deletedAt: null },
-        select: {
-          id: true,
-          paymentType: true,
-          title: true,
-          description: true,
-          amount: true,
-          status: true,
-          method: true,
-          initPoint: true,
-          expiresAt: true,
-          installmentIndex: true,
-          dueDate: true,
-          paidAt: true,
-          receiptUrl: true,
-        },
-      },
-    },
-    orderBy: { startDate: "desc" },
-  });
+  if (params?.search) {
+    where.OR = [
+      { client: { name: { contains: params.search, mode: "insensitive" } } },
+      { property: { name: { contains: params.search, mode: "insensitive" } } },
+    ];
+  }
 
-  return reservations.map((r) => ({
+  const [reservations, total] = await Promise.all([
+    prisma.reservation.findMany({
+      where,
+      skip,
+      take: limit,
+      include: {
+        property: {
+          select: {
+            id: true,
+            name: true,
+            color: true,
+            dailyPrice: true,
+            monthlyPrice: true,
+            unitsAvailable: true,
+          },
+        },
+        client: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+          },
+        },
+        payments: {
+          where: { deletedAt: null },
+          select: {
+            id: true,
+            paymentType: true,
+            title: true,
+            description: true,
+            amount: true,
+            status: true,
+            method: true,
+            initPoint: true,
+            expiresAt: true,
+            installmentIndex: true,
+            dueDate: true,
+            paidAt: true,
+            receiptUrl: true,
+          },
+        },
+      },
+      orderBy: { startDate: "desc" },
+    }),
+    prisma.reservation.count({ where }),
+  ]);
+
+  const data = reservations.map((r) => ({
     id: r.id,
     userId: r.userId,
     propertyId: r.propertyId,
@@ -139,6 +163,13 @@ export async function getReservations(filters?: {
       receiptUrl: p.receiptUrl || null,
     })),
   }));
+
+  return {
+    data,
+    total,
+    page,
+    totalPages: Math.ceil(total / limit),
+  };
 }
 
 export async function getReservationById(id: string) {

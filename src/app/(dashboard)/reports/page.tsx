@@ -10,6 +10,8 @@ import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { getDashboardStats, getRevenueReport, getOccupancyReport, getYearlySummary, getReservationsReport, getCollectionReport } from "@/lib/actions/reports";
 import type { DashboardStats, RevenueReport, OccupancyReport } from "@/lib/actions/reports";
 import type { CollectionReportRow } from "@/lib/actions/reports-collection";
+import { Pagination } from "@/components/ui/pagination";
+import type { PaginatedResponse } from "@/types/pagination";
 import { getProperties } from "@/lib/actions/properties";
 import { exportToExcel, exportToPDF, type ReservationDetail, type PropertySummary } from "@/lib/export-utils";
 import { startOfMonth, endOfMonth, subMonths, format } from "date-fns";
@@ -59,6 +61,10 @@ export default function ReportsPage() {
     from: undefined,
     to: undefined,
   });
+  const [collectionPage, setCollectionPage] = useState(1);
+  const [collectionTotal, setCollectionTotal] = useState(0);
+  const [collectionTotalPages, setCollectionTotalPages] = useState(0);
+  const [collectionLimit, setCollectionLimit] = useState(10);
 
   useEffect(() => {
     const loadInitial = async () => {
@@ -74,7 +80,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     fetchData();
-  }, [selectedYear, quickRange, dateRange, selectedProperty, selectedStatus, collectionBillingType, collectionClientId, collectionDebtStatus, collectionDueRange]);
+  }, [selectedYear, quickRange, dateRange, selectedProperty, selectedStatus, collectionBillingType, collectionClientId, collectionDebtStatus, collectionDueRange, collectionPage]);
 
   const effectiveDateRange = useMemo(() => {
     const now = new Date();
@@ -136,6 +142,8 @@ export default function ReportsPage() {
           debtStatus: collectionDebtStatus,
           dueDateFrom: collectionDueRange.from,
           dueDateTo: collectionDueRange.to,
+          page: collectionPage,
+          limit: collectionLimit,
         }),
       ]);
 
@@ -155,7 +163,13 @@ export default function ReportsPage() {
         paymentStatus: r.paymentStatus,
         createdAt: new Date(r.createdAt),
       })));
-      setCollectionRows(collection || []);
+      if (collection && "data" in collection) {
+        setCollectionRows(collection.data);
+        setCollectionTotal(collection.total);
+        setCollectionTotalPages(collection.totalPages);
+      } else {
+        setCollectionRows(collection || []);
+      }
     } catch (error) {
       console.error("Error fetching reports:", error);
     } finally {
@@ -351,8 +365,18 @@ export default function ReportsPage() {
                 </SelectContent>
               </Select>
             </div>
-          </div>
-        </CardContent>
+              </div>
+              {collectionTotal > collectionLimit && (
+                <Pagination
+                  page={collectionPage}
+                  totalPages={collectionTotalPages}
+                  total={collectionTotal}
+                  limit={collectionLimit}
+                  onPageChange={setCollectionPage}
+                  onLimitChange={setCollectionLimit}
+                />
+              )}
+            </CardContent>
       </Card>
 
       {loading ? (
@@ -544,7 +568,10 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <Select value={collectionBillingType} onValueChange={(value) => setCollectionBillingType((value ?? "GENERAL") as "GENERAL" | "DAILY" | "MONTHLY")}>
+                <Select value={collectionBillingType} onValueChange={(value) => {
+                  setCollectionBillingType((value ?? "GENERAL") as "GENERAL" | "DAILY" | "MONTHLY");
+                  setCollectionPage(1);
+                }}>
                   <SelectTrigger className="w-full sm:w-44">
                     <SelectValue placeholder="Tipo arriendo" />
                   </SelectTrigger>
@@ -555,7 +582,10 @@ export default function ReportsPage() {
                   </SelectContent>
                 </Select>
 
-                <Select value={collectionClientId} onValueChange={(value) => setCollectionClientId(value ?? "all")}>
+                <Select value={collectionClientId} onValueChange={(value) => {
+                  setCollectionClientId(value ?? "all");
+                  setCollectionPage(1);
+                }}>
                   <SelectTrigger className="w-full sm:w-52">
                     <SelectValue placeholder="Cliente" />
                   </SelectTrigger>
@@ -567,7 +597,10 @@ export default function ReportsPage() {
                   </SelectContent>
                 </Select>
 
-                <Select value={collectionDebtStatus} onValueChange={(value) => setCollectionDebtStatus((value ?? "ACTIVE") as "ACTIVE" | "ALL" | "OVERDUE" | "UPCOMING" | "PAID")}>
+                <Select value={collectionDebtStatus} onValueChange={(value) => {
+                  setCollectionDebtStatus((value ?? "ACTIVE") as "ACTIVE" | "ALL" | "OVERDUE" | "UPCOMING" | "PAID");
+                  setCollectionPage(1);
+                }}>
                   <SelectTrigger className="w-full sm:w-44">
                     <SelectValue placeholder="Estado deuda" />
                   </SelectTrigger>
@@ -580,7 +613,10 @@ export default function ReportsPage() {
                   </SelectContent>
                 </Select>
 
-                <DateRangePicker date={collectionDueRange} onDateChange={setCollectionDueRange} />
+                <DateRangePicker date={collectionDueRange} onDateChange={(d) => {
+                  setCollectionDueRange(d);
+                  setCollectionPage(1);
+                }} />
               </div>
 
               <div className="overflow-x-auto">
