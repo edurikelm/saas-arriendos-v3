@@ -80,8 +80,9 @@ function resolveTheme(theme: Theme, enableSystem: boolean): ResolvedTheme {
 function applyTheme(theme: Theme, enableSystem: boolean, disableTransitionOnChange: boolean) {
   const root = document.documentElement;
   const resolvedTheme = resolveTheme(theme, enableSystem);
-  const restoreTransitions = disableTransitionOnChange ? disableTransitionsTemporarily() : undefined;
+  if (root.classList.contains(resolvedTheme) && root.style.colorScheme === resolvedTheme) return;
 
+  const restoreTransitions = disableTransitionOnChange ? disableTransitionsTemporarily() : undefined;
   root.classList.remove("light", "dark");
   root.classList.add(resolvedTheme);
   root.style.colorScheme = resolvedTheme;
