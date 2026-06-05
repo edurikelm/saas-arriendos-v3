@@ -93,6 +93,37 @@ export async function proxy(request: NextRequest) { ... }
 export const config = { matcher: ["/dashboard/:path*"] };
 ```
 
+### 6. Route Guards por Rol (dos capas)
+
+Los guards de ruta se organizan en dos capas que no deben mezclarse:
+
+**Capa 1 — `proxy.ts` (auth-only):**
+- Valida el JWT de la cookie y redirige a `/login` si es inválido o no existe.
+- **NO decide por rol**. El rol del JWT puede estar desactualizado si se cambió en DB con la cookie viva.
+- Matcher cubre rutas owner y `/admin`.
+
+**Capa 2 — Layouts con guards server-side:**
+- `requireOwner()` — redirect SUPER_ADMIN a `/admin`
+- `requireSuperAdmin()` — redirect no-SUPER_ADMIN a `/dashboard`
+- Ambas llaman primero a `requireAuth()` (redirige a `/login` si no hay sesión), luego verifican el rol contra `getSession()` que consulta la DB.
+
+**Cadena completa:**
+```
+proxy.ts (JWT auth gate, role-agnostic)
+  → layout.tsx server (requireOwner / requireSuperAdmin via DB)
+    → children (page content)
+```
+
+**Helper compartido `src/lib/auth/role-routes.ts`:**
+```ts
+export function getDefaultPathForRole(role: string | null | undefined): string {
+  if (role === "SUPER_ADMIN") return "/admin";
+  return "/dashboard";
+}
+```
+
+Centralizado en `page.tsx` (root redirect) y `login-form.tsx` (post-login redirect).
+
 ## Implementation
 
 ### Archivos creados/cambiados
@@ -107,12 +138,20 @@ export const config = { matcher: ["/dashboard/:path*"] };
 - `src/app/global-error.tsx`
 
 **Layout conversions (use client → server):**
-- `src/app/(dashboard)/layout.tsx` — Server Component con getSession()
-- `src/app/admin/layout.tsx` — Server Component con requireSuperAdmin()
+- `src/app/(dashboard)/layout.tsx` — Server Component con `requireOwner()`
+- `src/app/admin/layout.tsx` — Server Component con `requireSuperAdmin()`
 
 **Client components extracted:**
 - `src/components/layout/dashboard-layout-client.tsx`
 - `src/components/layout/admin-layout-client.tsx`
+
+**Route guards (2026-06-05):**
+- `src/lib/actions/auth.ts` — `requireOwner()` añadido
+- `src/lib/auth/role-routes.ts` — helper `getDefaultPathForRole()` y `isSuperAdmin()`
+- `src/proxy.ts` — gate de auth sin decisión de rol, matcher cubre `/admin/*`
+- `src/__tests__/proxy.test.ts` — tests del gate de auth
+- `src/lib/auth/__tests__/role-routes.test.ts` — tests del helper
+- `src/lib/actions/__tests__/auth.test.ts` — tests de `requireOwner()`
 
 ## Consequences
 
@@ -122,6 +161,7 @@ export const config = { matcher: ["/dashboard/:path*"] };
 - Session se obtiene en el servidor, sin useEffect overhead
 - Error handling consistente en toda la app
 - SEO mejorado con metadata en todos los layouts
+- Proxy no decide por rol — fuente autoritativa es DB, evitando loops por JWT desactualizado
 
 ### Negativo
 

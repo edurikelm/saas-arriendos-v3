@@ -197,6 +197,37 @@ Todos los layouts deben exportar `metadata` para SEO.
 
 Usar `src/proxy.ts` con exports `proxy` y `config` en lugar de `middleware.ts`.
 
+### Guards de Ruta por Rol
+
+Los guards de ruta usan dos capas:
+
+1. **proxy.ts** — guard de autenticación temprano (valida JWT). Solo redirige a `/login` si no hay sesión. No decide por rol — el rol siempre se resuelve desde DB.
+2. **Layouts** con guards server-side (`requireOwner`, `requireSuperAdmin`) que consultan `getSession()` (DB). Son la fuente autoritativa de rol.
+
+**Cadena de guards:**
+```
+proxy.ts (auth gate) → layout.tsx (role guard via DB) → children
+```
+
+**Funciones disponibles en `src/lib/actions/auth.ts`:**
+- `getSession()` — retorna `SessionUser | null` (consulta DB)
+- `requireAuth()` — redirect a `/login` si no hay sesión
+- `requireOwner()` — redirect SUPER_ADMIN a `/admin`
+- `requireSuperAdmin()` — redirect no-SUPER_ADMIN a `/dashboard`
+
+**En layouts:**
+```tsx
+// (dashboard)/layout.tsx — solo owners
+const session = await requireOwner();
+
+// admin/layout.tsx — solo super admins
+const session = await requireSuperAdmin();
+```
+
+**Helper de rutas por defecto en `src/lib/auth/role-routes.ts`:**
+- `getDefaultPathForRole(role)` — retorna `/admin` para SUPER_ADMIN, `/dashboard` para cualquier otro
+- Usado en `page.tsx` (root redirect) y `login-form.tsx` (post-login redirect).
+
 ### Card wrapping en páginas de tabla
 
 Todas las páginas que contienen tablas (clientes, reservas, admin/users) envuelven el contenido en el componente `<Card>` de shadcn/ui con `<CardHeader>` (título, descripción, acción principal) y `<CardContent>` (búsqueda, filtros, tabla). Esto da framing visual con `ring-1 ring-foreground/10` y separa claramente el área de datos del fondo. El layout (sidebar, navbar) provee el `bg-background` general; el Card aporta elevación sobre ese fondo.
