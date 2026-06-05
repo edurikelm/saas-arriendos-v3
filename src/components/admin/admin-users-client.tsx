@@ -1,11 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Users, Shield, Trash2, Search, Plus } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { Users, Shield, Trash2, Search, Plus, ChevronDown, ChevronUp, X, Download, Ban, CheckCircle, XCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -21,8 +24,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { updateUserPlan, deleteUser, createOwner } from "@/lib/actions/super-admin";
+import { updateUserPlan, updateUserStatus, deleteUser, createOwner } from "@/lib/actions/super-admin";
 
 interface User {
   id: string;
@@ -30,12 +34,15 @@ interface User {
   name: string | null;
   plan: string | null;
   role: string;
+  status: string;
   createdAt: string | Date;
   _count: {
     properties: number;
     clients: number;
     reservations: number;
   };
+  isMpConnected?: boolean;
+  hasOverduePayments?: boolean;
 }
 
 interface UserStats {
@@ -45,24 +52,110 @@ interface UserStats {
   totalRevenue: number;
 }
 
+type HealthSeverity = "critical" | "warning" | "limit" | "healthy";
+
+interface HealthIndicator {
+  label: string;
+  severity: HealthSeverity;
+}
+
+function getHealthIndicators(user: User): HealthIndicator[] {
+  const indicators: HealthIndicator[] = [];
+
+  if (user._count.properties === 0) {
+    indicators.push({ label: "Sin propiedades", severity: "critical" });
+  }
+  if (user._count.reservations === 0) {
+    indicators.push({ label: "Sin reservas", severity: "warning" });
+  }
+  if (!user.isMpConnected) {
+    indicators.push({ label: "MP desconectado", severity: "warning" });
+  }
+  if (user.plan === "FREE" && user._count.properties >= 3) {
+    indicators.push({ label: "Al límite FREE", severity: "limit" });
+  }
+  if (user.hasOverduePayments) {
+    indicators.push({ label: "Pagos vencidos", severity: "critical" });
+  }
+
+  if (indicators.length === 0) {
+    indicators.push({ label: "Activo", severity: "healthy" });
+  }
+
+  return indicators;
+}
+
+function getBadgeVariantForSeverity(severity: HealthSeverity): "destructive" | "secondary" | "outline" | "default" {
+  switch (severity) {
+    case "critical":
+      return "destructive";
+    case "warning":
+      return "secondary";
+    case "limit":
+      return "outline";
+    case "healthy":
+      return "default";
+  }
+}
+
+function getHealthBadgeClassName(severity: HealthSeverity) {
+  switch (severity) {
+    case "critical":
+      return "border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300";
+    case "warning":
+      return "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300";
+    case "limit":
+      return "border-orange-500/20 bg-orange-500/10 text-orange-700 dark:text-orange-300";
+    case "healthy":
+      return "border-green-500/20 bg-green-500/10 text-green-700 dark:text-green-300";
+  }
+}
+
 interface AdminUsersClientProps {
   initialUsers: User[];
   initialTotal: number;
 }
 
+import Link from "next/link";
+
 export function AdminUsersClient({ initialUsers, initialTotal }: AdminUsersClientProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [users, setUsers] = useState<User[]>(initialUsers);
   const [total, setTotal] = useState(initialTotal);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState("");
-  const [planFilter, setPlanFilter] = useState("all");
+  const [search, setSearch] = useState(searchParams.get("search") || "");
+  const [planFilter, setPlanFilter] = useState(searchParams.get("plan") || "all");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [noProperties, setNoProperties] = useState(searchParams.get("noProperties") === "true");
+  const [noReservations, setNoReservations] = useState(searchParams.get("noReservations") === "true");
+  const [mpDisconnected, setMpDisconnected] = useState(searchParams.get("mpDisconnected") === "true");
+  const [pendingPayments, setPendingPayments] = useState(searchParams.get("pendingPayments") === "true");
+  const [overduePayments, setOverduePayments] = useState(searchParams.get("overduePayments") === "true");
+  const [createdFrom, setCreatedFrom] = useState(searchParams.get("createdFrom") || "");
+  const [createdTo, setCreatedTo] = useState(searchParams.get("createdTo") || "");
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [createForm, setCreateForm] = useState({ email: "", password: "", name: "", plan: "FREE" as "FREE" | "PRO" });
   const [creating, setCreating] = useState(false);
+  const [confirmEmail, setConfirmEmail] = useState("");
+
+  const updateURL = useCallback(() => {
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (planFilter !== "all") params.set("plan", planFilter);
+    if (noProperties) params.set("noProperties", "true");
+    if (noReservations) params.set("noReservations", "true");
+    if (mpDisconnected) params.set("mpDisconnected", "true");
+    if (pendingPayments) params.set("pendingPayments", "true");
+    if (overduePayments) params.set("overduePayments", "true");
+    if (createdFrom) params.set("createdFrom", createdFrom);
+    if (createdTo) params.set("createdTo", createdTo);
+    router.push(`/admin/users?${params.toString()}`, { scroll: false });
+  }, [search, planFilter, noProperties, noReservations, mpDisconnected, pendingPayments, overduePayments, createdFrom, createdTo, router]);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -74,6 +167,13 @@ export function AdminUsersClient({ initialUsers, initialTotal }: AdminUsersClien
 
       if (search) params.append("search", search);
       if (planFilter !== "all") params.append("plan", planFilter);
+      if (noProperties) params.append("noProperties", "true");
+      if (noReservations) params.append("noReservations", "true");
+      if (mpDisconnected) params.append("mpDisconnected", "true");
+      if (pendingPayments) params.append("pendingPayments", "true");
+      if (overduePayments) params.append("overduePayments", "true");
+      if (createdFrom) params.append("createdFrom", createdFrom);
+      if (createdTo) params.append("createdTo", createdTo);
 
       const res = await fetch(`/api/admin/users?${params}`);
       if (!res.ok) {
@@ -88,12 +188,26 @@ export function AdminUsersClient({ initialUsers, initialTotal }: AdminUsersClien
     } finally {
       setLoading(false);
     }
-  }, [page, search, planFilter]);
+  }, [page, search, planFilter, noProperties, noReservations, mpDisconnected, pendingPayments, overduePayments, createdFrom, createdTo]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching on dependency change
     fetchUsers();
   }, [fetchUsers]);
+
+  const clearFilters = () => {
+    setSearch("");
+    setPlanFilter("all");
+    setNoProperties(false);
+    setNoReservations(false);
+    setMpDisconnected(false);
+    setPendingPayments(false);
+    setOverduePayments(false);
+    setCreatedFrom("");
+    setCreatedTo("");
+  };
+
+  const hasActiveFilters = search || planFilter !== "all" || noProperties || noReservations || mpDisconnected || pendingPayments || overduePayments || createdFrom || createdTo;
 
   const handleSelectUser = async (user: User) => {
     setSelectedUser(user);
@@ -129,9 +243,28 @@ export function AdminUsersClient({ initialUsers, initialTotal }: AdminUsersClien
     }
   };
 
+  const handleUpdateStatus = async (userId: string, status: string) => {
+    try {
+      const result = await updateUserStatus({ userId, status: status as "ACTIVE" | "SUSPENDED" | "CANCELLED" });
+
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+
+      toast.success("Estado actualizado correctamente");
+      fetchUsers();
+      if (selectedUser?.id === userId) {
+        setSelectedUser({ ...selectedUser, status });
+      }
+    } catch {
+      toast.error("Error de conexión");
+    }
+  };
+
   const handleDeleteUser = async (userId: string) => {
     try {
-      const result = await deleteUser(userId);
+      const result = await deleteUser(userId, confirmEmail);
 
       if (result.error) {
         toast.error(result.error);
@@ -140,6 +273,7 @@ export function AdminUsersClient({ initialUsers, initialTotal }: AdminUsersClien
 
       toast.success("Usuario eliminado");
       setShowDeleteDialog(false);
+      setConfirmEmail("");
       setSelectedUser(null);
       fetchUsers();
     } catch {
@@ -173,6 +307,21 @@ export function AdminUsersClient({ initialUsers, initialTotal }: AdminUsersClien
     }
   };
 
+  const handleExportCSV = () => {
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (planFilter !== "all") params.set("plan", planFilter);
+    if (noProperties) params.set("noProperties", "true");
+    if (noReservations) params.set("noReservations", "true");
+    if (mpDisconnected) params.set("mpDisconnected", "true");
+    if (pendingPayments) params.set("pendingPayments", "true");
+    if (overduePayments) params.set("overduePayments", "true");
+    if (createdFrom) params.set("createdFrom", createdFrom);
+    if (createdTo) params.set("createdTo", createdTo);
+
+    window.location.href = `/api/admin/users/export?${params.toString()}`;
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -197,6 +346,10 @@ export function AdminUsersClient({ initialUsers, initialTotal }: AdminUsersClien
               <Plus className="h-4 w-4 mr-2" />
               Crear Propietario
             </Button>
+            <Button size="sm" variant="outline" onClick={handleExportCSV}>
+              <Download className="h-4 w-4 mr-2" />
+              Exportar CSV
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -218,14 +371,112 @@ export function AdminUsersClient({ initialUsers, initialTotal }: AdminUsersClien
                 <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="FREE">Free</SelectItem>
                 <SelectItem value="PRO">Pro</SelectItem>
-                <SelectItem value="ENTERPRISE">Enterprise</SelectItem>
               </SelectContent>
             </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              className="gap-2"
+            >
+              {showAdvancedFilters ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              {showAdvancedFilters ? "Ocultar" : "Más filtros"}
+            </Button>
           </div>
 
+          {showAdvancedFilters && (
+            <div className="mb-6 p-4 border rounded-lg bg-muted/30">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-medium">Filtros avanzados</h3>
+                {hasActiveFilters && (
+                  <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 text-xs gap-1">
+                    <X className="h-3 w-3" />
+                    Limpiar
+                  </Button>
+                )}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="noProperties"
+                    checked={noProperties}
+                    onCheckedChange={(checked) => setNoProperties(checked === true)}
+                  />
+                  <label htmlFor="noProperties" className="text-sm cursor-pointer">Sin propiedades</label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="noReservations"
+                    checked={noReservations}
+                    onCheckedChange={(checked) => setNoReservations(checked === true)}
+                  />
+                  <label htmlFor="noReservations" className="text-sm cursor-pointer">Sin reservas</label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="mpDisconnected"
+                    checked={mpDisconnected}
+                    onCheckedChange={(checked) => setMpDisconnected(checked === true)}
+                  />
+                  <label htmlFor="mpDisconnected" className="text-sm cursor-pointer">MP desconectado</label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="pendingPayments"
+                    checked={pendingPayments}
+                    onCheckedChange={(checked) => setPendingPayments(checked === true)}
+                  />
+                  <label htmlFor="pendingPayments" className="text-sm cursor-pointer">Pagos pendientes</label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="overduePayments"
+                    checked={overduePayments}
+                    onCheckedChange={(checked) => setOverduePayments(checked === true)}
+                  />
+                  <label htmlFor="overduePayments" className="text-sm cursor-pointer">Pagos vencidos</label>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                <div className="space-y-1">
+                  <label htmlFor="createdFrom" className="text-xs text-muted-foreground">Fecha inicio</label>
+                  <Input
+                    id="createdFrom"
+                    type="date"
+                    value={createdFrom}
+                    onChange={(e) => setCreatedFrom(e.target.value)}
+                    placeholder="Fecha inicio"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor="createdTo" className="text-xs text-muted-foreground">Fecha fin</label>
+                  <Input
+                    id="createdTo"
+                    type="date"
+                    value={createdTo}
+                    onChange={(e) => setCreatedTo(e.target.value)}
+                    placeholder="Fecha fin"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           {loading ? (
-            <div className="flex h-64 items-center justify-center">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            <div className="space-y-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-4">
+                  <Skeleton className="h-10 w-10 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-1/3" />
+                    <Skeleton className="h-3 w-1/4" />
+                  </div>
+                  <Skeleton className="h-6 w-16" />
+                  <Skeleton className="h-4 w-8" />
+                  <Skeleton className="h-4 w-8" />
+                  <Skeleton className="h-4 w-8" />
+                </div>
+              ))}
             </div>
           ) : (
             <>
@@ -234,7 +485,9 @@ export function AdminUsersClient({ initialUsers, initialTotal }: AdminUsersClien
                   <thead>
                     <tr className="border-b bg-muted/50">
                       <th className="px-4 py-3 text-left text-sm font-medium">Usuario</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium">Estado</th>
                       <th className="px-4 py-3 text-left text-sm font-medium">Plan</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium">Salud</th>
                       <th className="px-4 py-3 text-left text-sm font-medium">Propiedades</th>
                       <th className="px-4 py-3 text-left text-sm font-medium">Clientes</th>
                       <th className="px-4 py-3 text-left text-sm font-medium">Reservas</th>
@@ -253,15 +506,39 @@ export function AdminUsersClient({ initialUsers, initialTotal }: AdminUsersClien
                         <td className="px-4 py-3">
                           <Badge
                             variant={
-                              user.plan === "ENTERPRISE"
+                              user.status === "ACTIVE"
                                 ? "default"
-                                : user.plan === "PRO"
+                                : user.status === "SUSPENDED"
+                                ? "secondary"
+                                : "destructive"
+                            }
+                          >
+                            {user.status}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge
+                            variant={
+                              user.plan === "PRO"
                                 ? "secondary"
                                 : "outline"
                             }
                           >
                             {user.plan}
                           </Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-2">
+                            {getHealthIndicators(user).map((indicator) => (
+                              <Badge
+                                key={indicator.label}
+                                variant={getBadgeVariantForSeverity(indicator.severity)}
+                                className={getHealthBadgeClassName(indicator.severity)}
+                              >
+                                {indicator.label}
+                              </Badge>
+                            ))}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-sm">{user._count.properties}</td>
                         <td className="px-4 py-3 text-sm">{user._count.clients}</td>
@@ -270,7 +547,7 @@ export function AdminUsersClient({ initialUsers, initialTotal }: AdminUsersClien
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleSelectUser(user)}
+                            render={<Link href={`/admin/users/${user.id}`} />}
                           >
                             Ver
                           </Button>
@@ -279,7 +556,7 @@ export function AdminUsersClient({ initialUsers, initialTotal }: AdminUsersClien
                     ))}
                     {users.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                        <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
                           No se encontraron usuarios
                         </td>
                       </tr>
@@ -326,14 +603,31 @@ export function AdminUsersClient({ initialUsers, initialTotal }: AdminUsersClien
               <DialogDescription>{selectedUser.email}</DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4">
+<div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Estado</span>
+                <Select
+                  value={selectedUser.status}
+                  onValueChange={(v) => handleUpdateStatus(selectedUser.id, v || "ACTIVE")}
+                >
+                  <SelectTrigger className="w-full sm:w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ACTIVE">Activo</SelectItem>
+                    <SelectItem value="SUSPENDED">Suspendido</SelectItem>
+                    <SelectItem value="CANCELLED">Cancelado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Plan actual</span>
                 <Select
                   value={selectedUser.plan}
                   onValueChange={(v) => handleUpdatePlan(selectedUser.id, v || "FREE")}
                 >
-<SelectTrigger className="w-full sm:w-32">
+                  <SelectTrigger className="w-full sm:w-32">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -341,6 +635,39 @@ export function AdminUsersClient({ initialUsers, initialTotal }: AdminUsersClien
                     <SelectItem value="PRO">Pro</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {selectedUser.status !== "ACTIVE" && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => handleUpdateStatus(selectedUser.id, "ACTIVE")}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Reactivar
+                  </Button>
+                )}
+                {selectedUser.status !== "SUSPENDED" && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleUpdateStatus(selectedUser.id, "SUSPENDED")}
+                  >
+                    <Ban className="h-4 w-4 mr-2" />
+                    Suspender
+                  </Button>
+                )}
+                {selectedUser.status !== "CANCELLED" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleUpdateStatus(selectedUser.id, "CANCELLED")}
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Cancelar cuenta
+                  </Button>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -387,13 +714,26 @@ export function AdminUsersClient({ initialUsers, initialTotal }: AdminUsersClien
               Esta acción eliminará al usuario y todos sus datos. No se puede deshacer.
             </DialogDescription>
           </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="confirmEmail">Escribe el email del usuario para confirmar: {selectedUser?.email}</Label>
+              <Input
+                id="confirmEmail"
+                type="email"
+                value={confirmEmail}
+                onChange={(e) => setConfirmEmail(e.target.value)}
+                placeholder={selectedUser?.email}
+              />
+            </div>
+          </div>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+            <Button variant="outline" onClick={() => { setShowDeleteDialog(false); setConfirmEmail(""); }}>
               Cancelar
             </Button>
             <Button
               variant="destructive"
               onClick={() => selectedUser && handleDeleteUser(selectedUser.id)}
+              disabled={confirmEmail !== selectedUser?.email}
             >
               Eliminar
             </Button>

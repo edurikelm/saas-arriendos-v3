@@ -9,11 +9,18 @@ export const superAdminSchema = z.object({
 export type SuperAdminInput = z.infer<typeof superAdminSchema>;
 
 export const updateUserPlanSchema = z.object({
-  userId: z.string().uuid("ID de usuario inválido"),
+  userId: z.string().cuid("ID de usuario inválido"),
   plan: z.enum(["FREE", "PRO"]),
 });
 
 export type UpdateUserPlanInput = z.infer<typeof updateUserPlanSchema>;
+
+export const updateUserStatusSchema = z.object({
+  userId: z.string().cuid("ID de usuario inválido"),
+  status: z.enum(["ACTIVE", "SUSPENDED", "CANCELLED"]),
+});
+
+export type UpdateUserStatusInput = z.infer<typeof updateUserStatusSchema>;
 
 export const createOwnerSchema = z.object({
   email: z.string().email("Email inválido"),

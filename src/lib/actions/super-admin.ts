@@ -25,7 +25,7 @@ export async function requireSuperAdmin(): Promise<NextResponse | null> {
   return null;
 }
 
-async function isSuperAdmin(): Promise<boolean> {
+export async function isSuperAdmin(): Promise<boolean> {
   const session = await getSession();
   if (!session) return false;
 
@@ -41,6 +41,13 @@ export async function getAllUsers(options?: {
   plan?: string;
   page?: number;
   limit?: number;
+  noProperties?: boolean;
+  noReservations?: boolean;
+  mpDisconnected?: boolean;
+  pendingPayments?: boolean;
+  overduePayments?: boolean;
+  createdFrom?: string;
+  createdTo?: string;
 }) {
   if (!(await isSuperAdmin())) return { users: [], total: 0 };
 
@@ -70,6 +77,7 @@ export async function getAllUsers(options?: {
         email: true,
         plan: true,
         role: true,
+        status: true,
         createdAt: true,
         _count: {
           select: {
@@ -86,7 +94,33 @@ export async function getAllUsers(options?: {
     prisma.userProfile.count({ where }),
   ]);
 
-  return { users, total, page, totalPages: Math.ceil(total / limit) };
+  const now = new Date();
+  const usersWithHealth = await Promise.all(
+    users.map(async (user) => {
+      const [mpIntegration, overduePayments] = await Promise.all([
+        prisma.userIntegration.findUnique({
+          where: { userId_provider: { userId: user.id, provider: "MERCADO_PAGO" } },
+          select: { isActive: true },
+        }),
+        prisma.payment.count({
+          where: {
+            reservation: { userId: user.id },
+            status: "PENDING",
+            dueDate: { lt: now },
+          },
+        }),
+      ]);
+
+      return {
+        ...user,
+        status: user.status as string,
+        isMpConnected: mpIntegration?.isActive ?? false,
+        hasOverduePayments: overduePayments > 0,
+      };
+    })
+  );
+
+  return { users: usersWithHealth, total, page, totalPages: Math.ceil(total / limit) };
 }
 
 export async function getUserStats(userId: string) {
@@ -130,11 +164,47 @@ export async function updateUserPlan(data: { userId: string; plan: "FREE" | "PRO
   return { success: true, user };
 }
 
-export async function deleteUser(userId: string) {
+export async function updateUserStatus(data: { userId: string; status: "ACTIVE" | "SUSPENDED" | "CANCELLED" }) {
+  if (!(await isSuperAdmin())) return { error: "No autorizado" };
+
+  const session = await getSession();
+
+  const user = await prisma.userProfile.update({
+    where: { id: data.userId },
+    data: { status: data.status },
+  });
+
+  await prisma.adminActionLog.create({
+    data: {
+      adminId: session!.userId,
+      targetId: data.userId,
+      action: "STATUS_CHANGED",
+      details: JSON.stringify({ status: data.status }),
+    },
+  });
+
+  revalidatePath("/admin/users");
+
+  return { success: true, user };
+}
+
+export async function deleteUser(userId: string, confirmEmail?: string) {
   if (!(await isSuperAdmin())) return { error: "No autorizado" };
 
   if (userId === (await getSession())?.userId) {
     return { error: "No puedes eliminarte a ti mismo" };
+  }
+
+  if (confirmEmail) {
+    const userToDelete = await prisma.userProfile.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+    if (userToDelete?.email !== confirmEmail) {
+      return { error: "Email de confirmación incorrecto" };
+    }
+  } else {
+    return { error: "Se requiere confirmación por email para eliminar" };
   }
 
   await prisma.$transaction([

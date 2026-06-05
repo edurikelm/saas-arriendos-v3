@@ -1,13 +1,14 @@
 import Link from "next/link";
-import { Shield, Users, Building2, DollarSign, Calendar, ArrowRight, Plus } from "lucide-react";
+import { Shield, Users, Building2, DollarSign, Calendar, ArrowRight, Plus, TrendingUp, UserPlus, Target } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getSystemStats, getRecentOwners } from "@/lib/actions/super-admin";
+import { getDashboardStats, getRecentOwners } from "@/lib/actions/super-admin";
+import { cn } from "@/lib/utils";
 
 export default async function AdminDashboardPage() {
   const [stats, recentOwners] = await Promise.all([
-    getSystemStats(),
+    getDashboardStats(),
     getRecentOwners(5),
   ]);
 
@@ -36,8 +37,8 @@ export default async function AdminDashboardPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalUsers}</div>
-            <p className="text-xs text-muted-foreground">usuarios registrados</p>
+            <div className="text-2xl font-bold">{stats.totalOwners}</div>
+            <p className="text-xs text-muted-foreground">propietarios activos</p>
           </CardContent>
         </Card>
 
@@ -77,6 +78,45 @@ export default async function AdminDashboardPage() {
         </Card>
       </div>
 
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Conversión FREE→PRO</CardTitle>
+            <Target className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.conversionPercentage}%</div>
+            <p className="text-xs text-muted-foreground">de propietarios son PRO</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Crecimiento Mensual</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {stats.growthPercentage >= 0 ? "+" : ""}{stats.growthPercentage}%
+            </div>
+            <p className="text-xs text-muted-foreground">vs mes anterior</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Nuevos Propietarios</CardTitle>
+            <UserPlus className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.ownersThisMonth}</div>
+            <p className="text-xs text-muted-foreground">
+              este mes ({stats.ownersLastMonth} el anterior)
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -85,12 +125,13 @@ export default async function AdminDashboardPage() {
                 <CardTitle>Propietarios Recientes</CardTitle>
                 <CardDescription>Últimos 5 propietarios registrados</CardDescription>
               </div>
-              <Button variant="outline" size="sm" render={
-                <Link href="/admin/users" className="flex items-center">
-                  Ver todos
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              } />
+              <Link
+                href="/admin/users"
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+              >
+                Ver todos
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
             </div>
           </CardHeader>
           <CardContent>
@@ -139,18 +180,20 @@ export default async function AdminDashboardPage() {
             <CardDescription>Operaciones comunes del administrador</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Button className="w-full justify-start" render={
-              <Link href="/admin/users" className="flex items-center">
-                <Users className="mr-2 h-4 w-4" />
-                Gestionar Usuarios
-              </Link>
-            } />
-            <Button className="w-full justify-start" variant="outline" render={
-              <Link href="/admin/users" className="flex items-center">
-                <Plus className="mr-2 h-4 w-4" />
-                Crear Nuevo Propietario
-              </Link>
-            } />
+            <Link
+              href="/admin/users"
+              className={cn(buttonVariants({ className: "w-full justify-start" }))}
+            >
+              <Users className="mr-2 h-4 w-4" />
+              Gestionar Usuarios
+            </Link>
+            <Link
+              href="/admin/users"
+              className={cn(buttonVariants({ variant: "outline", className: "w-full justify-start" }))}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Crear Nuevo Propietario
+            </Link>
           </CardContent>
         </Card>
       </div>

@@ -20,6 +20,14 @@ export async function loginAction(data: LoginInput) {
     return { error: "Credenciales inválidas" };
   }
 
+  if (user.status === "SUSPENDED") {
+    return { error: "Cuenta suspendida" };
+  }
+
+  if (user.status === "CANCELLED") {
+    return { error: "Cuenta cancelada" };
+  }
+
   const isValid = await compare(validated.password, user.password);
   if (!isValid) {
     return { error: "Credenciales inválidas" };
@@ -28,6 +36,7 @@ export async function loginAction(data: LoginInput) {
   const token = await new SignJWT({
     userId: user.id,
     role: user.role,
+    status: user.status,
     plan: user.plan,
     email: user.email,
   })
@@ -104,6 +113,7 @@ export type SessionUser = {
   role: string;
   plan: string | null;
   email: string;
+  status?: string;
 };
 
 export async function getSession(): Promise<SessionUser | null> {
@@ -116,7 +126,34 @@ export async function getSession(): Promise<SessionUser | null> {
 
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET);
-    return payload as unknown as SessionUser;
+    const userId = (payload as { userId?: string }).userId;
+
+    if (!userId) {
+      return null;
+    }
+
+    const user = await prisma.userProfile.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        role: true,
+        plan: true,
+        email: true,
+        status: true,
+      },
+    });
+
+    if (!user || user.status === "SUSPENDED" || user.status === "CANCELLED") {
+      return null;
+    }
+
+    return {
+      userId: user.id,
+      role: user.role,
+      plan: user.plan,
+      email: user.email,
+      status: user.status,
+    };
   } catch {
     return null;
   }

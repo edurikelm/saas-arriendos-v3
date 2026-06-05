@@ -1,20 +1,8 @@
 import { NextResponse } from "next/server";
-import { updateUserPlan, deleteUser, createOwner, getAllUsers, getUserStats } from "@/lib/actions/super-admin";
+import { updateUserPlan, updateUserStatus, deleteUser, createOwner, getAllUsers, getUserStats } from "@/lib/actions/super-admin";
+import { logAdminAction } from "@/lib/actions/admin-actions";
 import { getSession } from "@/lib/actions/auth";
 import { prisma } from "@/lib/db/prisma";
-
-async function logAdminAction(targetId: string, action: string, details?: object) {
-  const session = await getSession();
-  if (!session) return;
-  await prisma.adminActionLog.create({
-    data: {
-      adminId: session.userId,
-      targetId,
-      action,
-      details: details ? JSON.stringify(details) : null,
-    },
-  });
-}
 
 async function isSuperAdmin(): Promise<boolean> {
   const session = await getSession();
@@ -38,6 +26,13 @@ export async function GET(request: Request) {
     const limit = parseInt(searchParams.get("limit") || "20");
     const search = searchParams.get("search") || undefined;
     const plan = searchParams.get("plan") || undefined;
+    const noProperties = searchParams.get("noProperties") === "true";
+    const noReservations = searchParams.get("noReservations") === "true";
+    const mpDisconnected = searchParams.get("mpDisconnected") === "true";
+    const pendingPayments = searchParams.get("pendingPayments") === "true";
+    const overduePayments = searchParams.get("overduePayments") === "true";
+    const createdFrom = searchParams.get("createdFrom") || undefined;
+    const createdTo = searchParams.get("createdTo") || undefined;
     const userId = searchParams.get("userId");
 
     if (userId) {
@@ -48,7 +43,7 @@ export async function GET(request: Request) {
       return NextResponse.json(stats);
     }
 
-    const result = await getAllUsers({ page, limit, search, plan });
+    const result = await getAllUsers({ page, limit, search, plan, noProperties, noReservations, mpDisconnected, pendingPayments, overduePayments, createdFrom, createdTo });
     return NextResponse.json(result);
   } catch (error) {
     console.error("Error fetching users:", error);
@@ -80,7 +75,11 @@ export async function POST(request: Request) {
     }
 
     if (result?.user) {
-      await logAdminAction(result.user.id, "CREATED", { email: data.email, name: data.name, plan: data.plan });
+      await logAdminAction({
+        targetId: result.user.id,
+        action: "OWNER_CREATED",
+        details: { email: data.email, name: data.name, plan: data.plan || "FREE" },
+      });
     }
 
     return NextResponse.json(result);
@@ -98,9 +97,33 @@ export async function PATCH(request: Request) {
 
     const data = await request.json();
 
+    if (data.status) {
+      if (!data.userId || !data.status) {
+        return NextResponse.json({ error: "userId y status son requeridos" }, { status: 400 });
+      }
+
+      const validStatuses = ["ACTIVE", "SUSPENDED", "CANCELLED"];
+      if (!validStatuses.includes(data.status)) {
+        return NextResponse.json({ error: "Status inválido" }, { status: 400 });
+      }
+
+      const result = await updateUserStatus({ userId: data.userId, status: data.status });
+
+      if (result?.error) {
+        return NextResponse.json({ error: result.error }, { status: 403 });
+      }
+
+      return NextResponse.json(result);
+    }
+
     if (!data.userId || !data.plan) {
       return NextResponse.json({ error: "userId y plan son requeridos" }, { status: 400 });
     }
+
+    const oldUser = await prisma.userProfile.findUnique({
+      where: { id: data.userId },
+      select: { plan: true },
+    });
 
     const result = await updateUserPlan({ userId: data.userId, plan: data.plan });
 
@@ -109,13 +132,20 @@ export async function PATCH(request: Request) {
     }
 
     if (result?.user) {
-      await logAdminAction(data.userId, "UPDATED", { plan: data.plan });
+      await logAdminAction({
+        targetId: data.userId,
+        action: "PLAN_CHANGED",
+        details: {
+          before: oldUser?.plan || "FREE",
+          after: data.plan,
+        },
+      });
     }
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Error updating user plan:", error);
-    return NextResponse.json({ error: "Error al actualizar plan" }, { status: 500 });
+    console.error("Error updating user:", error);
+    return NextResponse.json({ error: "Error al actualizar usuario" }, { status: 500 });
   }
 }
 
@@ -127,17 +157,23 @@ export async function DELETE(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId");
+    const confirmEmail = searchParams.get("confirmEmail") || undefined;
 
     if (!userId) {
       return NextResponse.json({ error: "userId es requerido" }, { status: 400 });
     }
 
-    await logAdminAction(userId, "DELETED", {});
-    const result = await deleteUser(userId);
+    const result = await deleteUser(userId, confirmEmail);
 
     if (result?.error) {
       return NextResponse.json({ error: result.error }, { status: 403 });
     }
+
+    await logAdminAction({
+      targetId: userId,
+      action: "OWNER_DELETED",
+      details: {},
+    });
 
     return NextResponse.json(result);
   } catch (error) {
