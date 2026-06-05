@@ -59,7 +59,7 @@ function getWeeks(days: Date[]): Date[][] {
   return weeks;
 }
 
-interface WeekReservation {
+export interface WeekReservation {
   res: CalendarReservation;
   startCol: number;
   span: number;
@@ -68,20 +68,20 @@ interface WeekReservation {
   continuesIntoNextWeek: boolean;
 }
 
-function getContinuationRadiusClass(wr: WeekReservation): string {
+export function getContinuationRadiusClass(wr: WeekReservation): string {
   if (wr.continuesFromPreviousWeek && wr.continuesIntoNextWeek) {
     return "rounded-sm";
   }
 
   if (wr.continuesFromPreviousWeek) {
-    return "rounded-l-sm rounded-r-full";
+    return "rounded-l-sm rounded-r-md";
   }
 
   if (wr.continuesIntoNextWeek) {
-    return "rounded-l-full rounded-r-sm";
+    return "rounded-l-md rounded-r-sm";
   }
 
-  return "rounded-full";
+  return "rounded-md";
 }
 
 function assignLanes(weekReservations: WeekReservation[]): WeekReservation[] {
@@ -230,11 +230,11 @@ export function CalendarGrid({
             {format(currentDate, "MMMM yyyy", { locale: es })}
           </h2>
         </div>
-        <div className="flex w-fit items-center gap-1 rounded-full border bg-background/80 p-0.5 shadow-sm sm:gap-2 sm:p-1 lg:justify-self-center">
+        <div className="flex w-fit items-center gap-1 rounded-lg border bg-background/80 p-0.5 shadow-sm sm:gap-2 sm:p-1 lg:justify-self-center">
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 rounded-full sm:h-8 sm:w-8"
+            className="h-7 w-7 rounded-md sm:h-8 sm:w-8"
             onClick={() => navigateMonth("prev")}
           >
             <ChevronLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -242,7 +242,7 @@ export function CalendarGrid({
           <Button
             variant="secondary"
             size="sm"
-            className="h-7 rounded-full px-2.5 text-xs sm:h-8 sm:px-4"
+            className="h-7 rounded-md px-2.5 text-xs sm:h-8 sm:px-4"
             onClick={() => setCurrentDate(new Date())}
           >
             Hoy
@@ -250,7 +250,7 @@ export function CalendarGrid({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 rounded-full sm:h-8 sm:w-8"
+            className="h-7 w-7 rounded-md sm:h-8 sm:w-8"
             onClick={() => navigateMonth("next")}
           >
             <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -263,7 +263,7 @@ export function CalendarGrid({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-8 rounded-full px-3 text-xs"
+                className="h-8 rounded-md px-3 text-xs"
                 onClick={toggleAllExpandableWeeks}
               >
                 {allExpandableWeeksExpanded ? "Colapsar todas" : "Expandir todas"}
@@ -345,7 +345,7 @@ export function CalendarGrid({
                         {format(day, "d")}
                       </div>
                       {isToday && (
-                        <span className="hidden rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary md:inline-flex">
+                        <span className="hidden rounded-md bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary md:inline-flex">
                           Hoy
                         </span>
                       )}
@@ -435,7 +435,7 @@ export function CalendarGrid({
                     event.stopPropagation();
                     toggleExpandedWeek(weekIndex);
                   }}
-                  className="absolute bottom-1 left-1 z-20 flex items-center gap-1 rounded-full border border-border/50 bg-background/90 px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground backdrop-blur-sm transition-all hover:bg-muted hover:text-foreground sm:bottom-1.5 sm:left-1.5 sm:px-2 sm:text-[10px]"
+                  className="absolute bottom-1 left-1 z-20 flex items-center gap-1 rounded-md border border-border/50 bg-background/90 px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground backdrop-blur-sm transition-all hover:bg-muted hover:text-foreground sm:bottom-1.5 sm:left-1.5 sm:px-2 sm:text-[10px]"
                 >
                   {isExpanded ? (
                     <>
