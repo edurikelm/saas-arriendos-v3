@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getSession } from "@/lib/actions/auth";
+import { requireOwner } from "@/lib/actions/auth";
 import { DashboardLayoutClient } from "@/components/layout/dashboard-layout-client";
 
 export const metadata: Metadata = {
@@ -12,13 +12,13 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await getSession();
+  const session = await requireOwner();
 
   return (
     <DashboardLayoutClient
-      userName={session?.email?.split("@")[0] ?? null}
-      userRole={session?.role ?? null}
-      userPlan={session?.plan ?? null}
+      userName={session.email.split("@")[0]}
+      userRole={session.role}
+      userPlan={session.plan}
     >
       {children}
     </DashboardLayoutClient>

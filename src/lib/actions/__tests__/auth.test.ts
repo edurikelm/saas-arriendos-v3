@@ -9,6 +9,12 @@ vi.mock("next/headers", () => ({
   cookies: mocks.cookies,
 }));
 
+vi.mock("next/navigation", () => ({
+  redirect: vi.fn((url: string) => {
+    throw new Error(`REDIRECT:${url}`);
+  }),
+}));
+
 vi.mock("jose", () => ({
   jwtVerify: mocks.jwtVerify,
   SignJWT: vi.fn(),
@@ -81,6 +87,52 @@ describe("getSession", () => {
       email: "active@test.com",
       status: "ACTIVE",
     });
+  });
+});
+
+describe("requireOwner", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.cookies.mockResolvedValue({
+      get: vi.fn(() => ({ value: "session-token" })),
+      set: vi.fn(),
+      delete: vi.fn(),
+    });
+    mocks.jwtVerify.mockResolvedValue({ payload: { userId: "user-1" } } as any);
+  });
+
+  it("returns the session for OWNER users", async () => {
+    const { prisma } = await import("@/lib/db/prisma");
+    vi.mocked(prisma.userProfile.findUnique).mockResolvedValue({
+      id: "user-1",
+      role: "OWNER",
+      plan: "FREE",
+      email: "owner@test.com",
+      status: "ACTIVE",
+    } as any);
+
+    const { requireOwner } = await import("@/lib/actions/auth");
+    const session = await requireOwner();
+
+    expect(session.role).toBe("OWNER");
+    expect(session.userId).toBe("user-1");
+  });
+
+  it("redirects SUPER_ADMIN to /admin", async () => {
+    const { prisma } = await import("@/lib/db/prisma");
+    vi.mocked(prisma.userProfile.findUnique).mockResolvedValue({
+      id: "user-1",
+      role: "SUPER_ADMIN",
+      plan: null,
+      email: "admin@test.com",
+      status: "ACTIVE",
+    } as any);
+
+    const { requireOwner } = await import("@/lib/actions/auth");
+    const { redirect } = await import("next/navigation");
+
+    await expect(requireOwner()).rejects.toThrow("REDIRECT:/admin");
+    expect(redirect).toHaveBeenCalledWith("/admin");
   });
 });
 

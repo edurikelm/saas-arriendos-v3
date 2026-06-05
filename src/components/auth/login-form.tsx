@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { loginSchema, type LoginInput } from "@/lib/validations/auth";
+import { getDefaultPathForRole } from "@/lib/auth/role-routes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,8 +38,7 @@ export function LoginForm() {
       }
 
       toast.success("Sesión iniciada correctamente");
-      const redirectTo = result.role === "SUPER_ADMIN" ? "/admin" : "/dashboard";
-      router.push(redirectTo);
+      router.push(getDefaultPathForRole(result.role));
       router.refresh();
     } catch {
       toast.error("Error de conexión");

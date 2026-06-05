@@ -174,3 +174,11 @@ export async function requireSuperAdmin(): Promise<SessionUser> {
   }
   return session;
 }
+
+export async function requireOwner(): Promise<SessionUser> {
+  const session = await requireAuth();
+  if (session.role === "SUPER_ADMIN") {
+    redirect("/admin");
+  }
+  return session;
+}

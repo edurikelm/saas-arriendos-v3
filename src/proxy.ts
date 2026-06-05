@@ -12,14 +12,17 @@ const protectedPaths = [
   "/clients",
   "/reports",
   "/settings",
+  "/admin",
 ];
+
+function startsWithAny(pathname: string, paths: string[]): boolean {
+  return paths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+}
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  const isProtectedPath = protectedPaths.some((path) =>
-    pathname.startsWith(path)
-  );
+  const isProtectedPath = startsWithAny(pathname, protectedPaths);
 
   if (!isProtectedPath) {
     return NextResponse.next();
@@ -53,5 +56,6 @@ export const config = {
     "/clients/:path*",
     "/reports/:path*",
     "/settings/:path*",
+    "/admin/:path*",
   ],
 };
