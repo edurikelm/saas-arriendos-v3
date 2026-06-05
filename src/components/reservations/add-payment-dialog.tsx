@@ -272,7 +272,7 @@ export function AddPaymentDialog({
                 <button
                   type="button"
                   onClick={handleMaxClick}
-                  className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer font-medium"
+                  className="text-xs px-2 py-0.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer font-medium"
                 >
                   Máximo: {formatAmount(maxAmount)}
                 </button>

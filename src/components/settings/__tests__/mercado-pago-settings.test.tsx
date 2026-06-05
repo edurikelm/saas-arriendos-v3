@@ -60,4 +60,45 @@ describe("MercadoPagoSettings", () => {
       expect(screen.getByText(/Falta configuración OAuth/i)).toBeDefined();
     });
   });
+
+  it("status pill uses rectangular radius (rounded-md), not pill radius", async () => {
+    const { getMercadoPagoIntegration } = await import("@/lib/actions/mercado-pago");
+    vi.mocked(getMercadoPagoIntegration).mockResolvedValue({
+      isConnected: false,
+      hasToken: false,
+      manualTokenEnabled: false,
+      sandboxMode: false,
+    });
+
+    const { container } = render(<MercadoPagoSettings />);
+
+    await waitFor(() => {
+      expect(screen.getByText("No conectado")).toBeDefined();
+    });
+
+    const notConnectedPill = screen.getByText("No conectado");
+    const pillContainer = notConnectedPill.closest("span");
+    expect(pillContainer).toBeTruthy();
+    expect(pillContainer!.className).not.toMatch(/\brounded-full\b/);
+    expect(pillContainer!.className).toMatch(/\brounded-md\b/);
+
+    // Sanity-check the connected state too
+    vi.mocked(getMercadoPagoIntegration).mockResolvedValue({
+      isConnected: true,
+      hasToken: true,
+      manualTokenEnabled: false,
+      sandboxMode: false,
+    });
+    const { container: connectedContainer, rerender } = render(<MercadoPagoSettings />);
+    rerender(<MercadoPagoSettings key="re" />);
+    await waitFor(() => {
+      expect(screen.getAllByText("Conectado").length).toBeGreaterThan(0);
+    });
+    const connectedPill = Array.from(connectedContainer.querySelectorAll("span")).find(
+      (el) => el.textContent === "Conectado" && el.classList.contains("inline-flex")
+    );
+    expect(connectedPill).toBeTruthy();
+    expect(connectedPill!.className).not.toMatch(/\brounded-full\b/);
+    expect(connectedPill!.className).toMatch(/\brounded-md\b/);
+  });
 });
