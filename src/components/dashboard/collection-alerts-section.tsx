@@ -108,7 +108,7 @@ export function CollectionAlertsSection({ vencidos, vencenHoy, proximos7Dias }: 
   return (
     <Card aria-label="Alertas de Cobranza">
       <CardHeader className="border-b pb-4">
-        <div className="mb-2 inline-flex w-fit items-center gap-2 rounded-full border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
+        <div className="mb-2 inline-flex w-fit items-center gap-2 rounded-md border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
           <ReceiptText className="size-3.5" />
           Cobranza
         </div>
@@ -127,12 +127,12 @@ export function CollectionAlertsSection({ vencidos, vencenHoy, proximos7Dias }: 
                 key={tab.key}
                 type="button"
                 onClick={() => setActiveTab(tab.key)}
-                className={`rounded-xl border px-2 py-2 text-left transition-colors ${
+                className={`rounded-lg border px-2 py-2 text-left transition-colors ${
                   isActive ? "border-primary bg-primary/10" : "border-border bg-muted/40 hover:bg-muted"
                 }`}
               >
                 <p className="truncate text-[11px] font-medium text-foreground">{tab.label}</p>
-                <span className={`mt-1 inline-flex min-w-6 justify-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${tab.countClassName}`}>
+                <span className={`mt-1 inline-flex min-w-6 justify-center rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${tab.countClassName}`}>
                   {tab.items.length}
                 </span>
               </button>

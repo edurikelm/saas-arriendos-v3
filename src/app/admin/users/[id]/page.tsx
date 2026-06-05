@@ -187,13 +187,13 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                     {owner.name || "Sin nombre"}
                   </h1>
                   <span
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium ${getStatusBadgeClass(owner.status)}`}
+                    className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium ${getStatusBadgeClass(owner.status)}`}
                   >
                     <span className={`size-1.5 rounded-full ${getStatusDotClass(owner.status)}`} />
                     {owner.status}
                   </span>
                   <span
-                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${getPlanBadgeClass(owner.plan)}`}
+                    className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium ${getPlanBadgeClass(owner.plan)}`}
                   >
                     {owner.plan === "PRO" && <Sparkles className="size-3" />}
                     {owner.plan || "FREE"}
@@ -303,7 +303,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
               </div>
               <Badge
                 variant="outline"
-                className={`${getPlanBadgeClass(owner.plan)} border font-medium`}
+                className={`rounded-md ${getPlanBadgeClass(owner.plan)} border font-medium`}
               >
                 {owner.plan === "PRO" && <Sparkles className="size-3" />}
                 Plan {owner.plan || "FREE"}
@@ -498,7 +498,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                   </div>
                   <Badge
                     variant="outline"
-                    className={`${getPlanBadgeClass(owner.plan)} border font-medium`}
+                    className={`rounded-md ${getPlanBadgeClass(owner.plan)} border font-medium`}
                   >
                     {owner.plan || "FREE"}
                   </Badge>
@@ -509,7 +509,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                     <p className="mt-0.5 font-medium">{owner.status}</p>
                   </div>
                   <span
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium ${getStatusBadgeClass(owner.status)}`}
+                    className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium ${getStatusBadgeClass(owner.status)}`}
                   >
                     <span className={`size-1.5 rounded-full ${getStatusDotClass(owner.status)}`} />
                     {owner.status}
@@ -850,12 +850,12 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                         {completed ? (
                           <Badge
                             variant="outline"
-                            className="border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                            className="rounded-md border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                           >
                             Completado
                           </Badge>
                         ) : (
-                          <Badge variant="secondary">Pendiente</Badge>
+                          <Badge variant="secondary" className="rounded-md">Pendiente</Badge>
                         )}
                       </div>
                       <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>

@@ -159,7 +159,7 @@ function getPaymentTone(paidAmount: number, totalPrice: number): PillTone {
 
 function ReservationPill({ tone, label }: { tone: PillTone; label: string }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs font-semibold ${toneClassNames[tone]}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-semibold ${toneClassNames[tone]}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${dotClassNames[tone]}`} />
       {label}
     </span>
@@ -218,7 +218,7 @@ export function ReservationCardMinimal({ reservation, onEdit, onView, onCancel, 
 
             <div className="flex items-center gap-2 shrink-0">
               <StatusIcon className={`h-4 w-4 text-muted-foreground`} />
-              <Badge variant={status.variant} className="text-xs">
+              <Badge variant={status.variant} className="text-xs rounded-md">
                 {status.label}
               </Badge>
             </div>
@@ -366,7 +366,7 @@ export function ReservationCardEditorial({ reservation, onEdit, onView, onCancel
                 {reservation.client.name}
               </h3>
             </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-stone-100 dark:bg-stone-800">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-stone-100 dark:bg-stone-800">
               <StatusIcon className="h-4 w-4 text-stone-600 dark:text-stone-400" />
               <span className="text-sm font-medium text-stone-700 dark:text-stone-300">
                 {status.label}
@@ -495,7 +495,7 @@ export function ReservationCardTimeline({ reservation, onEdit, onView, onCancel,
               </h3>
               <p className="text-sm text-zinc-500">{reservation.client.name}</p>
             </div>
-            <Badge variant={status.variant} className="shrink-0">
+            <Badge variant={status.variant} className="shrink-0 rounded-md">
               {status.label}
             </Badge>
           </div>
@@ -579,9 +579,9 @@ export function ReservationCardKanban({ reservation, onEdit, onView, onCancel, o
         <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
           {formatPrice(reservation.totalPrice)}
         </span>
-        <Badge variant={status.variant} className="text-xs py-0">
-          {status.label}
-        </Badge>
+                <Badge variant={status.variant} className="text-xs py-0 rounded-md">
+                  {status.label}
+                </Badge>
       </div>
 
       <div className="mt-2 flex gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
@@ -905,7 +905,7 @@ export function ReservationTableCards({ reservations, onEdit, onView, onCancel, 
                   <p className="text-xs text-muted-foreground truncate">{res.property.name}</p>
                   <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">{res.client.name}</h3>
                 </div>
-                <Badge variant={status.variant} className="text-xs shrink-0">
+                <Badge variant={status.variant} className="text-xs shrink-0 rounded-md">
                   {status.label}
                 </Badge>
               </div>

@@ -143,7 +143,7 @@ export default async function AdminDashboardPage() {
                   <h1 className="font-heading text-2xl font-semibold tracking-tight">
                     Super Admin
                   </h1>
-                  <span className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                  <span className="inline-flex items-center gap-1 rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                     <Sparkles className="size-3" />
                     Panel de control
                   </span>
@@ -375,7 +375,7 @@ export default async function AdminDashboardPage() {
                       <Badge
                         variant="outline"
                         className={cn(
-                          "border font-medium",
+                          "rounded-md border font-medium",
                           getPlanBadgeClass(owner.plan)
                         )}
                       >

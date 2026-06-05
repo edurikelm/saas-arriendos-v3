@@ -379,7 +379,7 @@ export function ReservationsListClient({
                       <select
                         value={filters.propertyId}
                         onChange={(e) => setFilters({ ...filters, propertyId: e.target.value })}
-                        className="h-10 w-full rounded-xl border border-foreground/10 bg-background/80 px-3 text-sm font-medium text-foreground shadow-inner outline-none transition-colors hover:border-foreground/20 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15"
+                        className="h-10 w-full rounded-lg border border-foreground/10 bg-background/80 px-3 text-sm font-medium text-foreground shadow-inner outline-none transition-colors hover:border-foreground/20 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15"
                       >
                         <option value="">Todas las propiedades</option>
                         {properties.map((p) => (
@@ -392,7 +392,7 @@ export function ReservationsListClient({
                       <select
                         value={filters.billingType}
                         onChange={(e) => setFilters({ ...filters, billingType: e.target.value })}
-                        className="h-10 w-full rounded-xl border border-foreground/10 bg-background/80 px-3 text-sm font-medium text-foreground shadow-inner outline-none transition-colors hover:border-foreground/20 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15"
+                        className="h-10 w-full rounded-lg border border-foreground/10 bg-background/80 px-3 text-sm font-medium text-foreground shadow-inner outline-none transition-colors hover:border-foreground/20 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15"
                       >
                         <option value="">Todos los tipos</option>
                         <option value="DAILY">Diario</option>
@@ -404,7 +404,7 @@ export function ReservationsListClient({
                       <select
                         value={filters.status}
                         onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-                        className="h-10 w-full rounded-xl border border-foreground/10 bg-background/80 px-3 text-sm font-medium text-foreground shadow-inner outline-none transition-colors hover:border-foreground/20 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15"
+                        className="h-10 w-full rounded-lg border border-foreground/10 bg-background/80 px-3 text-sm font-medium text-foreground shadow-inner outline-none transition-colors hover:border-foreground/20 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15"
                       >
                         <option value="">Todos los estados</option>
                         <option value="PENDING">Pendiente</option>
@@ -418,7 +418,7 @@ export function ReservationsListClient({
                       <select
                         value={filters.payment}
                         onChange={(e) => setFilters({ ...filters, payment: e.target.value })}
-                        className="h-10 w-full rounded-xl border border-foreground/10 bg-background/80 px-3 text-sm font-medium text-foreground shadow-inner outline-none transition-colors hover:border-foreground/20 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15"
+                        className="h-10 w-full rounded-lg border border-foreground/10 bg-background/80 px-3 text-sm font-medium text-foreground shadow-inner outline-none transition-colors hover:border-foreground/20 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15"
                       >
                         <option value="">Todos los pagos</option>
                         <option value="paid">Pagado</option>
@@ -433,13 +433,13 @@ export function ReservationsListClient({
                       variant="outline"
                       size="sm"
                       onClick={() => setShowFilters((current) => !current)}
-                      className="hidden h-10 shrink-0 rounded-xl lg:inline-flex"
+                      className="hidden h-10 shrink-0 rounded-lg lg:inline-flex"
                     >
                       <Filter className="mr-1.5 h-4 w-4" />
                       {showFilters ? "Ocultar" : "Mostrar"}
                     </Button>
                     {hasActiveFilters && (
-                      <Button variant="outline" size="sm" onClick={clearFilters} className="h-10 shrink-0 rounded-xl">
+                        <Button variant="outline" size="sm" onClick={clearFilters} className="h-10 shrink-0 rounded-lg">
                         <X className="mr-1.5 h-4 w-4" />
                         Limpiar filtros
                       </Button>

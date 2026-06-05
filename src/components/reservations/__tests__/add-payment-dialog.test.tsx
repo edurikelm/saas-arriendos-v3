@@ -41,6 +41,16 @@ describe('AddPaymentDialog - paymentType selector', () => {
     expect(screen.queryByText('Descripción (opcional)')).toBeNull();
   });
 
+  it('maxAmount chip uses rectangular radius (rounded-md), not pill radius', () => {
+    render(<AddPaymentDialog {...defaultProps} />);
+
+    const maxAmountText = screen.getByText(/Máximo:/);
+    const maxChip = maxAmountText.closest('button');
+    expect(maxChip).toBeTruthy();
+    expect(maxChip!.className).not.toMatch(/\brounded-full\b/);
+    expect(maxChip!.className).toMatch(/\brounded-md\b/);
+  });
+
   it('switches to EXTRA mode and shows title/description, hides max badge', async () => {
     const user = userEvent.setup();
     render(<AddPaymentDialog {...defaultProps} />);
