@@ -97,7 +97,7 @@ describe("CalendarTimeline navigation segment", () => {
     expect(container).toBeDefined();
   });
 
-  it("renders the 'Hoy' button with a rectangular radius", () => {
+  it("renders the 'Hoy' button with rounded-lg (ADR-0016 primary control)", () => {
     render(
       <CalendarTimeline
         reservations={[]}
@@ -109,10 +109,11 @@ describe("CalendarTimeline navigation segment", () => {
     const hoyButton = screen.getByRole("button", { name: "Hoy" });
     const cls = hoyButton.className;
     expect(cls).not.toMatch(/rounded-full/);
-    expect(cls).toMatch(/rounded-(md|lg)/);
+    expect(cls).not.toMatch(/\brounded-md\b/);
+    expect(cls).toMatch(/\brounded-lg\b/);
   });
 
-  it("renders the prev/next icon buttons with a rectangular radius", () => {
+  it("renders the prev/next icon buttons with rounded-lg (ADR-0016 primary control)", () => {
     const { container } = render(
       <CalendarTimeline
         reservations={[]}
@@ -130,7 +131,8 @@ describe("CalendarTimeline navigation segment", () => {
     expect(iconButtons.length).toBe(2);
     for (const btn of iconButtons) {
       expect(btn.className).not.toMatch(/rounded-full/);
-      expect(btn.className).toMatch(/rounded-(md|lg)/);
+      expect(btn.className).not.toMatch(/\brounded-md\b/);
+      expect(btn.className).toMatch(/\brounded-lg\b/);
     }
     expect(container).toBeDefined();
   });

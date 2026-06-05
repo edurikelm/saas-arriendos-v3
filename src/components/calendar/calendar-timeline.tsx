@@ -265,13 +265,13 @@ export function CalendarTimeline({ reservations, currentMonth, onSelectReservati
           </h2>
         </div>
         <div className="flex w-fit items-center gap-2 rounded-lg border bg-background/80 p-1 shadow-sm lg:justify-self-center">
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-md" onClick={() => onMonthChange(subMonths(currentMonth, 1))}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => onMonthChange(subMonths(currentMonth, 1))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button variant="secondary" size="sm" className="h-8 rounded-md px-4" onClick={() => onMonthChange(new Date())}>
+          <Button variant="secondary" size="sm" className="h-8 rounded-lg px-4" onClick={() => onMonthChange(new Date())}>
             Hoy
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-md" onClick={() => onMonthChange(addMonths(currentMonth, 1))}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => onMonthChange(addMonths(currentMonth, 1))}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>

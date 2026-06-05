@@ -79,15 +79,16 @@ describe("CalendarGrid controls", () => {
     return hoyButton.parentElement as HTMLElement;
   }
 
-  it("renders the 'Hoy' button with a rectangular radius and not rounded-full", () => {
+  it("renders the 'Hoy' button with rounded-lg (ADR-0016 primary control)", () => {
     render(<CalendarGrid reservations={[]} />);
     const hoyButton = screen.getByRole("button", { name: "Hoy" });
     const cls = hoyButton.className;
     expect(cls).not.toMatch(/rounded-full/);
-    expect(cls).toMatch(/rounded-(md|lg)/);
+    expect(cls).not.toMatch(/\brounded-md\b/);
+    expect(cls).toMatch(/\brounded-lg\b/);
   });
 
-  it("renders the previous month icon button with a rectangular radius", () => {
+  it("renders the previous month icon button with rounded-lg (ADR-0016 primary control)", () => {
     render(<CalendarGrid reservations={[]} />);
     const segment = getNavSegment();
     const buttons = within(segment).getAllByRole("button");
@@ -95,10 +96,11 @@ describe("CalendarGrid controls", () => {
     expect(prevButton).toBeDefined();
     const cls = prevButton.className;
     expect(cls).not.toMatch(/rounded-full/);
-    expect(cls).toMatch(/rounded-(md|lg)/);
+    expect(cls).not.toMatch(/\brounded-md\b/);
+    expect(cls).toMatch(/\brounded-lg\b/);
   });
 
-  it("renders the next month icon button with a rectangular radius", () => {
+  it("renders the next month icon button with rounded-lg (ADR-0016 primary control)", () => {
     render(<CalendarGrid reservations={[]} />);
     const segment = getNavSegment();
     const buttons = within(segment).getAllByRole("button");
@@ -106,10 +108,11 @@ describe("CalendarGrid controls", () => {
     expect(nextButton).toBeDefined();
     const cls = nextButton.className;
     expect(cls).not.toMatch(/rounded-full/);
-    expect(cls).toMatch(/rounded-(md|lg)/);
+    expect(cls).not.toMatch(/\brounded-md\b/);
+    expect(cls).toMatch(/\brounded-lg\b/);
   });
 
-  it("renders the 'Expandir todas' button with a rectangular radius when weeks are expandable", () => {
+  it("renders the 'Expandir todas' button with rounded-lg (ADR-0016 primary control) when weeks are expandable", () => {
     const now = new Date();
     const dayOfWeek = now.getDay();
     const monday = new Date(now);
@@ -143,7 +146,8 @@ describe("CalendarGrid controls", () => {
     }
     const cls = expandAll.className;
     expect(cls).not.toMatch(/rounded-full/);
-    expect(cls).toMatch(/rounded-(md|lg)/);
+    expect(cls).not.toMatch(/\brounded-md\b/);
+    expect(cls).toMatch(/\brounded-lg\b/);
   });
 
   it("renders the per-week 'Expandir' button with a rectangular radius when lanes overflow", () => {
