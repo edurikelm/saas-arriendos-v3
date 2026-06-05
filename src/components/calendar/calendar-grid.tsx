@@ -234,7 +234,7 @@ export function CalendarGrid({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 rounded-md sm:h-8 sm:w-8"
+            className="h-7 w-7 rounded-lg sm:h-8 sm:w-8"
             onClick={() => navigateMonth("prev")}
           >
             <ChevronLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -242,7 +242,7 @@ export function CalendarGrid({
           <Button
             variant="secondary"
             size="sm"
-            className="h-7 rounded-md px-2.5 text-xs sm:h-8 sm:px-4"
+            className="h-7 rounded-lg px-2.5 text-xs sm:h-8 sm:px-4"
             onClick={() => setCurrentDate(new Date())}
           >
             Hoy
@@ -250,7 +250,7 @@ export function CalendarGrid({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 rounded-md sm:h-8 sm:w-8"
+            className="h-7 w-7 rounded-lg sm:h-8 sm:w-8"
             onClick={() => navigateMonth("next")}
           >
             <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -263,7 +263,7 @@ export function CalendarGrid({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-8 rounded-md px-3 text-xs"
+                className="h-8 rounded-lg px-3 text-xs"
                 onClick={toggleAllExpandableWeeks}
               >
                 {allExpandableWeeksExpanded ? "Colapsar todas" : "Expandir todas"}
