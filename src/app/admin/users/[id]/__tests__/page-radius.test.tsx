@@ -103,4 +103,79 @@ describe("AdminUserDetailPage - radius system", () => {
       expect(badge.className).not.toMatch(/\brounded-full\b/);
     });
   });
+
+  it("MP integration icon container (connected) uses rectangular radius (rounded-lg), not pill radius", async () => {
+    vi.mocked(getOwnerDetail).mockResolvedValueOnce({
+      ...mockData,
+      stats: { ...mockData.stats, hasMpIntegration: true, isMpConnected: true },
+    });
+    const Page = (await import("@/app/admin/users/[id]/page")).default;
+    const element = await Page({ params: Promise.resolve({ id: "user-123" }) });
+    const { container } = render(element);
+
+    await waitFor(() => {
+      expect(container.textContent).toContain("Conectado y activo");
+    });
+
+    const connectedContainers = Array.from(container.querySelectorAll("div")).filter(
+      (el) =>
+        el.classList.contains("size-9") &&
+        el.classList.contains("rounded-lg") &&
+        el.classList.contains("bg-emerald-500/10")
+    );
+    expect(connectedContainers.length).toBeGreaterThan(0);
+    connectedContainers.forEach((node) => {
+      expect(node.className).not.toMatch(/\brounded-full\b/);
+    });
+  });
+
+  it("MP integration icon container (inactive) uses rectangular radius (rounded-lg), not pill radius", async () => {
+    vi.mocked(getOwnerDetail).mockResolvedValueOnce({
+      ...mockData,
+      stats: { ...mockData.stats, hasMpIntegration: true, isMpConnected: false },
+    });
+    const Page = (await import("@/app/admin/users/[id]/page")).default;
+    const element = await Page({ params: Promise.resolve({ id: "user-123" }) });
+    const { container } = render(element);
+
+    await waitFor(() => {
+      expect(container.textContent).toContain("Cuenta conectada pero inactiva");
+    });
+
+    const inactiveContainers = Array.from(container.querySelectorAll("div")).filter(
+      (el) =>
+        el.classList.contains("size-9") &&
+        el.classList.contains("rounded-lg") &&
+        el.classList.contains("bg-amber-500/10")
+    );
+    expect(inactiveContainers.length).toBeGreaterThan(0);
+    inactiveContainers.forEach((node) => {
+      expect(node.className).not.toMatch(/\brounded-full\b/);
+    });
+  });
+
+  it("MP integration icon container (not configured) uses rectangular radius (rounded-lg), not pill radius", async () => {
+    vi.mocked(getOwnerDetail).mockResolvedValueOnce({
+      ...mockData,
+      stats: { ...mockData.stats, hasMpIntegration: false, isMpConnected: false },
+    });
+    const Page = (await import("@/app/admin/users/[id]/page")).default;
+    const element = await Page({ params: Promise.resolve({ id: "user-123" }) });
+    const { container } = render(element);
+
+    await waitFor(() => {
+      expect(container.textContent).toContain("No configurado");
+    });
+
+    const notConfiguredContainers = Array.from(container.querySelectorAll("div")).filter(
+      (el) =>
+        el.classList.contains("size-9") &&
+        el.classList.contains("rounded-lg") &&
+        el.classList.contains("bg-red-500/10")
+    );
+    expect(notConfiguredContainers.length).toBeGreaterThan(0);
+    notConfiguredContainers.forEach((node) => {
+      expect(node.className).not.toMatch(/\brounded-full\b/);
+    });
+  });
 });

@@ -373,7 +373,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
               {stats.hasMpIntegration ? (
                 stats.isMpConnected ? (
                   <div className="flex items-start gap-3">
-                    <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
                       <CheckCircle2 className="size-5" />
                     </div>
                     <div className="space-y-0.5">
@@ -387,7 +387,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                   </div>
                 ) : (
                   <div className="flex items-start gap-3">
-                    <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-300">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-300">
                       <AlertTriangle className="size-5" />
                     </div>
                     <div className="space-y-0.5">
@@ -402,7 +402,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                 )
               ) : (
                 <div className="flex items-start gap-3">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-red-500/10 text-red-600 dark:text-red-300">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-red-500/10 text-red-600 dark:text-red-300">
                     <XCircle className="size-5" />
                   </div>
                   <div className="space-y-0.5">
