@@ -31,13 +31,7 @@ const reservation = {
 
 describe("Reservation radius system", () => {
   it("ReservationPill uses rectangular radius (rounded-md), not pill radius", () => {
-    const { container } = render(
-      <table>
-        <tbody>
-          <ReservationTable reservations={[reservation]} />
-        </tbody>
-      </table>
-    );
+    const { container } = render(<ReservationTable reservations={[reservation]} />);
 
     const pills = container.querySelectorAll("span");
     const reservationPill = Array.from(pills).find((el) =>
@@ -47,13 +41,7 @@ describe("Reservation radius system", () => {
   });
 
   it("ReservationPill does NOT use rounded-full on its container", () => {
-    const { container } = render(
-      <table>
-        <tbody>
-          <ReservationTable reservations={[reservation]} />
-        </tbody>
-      </table>
-    );
+    const { container } = render(<ReservationTable reservations={[reservation]} />);
 
     const candidatePills = Array.from(container.querySelectorAll("span")).filter(
       (el) =>
