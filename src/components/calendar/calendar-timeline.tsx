@@ -264,14 +264,14 @@ export function CalendarTimeline({ reservations, currentMonth, onSelectReservati
             {format(currentMonth, "MMMM yyyy", { locale: es })}
           </h2>
         </div>
-        <div className="flex w-fit items-center gap-2 rounded-full border bg-background/80 p-1 shadow-sm lg:justify-self-center">
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => onMonthChange(subMonths(currentMonth, 1))}>
+        <div className="flex w-fit items-center gap-2 rounded-lg border bg-background/80 p-1 shadow-sm lg:justify-self-center">
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-md" onClick={() => onMonthChange(subMonths(currentMonth, 1))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button variant="secondary" size="sm" className="h-8 rounded-full px-4" onClick={() => onMonthChange(new Date())}>
+          <Button variant="secondary" size="sm" className="h-8 rounded-md px-4" onClick={() => onMonthChange(new Date())}>
             Hoy
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => onMonthChange(addMonths(currentMonth, 1))}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-md" onClick={() => onMonthChange(addMonths(currentMonth, 1))}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
@@ -361,7 +361,7 @@ export function CalendarTimeline({ reservations, currentMonth, onSelectReservati
                         <button
                           key={res.id}
                           onClick={() => onSelectReservation(res.id)}
-                          className={`group absolute flex h-8 items-center gap-2 overflow-hidden rounded-full border px-3 text-left text-xs shadow-sm transition-all hover:z-20 hover:-translate-y-0.5 hover:shadow-lg focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                          className={`group absolute flex h-8 items-center gap-2 overflow-hidden rounded-md border px-3 text-left text-xs shadow-sm transition-all hover:z-20 hover:-translate-y-0.5 hover:shadow-lg focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                             isCancelled
                               ? "border-border bg-muted text-muted-foreground line-through"
                               : ended
@@ -378,7 +378,7 @@ export function CalendarTimeline({ reservations, currentMonth, onSelectReservati
                         >
                           <StatusIcon className="h-3.5 w-3.5 shrink-0 opacity-90" />
                           <span className="min-w-0 flex-1 truncate font-semibold">{res.client.name}</span>
-                          <span className="hidden shrink-0 rounded-full bg-black/10 px-1.5 py-0.5 font-medium sm:inline-flex">
+                          <span className="hidden shrink-0 rounded-sm bg-black/10 px-1.5 py-0.5 font-medium sm:inline-flex">
                             {getNights(res.startDate, res.endDate)}n
                           </span>
                         </button>
@@ -631,14 +631,14 @@ export function ReservationDetailDialog({ reservation, onClose }: {
           )}
 
           <div className="flex items-center gap-4 text-sm">
-            <div className={`px-3 py-1.5 rounded-full text-xs font-medium ${reservation.billingType === "DAILY" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"}`}>
+            <div className={`px-3 py-1.5 rounded-md text-xs font-medium ${reservation.billingType === "DAILY" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"}`}>
               {reservation.billingType === "DAILY" ? "Tarifa diaria" : "Tarifa mensual"}
             </div>
-            <div className={`px-3 py-1.5 rounded-full text-xs font-medium ${reservation.bookingAirbnb ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"}`}>
+            <div className={`px-3 py-1.5 rounded-md text-xs font-medium ${reservation.bookingAirbnb ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"}`}>
               {reservation.bookingAirbnb ? "Booking Airbnb" : "Directo"}
             </div>
             {reservation.unitsBooked > 1 && (
-              <div className="px-3 py-1.5 rounded-full text-xs font-medium bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+              <div className="px-3 py-1.5 rounded-md text-xs font-medium bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
                 {reservation.unitsBooked} unidades
               </div>
             )}
