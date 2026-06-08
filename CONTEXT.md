@@ -130,8 +130,9 @@ El webhook intenta matchear el pago en este orden:
 
 - Reservas **diarias** → mostradas como barra (inicio → fin)
 - Reservas **mensuales** → NO aparecen en calendario visual, solo en lista de reservas
+- Las semanas del calendario empiezan en lunes y terminan en domingo.
 - Las fechas de reserva en el calendario son **date-only** del dominio. Aunque el backend pueda serializarlas como ISO (`toISOString()`), la UI debe calcular posiciones usando solo `YYYY-MM-DD` para evitar desfases por timezone. `end_date` es inclusivo: una reserva 25→30 ocupa 6 noches y debe visualizarse hasta el 30.
-- La vista mensual prioriza no generar scroll vertical en desktop: si una semana tiene más de 2 reservas superpuestas, muestra 2 barras y un botón `+N más`; al hacer click, esa semana se expande y el botón cambia a `Ocultar`. La vista timeline sigue siendo la vista densa para revisar todas las reservas por propiedad.
+- La vista mensual calcula cuántas barras completas caben en la altura por defecto de cada semana. Si sobran eventos, se colapsan en un raíl compacto de líneas finas superpuestas con un indicador `+N`, sin crecer la fila; al pasar el mouse se previsualiza toda la semana expandida. El botón global (`Expandir todas`/`Colapsar todas`) permite fijar la expansión de todas las semanas con overflow. La vista timeline sigue siendo la vista densa para revisar todas las reservas por propiedad.
 
 ## Términos del Dominio
 
