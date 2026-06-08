@@ -55,10 +55,10 @@ export function DashboardLayoutClient({ children, userName, userRole, userPlan }
             </Button>
             <span className="font-bold text-lg">RentalPro</span>
           </div>
-          <div className="flex items-center gap-1 rounded-full border bg-background/70 p-1 shadow-xs">
+          <div className="flex items-center gap-1 rounded-lg border bg-background/70 p-1 shadow-xs">
             {mounted ? (
               <DropdownMenu>
-                <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Cambiar tema" className="rounded-full" />}>
+                <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Cambiar tema" className="rounded-lg" />}>
                   <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
                   <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
                   <span className="sr-only">Cambiar tema</span>
@@ -70,15 +70,15 @@ export function DashboardLayoutClient({ children, userName, userRole, userPlan }
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Button variant="ghost" size="icon" disabled className="rounded-full">
+              <Button variant="ghost" size="icon" disabled className="rounded-lg">
                 <Moon className="h-5 w-5" />
               </Button>
             )}
-            <Button variant="ghost" size="icon" aria-label="Notificaciones" className="rounded-full">
+            <Button variant="ghost" size="icon" aria-label="Notificaciones" className="rounded-lg">
               <Bell className="h-5 w-5" />
             </Button>
             <DropdownMenu>
-              <DropdownMenuTrigger render={<Button variant="ghost" aria-label="Menú de usuario" className="h-9 rounded-full px-1.5 pr-2" />}>
+              <DropdownMenuTrigger render={<Button variant="ghost" aria-label="Menú de usuario" className="h-9 rounded-lg px-1.5 pr-2" />}>
                 <span className="flex size-7 items-center justify-center rounded-full bg-foreground text-xs font-bold text-background">
                   {initial}
                 </span>

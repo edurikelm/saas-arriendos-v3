@@ -56,7 +56,7 @@ export function DashboardNavbar({ userName, userRole, userPlan }: DashboardNavba
                 </h2>
                 <Badge
                   variant={planLabel === "PRO" ? "default" : "secondary"}
-                  className="h-6 rounded-full px-2.5 text-[11px] tracking-wide"
+                  className="h-6 rounded-md px-2.5 text-[11px] tracking-wide"
                 >
                   {planLabel}
                 </Badge>
@@ -69,21 +69,21 @@ export function DashboardNavbar({ userName, userRole, userPlan }: DashboardNavba
         </div>
         <div className="flex flex-1 items-center justify-end gap-2">
           {dateLabel && (
-            <div className="hidden items-center gap-2 rounded-full border bg-background/70 px-3 py-2 text-sm text-muted-foreground shadow-xs xl:flex">
+            <div className="hidden items-center gap-2 rounded-lg border bg-background/70 px-3 py-2 text-sm text-muted-foreground shadow-xs xl:flex">
               <CalendarDays className="h-4 w-4 text-primary" />
               <span className="capitalize">{dateLabel}</span>
             </div>
           )}
           {isSuperAdmin && (
-            <div className="hidden items-center gap-2 rounded-full bg-primary/10 px-3 py-1.5 text-primary ring-1 ring-primary/20 sm:flex">
+            <div className="hidden items-center gap-2 rounded-md bg-primary/10 px-3 py-1.5 text-primary ring-1 ring-primary/20 sm:flex">
               <Shield className="h-4 w-4" />
               <span className="text-sm font-medium">Super Admin</span>
             </div>
           )}
-          <div className="flex items-center gap-1 rounded-full border bg-background/70 p-1 shadow-xs">
+          <div className="flex items-center gap-1 rounded-lg border bg-background/70 p-1 shadow-xs">
             {mounted ? (
               <DropdownMenu>
-                <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Cambiar tema" className="rounded-full" />}>
+                <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Cambiar tema" className="rounded-lg" />}>
                   <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
                   <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
                   <span className="sr-only">Cambiar tema</span>
@@ -95,15 +95,15 @@ export function DashboardNavbar({ userName, userRole, userPlan }: DashboardNavba
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Button variant="ghost" size="icon" disabled className="rounded-full">
+              <Button variant="ghost" size="icon" disabled className="rounded-lg">
                 <Moon className="h-5 w-5" />
               </Button>
             )}
-            <Button variant="ghost" size="icon" aria-label="Notificaciones" className="rounded-full">
+            <Button variant="ghost" size="icon" aria-label="Notificaciones" className="rounded-lg">
               <Bell className="h-5 w-5" />
             </Button>
             <DropdownMenu>
-              <DropdownMenuTrigger render={<Button variant="ghost" aria-label="Menú de usuario" className="h-9 rounded-full px-1.5 pr-2" />}>
+              <DropdownMenuTrigger render={<Button variant="ghost" aria-label="Menú de usuario" className="h-9 rounded-lg px-1.5 pr-2" />}>
                 <span className="flex size-7 items-center justify-center rounded-full bg-foreground text-xs font-bold text-background">
                   {initial}
                 </span>
