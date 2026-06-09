@@ -128,11 +128,20 @@ El webhook intenta matchear el pago en este orden:
 
 ## Calendario
 
+- Vista por defecto: **Timeline** (no grid). El toggle grid↔timeline está en el header.
 - Reservas **diarias** → mostradas como barra (inicio → fin)
 - Reservas **mensuales** → NO aparecen en calendario visual, solo en lista de reservas
 - Las semanas del calendario empiezan en lunes y terminan en domingo.
 - Las fechas de reserva en el calendario son **date-only** del dominio. Aunque el backend pueda serializarlas como ISO (`toISOString()`), la UI debe calcular posiciones usando solo `YYYY-MM-DD` para evitar desfases por timezone. `end_date` es inclusivo: una reserva 25→30 ocupa 6 noches y debe visualizarse hasta el 30.
-- La vista mensual calcula cuántas barras completas caben en la altura por defecto de cada semana. Si sobran eventos, se colapsan en un raíl compacto de líneas finas superpuestas con un indicador `+N`, sin crecer la fila; al pasar el mouse se previsualiza toda la semana expandida. El botón global (`Expandir todas`/`Colapsar todas`) permite fijar la expansión de todas las semanas con overflow. La vista timeline sigue siendo la vista densa para revisar todas las reservas por propiedad.
+- La vista mensual (grid) calcula cuántas barras completas caben en la altura por defecto de cada semana. Si sobran eventos, se colapsan en un raíl compacto de líneas finas superpuestas con un indicador `+N`, sin crecer la fila; al pasar el mouse se previsualiza toda la semana expandida. El botón global (`Expandir todas`/`Colapsar todas`) permite fijar la expansión de todas las semanas con overflow.
+
+### Timeline (vista por defecto)
+
+- Contenedor **sin altura fija**: se adapta al contenido (cantidad de propiedades × 76px por fila + header).
+- El ancho de cada día es dinámico: mínimo `42px`, pero se expande para llenar el viewport disponible si sobra espacio horizontal (`dayWidth = max(42, (viewportWidth - 224) / nDays)`).
+- Si no alcanza el ancho, aparece scroll horizontal.
+- Cada propiedad es una fila con sticky label a la izquierda (224px).
+- Las reservas se renderizan como barras horizontales en un solo carril por fila (sin lane stacking).
 
 ## Términos del Dominio
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameMonth, addMonths, subMonths, startOfWeek, endOfWeek } from "date-fns";
 import { es } from "date-fns/locale/es";
 import { ChevronLeft, ChevronRight, Calendar, Home, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
@@ -100,6 +100,36 @@ function getReservationsInDay(reservations: Reservation[], date: Date): Reservat
   });
 }
 
+type TimelineReservation = {
+  res: Reservation;
+  leftOffset: number;
+  duration: number;
+};
+
+function getDayOffset(date: Date, monthStart: Date): number {
+  return Math.floor((date.getTime() - monthStart.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function assignTimelineLanes(
+  reservations: Reservation[],
+  monthStart: Date,
+  monthLength: number
+): TimelineReservation[] {
+  return reservations.map((res) => {
+    const start = parseCalendarDate(res.startDate);
+    const end = parseCalendarDate(res.endDate);
+    const leftOffset = Math.max(0, getDayOffset(start, monthStart));
+    const rightOffset = Math.min(monthLength - 1, getDayOffset(end, monthStart));
+    const duration = rightOffset - leftOffset + 1;
+
+    return {
+      res,
+      leftOffset,
+      duration,
+    };
+  });
+}
+
 interface CalendarDayCellProps {
   date: Date;
   currentMonth: Date;
@@ -169,11 +199,11 @@ interface CalendarMonthGridProps {
 export function CalendarMonthGrid({ reservations, currentMonth, onSelectReservation, onMonthChange, variant = "comfortable" }: CalendarMonthGridProps) {
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
-  const calendarStart = startOfWeek(monthStart, { weekStartsOn: 0 });
-  const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
+  const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+  const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
   const days = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
 
-  const weekDays = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+  const weekDays = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
   const headerHeight = variant === "minimal" ? "h-8" : variant === "comfortable" ? "h-10" : "h-12";
   const dayCellMinHeight = variant === "minimal" ? "min-h-16" : variant === "comfortable" ? "min-h-24" : "min-h-32";
@@ -226,11 +256,37 @@ export function CalendarTimeline({ reservations, currentMonth, onSelectReservati
   onMonthChange: (date: Date) => void;
   headerActions?: ReactNode;
 }) {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [timelineViewportWidth, setTimelineViewportWidth] = useState(0);
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
   const today = new Date();
-  const dayWidth = 42;
+  const propertyColumnWidth = 224;
+  const minDayWidth = 42;
+  const dayWidth = Math.max(
+    minDayWidth,
+    timelineViewportWidth > propertyColumnWidth
+      ? (timelineViewportWidth - propertyColumnWidth) / days.length
+      : minDayWidth
+  );
+  const timelineWidth = propertyColumnWidth + days.length * dayWidth;
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const measure = () => setTimelineViewportWidth(container.clientWidth);
+    measure();
+
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [days.length]);
 
   const activeReservations = reservations.filter((res) => {
     const start = parseCalendarDate(res.startDate);
@@ -283,8 +339,8 @@ export function CalendarTimeline({ reservations, currentMonth, onSelectReservati
       </div>
 
       <div className="overflow-hidden rounded-2xl border bg-gradient-to-br from-background via-background to-muted/30 shadow-sm">
-        <div className="overflow-x-auto">
-          <div className="min-w-max" style={{ width: 224 + days.length * dayWidth }}>
+        <div ref={scrollContainerRef} className="overflow-x-auto">
+          <div className="min-w-max" style={{ width: timelineWidth }}>
             <div className="sticky top-0 z-20 flex border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
               <div className="sticky left-0 z-30 flex w-56 shrink-0 items-center border-r bg-background/95 px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground backdrop-blur">
                 Propiedad
@@ -306,7 +362,7 @@ export function CalendarTimeline({ reservations, currentMonth, onSelectReservati
             </div>
 
           {propertyGroups.length === 0 ? (
-            <div className="flex min-h-56 items-center justify-center px-6 py-12 text-center">
+            <div className="flex min-h-40 items-center justify-center px-6 py-8 text-center">
               <div className="max-w-sm rounded-2xl border bg-background/80 p-6 shadow-sm">
                 <Calendar className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
                 <h3 className="font-semibold">Sin reservas diarias este mes</h3>
@@ -318,9 +374,10 @@ export function CalendarTimeline({ reservations, currentMonth, onSelectReservati
           ) : (
             propertyGroups.map(({ property, reservations: propReservations }) => {
               const sortedReservations = [...propReservations].sort((a, b) =>
-                new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
+                parseCalendarDate(a.startDate).getTime() - parseCalendarDate(b.startDate).getTime()
               );
-              const rowHeight = Math.max(76, sortedReservations.length * 34 + 22);
+              const timelineReservations = assignTimelineLanes(sortedReservations, monthStart, days.length);
+              const rowHeight = 76;
 
               return (
                 <div key={property.id} className="flex border-b last:border-b-0">
@@ -344,14 +401,7 @@ export function CalendarTimeline({ reservations, currentMonth, onSelectReservati
                         style={{ left: dayIndex * dayWidth, width: dayWidth }}
                       />
                     ) : null)}
-                    {sortedReservations.map((res, index) => {
-                      const start = parseCalendarDate(res.startDate);
-                      const end = parseCalendarDate(res.endDate);
-                      const leftOffset = start < monthStart ? 0 : Math.floor((start.getTime() - monthStart.getTime()) / (1000 * 60 * 60 * 24));
-                      const duration = Math.min(
-                        Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1,
-                        days.length - leftOffset
-                      );
+                    {timelineReservations.map(({ res, leftOffset, duration }) => {
                       const status = statusConfig[res.status] || statusConfig.PENDING;
                       const StatusIcon = status.icon;
                       const isCancelled = res.status === "CANCELLED";
@@ -370,7 +420,7 @@ export function CalendarTimeline({ reservations, currentMonth, onSelectReservati
                           }`}
                           style={{
                             left: `${leftOffset * dayWidth + 4}px`,
-                            top: `${12 + index * 34}px`,
+                            top: "12px",
                             width: `${Math.max(duration * dayWidth - 8, 34)}px`,
                             backgroundColor: isCancelled || ended ? undefined : res.property.color || "#6366F1",
                           }}
@@ -477,8 +527,8 @@ export function CalendarWeekView({ reservations, onSelectReservation }: {
   onSelectReservation: (id: string) => void;
 }) {
   const today = new Date();
-  const weekStart = startOfWeek(today, { weekStartsOn: 0 });
-  const weekEnd = endOfWeek(today, { weekStartsOn: 0 });
+  const weekStart = startOfWeek(today, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
   const days = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
   const weekReservations = reservations.filter((res) => {

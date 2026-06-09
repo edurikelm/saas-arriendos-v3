@@ -6,6 +6,8 @@ import {
   type WeekReservation,
 } from "../calendar-grid";
 
+const defaultMonth = new Date(2025, 0, 1);
+
 function formatYmd(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -80,7 +82,7 @@ describe("CalendarGrid controls", () => {
   }
 
   it("renders the 'Hoy' button with rounded-lg (ADR-0016 primary control)", () => {
-    render(<CalendarGrid reservations={[]} />);
+    render(<CalendarGrid reservations={[]} currentMonth={defaultMonth} onMonthChange={() => {}} />);
     const hoyButton = screen.getByRole("button", { name: "Hoy" });
     const cls = hoyButton.className;
     expect(cls).not.toMatch(/rounded-full/);
@@ -89,7 +91,7 @@ describe("CalendarGrid controls", () => {
   });
 
   it("renders the previous month icon button with rounded-lg (ADR-0016 primary control)", () => {
-    render(<CalendarGrid reservations={[]} />);
+    render(<CalendarGrid reservations={[]} currentMonth={defaultMonth} onMonthChange={() => {}} />);
     const segment = getNavSegment();
     const buttons = within(segment).getAllByRole("button");
     const prevButton = buttons[0];
@@ -101,7 +103,7 @@ describe("CalendarGrid controls", () => {
   });
 
   it("renders the next month icon button with rounded-lg (ADR-0016 primary control)", () => {
-    render(<CalendarGrid reservations={[]} />);
+    render(<CalendarGrid reservations={[]} currentMonth={defaultMonth} onMonthChange={() => {}} />);
     const segment = getNavSegment();
     const buttons = within(segment).getAllByRole("button");
     const nextButton = buttons[buttons.length - 1];
@@ -113,10 +115,7 @@ describe("CalendarGrid controls", () => {
   });
 
   it("renders the 'Expandir todas' button with rounded-lg (ADR-0016 primary control) when weeks are expandable", () => {
-    const now = new Date();
-    const dayOfWeek = now.getDay();
-    const monday = new Date(now);
-    monday.setDate(now.getDate() - ((dayOfWeek + 6) % 7));
+    const monday = new Date(2025, 0, 6);
     const iso = formatYmd(monday);
     const manyReservations = [0, 1, 2].map((i) => ({
       id: `r${i}`,
@@ -129,7 +128,7 @@ describe("CalendarGrid controls", () => {
       client: { name: `Cliente ${i}` },
     }));
     const { container } = render(
-      <CalendarGrid reservations={manyReservations} />
+      <CalendarGrid reservations={manyReservations} currentMonth={new Date(2025, 0, 1)} onMonthChange={() => {}} />
     );
     const buttons = Array.from(container.querySelectorAll("button"));
     const expandAll = buttons.find((b) =>
@@ -150,11 +149,8 @@ describe("CalendarGrid controls", () => {
     expect(cls).toMatch(/\brounded-lg\b/);
   });
 
-  it("renders the per-week 'Expandir' button with a rectangular radius when lanes overflow", () => {
-    const now = new Date();
-    const dayOfWeek = now.getDay();
-    const monday = new Date(now);
-    monday.setDate(now.getDate() - ((dayOfWeek + 6) % 7));
+  it("renders the +N overflow badge when a week has hidden reservations", () => {
+    const monday = new Date(2025, 0, 6);
     const iso = formatYmd(monday);
     const manyReservations = [0, 1, 2].map((i) => ({
       id: `r${i}`,
@@ -167,22 +163,15 @@ describe("CalendarGrid controls", () => {
       client: { name: `Cliente ${i}` },
     }));
     const { container } = render(
-      <CalendarGrid reservations={manyReservations} />
+      <CalendarGrid reservations={manyReservations} currentMonth={new Date(2025, 0, 1)} onMonthChange={() => {}} />
     );
-    const buttons = Array.from(container.querySelectorAll("button"));
-    const expandBtn = buttons.find(
-      (b) =>
-        b.className.includes("absolute bottom-1") ||
-        b.className.includes("absolute bottom-1.5")
-    );
-    expect(expandBtn).toBeDefined();
-    const cls = expandBtn!.className;
-    expect(cls).not.toMatch(/rounded-full/);
-    expect(cls).toMatch(/rounded-(md|lg)/);
+    const badges = Array.from(container.querySelectorAll("div"));
+    const plusBadge = badges.find((b) => b.textContent?.startsWith("+"));
+    expect(plusBadge).toBeDefined();
   });
 
   it("renders the 'Hoy' label overlay chip on the current day with a rectangular radius", () => {
-    const { container } = render(<CalendarGrid reservations={[]} />);
+    const { container } = render(<CalendarGrid reservations={[]} currentMonth={new Date()} onMonthChange={() => {}} />);
     const spans = Array.from(container.querySelectorAll("span"));
     const hoyChip = spans.find(
       (s) => s.textContent?.trim() === "Hoy" && s.className.includes("uppercase")
@@ -194,7 +183,7 @@ describe("CalendarGrid controls", () => {
   });
 
   it("keeps the current-day date marker circular (rounded-full)", () => {
-    const { container } = render(<CalendarGrid reservations={[]} />);
+    const { container } = render(<CalendarGrid reservations={[]} currentMonth={new Date()} onMonthChange={() => {}} />);
     const divs = Array.from(container.querySelectorAll("div"));
     const dayMarker = divs.find(
       (d) =>

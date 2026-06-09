@@ -13,7 +13,7 @@ import { ReservationDetailDialog } from "@/components/reservations/reservation-d
 import { ReservationForm } from "@/components/reservations/reservation-form";
 import type { CalendarReservation } from "@/lib/actions/reservations";
 import type { ReservationInput } from "@/lib/validations/reservation";
-import { createReservation } from "@/lib/actions/reservations";
+import { createReservation, getCalendarReservations } from "@/lib/actions/reservations";
 
 interface Property {
   id: string;
@@ -61,33 +61,30 @@ export function CalendarView({ initialReservations, properties, clients, plan = 
   const [selectedReservation, setSelectedReservation] = useState<ReservationDetails | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [viewMode, setViewMode] = useState<"grid" | "timeline">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "timeline">("timeline");
 
   const fetchReservations = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-
-      if (selectedPropertyId !== "all") {
-        params.append("propertyId", selectedPropertyId);
-      }
-
-      const res = await fetch(`/api/reservations?${params}`);
-      if (res.ok) {
-        const data = await res.json();
-        setReservations(data.data || data);
-      }
+      const year = currentMonth.getFullYear();
+      const month = currentMonth.getMonth() + 1;
+      const data = await getCalendarReservations({
+        year,
+        month,
+        propertyId: selectedPropertyId !== "all" ? selectedPropertyId : undefined,
+      });
+      setReservations(data);
     } catch (error) {
       console.error("Error fetching reservations:", error);
     } finally {
       setLoading(false);
     }
-  }, [selectedPropertyId]);
+  }, [selectedPropertyId, currentMonth]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching on dependency change
     fetchReservations();
-  }, [selectedPropertyId, fetchReservations]);
+  }, [selectedPropertyId, currentMonth, fetchReservations]);
 
   const handleSelectReservation = async (id: string) => {
     try {
@@ -168,9 +165,9 @@ export function CalendarView({ initialReservations, properties, clients, plan = 
   );
 
   return (
-    <div className="space-y-6 lg:h-[calc(100vh-7rem)] lg:min-h-0">
-      <Card className="lg:h-full lg:min-h-0 lg:gap-0 lg:py-3">
-        <CardContent className="pt-3 lg:h-full lg:min-h-0 lg:pb-0">
+    <div className={`space-y-6 lg:min-h-0 ${viewMode === "grid" ? "lg:h-[calc(100vh-7rem)]" : ""}`}>
+      <Card className={`lg:min-h-0 lg:gap-0 lg:py-3 ${viewMode === "grid" ? "lg:h-full" : ""}`}>
+        <CardContent className={`pt-3 lg:min-h-0 lg:pb-0 ${viewMode === "grid" ? "lg:h-full" : ""}`}>
           {loading ? (
             <div className="flex h-96 items-center justify-center">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -180,6 +177,8 @@ export function CalendarView({ initialReservations, properties, clients, plan = 
               reservations={dailyReservations}
               onSelectReservation={handleSelectReservation}
               headerActions={headerActions}
+              currentMonth={currentMonth}
+              onMonthChange={setCurrentMonth}
             />
           ) : (
             <CalendarTimeline

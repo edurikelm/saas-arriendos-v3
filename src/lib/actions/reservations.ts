@@ -727,10 +727,10 @@ export async function getCalendarReservations(options?: {
 
   const now = new Date();
   const year = options?.year || now.getFullYear();
-  const month = options?.month || now.getMonth();
+  const month = options?.month || now.getMonth() + 1;
 
-  const startDate = new Date(year, month, 1);
-  const endDate = new Date(year, month + 1, 0, 23, 59, 59);
+  const startDate = new Date(year, month - 1, 1);
+  const endDate = new Date(year, month, 0, 23, 59, 59);
 
   const where: Prisma.ReservationWhereInput = {
     userId: session.userId,
