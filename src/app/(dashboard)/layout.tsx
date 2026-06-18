@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { requireOwner } from "@/lib/actions/auth";
+import { getUnreadSupportTicketCount } from "@/lib/actions/support-unread";
 import { DashboardLayoutClient } from "@/components/layout/dashboard-layout-client";
 
 export const metadata: Metadata = {
@@ -13,12 +14,14 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const session = await requireOwner();
+  const supportUnreadCount = await getUnreadSupportTicketCount();
 
   return (
     <DashboardLayoutClient
       userName={session.email.split("@")[0]}
       userRole={session.role}
       userPlan={session.plan}
+      supportUnreadCount={supportUnreadCount}
     >
       {children}
     </DashboardLayoutClient>

@@ -19,9 +19,10 @@ interface DashboardLayoutClientProps {
   userName: string | null;
   userRole: string | null;
   userPlan: string | null;
+  supportUnreadCount?: number;
 }
 
-export function DashboardLayoutClient({ children, userName, userRole, userPlan }: DashboardLayoutClientProps) {
+export function DashboardLayoutClient({ children, userName, userRole, userPlan, supportUnreadCount = 0 }: DashboardLayoutClientProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { setTheme } = useTheme();
@@ -40,6 +41,7 @@ export function DashboardLayoutClient({ children, userName, userRole, userPlan }
         onClose={() => setSidebarOpen(false)}
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+        supportUnreadCount={supportUnreadCount}
       />
       <div className={sidebarCollapsed ? "lg:pl-16" : "lg:pl-64"}>
         {/* Barra móvil: RentalPro + acciones */}

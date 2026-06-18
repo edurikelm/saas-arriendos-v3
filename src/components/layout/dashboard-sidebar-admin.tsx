@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Users, BarChart3, Settings, X, PanelLeftClose, PanelLeft } from "lucide-react";
+import { Home, Users, LifeBuoy, BarChart3, Settings, X, PanelLeftClose, PanelLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/admin", icon: Home, label: "Dashboard" },
   { href: "/admin/users", icon: Users, label: "Usuarios" },
+  { href: "/admin/support", icon: LifeBuoy, label: "Soporte" },
 ];
 
 const placeholderItems = [
@@ -20,9 +21,10 @@ interface DashboardSidebarAdminProps {
   onClose?: () => void;
   collapsed?: boolean;
   onToggle?: () => void;
+  supportUnreadCount?: number;
 }
 
-export function DashboardSidebarAdmin({ open, onClose, collapsed, onToggle }: DashboardSidebarAdminProps) {
+export function DashboardSidebarAdmin({ open, onClose, collapsed, onToggle, supportUnreadCount = 0 }: DashboardSidebarAdminProps) {
   const pathname = usePathname();
 
   return (
@@ -77,7 +79,15 @@ export function DashboardSidebarAdmin({ open, onClose, collapsed, onToggle }: Da
                   )}
                 >
                   <Icon className="h-5 w-5 shrink-0" />
-                  <span className={cn("transition-opacity duration-200", collapsed ? "lg:opacity-0 lg:w-0" : "lg:opacity-100")}>{item.label}</span>
+                  <span className={cn("flex-1 transition-opacity duration-200", collapsed ? "lg:opacity-0 lg:w-0" : "lg:opacity-100")}>{item.label}</span>
+                  {item.href === "/admin/support" && supportUnreadCount > 0 && (
+                    <span className={cn(
+                      "inline-flex items-center justify-center rounded-full bg-destructive px-1.5 py-0.5 text-xs font-bold text-destructive-foreground",
+                      collapsed ? "lg:hidden" : ""
+                    )}>
+                      {supportUnreadCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}

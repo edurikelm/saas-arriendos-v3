@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Building2, Calendar, Users, BarChart3, Settings, FileText, X, PanelLeftClose, PanelLeft } from "lucide-react";
+import { Home, Building2, Calendar, Users, BarChart3, Settings, FileText, LifeBuoy, X, PanelLeftClose, PanelLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -12,6 +12,7 @@ const navItems = [
   { href: "/calendar", icon: Calendar, label: "Calendario" },
   { href: "/clients", icon: Users, label: "Clientes" },
   { href: "/reports", icon: BarChart3, label: "Reportes" },
+  { href: "/support", icon: LifeBuoy, label: "Soporte" },
   { href: "/settings", icon: Settings, label: "Configuración" },
 ];
 
@@ -20,9 +21,10 @@ interface DashboardSidebarProps {
   onClose?: () => void;
   collapsed?: boolean;
   onToggle?: () => void;
+  supportUnreadCount?: number;
 }
 
-export function DashboardSidebar({ open, onClose, collapsed, onToggle }: DashboardSidebarProps) {
+export function DashboardSidebar({ open, onClose, collapsed, onToggle, supportUnreadCount = 0 }: DashboardSidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -83,7 +85,15 @@ export function DashboardSidebar({ open, onClose, collapsed, onToggle }: Dashboa
                   )}
                 >
                   <Icon className="h-5 w-5 shrink-0" />
-                  <span className={cn("transition-opacity duration-200", collapsed ? "lg:opacity-0 lg:w-0" : "lg:opacity-100")}>{item.label}</span>
+                  <span className={cn("flex-1 transition-opacity duration-200", collapsed ? "lg:opacity-0 lg:w-0" : "lg:opacity-100")}>{item.label}</span>
+                  {item.href === "/support" && supportUnreadCount > 0 && (
+                    <span className={cn(
+                      "inline-flex items-center justify-center rounded-full bg-destructive px-1.5 py-0.5 text-xs font-bold text-destructive-foreground",
+                      collapsed ? "lg:hidden" : ""
+                    )}>
+                      {supportUnreadCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}

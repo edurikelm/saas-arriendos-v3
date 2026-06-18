@@ -75,47 +75,142 @@ enum ReservationDocumentType {
   WEBP
 }
 
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TicketCategory {
+  RESERVATIONS
+  PAYMENTS
+  PROPERTIES
+  ACCOUNT
+  OTHER
+}
+
 enum IntegrationProvider {
   MERCADO_PAGO
   STRIPE
 }
 
 model UserProfile {
-  id        String   @id @default(cuid())
+  id        String     @id @default(cuid())
   name      String?
-  email     String   @unique
+  email     String     @unique
   password  String
-  role      UserRole @default(OWNER)
+  role      UserRole   @default(OWNER)
   status    UserStatus @default(ACTIVE)
-  plan      Plan?    @default(FREE)
+  plan      Plan?      @default(FREE)
+  createdAt DateTime   @default(now())
+
+  properties      Property[]
+  clients         ReservationClient[]
+  reservations    Reservation[]
+  supportTickets  SupportTicket[]
+  supportMessages SupportMessage[]
+
+  adminNotes   AdminNote[]      @relation("AdminNotes")
+  ownerNotes   AdminNote[]      @relation("OwnerNotes")
+  adminActions AdminActionLog[] @relation("AdminActions")
+}
+
+model SupportTicket {
+  id                    String         @id @default(cuid())
+  userId                String
+  subject               String
+  description           String
+  status                TicketStatus   @default(OPEN)
+  priority              TicketPriority
+  category              TicketCategory
+  affectedReservationId String?
+  affectedPaymentId     String?
+  affectedPropertyId    String?
+  lastActivityAt        DateTime       @default(now())
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  user                UserProfile         @relation(fields: [userId], references: [id])
+  messages            SupportMessage[]
+  reads               SupportTicketRead[]
+  affectedReservation Reservation?        @relation("TicketAffectedReservation", fields: [affectedReservationId], references: [id])
+  affectedPayment     Payment?            @relation("TicketAffectedPayment", fields: [affectedPaymentId], references: [id])
+  affectedProperty    Property?           @relation("TicketAffectedProperty", fields: [affectedPropertyId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([lastActivityAt])
+  @@index([affectedReservationId])
+  @@index([affectedPaymentId])
+  @@index([affectedPropertyId])
+}
+
+model SupportMessage {
+  id              String   @id @default(cuid())
+  supportTicketId String
+  authorId        String
+  content         String
+  createdAt       DateTime @default(now())
+
+  supportTicket SupportTicket              @relation(fields: [supportTicketId], references: [id])
+  author        UserProfile                @relation(fields: [authorId], references: [id])
+  attachments   SupportMessageAttachment[]
+
+  @@index([supportTicketId])
+  @@index([authorId])
+}
+
+model SupportTicketRead {
+  id         String   @id @default(cuid())
+  ticketId   String
+  userId     String
+  lastReadAt DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id])
+
+  @@unique([ticketId, userId])
+  @@index([ticketId])
+  @@index([userId])
+}
+
+model SupportMessageAttachment {
+  id        String   @id @default(cuid())
+  messageId String
+  url       String
+  fileName  String
+  fileSize  Int
   createdAt DateTime @default(now())
 
-  properties    Property[]
-  clients       ReservationClient[]
-  reservations  Reservation[]
+  message SupportMessage @relation(fields: [messageId], references: [id])
 
-  adminNotes     AdminNote[]     @relation("AdminNotes")
-  ownerNotes     AdminNote[]     @relation("OwnerNotes")
-  adminActions   AdminActionLog[] @relation("AdminActions")
+  @@index([messageId])
 }
 
 model Property {
-  id              String       @id @default(cuid())
-  userId          String
-  name            String
-  type            PropertyType
-  unitsAvailable  Int          @default(1)
-  dailyPrice      Decimal      @db.Decimal(10, 2)
-  monthlyPrice    Decimal?     @db.Decimal(10, 2)
-  currency        String       @default("CLP")
-  amenities       String[]
-  color           String       @default("#3B82F6")
-  mainImage       String?
-  images          String[]
-  createdAt       DateTime     @default(now())
+  id             String       @id @default(cuid())
+  userId         String
+  name           String
+  type           PropertyType
+  unitsAvailable Int          @default(1)
+  dailyPrice     Decimal      @db.Decimal(10, 2)
+  monthlyPrice   Decimal?     @db.Decimal(10, 2)
+  currency       String       @default("CLP")
+  amenities      String[]
+  color          String       @default("#3B82F6")
+  mainImage      String?
+  images         String[]
+  createdAt      DateTime     @default(now())
 
-  user         UserProfile    @relation(fields: [userId], references: [id])
-  reservations Reservation[]
+  user                     UserProfile     @relation(fields: [userId], references: [id])
+  reservations             Reservation[]
+  supportTicketsAsProperty SupportTicket[] @relation("TicketAffectedProperty")
 
   @@index([userId])
 }
@@ -130,11 +225,11 @@ model ReservationClient {
   notes     String?
   createdAt DateTime @default(now())
 
-  user         UserProfile    @relation(fields: [userId], references: [id])
+  user         UserProfile   @relation(fields: [userId], references: [id])
   reservations Reservation[]
 
-  @@index([userId])
   @@unique([userId, email])
+  @@index([userId])
 }
 
 model Reservation {
@@ -152,12 +247,13 @@ model Reservation {
   notes         String?
   createdAt     DateTime          @default(now())
 
-  user         UserProfile       @relation(fields: [userId], references: [id])
-  property     Property          @relation(fields: [propertyId], references: [id])
-  client       ReservationClient @relation(fields: [clientId], references: [id])
-  payments     Payment[]
-  changes      ReservationChange[]
-  documents    ReservationDocument[]
+  user                        UserProfile           @relation(fields: [userId], references: [id])
+  property                    Property              @relation(fields: [propertyId], references: [id])
+  client                      ReservationClient     @relation(fields: [clientId], references: [id])
+  payments                    Payment[]
+  changes                     ReservationChange[]
+  documents                   ReservationDocument[]
+  supportTicketsAsReservation SupportTicket[]       @relation("TicketAffectedReservation")
 
   @@index([userId])
   @@index([propertyId])
@@ -165,25 +261,26 @@ model Reservation {
 }
 
 model Payment {
-  id              String        @id @default(cuid())
-  reservationId   String
-  paymentType     PaymentType   @default(RESERVATION)
-  title           String?
-  description     String?
-  amount          Decimal       @db.Decimal(10, 2)
-  method          PaymentMethod
-  status          PaymentStatus @default(PENDING)
-  mercadoPagoId   String?
-  initPoint       String?
-  expiresAt       DateTime?
+  id               String        @id @default(cuid())
+  reservationId    String
+  paymentType      PaymentType   @default(RESERVATION)
+  title            String?
+  description      String?
+  amount           Decimal       @db.Decimal(10, 2)
+  method           PaymentMethod
+  status           PaymentStatus @default(PENDING)
+  mercadoPagoId    String?
+  initPoint        String?
+  expiresAt        DateTime?
   installmentIndex Int?
-  dueDate         DateTime?
-  paidAt          DateTime?
-  receiptUrl      String?
-  deletedAt       DateTime?
-  createdAt       DateTime      @default(now())
+  dueDate          DateTime?
+  paidAt           DateTime?
+  receiptUrl       String?
+  deletedAt        DateTime?
+  createdAt        DateTime      @default(now())
 
-  reservation Reservation @relation(fields: [reservationId], references: [id])
+  reservation             Reservation     @relation(fields: [reservationId], references: [id])
+  supportTicketsAsPayment SupportTicket[] @relation("TicketAffectedPayment")
 
   @@index([reservationId])
 }
@@ -202,60 +299,60 @@ model ReservationChange {
 }
 
 model AdminNote {
-  id         String   @id @default(cuid())
-  adminId    String
-  ownerId    String
-  content    String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(cuid())
+  adminId   String
+  ownerId   String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  admin  UserProfile @relation("AdminNotes", fields: [adminId], references: [id])
-  owner  UserProfile @relation("OwnerNotes", fields: [ownerId], references: [id])
+  admin UserProfile @relation("AdminNotes", fields: [adminId], references: [id])
+  owner UserProfile @relation("OwnerNotes", fields: [ownerId], references: [id])
 
   @@index([adminId])
   @@index([ownerId])
 }
 
 model AdminActionLog {
-  id         String   @id @default(cuid())
-  adminId    String
-  targetId   String
-  action     String
-  details    String?
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  adminId   String
+  targetId  String
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
 
-  admin  UserProfile @relation("AdminActions", fields: [adminId], references: [id])
+  admin UserProfile @relation("AdminActions", fields: [adminId], references: [id])
 
   @@index([adminId])
   @@index([targetId])
 }
 
 model UserIntegration {
-  id           String   @id @default(cuid())
-  userId       String
-  provider     IntegrationProvider
-  accessToken  String?
-  isActive     Boolean  @default(false)
-  metadata     Json?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id          String              @id @default(cuid())
+  userId      String
+  provider    IntegrationProvider
+  accessToken String?
+  isActive    Boolean             @default(false)
+  metadata    Json?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
 
   @@unique([userId, provider])
   @@index([userId])
 }
 
 model ReservationDocument {
-  id          String                      @id @default(cuid())
+  id            String                      @id @default(cuid())
   reservationId String
-  category    ReservationDocumentCategory
-  documentType ReservationDocumentType
-  fileName    String
-  filePath    String
-  fileSize    Int
-  mimeType    String
-  deletedAt   DateTime?
-  createdAt   DateTime                    @default(now())
-  updatedAt   DateTime                    @updatedAt
+  category      ReservationDocumentCategory
+  documentType  ReservationDocumentType
+  fileName      String
+  filePath      String
+  fileSize      Int
+  mimeType      String
+  deletedAt     DateTime?
+  createdAt     DateTime                    @default(now())
+  updatedAt     DateTime                    @updatedAt
 
   reservation Reservation @relation(fields: [reservationId], references: [id])
 

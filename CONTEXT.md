@@ -157,6 +157,12 @@ El webhook intenta matchear el pago en este orden:
 - **Recordatorio de Pago** — aviso asociado a un pago pendiente o vencido de una **Reserva** activa.
 - **Documento de Reserva** — archivo asociado a una **Reserva** mensual, como contrato, anexo, inventario o respaldo firmado. No incluye comprobantes de pago.
 - **Reporte de Cobranza** — vista financiera que muestra total reservado, pagado, pendiente y vencido de reservas, con segmentación general o por **Billing Type**, y pagos extra separados del saldo de arriendo.
+- **Ticket de Soporte** — conversación creada por un **Owner** para reportar un problema o pedir ayuda, atendida por un **SUPER_ADMIN**.
+- **Estado de Ticket de Soporte** — etapa de atención de un **Ticket de Soporte**: abierto, en progreso, resuelto o cerrado.
+- **Prioridad de Ticket de Soporte** — nivel de impacto declarado para ordenar la atención de un **Ticket de Soporte**: baja, media o alta.
+- **Categoría de Ticket de Soporte** — área afectada por un **Ticket de Soporte**: reservas, pagos, propiedades, cuenta u otro.
+- **Adjunto de Ticket de Soporte** — imagen asociada a un mensaje de un **Ticket de Soporte** para evidenciar un problema.
+- **Última Actividad de Ticket de Soporte** — momento más reciente en que un **Ticket de Soporte** fue creado, respondido o cambió de estado.
 
 ## Relaciones
 
@@ -170,6 +176,27 @@ El webhook intenta matchear el pago en este orden:
 - Un **Documento de Reserva** pertenece a una **Reserva** con **Billing Type** mensual.
 - Un **Documento de Reserva** se conserva aunque la **Reserva** sea cancelada.
 - Un **Reporte de Cobranza** agrupa datos de **Reservas** y **Pagos**; puede mostrarse para todos los **Billing Type** o filtrado por diario/mensual, y separa los **Payment Type** extra en columnas de pagado y pendiente.
+- Un **Ticket de Soporte** pertenece a un **Owner**, es creado por ese **Owner**, puede ser atendido por un **SUPER_ADMIN** y puede tener múltiples mensajes de seguimiento.
+- El **Owner** de un **Ticket de Soporte** no cambia después de su creación.
+- Un **Owner** solo ve sus propios **Tickets de Soporte**.
+- Un **Owner** puede crear **Tickets de Soporte** independientemente de su plan.
+- La creación in-app de **Tickets de Soporte** está disponible para **Owners** activos.
+- Un **SUPER_ADMIN** puede ver todos los **Tickets de Soporte**.
+- La **Prioridad de Ticket de Soporte** y la **Categoría de Ticket de Soporte** pueden ser declaradas por el **Owner** al crear el ticket y ajustadas después por un **SUPER_ADMIN**.
+- Un **Ticket de Soporte** solo puede ser marcado como resuelto por un **SUPER_ADMIN** y puede ser cerrado por su **Owner** o por un **SUPER_ADMIN**.
+- Un **Ticket de Soporte** abierto pasa a en progreso cuando un **SUPER_ADMIN** agrega su primera respuesta, salvo que lo marque directamente como resuelto.
+- Un **Ticket de Soporte** cerrado puede reabrirse cuando su **Owner** agrega un nuevo mensaje de seguimiento.
+- Un **Owner** y un **SUPER_ADMIN** pueden responder un **Ticket de Soporte** abierto, en progreso o resuelto; en un ticket cerrado, solo el **Owner** puede responder para reabrirlo.
+- Los mensajes de un **Ticket de Soporte** son visibles para su **Owner** y para los **SUPER_ADMIN**; no hay mensajes internos de soporte por defecto.
+- Cada mensaje de **Ticket de Soporte** pertenece a un autor: el **Owner** del ticket o un **SUPER_ADMIN**.
+- Un mensaje de **Ticket de Soporte** puede tener hasta tres **Adjuntos de Ticket de Soporte**.
+- La atención de **Tickets de Soporte** se informa dentro de RentalPro; no implica notificaciones externas por defecto.
+- Cada participante puede distinguir si un **Ticket de Soporte** tiene mensajes nuevos desde su última lectura.
+- Un **Ticket de Soporte** puede referenciar opcionalmente una **Reserva**, un **Pago** o una **Propiedad** afectada.
+- Un **SUPER_ADMIN** puede ver la entidad afectada referenciada por un **Ticket de Soporte**.
+- El contenido inicial de un **Ticket de Soporte** no se edita; la información adicional se agrega como mensajes de seguimiento.
+- Los mensajes de un **Ticket de Soporte** no se editan ni eliminan; las correcciones se agregan como nuevos mensajes.
+- Los **Tickets de Soporte** no se eliminan desde la UI; se cierran cuando ya no requieren acción.
 
 ## Patrones Next.js
 

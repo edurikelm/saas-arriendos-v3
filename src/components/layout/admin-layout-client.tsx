@@ -10,9 +10,10 @@ interface AdminLayoutClientProps {
   children: ReactNode;
   userName: string | null;
   userRole: string | null;
+  supportUnreadCount?: number;
 }
 
-export function AdminLayoutClient({ children, userName, userRole }: AdminLayoutClientProps) {
+export function AdminLayoutClient({ children, userName, userRole, supportUnreadCount = 0 }: AdminLayoutClientProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -23,6 +24,7 @@ export function AdminLayoutClient({ children, userName, userRole }: AdminLayoutC
         onClose={() => setSidebarOpen(false)} 
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+        supportUnreadCount={supportUnreadCount}
       />
       <div className={sidebarCollapsed ? "lg:pl-16" : "lg:pl-64"}>
         <div className="sticky top-0 z-30 flex items-center gap-4 bg-navbar px-4 py-3 lg:hidden">
