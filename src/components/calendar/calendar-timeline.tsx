@@ -258,11 +258,12 @@ export function CalendarTimeline({ reservations, currentMonth, onSelectReservati
 }) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [timelineViewportWidth, setTimelineViewportWidth] = useState(0);
+  const [scrollState, setScrollState] = useState({ canScrollLeft: false, canScrollRight: false });
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
   const today = new Date();
-  const propertyColumnWidth = 224;
+  const propertyColumnWidth = timelineViewportWidth > 0 && timelineViewportWidth < 640 ? 156 : 224;
   const minDayWidth = 42;
   const dayWidth = Math.max(
     minDayWidth,
@@ -276,17 +277,45 @@ export function CalendarTimeline({ reservations, currentMonth, onSelectReservati
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const measure = () => setTimelineViewportWidth(container.clientWidth);
+    const updateScrollState = () => {
+      setScrollState({
+        canScrollLeft: container.scrollLeft > 1,
+        canScrollRight: container.scrollLeft + container.clientWidth < container.scrollWidth - 1,
+      });
+    };
+
+    const measure = () => {
+      setTimelineViewportWidth(container.clientWidth);
+      updateScrollState();
+    };
     measure();
+    container.addEventListener("scroll", updateScrollState, { passive: true });
 
     if (typeof ResizeObserver === "undefined") {
-      return;
+      return () => container.removeEventListener("scroll", updateScrollState);
     }
 
     const observer = new ResizeObserver(measure);
     observer.observe(container);
-    return () => observer.disconnect();
-  }, [days.length]);
+    return () => {
+      observer.disconnect();
+      container.removeEventListener("scroll", updateScrollState);
+    };
+  }, [days.length, propertyColumnWidth]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      setScrollState({
+        canScrollLeft: container.scrollLeft > 1,
+        canScrollRight: container.scrollLeft + container.clientWidth < container.scrollWidth - 1,
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [timelineWidth]);
 
   const activeReservations = reservations.filter((res) => {
     const start = parseCalendarDate(res.startDate);
@@ -332,23 +361,36 @@ export function CalendarTimeline({ reservations, currentMonth, onSelectReservati
           </Button>
         </div>
         {headerActions && (
-          <div className="flex flex-wrap items-center gap-2 lg:justify-self-end">
+          <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:justify-self-end">
             {headerActions}
           </div>
         )}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border bg-gradient-to-br from-background via-background to-muted/30 shadow-sm">
-        <div ref={scrollContainerRef} className="overflow-x-auto">
-          <div className="min-w-max" style={{ width: timelineWidth }}>
-            <div className="sticky top-0 z-20 flex border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-              <div className="sticky left-0 z-30 flex w-56 shrink-0 items-center border-r bg-background/95 px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground backdrop-blur">
+      <div className="relative overflow-hidden rounded-xl border bg-gradient-to-br from-card to-muted/30 shadow-sm ring-1 ring-foreground/10">
+        <div
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-y-0 left-0 z-40 w-8 bg-gradient-to-r from-card to-transparent transition-opacity duration-100 ${scrollState.canScrollLeft ? "opacity-100" : "opacity-0"}`}
+        />
+        <div
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-y-0 right-0 z-40 w-8 bg-gradient-to-l from-card to-transparent transition-opacity duration-100 ${scrollState.canScrollRight ? "opacity-100" : "opacity-0"}`}
+        />
+        <div ref={scrollContainerRef} className="overflow-x-auto [scrollbar-gutter:stable]">
+          <div className="min-w-max" role="grid" aria-label="Timeline de ocupación por propiedad y día" style={{ width: timelineWidth }}>
+            <div className="sticky top-0 z-20 flex border-b bg-card/95 backdrop-blur supports-[backdrop-filter:blur(0px)]:bg-card/80" role="row">
+              <div
+                className="sticky left-0 z-30 flex shrink-0 items-center border-r bg-card/95 px-3 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground backdrop-blur sm:px-4"
+                role="columnheader"
+                style={{ width: propertyColumnWidth }}
+              >
                 Propiedad
               </div>
               {days.map((day) => (
                 <div
                   key={day.toISOString()}
-                  className={`shrink-0 border-r px-1 py-2 text-center ${isSameDay(day, today) ? "bg-primary/10" : ""}`}
+                  className={`shrink-0 border-r border-border/60 px-1 py-2 text-center ${isSameDay(day, today) ? "bg-primary/10" : ""}`}
+                  role="columnheader"
                   style={{ width: dayWidth }}
                 >
                   <div className={`mx-auto flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold ${isSameDay(day, today) ? "bg-primary text-primary-foreground shadow-sm" : "text-foreground"}`}>
@@ -380,20 +422,24 @@ export function CalendarTimeline({ reservations, currentMonth, onSelectReservati
               const rowHeight = 76;
 
               return (
-                <div key={property.id} className="flex border-b last:border-b-0">
-                  <div className="sticky left-0 z-10 flex w-56 shrink-0 items-center border-r bg-background/95 px-4 py-3 backdrop-blur">
+                <div key={property.id} className="flex border-b border-border/60 last:border-b-0" role="row">
+                  <div
+                    className="sticky left-0 z-10 flex shrink-0 items-center border-r border-border/60 bg-card/95 px-3 py-3 backdrop-blur sm:px-4"
+                    role="rowheader"
+                    style={{ width: propertyColumnWidth }}
+                  >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 rounded-full shadow-sm ring-4 ring-muted" style={{ backgroundColor: property.color || "#6366F1" }} />
-                        <span className="truncate text-sm font-semibold">{property.name}</span>
+                        <div className="h-3 w-3 shrink-0 rounded-full shadow-sm ring-4 ring-muted" style={{ backgroundColor: property.color || "#6366F1" }} />
+                        <span className="truncate text-sm font-semibold leading-snug">{property.name}</span>
                       </div>
-                      <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                        <Home className="h-3 w-3" />
+                      <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground sm:gap-2">
+                        <Home className="h-3 w-3 shrink-0" />
                         {sortedReservations.length} {sortedReservations.length === 1 ? "reserva" : "reservas"}
                       </div>
                     </div>
                   </div>
-                  <div className="relative bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px)]" style={{ width: days.length * dayWidth, height: rowHeight, backgroundSize: `${dayWidth}px 100%` }}>
+                  <div className="relative bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px)]" role="gridcell" style={{ width: days.length * dayWidth, height: rowHeight, backgroundSize: `${dayWidth}px 100%` }}>
                     {days.map((day, dayIndex) => isSameDay(day, today) ? (
                       <div
                         key={day.toISOString()}
@@ -411,7 +457,7 @@ export function CalendarTimeline({ reservations, currentMonth, onSelectReservati
                         <button
                           key={res.id}
                           onClick={() => onSelectReservation(res.id)}
-                          className={`group absolute flex h-8 items-center gap-2 overflow-hidden rounded-md border px-3 text-left text-xs shadow-sm transition-all hover:z-20 hover:-translate-y-0.5 hover:shadow-lg focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                          className={`group absolute flex h-8 items-center gap-1.5 overflow-hidden rounded-md border px-2 text-left text-xs shadow-sm transition-all hover:z-20 hover:-translate-y-0.5 hover:shadow-lg focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-2 sm:px-3 ${
                             isCancelled
                               ? "border-border bg-muted text-muted-foreground line-through"
                               : ended

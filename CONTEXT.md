@@ -138,9 +138,9 @@ El webhook intenta matchear el pago en este orden:
 ### Timeline (vista por defecto)
 
 - Contenedor **sin altura fija**: se adapta al contenido (cantidad de propiedades × 76px por fila + header).
-- El ancho de cada día es dinámico: mínimo `42px`, pero se expande para llenar el viewport disponible si sobra espacio horizontal (`dayWidth = max(42, (viewportWidth - 224) / nDays)`).
+- El ancho de cada día es dinámico: mínimo `42px`, pero se expande para llenar el viewport disponible si sobra espacio horizontal (`dayWidth = max(42, (viewportWidth - propertyColumnWidth) / nDays)`).
 - Si no alcanza el ancho, aparece scroll horizontal.
-- Cada propiedad es una fila con sticky label a la izquierda (224px).
+- Cada propiedad es una fila con sticky label a la izquierda. En mobile usa una columna compacta (`156px`) para liberar espacio a los días; desde `sm` usa `224px`.
 - Las reservas se renderizan como barras horizontales en un solo carril por fila (sin lane stacking).
 
 ## Términos del Dominio

@@ -125,43 +125,49 @@ export function CalendarView({ initialReservations, properties, clients, plan = 
 
   const dailyReservations = reservations.filter((r) => r.billingType === "DAILY");
   const headerActions = (
-    <>
-      <Button variant="default" size="sm" onClick={() => setCreateDialogOpen(true)}>
-        <Plus className="h-4 w-4 mr-2" />
+    <div className="grid w-full grid-cols-[auto_auto_1fr] items-center gap-2 sm:flex sm:w-auto sm:flex-wrap">
+      <Button variant="default" onClick={() => setCreateDialogOpen(true)}>
+        <Plus className="mr-2 h-4 w-4" />
         <span className="hidden sm:inline">Nueva Reserva</span>
         <span className="sm:hidden">Nueva</span>
       </Button>
-      <div className="flex overflow-hidden rounded-md border">
+      <div className="flex h-8 overflow-hidden rounded-lg border border-border bg-background shadow-sm">
         <button
           type="button"
+          aria-label="Ver calendario mensual"
+          aria-pressed={viewMode === "grid"}
           onClick={() => setViewMode("grid")}
-          className={`p-2 ${viewMode === "grid" ? "bg-muted" : ""}`}
+          className={`grid size-8 place-items-center transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${viewMode === "grid" ? "bg-muted text-foreground" : "text-muted-foreground"}`}
         >
           <Grid className="h-4 w-4" />
         </button>
         <button
           type="button"
+          aria-label="Ver timeline de ocupación"
+          aria-pressed={viewMode === "timeline"}
           onClick={() => setViewMode("timeline")}
-          className={`p-2 ${viewMode === "timeline" ? "bg-muted" : ""}`}
+          className={`grid size-8 place-items-center border-l border-border transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${viewMode === "timeline" ? "bg-muted text-foreground" : "text-muted-foreground"}`}
         >
           <SlidersHorizontal className="h-4 w-4" />
         </button>
       </div>
-      <Filter className="h-4 w-4 text-muted-foreground hidden sm:block" />
-      <Select value={selectedPropertyId} onValueChange={(v) => setSelectedPropertyId(v || "all")}>
-        <SelectTrigger className="w-32 sm:w-48">
-          <SelectValue placeholder="Propiedades" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Todas</SelectItem>
-          {properties.map((property) => (
-            <SelectItem key={property.id} value={property.id}>
-              {property.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </>
+      <div className="flex min-w-0 items-center gap-2">
+        <Filter className="hidden h-4 w-4 shrink-0 text-muted-foreground sm:block" />
+        <Select value={selectedPropertyId} onValueChange={(v) => setSelectedPropertyId(v || "all")}>
+          <SelectTrigger className="w-full min-w-0 sm:w-48">
+            <SelectValue placeholder="Propiedades" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas</SelectItem>
+            {properties.map((property) => (
+              <SelectItem key={property.id} value={property.id}>
+                {property.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
   );
 
   return (
