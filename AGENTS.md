@@ -2,67 +2,48 @@
 
 ## Session Protocol
 
-**Before any work, read `CONTEXT.md`** — establishes domain language, data model, business rules, and tech stack. Every session starts here to ensure consistent understanding of the project.
+Before any work, read `CONTEXT.md`. It is the source of truth for domain language, data model, business rules, tech stack, and project conventions.
 
-## Orchestration Mode
+## Domain Documentation
 
-Act as an orchestrator when the task is broad, ambiguous, multi-step, or involves multiple areas of the codebase.
+RentalPro uses a single-context layout:
 
-Your role is to:
-- Understand the user's goal before executing.
-- Break the work into clear subtasks.
-- Decide which tool, skill, or specialized agent should handle each part.
-- Prefer an existing Matt Pocock workflow skill when the task maps to one.
-- Delegate when it improves speed, coverage, or quality.
-- Review delegated results before integrating them.
-- Keep the global objective, dependencies, risks, and blockers visible.
-- Verify that the final result is coherent and complete.
+- `CONTEXT.md` at the repo root for domain language, rules, relationships, and implementation conventions.
+- `DESIGN.md` at the repo root for UI design system, visual consistency, layout, component sizing, responsive rules, and dark mode.
+- `docs/adr/` for architectural decisions.
+- `docs/agents/` for agent workflow metadata.
 
-The orchestrator coordinates workflow skills and operational roles; it does not replace them. Do not delegate trivial tasks. Execute directly when that is faster, safer, or clearer.
+When making or discovering a durable domain or architecture decision, update `CONTEXT.md` or add an ADR.
 
-## Matt Pocock Workflow Skills
+For UI, styling, layout, component, Tailwind, shadcn/ui, responsive, dark mode, or visual consistency work, read `DESIGN.md` before editing.
 
-When a task maps to an existing workflow skill, use that skill instead of inventing an ad-hoc process.
+## Workflow Skills
 
-- Use `triage` for incoming bugs, feature requests, unclear issues, or issue workflow management.
-- Use `to-prd` when shaping a product idea or conversation into a product requirement document.
-- Use `to-issues` when breaking a PRD, plan, or feature into implementation tickets.
-- Use `tdd` when building or fixing behavior test-first.
-- Use `diagnose` when debugging a bug, regression, failing command, or broken behavior.
-- Use `zoom-out` when broader system context is needed before making a decision.
-- Use `improve-codebase-architecture` for refactors, architectural analysis, or maintainability work.
+Use the existing workflow skill when the task maps to one:
 
-Coordinate these skills with the project context from `CONTEXT.md`, GitHub Issues, and `docs/adr/`. Keep the final response integrated and actionable.
+- `diagnose` for bugs, regressions, failing commands, broken behavior, or performance issues.
+- `tdd` for behavior changes that need a safety net.
+- `triage` for incoming bugs, feature requests, unclear issues, or issue workflow.
+- `to-prd` for shaping a product idea into a requirement document.
+- `to-issues` for breaking a PRD, plan, or feature into implementation tickets.
+- `zoom-out` when broader system context is needed before deciding.
+- `grill-with-docs` for domain terminology, naming, and decision clarification.
+- `improve-codebase-architecture` for refactors, architectural analysis, or maintainability work.
 
-## Operational Roles
+Coordinate these skills with `CONTEXT.md`, GitHub Issues, and `docs/adr/`.
 
-Use these roles deliberately when orchestrating work. If the environment provides real subagents, delegate to them. Otherwise, apply the role as a working mode. Provide the goal, relevant context, expected output, and verification requirements.
+## Issue Tracker
 
-- **Explorer**: Investigates the codebase, finds relevant files, maps flows, and summarizes existing behavior. Use before implementing when the affected area is unclear.
-- **Implementer**: Makes focused code changes once the scope is understood. Use for concrete edits with clear acceptance criteria.
-- **Reviewer**: Reviews changes for bugs, regressions, missing edge cases, and test gaps. Use after non-trivial implementation or when the user asks for review.
-- **Tester**: Runs or designs validation steps, reproduces bugs, and reports failures with evidence. Use when behavior needs verification beyond static inspection.
-- **Architect**: Evaluates domain boundaries, data flow, coupling, and long-term maintainability. Use for refactors, architectural decisions, or cross-cutting changes.
-- **Documentation Writer**: Updates `CONTEXT.md`, ADRs, issue docs, or user-facing docs when decisions, workflows, or domain rules change.
+Issues are tracked in GitHub Issues of the main repository.
 
-As orchestrator, you remain responsible for the final answer. Do not pass raw delegated output to the user without checking it first.
+See `docs/agents/issue-tracker.md`.
 
-## Agent skills
+## Triage Labels
 
-### Issue tracker
+This repo uses the canonical five-label triage vocabulary.
 
-Issues are tracked in GitHub Issues of the main repository. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-Five-label triage vocabulary. See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Single-context layout: one `CONTEXT.md` at the repo root + `docs/adr/` for architectural decisions. See `docs/agents/domain.md`.
+See `docs/agents/triage-labels.md`.
 
 ## Next.js Best Practices
 
-When working on Next.js code (pages, components, API routes, server actions), **load the `next-best-practices` skill first**.
-
-See skill: `next-best-practices`
+When working on Next.js code, including pages, components, API routes, server actions, layouts, metadata, routing, or caching, load `next-best-practices` first.
