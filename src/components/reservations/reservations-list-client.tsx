@@ -108,7 +108,7 @@ export function ReservationsListClient({
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
   const [viewingReservation, setViewingReservation] = useState<Reservation | null>(null);
-  const [showFilters, setShowFilters] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
   const [confirmAction, setConfirmAction] = useState<null | {
     title: string;
     description: string;
@@ -327,59 +327,67 @@ export function ReservationsListClient({
             </div>
           ) : (
             <>
-              <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-2xl border border-blue-500/15 bg-blue-500/[0.06] p-4">
-                  <p className="text-xs font-medium uppercase tracking-wide text-blue-500">Reservas filtradas</p>
-                  <p className="mt-2 text-2xl font-bold tabular-nums text-foreground">{filteredReservations.length}</p>
+              <div className="mb-6 grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
+                <div className="rounded-xl border border-blue-500/15 bg-blue-500/[0.06] p-3 sm:p-4">
+                  <p className="text-[0.65rem] font-medium uppercase tracking-wide text-blue-500 sm:text-xs">Reservas filtradas</p>
+                  <p className="mt-1.5 text-xl font-bold tabular-nums text-foreground sm:mt-2 sm:text-2xl">{filteredReservations.length}</p>
                   <p className="text-xs text-muted-foreground">{activeCount} activas o pendientes</p>
                 </div>
-                <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[0.06] p-4">
-                  <p className="text-xs font-medium uppercase tracking-wide text-emerald-500">Cobrado</p>
-                  <p className="mt-2 text-2xl font-bold tabular-nums text-foreground">{formatPrice(totalPaid)}</p>
+                <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/[0.06] p-3 sm:p-4">
+                  <p className="text-[0.65rem] font-medium uppercase tracking-wide text-emerald-500 sm:text-xs">Cobrado</p>
+                  <p className="mt-1.5 text-xl font-bold tabular-nums text-foreground sm:mt-2 sm:text-2xl">{formatPrice(totalPaid)}</p>
                   <p className="text-xs text-muted-foreground">Pagos completados</p>
                 </div>
-                <div className="rounded-2xl border border-amber-500/15 bg-amber-500/[0.06] p-4">
-                  <p className="text-xs font-medium uppercase tracking-wide text-amber-500">Por cobrar</p>
-                  <p className="mt-2 text-2xl font-bold tabular-nums text-foreground">{formatPrice(pendingAmount)}</p>
+                <div className="rounded-xl border border-amber-500/15 bg-amber-500/[0.06] p-3 sm:p-4">
+                  <p className="text-[0.65rem] font-medium uppercase tracking-wide text-amber-500 sm:text-xs">Por cobrar</p>
+                  <p className="mt-1.5 text-xl font-bold tabular-nums text-foreground sm:mt-2 sm:text-2xl">{formatPrice(pendingAmount)}</p>
                   <p className="text-xs text-muted-foreground">Saldo de la selección</p>
                 </div>
-                <div className="rounded-2xl border border-zinc-500/15 bg-zinc-500/[0.06] p-4">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Total reservado</p>
-                  <p className="mt-2 text-2xl font-bold tabular-nums text-foreground">{formatPrice(totalReserved)}</p>
+                <div className="rounded-xl border border-zinc-500/15 bg-zinc-500/[0.06] p-3 sm:p-4">
+                  <p className="text-[0.65rem] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">Total reservado</p>
+                  <p className="mt-1.5 text-xl font-bold tabular-nums text-foreground sm:mt-2 sm:text-2xl">{formatPrice(totalReserved)}</p>
                   <p className="text-xs text-muted-foreground">Valor bruto</p>
                 </div>
               </div>
 
-              <div className="mb-6 overflow-hidden rounded-2xl border border-foreground/10 bg-gradient-to-br from-muted/40 via-muted/20 to-background shadow-sm">
-                <div className="flex flex-col gap-4 p-4 lg:flex-row lg:items-end lg:justify-between">
-                  <div className="flex items-start justify-between gap-3 lg:w-52">
-                    <div className="flex items-start gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-blue-500/20 bg-blue-500/10 text-blue-400">
-                      <Filter className="h-4 w-4" />
+              <div className="mb-6 overflow-hidden rounded-xl border border-foreground/10 bg-gradient-to-br from-muted/40 via-muted/20 to-background shadow-sm sm:rounded-2xl">
+                <div className="flex flex-col gap-3 p-3 sm:gap-4 sm:p-4 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="flex items-center justify-between gap-3 lg:w-52 lg:items-start lg:justify-start">
+                    <div className="flex items-center gap-2.5 sm:gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-blue-500/20 bg-blue-500/10 text-blue-400 sm:h-9 sm:w-9 sm:rounded-xl">
+                        <Filter className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-foreground">Filtros</p>
+                        <p className="text-xs text-muted-foreground">
+                          {filteredReservations.length} de {reservations.length} reservas
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">Filtros</p>
-                      <p className="text-xs text-muted-foreground">
-                        {filteredReservations.length} de {reservations.length} reservas
-                      </p>
+                    <div className="flex items-center gap-1.5 lg:hidden">
+                      {hasActiveFilters && (
+                        <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8 rounded-lg px-2 text-xs">
+                          <X className="mr-1 h-3.5 w-3.5" />
+                          Limpiar
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowFilters((current) => !current)}
+                        className="h-8 rounded-lg px-2 text-xs"
+                      >
+                        {showFilters ? "Ocultar" : "Mostrar"}
+                      </Button>
                     </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowFilters((current) => !current)}
-                      className="h-8 rounded-lg px-2 text-xs lg:hidden"
-                    >
-                      {showFilters ? "Ocultar" : "Mostrar"}
-                    </Button>
                   </div>
 
-                  <div className={`${showFilters ? "grid" : "hidden"} flex-1 gap-3 sm:grid-cols-2 xl:grid-cols-4`}>
+                  <div className={`${showFilters ? "grid" : "hidden"} grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4`}>
                     <label>
                       <select
                         value={filters.propertyId}
                         onChange={(e) => setFilters({ ...filters, propertyId: e.target.value })}
-                        className="h-10 w-full rounded-lg border border-foreground/10 bg-background/80 px-3 text-sm font-medium text-foreground shadow-inner outline-none transition-colors hover:border-foreground/20 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15"
+                        className="h-9 w-full rounded-lg border border-foreground/10 bg-background/80 px-2.5 text-sm font-medium text-foreground shadow-inner outline-none transition-colors hover:border-foreground/20 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15 sm:h-10 sm:px-3"
                       >
                         <option value="">Todas las propiedades</option>
                         {properties.map((p) => (
@@ -392,7 +400,7 @@ export function ReservationsListClient({
                       <select
                         value={filters.billingType}
                         onChange={(e) => setFilters({ ...filters, billingType: e.target.value })}
-                        className="h-10 w-full rounded-lg border border-foreground/10 bg-background/80 px-3 text-sm font-medium text-foreground shadow-inner outline-none transition-colors hover:border-foreground/20 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15"
+                        className="h-9 w-full rounded-lg border border-foreground/10 bg-background/80 px-2.5 text-sm font-medium text-foreground shadow-inner outline-none transition-colors hover:border-foreground/20 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15 sm:h-10 sm:px-3"
                       >
                         <option value="">Todos los tipos</option>
                         <option value="DAILY">Diario</option>
@@ -404,7 +412,7 @@ export function ReservationsListClient({
                       <select
                         value={filters.status}
                         onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-                        className="h-10 w-full rounded-lg border border-foreground/10 bg-background/80 px-3 text-sm font-medium text-foreground shadow-inner outline-none transition-colors hover:border-foreground/20 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15"
+                        className="h-9 w-full rounded-lg border border-foreground/10 bg-background/80 px-2.5 text-sm font-medium text-foreground shadow-inner outline-none transition-colors hover:border-foreground/20 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15 sm:h-10 sm:px-3"
                       >
                         <option value="">Todos los estados</option>
                         <option value="PENDING">Pendiente</option>
@@ -418,7 +426,7 @@ export function ReservationsListClient({
                       <select
                         value={filters.payment}
                         onChange={(e) => setFilters({ ...filters, payment: e.target.value })}
-                        className="h-10 w-full rounded-lg border border-foreground/10 bg-background/80 px-3 text-sm font-medium text-foreground shadow-inner outline-none transition-colors hover:border-foreground/20 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15"
+                        className="h-9 w-full rounded-lg border border-foreground/10 bg-background/80 px-2.5 text-sm font-medium text-foreground shadow-inner outline-none transition-colors hover:border-foreground/20 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15 sm:h-10 sm:px-3"
                       >
                         <option value="">Todos los pagos</option>
                         <option value="paid">Pagado</option>
@@ -428,18 +436,18 @@ export function ReservationsListClient({
                     </label>
                   </div>
 
-                  <div className="flex gap-2 lg:flex-col">
+                  <div className="hidden gap-2 lg:flex lg:flex-col">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => setShowFilters((current) => !current)}
-                      className="hidden h-10 shrink-0 rounded-lg lg:inline-flex"
+                      className="h-10 shrink-0 rounded-lg"
                     >
                       <Filter className="mr-1.5 h-4 w-4" />
                       {showFilters ? "Ocultar" : "Mostrar"}
                     </Button>
                     {hasActiveFilters && (
-                        <Button variant="outline" size="sm" onClick={clearFilters} className="h-10 shrink-0 rounded-lg">
+                      <Button variant="outline" size="sm" onClick={clearFilters} className="h-10 shrink-0 rounded-lg">
                         <X className="mr-1.5 h-4 w-4" />
                         Limpiar filtros
                       </Button>

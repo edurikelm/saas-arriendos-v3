@@ -621,59 +621,52 @@ function ReservationMobileCard({ reservation, onEdit, onView, onDelete }: {
   };
 
   return (
-    <article className="group relative overflow-hidden rounded-2xl border border-zinc-800/80 bg-zinc-950/40 p-4 shadow-sm transition-all duration-300 hover:border-zinc-700 hover:bg-zinc-950/70">
+    <article className="group relative overflow-hidden rounded-xl border border-zinc-800/80 bg-zinc-950/40 p-3.5 shadow-sm transition-all duration-300 hover:border-zinc-700 hover:bg-zinc-950/70">
       <div className={`absolute inset-y-0 left-0 w-1 ${dotClassNames[stateTone]}`} />
-      <div className="flex items-start justify-between gap-3 pl-2">
-        <div className="flex min-w-0 items-center gap-3">
-          <div
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white shadow-lg ring-2 ring-white/10"
-            style={{ backgroundColor: reservation.property.color || "#6366F1" }}
-          >
-            {getInitials(reservation.client.name)}
-          </div>
-          <div className="min-w-0">
-            <h3 className="truncate font-semibold text-zinc-100">{reservation.client.name}</h3>
-            <p className="truncate text-xs text-zinc-500">{reservation.client.email}</p>
-          </div>
+      <div className="flex items-start gap-3 pl-1.5">
+        <div
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white shadow-lg ring-2 ring-white/10"
+          style={{ backgroundColor: reservation.property.color || "#6366F1" }}
+        >
+          {getInitials(reservation.client.name)}
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-900 hover:text-zinc-100">
-            <MoreHorizontal className="h-4 w-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {onView && <DropdownMenuItem onClick={() => runAfterMenuClose(() => onView(reservation.id))}>Ver</DropdownMenuItem>}
-            {onEdit && <DropdownMenuItem onClick={() => runAfterMenuClose(() => onEdit(reservation.id))}>Editar</DropdownMenuItem>}
-            {onDelete && <DropdownMenuItem variant="destructive" onClick={() => runAfterMenuClose(() => onDelete(reservation.id))}>Eliminar</DropdownMenuItem>}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-3 pl-2 text-sm">
-        <div>
-          <p className="text-xs text-zinc-500">Propiedad</p>
-          <p className="mt-1 flex items-center gap-2 font-medium text-zinc-200">
-            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: reservation.property.color || "#6366F1" }} />
-            {reservation.property.name}
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <h3 className="truncate text-sm font-semibold text-zinc-100">{reservation.client.name}</h3>
+              <p className="flex items-center gap-1.5 truncate text-xs text-zinc-500">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: reservation.property.color || "#6366F1" }} />
+                <span className="truncate">{reservation.property.name}</span>
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              <p className="text-right text-base font-bold tabular-nums text-zinc-100">{formatPrice(reservation.totalPrice)}</p>
+              <DropdownMenu>
+                <DropdownMenuTrigger className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-900 hover:text-zinc-100">
+                  <MoreHorizontal className="h-4 w-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {onView && <DropdownMenuItem onClick={() => runAfterMenuClose(() => onView(reservation.id))}>Ver</DropdownMenuItem>}
+                  {onEdit && <DropdownMenuItem onClick={() => runAfterMenuClose(() => onEdit(reservation.id))}>Editar</DropdownMenuItem>}
+                  {onDelete && <DropdownMenuItem variant="destructive" onClick={() => runAfterMenuClose(() => onDelete(reservation.id))}>Eliminar</DropdownMenuItem>}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+          <p className="text-xs text-zinc-400">
+            <span className="tabular-nums">{formatDate(reservation.startDate)} – {formatDate(reservation.endDate)}</span>
+            <span className="text-zinc-500"> · {duration}</span>
           </p>
         </div>
-        <div>
-          <p className="text-xs text-zinc-500">Total</p>
-          <p className="mt-1 text-right font-bold tabular-nums text-zinc-100">{formatPrice(reservation.totalPrice)}</p>
-        </div>
-        <div className="col-span-2">
-          <p className="text-xs text-zinc-500">Fechas</p>
-          <p className="mt-1 font-medium text-zinc-200">{formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}</p>
-          <p className="text-xs text-zinc-500">{duration}</p>
-        </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-2 pl-2">
+      <div className="mt-3 flex flex-wrap items-center gap-1.5 pl-1.5">
         <ReservationPill tone={stateTone} label={temporal.label} />
         <ReservationPill tone={reservation.billingType === "DAILY" ? "blue" : "purple"} label={reservation.billingType === "DAILY" ? "Diario" : "Mensual"} />
         <ReservationPill tone={paymentTone} label={paymentStatus.label} />
       </div>
 
-      <div className="mt-3 pl-2">
+      <div className="mt-3 pl-1.5">
         <div className="flex items-center justify-between text-xs text-zinc-500">
           <span>Pagado</span>
           <span className="tabular-nums">{formatPrice(paidAmount)} / {formatPrice(totalPrice)}</span>

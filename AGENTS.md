@@ -47,3 +47,17 @@ See `docs/agents/triage-labels.md`.
 ## Next.js Best Practices
 
 When working on Next.js code, including pages, components, API routes, server actions, layouts, metadata, routing, or caching, load `next-best-practices` first.
+
+## Delegation Routing
+
+Antes de empezar una tarea, clasifícala en uno de los tres niveles definidos en `docs/adr/0017-delegation-routing.md`:
+
+- **Nivel 1 (cosmético)**: el orquestador ejecuta directo, verifica con typecheck + tests + screenshot visual.
+- **Nivel 2 (comportamiento / dominio no crítico)**: `implementer` ejecuta, `reviewer` revisa.
+- **Nivel 3 (dominio crítico)**: `architect` + `implementer` + `tester` + `reviewer`.
+
+Si hay duda entre Nivel 1 y Nivel 2, escalar hacia arriba. Ver ADR-0017 para los criterios completos.
+
+## Artefactos de verificación
+
+Screenshots, traces de performance, heap snapshots, archivos `.network-request`, `.network-response`, `.heapsnapshot` y otros generados durante la verificación visual o de red **no son parte del producto**. Después de usarlos, eliminarlos del worktree o moverlos a `C:\Users\eduri\AppData\Local\Temp\opencode` (directorio temporal pre-aprobado). Nunca dejarlos en la raíz del repo ni en `src/`.
