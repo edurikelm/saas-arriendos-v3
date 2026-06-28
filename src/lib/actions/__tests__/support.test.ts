@@ -446,8 +446,8 @@ describe("getSupportTickets", () => {
     const ticketWithMessages = {
       ...mockTicket,
       messages: [
-        { id: "msg-2", authorId: "user-1", createdAt: new Date(Date.now() + 20000) },
-        { id: "msg-1", authorId: "admin-1", createdAt: new Date(Date.now() + 10000) },
+        { id: "msg-2", authorId: "user-1", author: { role: "OWNER" }, createdAt: new Date(Date.now() + 20000) },
+        { id: "msg-1", authorId: "admin-1", author: { role: "SUPER_ADMIN" }, createdAt: new Date(Date.now() + 10000) },
       ],
     };
 

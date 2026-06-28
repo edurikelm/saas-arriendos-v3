@@ -88,7 +88,7 @@ describe("getUnreadSupportTicketCount", () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         messages: [
-          { id: "msg-1", supportTicketId: "ticket-1", authorId: "admin-1", content: "Admin response", createdAt: new Date(Date.now() + 10000) },
+          { id: "msg-1", supportTicketId: "ticket-1", authorId: "admin-1", author: { role: "SUPER_ADMIN" }, content: "Admin response", createdAt: new Date(Date.now() + 10000) },
         ],
       },
       {
@@ -144,7 +144,7 @@ describe("getUnreadSupportTicketCount", () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         messages: [
-          { id: "msg-1", supportTicketId: "ticket-1", authorId: "admin-1", content: "Old admin response", createdAt: new Date(Date.now() - 200000) },
+          { id: "msg-1", supportTicketId: "ticket-1", authorId: "admin-1", author: { role: "SUPER_ADMIN" }, content: "Old admin response", createdAt: new Date(Date.now() - 200000) },
         ],
       },
     ];
@@ -181,7 +181,7 @@ describe("getUnreadSupportTicketCount", () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         messages: [
-          { id: "msg-1", supportTicketId: "ticket-1", authorId: "owner-1", content: "My own message", createdAt: new Date(Date.now() + 10000) },
+          { id: "msg-1", supportTicketId: "ticket-1", authorId: "owner-1", author: { role: "OWNER" }, content: "My own message", createdAt: new Date(Date.now() + 10000) },
         ],
       },
     ];

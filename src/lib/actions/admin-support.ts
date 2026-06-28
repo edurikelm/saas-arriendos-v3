@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getSession } from "@/lib/actions/auth";
 import { revalidatePath } from "next/cache";
 import { ticketPriorityEnum, ticketCategoryEnum, supportAttachmentSchema } from "@/lib/validations/support";
+import { computeHasUnread, type UnreadRole } from "@/lib/support/unread";
 import type { PaginatedResponse } from "@/types/pagination";
 
 export interface AdminSupportTicketRow {
@@ -141,10 +142,14 @@ export async function getAllSupportTickets(
   return {
     data: tickets.map((ticket) => {
       const lastReadAt = readMap.get(ticket.id);
-      const hasUnread = ticket.messages.some(
-        (msg) =>
-          msg.author.role === "OWNER" &&
-          (!lastReadAt || msg.createdAt > lastReadAt)
+      const hasUnread = computeHasUnread(
+        ticket.messages.map((msg) => ({
+          authorId: msg.authorId,
+          authorRole: msg.author.role as UnreadRole,
+          createdAt: msg.createdAt,
+        })),
+        { role: "SUPER_ADMIN" },
+        lastReadAt,
       );
 
       return {

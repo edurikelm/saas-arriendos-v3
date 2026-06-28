@@ -2,15 +2,16 @@
 
 import { prisma } from "@/lib/db/prisma";
 import { getSession } from "@/lib/actions/auth";
+import { computeHasUnread, type UnreadRole } from "@/lib/support/unread";
 
 export async function getUnreadSupportTicketCount(): Promise<number> {
   const session = await getSession();
   if (!session) return 0;
 
-  const isAdmin = session.role === "SUPER_ADMIN";
+  const viewerRole = session.role as UnreadRole;
 
   const tickets = await prisma.supportTicket.findMany({
-    where: isAdmin ? {} : { userId: session.userId },
+    where: viewerRole === "SUPER_ADMIN" ? {} : { userId: session.userId },
     include: {
       messages: {
         select: { id: true, authorId: true, createdAt: true, author: { select: { role: true } } },
@@ -28,10 +29,14 @@ export async function getUnreadSupportTicketCount(): Promise<number> {
       },
     });
 
-    const hasUnreadFromOther = ticket.messages.some(
-      (msg) =>
-        (isAdmin ? msg.author.role === "OWNER" : msg.authorId !== session.userId) &&
-        (!read || msg.createdAt > read.lastReadAt)
+    const hasUnreadFromOther = computeHasUnread(
+      ticket.messages.map((msg) => ({
+        authorId: msg.authorId,
+        authorRole: msg.author.role as UnreadRole,
+        createdAt: msg.createdAt,
+      })),
+      { role: viewerRole },
+      read?.lastReadAt,
     );
 
     if (hasUnreadFromOther) {

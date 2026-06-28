@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { getSession } from "@/lib/actions/auth";
 import { supportTicketSchema, supportMessageSchema, type SupportTicketInput, type AttachmentInput } from "@/lib/validations/support";
+import { computeHasUnread, type UnreadRole } from "@/lib/support/unread";
 import { revalidatePath } from "next/cache";
 import { ZodError } from "zod";
 import type { PaginatedResponse } from "@/types/pagination";
@@ -177,7 +178,7 @@ export async function getSupportTickets(params?: {
       take: limit,
       include: {
         messages: {
-          select: { id: true, authorId: true, createdAt: true },
+          select: { id: true, authorId: true, createdAt: true, author: { select: { role: true } } },
           orderBy: { createdAt: "desc" },
         },
       },
@@ -193,10 +194,14 @@ export async function getSupportTickets(params?: {
   return {
     data: tickets.map((ticket) => {
       const lastReadAt = readMap.get(ticket.id);
-      const hasUnread = ticket.messages.some(
-        (msg) =>
-          msg.authorId !== session.userId &&
-          (!lastReadAt || msg.createdAt > lastReadAt)
+      const hasUnread = computeHasUnread(
+        ticket.messages.map((msg) => ({
+          authorId: msg.authorId,
+          authorRole: msg.author.role as UnreadRole,
+          createdAt: msg.createdAt,
+        })),
+        { role: "OWNER" },
+        lastReadAt,
       );
 
       return {
