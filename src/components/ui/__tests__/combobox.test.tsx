@@ -26,7 +26,7 @@ describe('Combobox', () => {
     expect(screen.getByText('Opción 2')).toBeDefined();
   });
 
-  it('filtra opciones al escribir', () => {
+  it('filtra opciones al escribir por label', () => {
     render(<Combobox {...defaultProps} />);
 
     fireEvent.click(screen.getByText('Selecciona una opción'));
@@ -37,6 +37,29 @@ describe('Combobox', () => {
     expect(screen.getByText('Opción 1')).toBeDefined();
     expect(screen.queryByText('Opción 2')).toBeNull();
     expect(screen.queryByText('Opción 3')).toBeNull();
+  });
+
+  it('filtra opciones también por subtitle', () => {
+    const optionsWithSubtitle = [
+      { value: '1', label: 'Juan Pérez', subtitle: 'juan@ejemplo.com' },
+      { value: '2', label: 'María García', subtitle: 'maria@otro.com' },
+    ];
+    render(
+      <Combobox
+        options={optionsWithSubtitle}
+        value=""
+        onValueChange={vi.fn()}
+        placeholder="Selecciona"
+      />
+    );
+
+    fireEvent.click(screen.getByText('Selecciona'));
+
+    const input = screen.getByPlaceholderText('Buscar...');
+    fireEvent.change(input, { target: { value: 'juan@ejemplo' } });
+
+    expect(screen.getByText('Juan Pérez')).toBeDefined();
+    expect(screen.queryByText('María García')).toBeNull();
   });
 
   it('selecciona opción al hacer click', () => {

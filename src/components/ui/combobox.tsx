@@ -51,9 +51,13 @@ function Combobox({
   )
 
   const displayOptions = showSearch
-    ? options.filter((opt) =>
-        opt.label.toLowerCase().includes(search.toLowerCase())
-      )
+    ? options.filter((opt) => {
+        const term = search.toLowerCase();
+        return (
+          opt.label.toLowerCase().includes(term) ||
+          (opt.subtitle?.toLowerCase().includes(term) ?? false)
+        );
+      })
     : options
 
   const handleOpenChange = (newOpen: boolean) => {
