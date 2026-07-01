@@ -33,3 +33,6 @@ coverage/
 # Misc
 *.log
 *.tsbuildinfo
+
+# Scratch / design tools
+.kombai/
