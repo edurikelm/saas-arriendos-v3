@@ -1,7 +1,7 @@
 ---
 description: Disena y ejecuta validaciones para RentalPro, priorizando reservas, pagos, disponibilidad, auth y webhooks.
 mode: subagent
-model: opencode-go/kimi-k2.7-code
+model: minimax-coding-plan/MiniMax-M2.7-highspeed
 permission:
   edit: deny
   bash: ask

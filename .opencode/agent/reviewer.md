@@ -1,7 +1,7 @@
 ---
 description: Revisa cambios de RentalPro buscando bugs, regresiones, edge cases y tests faltantes.
 mode: subagent
-model: opencode-go/deepseek-v4-pro
+model: minimax-coding-plan/MiniMax-M2.7
 permission:
   edit: deny
   bash: ask

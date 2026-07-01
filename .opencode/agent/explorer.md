@@ -1,7 +1,7 @@
 ---
 description: Explora el codebase de RentalPro y resume archivos, flujos, patrones y riesgos antes de implementar.
 mode: subagent
-model: opencode-go/kimi-k2.7-code
+model: opencode/north-mini-code-free
 permission:
   edit: deny
   bash: ask

@@ -1,7 +1,7 @@
 ---
 description: Agente principal de RentalPro. Aplica automaticamente CONTEXT.md, AGENTS.md y los workflows Matt Pocock.
 mode: primary
-model: openai/gpt-5.5
+model: minimax-coding-plan/MiniMax-M3
 permission:
   edit: ask
   bash: ask

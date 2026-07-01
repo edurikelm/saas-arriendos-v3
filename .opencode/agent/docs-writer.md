@@ -1,7 +1,7 @@
 ---
 description: Actualiza CONTEXT.md, ADRs y docs de agentes cuando cambian reglas de dominio, arquitectura o workflow.
 mode: subagent
-model: opencode-go/minimax-m2.7
+model: opencode/mimo-v2.5-free
 permission:
   edit: ask
   bash: ask

@@ -1,7 +1,7 @@
 ---
 description: Implementa cambios concretos en RentalPro una vez que el plan esta claro.
 mode: subagent
-model: opencode-go/kimi-k2.7-code
+model: minimax-coding-plan/MiniMax-M2.7-highspeed
 permission:
   edit: ask
   bash: ask

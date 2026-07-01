@@ -1,7 +1,7 @@
 ---
 description: Evalua arquitectura de RentalPro, limites de dominio, acoplamiento, modulos profundos y deuda tecnica.
 mode: subagent
-model: opencode-go/glm-5.2
+model: minimax-coding-plan/MiniMax-M3
 permission:
   edit: deny
   bash: ask
