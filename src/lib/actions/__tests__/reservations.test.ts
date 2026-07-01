@@ -22,6 +22,9 @@ const mockPrisma = vi.hoisted(() => ({
     deleteMany: vi.fn(),
     create: vi.fn(),
   },
+  externalChannelBlock: {
+    findMany: vi.fn().mockResolvedValue([]),
+  },
   $transaction: vi.fn(async (cb) => cb(mockPrisma)),
 }));
 

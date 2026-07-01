@@ -1,0 +1,95 @@
+# ADR-0018: External Calendar Sync (iCal)
+
+## Status
+
+Aceptado
+
+## Context
+
+Los propietarios que gestionan sus propiedades en RentalPro y simultáneamente publican en canales externos (Airbnb, Booking.com, VRBO) enfrentan un problema de disponibilidad duplicada: las reservas externas no se reflejan automáticamente en RentalPro, lo que genera sobre-reservas o inconsistencias visuales en el calendario.
+
+El objetivo de este issue (#129) es implementar la **importación** de ocupaciones desde feeds iCal de canales externos como **Bloqueos de Canal Externo** (no como Reservas), que consumen 1 unidad de disponibilidad cada uno. La exportación de calendarios queda fuera del alcance inicial (#130).
+
+## Decision
+
+### Modelo de datos
+
+Se introducen dos modelos en Prisma:
+
+- **ExternalCalendar**: representa un feed iCal asociado a una propiedad y canal. Se identifica por `(channel, propertyId, feedUrl)`. El soft delete se implementa vía `isActive: false` (no se elimina el registro).
+
+- **ExternalChannelBlock**: representa un evento iCal importado. Se identifica por `(externalCalendarId, externalUid)`. Cada block activo consume 1 unidad de disponibilidad. Cuando un UID desaparece del feed, el block pasa a `status: INACTIVE` (no se elimina físicamente).
+
+### Canal Externo (enum ExternalChannel)
+
+```
+AIRBNB | BOOKING_COM | VRBO | OTHER
+```
+
+### Parser iCal custom
+
+Se implementa un parser custom en `src/lib/ical/parser.ts` (~150 LOC) sin dependencias externas, usando `Intl.DateTimeFormat` para formateo. Maneja:
+
+- VEVENT bien formado → `{ startDate, endDate, uid, summary }`
+- DTEND exclusivo (Airbnb/Booking): `endDate` interno = DTEND - 1 día
+- DTEND inclusivo: sin resta (compatibilidad)
+- TZID=America/Santiago → wall-time
+- All-day (`DTSTART:20250115`) sin TZ → día calendario local
+- Múltiples VEVENTs → array
+- Sin `BEGIN:VCALENDAR` → error `INVALID_ICAL`
+- Evento fuera de ventana `[-30d, +18m]` → filtrado
+
+### Sync pipeline
+
+`syncExternalCalendarPipeline(externalCalendarId)` en `src/lib/ical/sync.ts`:
+
+1. Carga `ExternalCalendar` con `isActive: true`
+2. Fetch del feed con timeout de 8 segundos
+3. Valida Content-Type (si `text/html` sin `BEGIN:VCALENDAR` → error)
+4. Parsea iCal
+5. Upsert por `(externalCalendarId, externalUid)`:
+   - UIDs en feed → upsert con `status: ACTIVE`
+   - UIDs en DB que no están en feed → `status: INACTIVE`
+6. Actualiza `lastSyncedAt`, `lastSyncError`, `lastSyncCount`
+
+### Sync manual + automático
+
+- **Manual**: server action `syncExternalCalendar()` (autenticada, plan PRO)
+- **Automático**: endpoint API `POST /api/cron/external-calendars/sync` con auth `Bearer ${ICAL_CRON_SECRET}`, llamado diario por Vercel Cron a las 06:00 UTC
+
+### Extensión de checkAvailability y getBlockedDates
+
+`checkAvailability` ahora consulta `ExternalChannelBlock` con el mismo overlap query y suma 1 unidad por cada block activo que cubra el día. `getBlockedDates` incluye días cubiertos por blocks activos.
+
+### Plan gating
+
+Todas las actions mutadoras (`create`, `update`, `delete`, `sync`) requieren `session.plan === "PRO"`.
+
+### ADR de referencia cruzada
+
+- CONTEXT.md líneas 129-174 (se actualiza)
+- #130 (export iCal, anti-reimport)
+- #131 (UI de calendario externo en dashboard)
+- #132 (resolución de conflictos Reserva vs Bloqueo)
+
+## Consequences
+
+### Positive
+
+- Propietarios PRO pueden sincronizar disponibilidad desde canales externos sin doble gestión manual.
+- Parser custom elimina dependencia externa y mantiene el bundle pequeño.
+- Soft delete de blocks y calendars permite auditoría y recuperación.
+- El sync es idempotente: UIDs stabilizan el estado.
+
+### Negative
+
+- Solo plan PRO (verificado en cada action mutadora)
+- No hay exportación en este issue (#130)
+- Anti-reimport (exportar no re-importe el mismo canal) queda para #130
+- Resolución de conflictos visuales (Reserva vs Bloqueo) queda para #132
+
+### Technical Notes
+
+- El parser usa `Intl.DateTimeFormat` para formateo de fechas en la ventana de filtering, no para parsing.
+- El timezone `America/Santiago` se trata como wall-time local; conversión UTC completa requeriría datos de offset por fecha (no incluido en scope inicial).
+- El sync falla gracefully: conserva `lastSyncedAt` previo y persiste `lastSyncError` para debugging.

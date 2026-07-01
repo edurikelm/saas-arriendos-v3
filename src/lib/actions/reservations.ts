@@ -322,6 +322,28 @@ async function checkAvailability(
     },
   });
 
+  // Query active external blocks that overlap with the date range
+  const conflictingExternalBlocks = await prisma.externalChannelBlock.findMany({
+    where: {
+      propertyId,
+      status: "ACTIVE",
+      OR: [
+        {
+          startDate: { lte: startDate },
+          endDate: { gte: startDate },
+        },
+        {
+          startDate: { lte: endDate },
+          endDate: { gte: endDate },
+        },
+        {
+          startDate: { gte: startDate },
+          endDate: { lte: endDate },
+        },
+      ],
+    },
+  });
+
   for (const day = new Date(startDate); day <= endDate; day.setDate(day.getDate() + 1)) {
     let bookedUnits = 0;
 
@@ -331,6 +353,15 @@ async function checkAvailability(
 
       if (day >= resStart && day <= resEnd) {
         bookedUnits += reservation.unitsBooked;
+      }
+    }
+
+    // Each active external block consumes 1 unit
+    for (const block of conflictingExternalBlocks) {
+      const blockStart = new Date(block.startDate);
+      const blockEnd = new Date(block.endDate);
+      if (day >= blockStart && day <= blockEnd) {
+        bookedUnits += 1;
       }
     }
 
@@ -704,11 +735,30 @@ export async function getBlockedDates(propertyId: string) {
     },
   });
 
+  const externalBlocks = await prisma.externalChannelBlock.findMany({
+    where: {
+      propertyId,
+      status: "ACTIVE",
+    },
+    select: {
+      startDate: true,
+      endDate: true,
+    },
+  });
+
   const blockedDates: Date[] = [];
 
   for (const res of reservations) {
     const start = new Date(res.startDate);
     const end = new Date(res.endDate);
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      blockedDates.push(new Date(d));
+    }
+  }
+
+  for (const block of externalBlocks) {
+    const start = new Date(block.startDate);
+    const end = new Date(block.endDate);
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
       blockedDates.push(new Date(d));
     }

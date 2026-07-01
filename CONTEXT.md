@@ -135,6 +135,16 @@ El webhook intenta matchear el pago en este orden:
 - Las fechas de reserva en el calendario son **date-only** del dominio. Aunque el backend pueda serializarlas como ISO (`toISOString()`), la UI debe calcular posiciones usando solo `YYYY-MM-DD` para evitar desfases por timezone. `end_date` es inclusivo: una reserva 25→30 ocupa 6 noches y debe visualizarse hasta el 30.
 - La vista mensual (grid) calcula cuántas barras completas caben en la altura por defecto de cada semana. Si sobran eventos, se colapsan en un raíl compacto de líneas finas superpuestas con un indicador `+N`, sin crecer la fila; al pasar el mouse se previsualiza toda la semana expandida. El botón global (`Expandir todas`/`Colapsar todas`) permite fijar la expansión de todas las semanas con overflow.
 
+### Calendarios Externos
+
+- **Disponibilidad** suma `Reservation.unitsBooked` + 1 por cada **Bloqueo de Canal Externo** activo que cubra ese día.
+- Cada **Bloqueo de Canal Externo** activo consume 1 unidad de disponibilidad por día cubierto.
+- **Calendario Externo** se identifica por `(channel, propertyId, feedUrl)`; **Bloqueos** se identifican por `(externalCalendarId, externalUid)`.
+- Sync diario de **Calendarios Externos** vía Vercel Cron a las 06:00 UTC.
+- Cuando un evento desaparece del feed: **Bloqueo** se marca `INACTIVE` (no delete físico).
+- Cuando sync falla: se conserva último `lastSyncedAt` válido y se persiste `lastSyncError`.
+- Solo plan PRO. Sync manual vía server action, automático vía Vercel Cron con auth `Bearer ${ICAL_CRON_SECRET}`.
+
 ### Timeline (vista por defecto)
 
 - Contenedor **sin altura fija**: se adapta al contenido (cantidad de propiedades × 76px por fila + header).

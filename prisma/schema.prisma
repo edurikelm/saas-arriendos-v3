@@ -101,6 +101,18 @@ enum IntegrationProvider {
   STRIPE
 }
 
+enum ExternalChannel {
+  AIRBNB
+  BOOKING_COM
+  VRBO
+  OTHER
+}
+
+enum ExternalBlockStatus {
+  ACTIVE
+  INACTIVE
+}
+
 model UserProfile {
   id        String     @id @default(cuid())
   name      String?
@@ -120,6 +132,7 @@ model UserProfile {
   adminNotes   AdminNote[]      @relation("AdminNotes")
   ownerNotes   AdminNote[]      @relation("OwnerNotes")
   adminActions AdminActionLog[] @relation("AdminActions")
+  externalCalendars ExternalCalendar[]
 }
 
 model SupportTicket {
@@ -211,6 +224,8 @@ model Property {
   user                     UserProfile     @relation(fields: [userId], references: [id])
   reservations             Reservation[]
   supportTicketsAsProperty SupportTicket[] @relation("TicketAffectedProperty")
+  externalCalendars        ExternalCalendar[]
+  externalBlocks           ExternalChannelBlock[]
 
   @@index([userId])
 }
@@ -358,4 +373,51 @@ model ReservationDocument {
 
   @@index([reservationId])
   @@index([reservationId, deletedAt])
+}
+
+model ExternalCalendar {
+  id            String          @id @default(cuid())
+  userId        String
+  propertyId    String
+  channel       ExternalChannel
+  name          String
+  feedUrl       String
+  isActive      Boolean         @default(true)
+  lastSyncedAt  DateTime?
+  lastSyncError String?
+  lastSyncCount Int?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  user     UserProfile           @relation(fields: [userId], references: [id])
+  property Property              @relation(fields: [propertyId], references: [id])
+  blocks   ExternalChannelBlock[]
+
+  @@index([userId])
+  @@index([propertyId])
+  @@index([userId, isActive])
+  @@index([propertyId, isActive])
+}
+
+model ExternalChannelBlock {
+  id                 String              @id @default(cuid())
+  externalCalendarId String
+  propertyId         String
+  externalUid        String
+  startDate          DateTime
+  endDate            DateTime
+  summary            String?
+  status             ExternalBlockStatus @default(ACTIVE)
+  lastSeenAt         DateTime            @default(now())
+  firstSyncedAt      DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  externalCalendar ExternalCalendar @relation(fields: [externalCalendarId], references: [id], onDelete: Cascade)
+  property          Property         @relation(fields: [propertyId], references: [id])
+
+  @@unique([externalCalendarId, externalUid])
+  @@index([externalCalendarId])
+  @@index([propertyId, status])
+  @@index([propertyId, startDate, endDate])
+  @@index([status])
 }
