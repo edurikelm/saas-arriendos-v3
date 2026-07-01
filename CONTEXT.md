@@ -180,6 +180,7 @@ El webhook intenta matchear el pago en este orden:
 - Una propiedad puede tener varios **Calendarios Externos** activos, incluso del mismo **Canal Externo**.
 - Un **Calendario Externo** puede sincronizarse manualmente y también en una cadencia automática diaria.
 - El calendario exportado de una propiedad incluye **Reservas** activas y **Bloqueos de Canal Externo** activos, evitando reexportar bloqueos hacia el mismo **Canal Externo** que los originó.
+- Un **Feed de Exportación iCal** se identifica por `(propertyId, channel)` y genera una URL tokenizada por canal. El token se almacena como hash SHA-256 (no bcrypt). La URL es válida para polling de canales externos. El token raw solo se muestra una vez al crear o regenerar el feed.
 - Cuando una **Reserva** interna se solapa con un **Bloqueo de Canal Externo**, la **Reserva** prevalece y el bloqueo externo queda como conflicto visible para el owner.
 - Para disponibilidad, una **Reserva** y un **Bloqueo de Canal Externo** consumen unidades de la propiedad; cada bloqueo externo consume 1 unidad y solo la **Reserva** afecta pagos y reportes financieros.
 - Un **Recordatorio de Pago** pertenece a un **Pago** pendiente, se dirige al **Owner** y solo se emite para reservas en estado **PENDING** o **CONFIRMED**.

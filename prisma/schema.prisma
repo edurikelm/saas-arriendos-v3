@@ -226,6 +226,7 @@ model Property {
   supportTicketsAsProperty SupportTicket[] @relation("TicketAffectedProperty")
   externalCalendars        ExternalCalendar[]
   externalBlocks           ExternalChannelBlock[]
+  exportFeeds             PropertyExportFeed[]
 
   @@index([userId])
 }
@@ -420,4 +421,22 @@ model ExternalChannelBlock {
   @@index([propertyId, status])
   @@index([propertyId, startDate, endDate])
   @@index([status])
+}
+
+model PropertyExportFeed {
+  id             String          @id @default(cuid())
+  propertyId     String
+  channel        ExternalChannel
+  tokenHash      String          @unique
+  tokenLastFour  String
+  createdAt      DateTime        @default(now())
+  lastRotatedAt  DateTime        @default(now())
+  isRevoked      Boolean         @default(false)
+  lastFetchedAt  DateTime?
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, channel])
+  @@index([propertyId])
+  @@index([tokenHash])
 }

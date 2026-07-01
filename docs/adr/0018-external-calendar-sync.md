@@ -68,9 +68,20 @@ Todas las actions mutadoras (`create`, `update`, `delete`, `sync`) requieren `se
 ### ADR de referencia cruzada
 
 - CONTEXT.md líneas 129-174 (se actualiza)
-- #130 (export iCal, anti-reimport)
+- #130 (export iCal, anti-reimport) — ver ADR-0019
 - #131 (UI de calendario externo en dashboard)
 - #132 (resolución de conflictos Reserva vs Bloqueo)
+
+### Export side (#130)
+
+La exportación de feeds iCal se implementa en `src/lib/ical/export.ts`, `src/lib/ical/serializer.ts`, y `src/lib/ical/tokens.ts`:
+
+- **Forma**: `(propertyId, channel)` — un feed por canal externo.
+- **Token**: SHA-256 hash en base64url (no bcrypt — bcrypt es demasiado lento para hot-path lookups de Airbnb polling).
+- **Anti-eco**: El export excluye `ExternalChannelBlock` con `externalCalendar.channel === feed.channel`. Las Reservas siempre se incluyen.
+- **Formatos**: iCal all-day only (DTSTART;VALUE=DATE, DTEND exclusive = endDate + 1 día para round-trip con el parser).
+- **Seguridad**: Retorna 401 siempre (no 404/410) para evitar oráculo. Token válidado contra hash lookup O(1).
+- **UX**: El token raw solo se muestra una vez al crear/regenerar.
 
 ## Consequences
 
