@@ -20,6 +20,7 @@ import {
   cancelReservation,
   deleteReservation,
 } from "@/lib/actions/reservations";
+import { getReservationPaidAmount } from "@/lib/payments/calculations";
 import type { ReservationInput } from "@/lib/validations/reservation";
 
 interface Property {
@@ -59,6 +60,7 @@ interface Reservation {
     initPoint?: string | null;
     expiresAt?: string | null;
     deletedAt?: string | null;
+    paymentType?: string | null;
   }>;
 }
 
@@ -166,9 +168,7 @@ export function ReservationsListClient({
     if (!filters.payment) return reservations;
 
     return reservations.filter((res) => {
-      const paidAmount = res.payments
-        .filter((p) => p.status === "COMPLETED")
-        .reduce((sum, p) => sum + Number(p.amount), 0);
+      const paidAmount = getReservationPaidAmount(res.payments);
       const totalPrice = Number(res.totalPrice);
       if (filters.payment === "paid" && paidAmount < totalPrice) return false;
       if (filters.payment === "pending" && paidAmount > 0) return false;
@@ -179,9 +179,7 @@ export function ReservationsListClient({
 
   const totalReserved = filteredReservations.reduce((sum, res) => sum + Number(res.totalPrice), 0);
   const totalPaid = filteredReservations.reduce(
-    (sum, res) => sum + res.payments
-      .filter((payment) => payment.status === "COMPLETED")
-      .reduce((paymentSum, payment) => paymentSum + Number(payment.amount), 0),
+    (sum, res) => sum + getReservationPaidAmount(res.payments),
     0,
   );
   const activeCount = filteredReservations.filter((res) => res.status !== "CANCELLED" && res.status !== "COMPLETED").length;
@@ -488,9 +486,7 @@ export function ReservationsListClient({
                 <div className="space-y-4">
                   {filteredReservations.map((reservation) => {
                     const status = statusLabels[reservation.status] || statusLabels.PENDING;
-                    const paidAmount = reservation.payments
-                      .filter((p) => p.status === "COMPLETED")
-                      .reduce((sum, p) => sum + Number(p.amount), 0);
+                    const paidAmount = getReservationPaidAmount(reservation.payments);
                     const pendingAmount = Number(reservation.totalPrice) - paidAmount;
 
                     return (

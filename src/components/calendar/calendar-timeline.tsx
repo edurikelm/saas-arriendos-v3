@@ -7,12 +7,15 @@ import { ChevronLeft, ChevronRight, Calendar, Home, CheckCircle2, XCircle, Alert
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { getReservationPaidAmount } from "@/lib/payments/calculations";
 
 interface Payment {
   id: string;
   amount: string;
   status: string;
   method: string;
+  paymentType?: string | null;
+  deletedAt?: string | null;
 }
 
 interface Property {
@@ -658,9 +661,7 @@ export function ReservationDetailDialog({ reservation, onClose }: {
 }) {
   const status = statusConfig[reservation.status] || statusConfig.PENDING;
   const StatusIcon = status.icon;
-  const paidAmount = reservation.payments
-    .filter((p) => p.status === "COMPLETED")
-    .reduce((sum, p) => sum + Number(p.amount), 0);
+  const paidAmount = getReservationPaidAmount(reservation.payments);
   const pendingAmount = Number(reservation.totalPrice) - paidAmount;
 
   return (

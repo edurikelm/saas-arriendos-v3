@@ -26,6 +26,10 @@ import { ReceiptUpload } from "@/components/ui/receipt-upload";
 interface AddPaymentDialogProps {
   reservationId: string;
   totalPrice: string;
+  /**
+   * Saldo pagado del arriendo (RESERVATION COMPLETED only).
+   * NO incluye cobros EXTRA. Ver `src/lib/payments/calculations.ts`.
+   */
   paidAmount: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;

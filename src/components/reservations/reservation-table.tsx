@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { getPaymentStatus } from "@/lib/reservation-payment";
 import { getInclusiveMonths } from "@/lib/reservation-dates";
+import { getReservationPaidAmount } from "@/lib/payments/calculations";
 
 type PillTone = "green" | "blue" | "purple" | "amber" | "red" | "slate";
 
@@ -15,6 +16,8 @@ interface Payment {
   amount: string;
   status: string;
   method: string;
+  paymentType?: string | null;
+  deletedAt?: string | null;
 }
 
 interface Property {
@@ -191,9 +194,7 @@ export function ReservationCardMinimal({ reservation, onEdit, onView, onCancel, 
   void onDelete;
   const status = statusConfig[reservation.status] || statusConfig.PENDING;
   const StatusIcon = status.icon;
-  const paidAmount = reservation.payments
-    .filter((p) => p.status === "COMPLETED")
-    .reduce((sum, p) => sum + Number(p.amount), 0);
+  const paidAmount = getReservationPaidAmount(reservation.payments);
   const pendingAmount = Number(reservation.totalPrice) - paidAmount;
 
   return (
@@ -348,9 +349,7 @@ export function ReservationCardEditorial({ reservation, onEdit, onView, onCancel
   void nights;
   void isUpcoming;
   void isPast;
-  const paidAmount = reservation.payments
-    .filter((p) => p.status === "COMPLETED")
-    .reduce((sum, p) => sum + Number(p.amount), 0);
+  const paidAmount = getReservationPaidAmount(reservation.payments);
   const pendingAmount = Number(reservation.totalPrice) - paidAmount;
 
   return (
@@ -605,9 +604,7 @@ function ReservationMobileCard({ reservation, onEdit, onView, onDelete }: {
   onView?: (id: string) => void;
   onDelete?: (id: string) => void;
 }) {
-  const paidAmount = reservation.payments
-    .filter((p) => p.status === "COMPLETED")
-    .reduce((sum, p) => sum + Number(p.amount), 0);
+  const paidAmount = getReservationPaidAmount(reservation.payments);
   const totalPrice = Number(reservation.totalPrice);
   const paymentStatus = getPaymentStatus({ paidAmount, totalPrice, status: reservation.status });
   const temporal = getTemporalStatus(reservation.startDate, reservation.endDate, reservation.billingType, reservation.status);
@@ -770,9 +767,7 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
           </thead>
           <tbody>
             {sorted.map((res) => {
-              const paidAmount = res.payments
-                .filter((p) => p.status === "COMPLETED")
-                .reduce((sum, p) => sum + Number(p.amount), 0);
+              const paidAmount = getReservationPaidAmount(res.payments);
               const totalPrice = Number(res.totalPrice);
               const paymentStatus = getPaymentStatus({
                 paidAmount,

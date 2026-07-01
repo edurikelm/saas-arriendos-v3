@@ -21,6 +21,7 @@ import {
 import { classifyCollectionAlerts } from "@/lib/alerts/collection-alerts";
 import { getProperties } from "@/lib/actions/properties";
 import { getReservations } from "@/lib/actions/reservations";
+import { getReservationPaidAmount } from "@/lib/payments/calculations";
 
 interface Property {
   id: string;
@@ -89,12 +90,6 @@ function formatCLP(amount: number): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
-}
-
-function getPaidAmount(payments: Payment[]): number {
-  return payments
-    .filter((payment) => payment.status === "COMPLETED" && !payment.deletedAt)
-    .reduce((sum, payment) => sum + Number(payment.amount), 0);
 }
 
 function getInitials(name: string): string {
@@ -182,7 +177,7 @@ function ReservationRow({
   mode: "active" | "upcoming";
 }) {
   const remainingDays = mode === "active" ? daysBetween(today, reservation.endDate) : daysBetween(today, reservation.startDate);
-  const paid = getPaidAmount(reservation.payments);
+  const paid = getReservationPaidAmount(reservation.payments);
   const pending = Math.max(Number(reservation.totalPrice) - paid, 0);
 
   return (
@@ -263,6 +258,8 @@ export default async function DashboardPage() {
     .filter((reservation) => new Date(reservation.startDate) > today && reservation.status !== "CANCELLED")
     .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
 
+  // Intencionalmente incluye EXTRAS: es vista de auditoría de cobros,
+  // NO cálculo de saldo. Ver `src/lib/payments/calculations.ts` para saldo.
   const recentPayments = data.reservations
     .flatMap((reservation) =>
       reservation.payments
@@ -276,7 +273,7 @@ export default async function DashboardPage() {
     .flatMap((reservation) => {
       if (reservation.status === "CANCELLED") return [];
 
-      const paid = getPaidAmount(reservation.payments);
+      const paid = getReservationPaidAmount(reservation.payments);
       const pending = Number(reservation.totalPrice) - paid;
 
       if (pending <= 0) return [];
@@ -309,7 +306,7 @@ export default async function DashboardPage() {
   const occupancyRate = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0;
   const next7Days = upcomingReservations.filter((reservation) => daysBetween(today, reservation.startDate) <= 7).length;
   const pendingTotal = pendingPayments.reduce((sum, item) => sum + item.pending, 0);
-  const completedTotal = data.reservations.reduce((sum, reservation) => sum + getPaidAmount(reservation.payments), 0);
+  const completedTotal = data.reservations.reduce((sum, reservation) => sum + getReservationPaidAmount(reservation.payments), 0);
 
   return (
     <div className="space-y-6 pb-10">
