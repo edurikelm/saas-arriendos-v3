@@ -1,7 +1,12 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-nocheck — TODO(P1-tests): migrate to per-line @ts-expect-error or proper types
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { SessionUser } from '@/lib/actions/auth';
+
+/**
+ * Cast helper para mocks de Prisma con campos extra (ej. `reservation` via include)
+ * o campos faltantes (description, paymentType, title, installmentIndex, etc.).
+ * El tipo generado de Prisma es estricto; los tests usan mocks parciales intencionalmente.
+ */
+const mockAsAny = <T>(data: T): any => data;
 
 vi.mock('@/lib/db/prisma', () => ({
   prisma: {
@@ -65,7 +70,7 @@ describe('deletePayment - soft delete', () => {
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -77,7 +82,7 @@ describe('deletePayment - soft delete', () => {
       mercadoPagoId: 'mp-123',
       createdAt: new Date(),
       reservation: mockReservation,
-    });
+    }));
 
     vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
 
@@ -99,7 +104,7 @@ describe('deletePayment - soft delete', () => {
       userId: 'other-user',
     });
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -111,7 +116,7 @@ describe('deletePayment - soft delete', () => {
       mercadoPagoId: 'mp-123',
       createdAt: new Date(),
       reservation: { ...mockReservation, userId: 'user-1' },
-    });
+    }));
 
     const { deletePayment } = await import('../payments');
     const result = await deletePayment('pay-1');
@@ -130,7 +135,7 @@ describe('restorePayment - undoes soft delete', () => {
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -142,7 +147,7 @@ describe('restorePayment - undoes soft delete', () => {
       mercadoPagoId: 'mp-123',
       createdAt: new Date(),
       reservation: mockReservation,
-    });
+    }));
 
     vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
 
@@ -164,7 +169,7 @@ describe('restorePayment - undoes soft delete', () => {
       userId: 'other-user',
     });
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -176,7 +181,7 @@ describe('restorePayment - undoes soft delete', () => {
       mercadoPagoId: 'mp-123',
       createdAt: new Date(),
       reservation: { ...mockReservation, userId: 'user-1' },
-    });
+    }));
 
     const { restorePayment } = await import('../payments');
     const result = await restorePayment('pay-1');
@@ -198,7 +203,7 @@ describe('getPaymentsByReservation - filters soft deleted', () => {
     vi.mocked(prisma.reservation.findFirst).mockResolvedValue(mockReservation);
 
     const now = new Date();
-    vi.mocked(prisma.payment.findMany).mockResolvedValue([
+    vi.mocked(prisma.payment.findMany).mockResolvedValue(mockAsAny([
       {
         id: 'pay-1',
         reservationId: 'res-1',
@@ -211,7 +216,7 @@ describe('getPaymentsByReservation - filters soft deleted', () => {
         mercadoPagoId: 'mp-123',
         createdAt: now,
       },
-    ]);
+    ]));
 
     const { getPaymentsByReservation } = await import('../payments');
     const payments = await getPaymentsByReservation('res-1');
@@ -237,7 +242,7 @@ describe('markPaymentAsPaid', () => {
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
     const paidAtDate = new Date('2025-06-15');
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -249,7 +254,7 @@ describe('markPaymentAsPaid', () => {
       mercadoPagoId: null,
       createdAt: new Date(),
       reservation: mockReservation,
-    });
+    }));
 
     vi.mocked(prisma.payment.update).mockResolvedValue({
       id: 'pay-1',
@@ -296,7 +301,7 @@ describe('markPaymentAsPaid', () => {
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -309,7 +314,7 @@ describe('markPaymentAsPaid', () => {
       mercadoPagoId: null,
       createdAt: new Date(),
       reservation: mockReservation,
-    });
+    }));
 
     const { markPaymentAsPaid } = await import('../payments');
     const result = await markPaymentAsPaid('pay-1', new Date(), 'CASH');
@@ -323,7 +328,7 @@ describe('markPaymentAsPaid', () => {
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
     const paidAtDate = new Date('2025-06-15T10:30:00');
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -335,12 +340,12 @@ describe('markPaymentAsPaid', () => {
       mercadoPagoId: null,
       createdAt: new Date(),
       reservation: mockReservation,
-    });
+    }));
 
-    vi.mocked(prisma.payment.update).mockImplementation(async ({ data }) => {
+    vi.mocked(prisma.payment.update).mockImplementation((async ({ data }: { data: any }) => {
       expect(data.paidAt).toEqual(paidAtDate);
       return {} as any;
-    });
+    }) as never);
 
     const { markPaymentAsPaid } = await import('../payments');
     const result = await markPaymentAsPaid('pay-1', paidAtDate, 'TRANSFER');
@@ -371,7 +376,7 @@ describe('generatePaymentLink', () => {
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -383,7 +388,7 @@ describe('generatePaymentLink', () => {
       mercadoPagoId: null,
       createdAt: new Date(),
       reservation: mockReservation,
-    });
+    }));
 
     const { generatePaymentLink } = await import('../payments');
     const result = await generatePaymentLink('pay-1');
@@ -396,7 +401,7 @@ describe('generatePaymentLink', () => {
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -408,7 +413,7 @@ describe('generatePaymentLink', () => {
       mercadoPagoId: null,
       createdAt: new Date(),
       reservation: mockReservation,
-    });
+    }));
 
     const { generatePaymentLink } = await import('../payments');
     const result = await generatePaymentLink('pay-1');
@@ -424,7 +429,7 @@ describe('generatePaymentLink', () => {
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(getMercadoPagoToken).mockResolvedValue('fake-token');
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -436,7 +441,7 @@ describe('generatePaymentLink', () => {
       mercadoPagoId: null,
       createdAt: new Date(),
       reservation: mockReservation,
-    });
+    }));
 
     vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
 
@@ -472,7 +477,7 @@ describe('generatePaymentLink', () => {
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(getMercadoPagoToken).mockResolvedValue('fake-token');
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -484,7 +489,7 @@ describe('generatePaymentLink', () => {
       mercadoPagoId: null,
       createdAt: new Date(),
       reservation: mockReservation,
-    });
+    }));
 
     const now = new Date();
     vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
@@ -503,7 +508,7 @@ describe('generatePaymentLink', () => {
     const result = await generatePaymentLink('pay-1');
 
     expect(result).toHaveProperty('success', true);
-    const updateCall = prisma.payment.update.mock.calls[0];
+    const updateCall = vi.mocked(prisma.payment.update).mock.calls[0];
     const expiresAt = updateCall[0].data.expiresAt as Date;
     const expectedExpiry = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     expect(Math.abs(expiresAt.getTime() - expectedExpiry.getTime())).toBeLessThan(5000);
@@ -518,7 +523,7 @@ describe('generatePaymentLink', () => {
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(getMercadoPagoToken).mockResolvedValue('fake-token');
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -530,7 +535,7 @@ describe('generatePaymentLink', () => {
       mercadoPagoId: null,
       createdAt: new Date(),
       reservation: mockReservation,
-    });
+    }));
 
     vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
 
@@ -568,7 +573,7 @@ describe('processMercadoPagoWebhook - receipt_url', () => {
   it('guarda receipt_url en Payment cuando webhook recibe payment con receipt_url', async () => {
     const { prisma } = await import('@/lib/db/prisma');
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -581,11 +586,11 @@ describe('processMercadoPagoWebhook - receipt_url', () => {
       receiptUrl: null,
       createdAt: new Date(),
       reservation: mockReservation,
-    });
+    }));
 
     vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
 
-    vi.mocked(prisma.payment.findMany).mockResolvedValue([
+    vi.mocked(prisma.payment.findMany).mockResolvedValue(mockAsAny([
       {
         id: 'pay-1',
         reservationId: 'res-1',
@@ -599,7 +604,7 @@ describe('processMercadoPagoWebhook - receipt_url', () => {
         receiptUrl: 'https://mercadopago.com/receipt/mp-123',
         createdAt: new Date(),
       },
-    ]);
+    ]));
 
     const { processMercadoPagoWebhook } = await import('../payments');
     const result = await processMercadoPagoWebhook({
@@ -622,7 +627,7 @@ describe('processMercadoPagoWebhook - receipt_url', () => {
   it('no sobreescribe receiptUrl si no viene en webhook', async () => {
     const { prisma } = await import('@/lib/db/prisma');
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -635,11 +640,11 @@ describe('processMercadoPagoWebhook - receipt_url', () => {
       receiptUrl: null,
       createdAt: new Date(),
       reservation: mockReservation,
-    });
+    }));
 
     vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
 
-    vi.mocked(prisma.payment.findMany).mockResolvedValue([
+    vi.mocked(prisma.payment.findMany).mockResolvedValue(mockAsAny([
       {
         id: 'pay-1',
         reservationId: 'res-1',
@@ -653,7 +658,7 @@ describe('processMercadoPagoWebhook - receipt_url', () => {
         receiptUrl: null,
         createdAt: new Date(),
       },
-    ]);
+    ]));
 
     const { processMercadoPagoWebhook } = await import('../payments');
     const result = await processMercadoPagoWebhook({
@@ -679,7 +684,7 @@ describe('processMercadoPagoWebhook - idempotency', () => {
   it('skips update when payment is already COMPLETED and webhook sends approved (duplicate)', async () => {
     const { prisma } = await import('@/lib/db/prisma');
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -693,7 +698,7 @@ describe('processMercadoPagoWebhook - idempotency', () => {
       paidAt: new Date('2025-01-15T10:00:00Z'),
       createdAt: new Date(),
       reservation: mockReservation,
-    });
+    }));
 
     const { processMercadoPagoWebhook } = await import('../payments');
     const result = await processMercadoPagoWebhook({
@@ -710,7 +715,7 @@ describe('processMercadoPagoWebhook - idempotency', () => {
   it('updates payment when status differs (PENDING -> COMPLETED)', async () => {
     const { prisma } = await import('@/lib/db/prisma');
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -723,10 +728,10 @@ describe('processMercadoPagoWebhook - idempotency', () => {
       receiptUrl: null,
       createdAt: new Date(),
       reservation: mockReservation,
-    });
+    }));
 
     vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
-    vi.mocked(prisma.payment.findMany).mockResolvedValue([
+    vi.mocked(prisma.payment.findMany).mockResolvedValue(mockAsAny([
       {
         id: 'pay-1',
         reservationId: 'res-1',
@@ -740,7 +745,7 @@ describe('processMercadoPagoWebhook - idempotency', () => {
         receiptUrl: null,
         createdAt: new Date(),
       },
-    ]);
+    ]));
 
     const { processMercadoPagoWebhook } = await import('../payments');
     const result = await processMercadoPagoWebhook({
@@ -758,7 +763,7 @@ describe('processMercadoPagoWebhook - idempotency', () => {
   it('updates payment from FAILED to COMPLETED (MP correction allowed)', async () => {
     const { prisma } = await import('@/lib/db/prisma');
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -771,7 +776,7 @@ describe('processMercadoPagoWebhook - idempotency', () => {
       receiptUrl: null,
       createdAt: new Date(),
       reservation: mockReservation,
-    });
+    }));
 
     vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
     vi.mocked(prisma.payment.findMany).mockResolvedValue([]);
@@ -797,7 +802,7 @@ describe('processMercadoPagoWebhook - idempotency', () => {
   it('skips update when payment is PENDING and webhook status maps to PENDING', async () => {
     const { prisma } = await import('@/lib/db/prisma');
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -810,7 +815,7 @@ describe('processMercadoPagoWebhook - idempotency', () => {
       receiptUrl: null,
       createdAt: new Date(),
       reservation: mockReservation,
-    });
+    }));
 
     const { processMercadoPagoWebhook } = await import('../payments');
     const result = await processMercadoPagoWebhook({
@@ -827,7 +832,7 @@ describe('processMercadoPagoWebhook - idempotency', () => {
   it('updates payment when COMPLETED payment receives a rejected webhook', async () => {
     const { prisma } = await import('@/lib/db/prisma');
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -840,7 +845,7 @@ describe('processMercadoPagoWebhook - idempotency', () => {
       receiptUrl: null,
       createdAt: new Date(),
       reservation: mockReservation,
-    });
+    }));
 
     vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
 
@@ -860,7 +865,7 @@ describe('processMercadoPagoWebhook - idempotency', () => {
   it('does not overwrite paidAt on duplicate approved webhooks to a COMPLETED payment', async () => {
     const { prisma } = await import('@/lib/db/prisma');
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -874,7 +879,7 @@ describe('processMercadoPagoWebhook - idempotency', () => {
       paidAt: new Date('2025-01-15T10:00:00Z'),
       createdAt: new Date(),
       reservation: mockReservation,
-    });
+    }));
 
     const { processMercadoPagoWebhook } = await import('../payments');
     await processMercadoPagoWebhook({
@@ -900,7 +905,7 @@ describe('processMercadoPagoWebhook - matching order and coherence', () => {
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(mockAsAny({
         id: 'pay-1',
         reservationId: 'res-1',
         amount: 50000 as any,
@@ -912,7 +917,7 @@ describe('processMercadoPagoWebhook - matching order and coherence', () => {
         mercadoPagoId: 'mp-123',
         createdAt: new Date(),
         reservation: mockReservation,
-      });
+      }));
 
     vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
     vi.mocked(prisma.payment.findMany).mockResolvedValue([]);
@@ -937,7 +942,7 @@ describe('processMercadoPagoWebhook - matching order and coherence', () => {
     const { prisma } = await import('@/lib/db/prisma');
 
     vi.mocked(prisma.payment.findFirst)
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(mockAsAny({
         id: 'clhn9kkj60000l208d3og2bxz',
         reservationId: 'res-2',
         amount: 50000 as any,
@@ -949,7 +954,7 @@ describe('processMercadoPagoWebhook - matching order and coherence', () => {
         mercadoPagoId: 'pref-123',
         createdAt: new Date(),
         reservation: { ...mockReservation, id: 'res-2' },
-      })
+      }))
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(null);
 
@@ -980,7 +985,7 @@ describe('createPayment - paymentType EXTRA', () => {
       totalPrice: 100000 as any,
     });
 
-    vi.mocked(prisma.payment.findMany).mockResolvedValue([
+    vi.mocked(prisma.payment.findMany).mockResolvedValue(mockAsAny([
       {
         id: 'pay-1',
         reservationId: 'res-1',
@@ -993,7 +998,7 @@ describe('createPayment - paymentType EXTRA', () => {
         mercadoPagoId: null,
         createdAt: new Date(),
       },
-    ]);
+    ]));
 
     vi.mocked(prisma.payment.create).mockResolvedValue({
       id: 'pay-2',
@@ -1054,7 +1059,7 @@ describe('createPayment - paymentType EXTRA', () => {
       totalPrice: 100000 as any,
     });
 
-    vi.mocked(prisma.payment.findMany).mockResolvedValue([
+    vi.mocked(prisma.payment.findMany).mockResolvedValue(mockAsAny([
       {
         id: 'pay-1',
         reservationId: 'res-1',
@@ -1067,7 +1072,7 @@ describe('createPayment - paymentType EXTRA', () => {
         mercadoPagoId: null,
         createdAt: new Date(),
       },
-    ]);
+    ]));
 
     const { createPayment } = await import('../payments');
     const result = await createPayment({
@@ -1091,7 +1096,7 @@ describe('regeneratePaymentLink', () => {
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -1103,7 +1108,7 @@ describe('regeneratePaymentLink', () => {
       mercadoPagoId: 'mp-123',
       createdAt: new Date(),
       reservation: mockReservation,
-    });
+    }));
 
     const { regeneratePaymentLink } = await import('../payments');
     const result = await regeneratePaymentLink('pay-1');
@@ -1116,7 +1121,7 @@ describe('regeneratePaymentLink', () => {
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -1128,7 +1133,7 @@ describe('regeneratePaymentLink', () => {
       mercadoPagoId: null,
       createdAt: new Date(),
       reservation: mockReservation,
-    });
+    }));
 
     const { regeneratePaymentLink } = await import('../payments');
     const result = await regeneratePaymentLink('pay-1');
@@ -1144,7 +1149,7 @@ describe('regeneratePaymentLink', () => {
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(getMercadoPagoToken).mockResolvedValue('fake-token');
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -1156,7 +1161,7 @@ describe('regeneratePaymentLink', () => {
       mercadoPagoId: 'mp-123',
       createdAt: new Date(),
       reservation: mockReservation,
-    });
+    }));
 
     vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
 
@@ -1194,7 +1199,7 @@ describe('processMercadoPagoWebhook - date_approved', () => {
   it('uses date_approved from MP for paidAt when provided', async () => {
     const { prisma } = await import('@/lib/db/prisma');
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -1207,7 +1212,7 @@ describe('processMercadoPagoWebhook - date_approved', () => {
       receiptUrl: null,
       createdAt: new Date(),
       reservation: mockReservation,
-    });
+    }));
 
     vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
     vi.mocked(prisma.payment.findMany).mockResolvedValue([]);
@@ -1233,7 +1238,7 @@ describe('processMercadoPagoWebhook - date_approved', () => {
   it('falls back to new Date() when date_approved is not provided', async () => {
     const { prisma } = await import('@/lib/db/prisma');
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -1246,7 +1251,7 @@ describe('processMercadoPagoWebhook - date_approved', () => {
       receiptUrl: null,
       createdAt: new Date(),
       reservation: mockReservation,
-    });
+    }));
 
     vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
     vi.mocked(prisma.payment.findMany).mockResolvedValue([]);
@@ -1384,7 +1389,7 @@ describe('generatePaymentLink - per-user token only', () => {
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(getMercadoPagoToken).mockResolvedValue(null);
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -1396,7 +1401,7 @@ describe('generatePaymentLink - per-user token only', () => {
       mercadoPagoId: 'mp-123',
       createdAt: new Date(),
       reservation: mockReservation,
-    });
+    }));
 
     const { generatePaymentLink } = await import('../payments');
     const result = await generatePaymentLink('pay-1');
@@ -1423,7 +1428,7 @@ describe('createPayment - RESERVATION balance excludes PENDING and EXTRAs (issue
       totalPrice: 100000 as any,
     });
 
-    vi.mocked(prisma.payment.findMany).mockResolvedValue([
+    vi.mocked(prisma.payment.findMany).mockResolvedValue(mockAsAny([
       {
         id: 'pay-pending',
         reservationId: 'res-1',
@@ -1437,7 +1442,7 @@ describe('createPayment - RESERVATION balance excludes PENDING and EXTRAs (issue
         mercadoPagoId: null,
         createdAt: new Date(),
       },
-    ]);
+    ]));
 
     vi.mocked(prisma.payment.create).mockResolvedValue({
       id: 'pay-new',
@@ -1481,7 +1486,7 @@ describe('createPayment - RESERVATION balance excludes PENDING and EXTRAs (issue
       totalPrice: 100000 as any,
     });
 
-    vi.mocked(prisma.payment.findMany).mockResolvedValue([
+    vi.mocked(prisma.payment.findMany).mockResolvedValue(mockAsAny([
       {
         id: 'pay-extra',
         reservationId: 'res-1',
@@ -1497,7 +1502,7 @@ describe('createPayment - RESERVATION balance excludes PENDING and EXTRAs (issue
         mercadoPagoId: null,
         createdAt: new Date(),
       },
-    ]);
+    ]));
 
     vi.mocked(prisma.payment.create).mockResolvedValue({
       id: 'pay-new',
@@ -1549,7 +1554,7 @@ describe('createPayment - CONFIRMED transition only counts RESERVATION COMPLETED
     // Primera llamada findMany: solo el PENDING
     // Segunda llamada: el PENDING + el NUEVO (COMPLETED)
     vi.mocked(prisma.payment.findMany)
-      .mockResolvedValueOnce([
+      .mockResolvedValueOnce(mockAsAny([
         {
           id: 'pay-pending',
           reservationId: 'res-1',
@@ -1563,8 +1568,8 @@ describe('createPayment - CONFIRMED transition only counts RESERVATION COMPLETED
           mercadoPagoId: null,
           createdAt: new Date(),
         },
-      ])
-      .mockResolvedValueOnce([
+      ]))
+      .mockResolvedValueOnce(mockAsAny([
         {
           id: 'pay-new',
           reservationId: 'res-1',
@@ -1578,7 +1583,7 @@ describe('createPayment - CONFIRMED transition only counts RESERVATION COMPLETED
           mercadoPagoId: null,
           createdAt: new Date(),
         },
-      ]);
+      ]));
 
     vi.mocked(prisma.payment.create).mockResolvedValue({
       id: 'pay-new',
@@ -1624,7 +1629,7 @@ describe('createPayment - CONFIRMED transition only counts RESERVATION COMPLETED
     });
 
     vi.mocked(prisma.payment.findMany)
-      .mockResolvedValueOnce([
+      .mockResolvedValueOnce(mockAsAny([
         {
           id: 'pay-extra',
           reservationId: 'res-1',
@@ -1640,8 +1645,8 @@ describe('createPayment - CONFIRMED transition only counts RESERVATION COMPLETED
           mercadoPagoId: null,
           createdAt: new Date(),
         },
-      ])
-      .mockResolvedValueOnce([
+      ]))
+      .mockResolvedValueOnce(mockAsAny([
         {
           id: 'pay-new',
           reservationId: 'res-1',
@@ -1659,7 +1664,7 @@ describe('createPayment - CONFIRMED transition only counts RESERVATION COMPLETED
           mercadoPagoId: null,
           createdAt: new Date(),
         },
-      ]);
+      ]));
 
     vi.mocked(prisma.payment.create).mockResolvedValue({
       id: 'pay-new',
@@ -1704,7 +1709,7 @@ describe('createPayment - CONFIRMED transition only counts RESERVATION COMPLETED
     });
 
     vi.mocked(prisma.payment.findMany)
-      .mockResolvedValueOnce([
+      .mockResolvedValueOnce(mockAsAny([
         {
           id: 'pay-existing',
           reservationId: 'res-1',
@@ -1718,8 +1723,8 @@ describe('createPayment - CONFIRMED transition only counts RESERVATION COMPLETED
           mercadoPagoId: null,
           createdAt: new Date(),
         },
-      ])
-      .mockResolvedValueOnce([
+      ]))
+      .mockResolvedValueOnce(mockAsAny([
         {
           id: 'pay-existing',
           reservationId: 'res-1',
@@ -1750,7 +1755,7 @@ describe('createPayment - CONFIRMED transition only counts RESERVATION COMPLETED
           mercadoPagoId: null,
           createdAt: new Date(),
         },
-      ]);
+      ]));
 
     vi.mocked(prisma.payment.create).mockResolvedValue({
       id: 'pay-new',
@@ -1806,7 +1811,7 @@ describe('generateMercadoPagoLink - pendingAmount excludes PENDING and EXTRAs (i
     });
 
     // PENDING 30000 (no cobrado) — no debe afectar pendingAmount
-    vi.mocked(prisma.payment.findMany).mockResolvedValue([
+    vi.mocked(prisma.payment.findMany).mockResolvedValue(mockAsAny([
       {
         id: 'pay-pending',
         reservationId: 'res-1',
@@ -1820,7 +1825,7 @@ describe('generateMercadoPagoLink - pendingAmount excludes PENDING and EXTRAs (i
         mercadoPagoId: null,
         createdAt: new Date(),
       },
-    ]);
+    ]));
 
     vi.mocked(prisma.payment.create).mockResolvedValue({
       id: 'pay-new',
@@ -1878,7 +1883,7 @@ describe('generateMercadoPagoLink - pendingAmount excludes PENDING and EXTRAs (i
     });
 
     // EXTRA COMPLETED 50000 — no debe afectar pendingAmount del arriendo
-    vi.mocked(prisma.payment.findMany).mockResolvedValue([
+    vi.mocked(prisma.payment.findMany).mockResolvedValue(mockAsAny([
       {
         id: 'pay-extra',
         reservationId: 'res-1',
@@ -1894,7 +1899,7 @@ describe('generateMercadoPagoLink - pendingAmount excludes PENDING and EXTRAs (i
         mercadoPagoId: null,
         createdAt: new Date(),
       },
-    ]);
+    ]));
 
     vi.mocked(prisma.payment.create).mockResolvedValue({
       id: 'pay-new',
@@ -1952,7 +1957,7 @@ describe('markPaymentAsPaid - CONFIRMED transition only counts RESERVATION COMPL
     // totalPrice 100000, PENDING 80000, markPaymentAsPaid de uno PENDING 30000 → COMPLETED
     // Antes: totalPaid = 80000 + 30000 = 110000 >= 100000 → CONFIRMED (incorrecto, PENDING no es cobrado)
     // Después: getReservationPaidAmount = 30000 < 100000 → NO CONFIRMED
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-to-mark',
       reservationId: 'res-1',
       amount: 30000 as any,
@@ -1965,11 +1970,11 @@ describe('markPaymentAsPaid - CONFIRMED transition only counts RESERVATION COMPL
       mercadoPagoId: null,
       createdAt: new Date(),
       reservation: { ...mockReservation, totalPrice: 100000 as any },
-    });
+    }));
 
     vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
 
-    vi.mocked(prisma.payment.findMany).mockResolvedValue([
+    vi.mocked(prisma.payment.findMany).mockResolvedValue(mockAsAny([
       {
         id: 'pay-other',
         reservationId: 'res-1',
@@ -1996,7 +2001,7 @@ describe('markPaymentAsPaid - CONFIRMED transition only counts RESERVATION COMPL
         mercadoPagoId: null,
         createdAt: new Date(),
       },
-    ]);
+    ]));
 
     vi.mocked(prisma.reservation.update).mockResolvedValue({} as any);
 
@@ -2013,7 +2018,7 @@ describe('markPaymentAsPaid - CONFIRMED transition only counts RESERVATION COMPL
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
     // RESERVATION COMPLETED 60000 + markPaymentAsPaid de uno PENDING 40000 → COMPLETED → CONFIRMED
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-to-mark',
       reservationId: 'res-1',
       amount: 40000 as any,
@@ -2026,11 +2031,11 @@ describe('markPaymentAsPaid - CONFIRMED transition only counts RESERVATION COMPL
       mercadoPagoId: null,
       createdAt: new Date(),
       reservation: { ...mockReservation, totalPrice: 100000 as any },
-    });
+    }));
 
     vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
 
-    vi.mocked(prisma.payment.findMany).mockResolvedValue([
+    vi.mocked(prisma.payment.findMany).mockResolvedValue(mockAsAny([
       {
         id: 'pay-existing',
         reservationId: 'res-1',
@@ -2057,7 +2062,7 @@ describe('markPaymentAsPaid - CONFIRMED transition only counts RESERVATION COMPL
         mercadoPagoId: null,
         createdAt: new Date(),
       },
-    ]);
+    ]));
 
     vi.mocked(prisma.reservation.update).mockResolvedValue({} as any);
 
@@ -2085,7 +2090,7 @@ describe('checkMercadoPagoPaymentStatus - uses payment owner token', () => {
     vi.mocked(getSession).mockResolvedValue({ ...mockSession, userId: 'payment-owner' });
     vi.mocked(getMercadoPagoToken).mockResolvedValue('owner-token');
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -2098,7 +2103,7 @@ describe('checkMercadoPagoPaymentStatus - uses payment owner token', () => {
       receiptUrl: null,
       createdAt: new Date(),
       reservation: { ...mockReservation, userId: 'payment-owner' },
-    });
+    }));
 
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -2120,7 +2125,7 @@ describe('checkMercadoPagoPaymentStatus - uses payment owner token', () => {
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(getMercadoPagoToken).mockResolvedValue(null);
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
@@ -2133,7 +2138,7 @@ describe('checkMercadoPagoPaymentStatus - uses payment owner token', () => {
       receiptUrl: null,
       createdAt: new Date(),
       reservation: mockReservation,
-    });
+    }));
 
     const { checkMercadoPagoPaymentStatus } = await import('../payments');
     const result = await checkMercadoPagoPaymentStatus('pay-1');
