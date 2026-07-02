@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-nocheck — TODO(P1-tests): migrate to per-line @ts-expect-error or proper types
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@/lib/db/prisma', () => ({
@@ -62,7 +60,7 @@ describe('MercadoPagoGateway.handleWebhook - delegates to processMercadoPagoWebh
         notes: null,
         createdAt: new Date(),
       },
-    });
+    } as any);
 
     vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
     vi.mocked(prisma.payment.findMany).mockResolvedValue([
@@ -78,7 +76,7 @@ describe('MercadoPagoGateway.handleWebhook - delegates to processMercadoPagoWebh
         mercadoPagoId: 'mp-123',
         receiptUrl: null,
         createdAt: new Date(),
-      },
+      } as any,
     ]);
 
     const gateway = new MercadoPagoGateway('user-1', 'fake-token');
@@ -142,7 +140,7 @@ describe('MercadoPagoGateway.handleWebhook - delegates to processMercadoPagoWebh
         notes: null,
         createdAt: new Date(),
       },
-    });
+    } as any);
 
     const gateway = new MercadoPagoGateway('user-1', 'fake-token');
     const result = await gateway.handleWebhook({
@@ -160,12 +158,12 @@ describe('MercadoPagoGateway.handleWebhook - delegates to processMercadoPagoWebh
     const { prisma } = await import('@/lib/db/prisma');
     const { MercadoPagoGateway } = await import('../gateway');
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+vi.mocked(prisma.payment.findFirst).mockResolvedValue({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
       method: 'MERCADO_PAGO',
-      status: 'PENDING',
+      status: 'FAILED',
       initPoint: 'https://mercadopago.com/tx',
       expiresAt: new Date('2025-12-01'),
       deletedAt: null,
@@ -188,7 +186,7 @@ describe('MercadoPagoGateway.handleWebhook - delegates to processMercadoPagoWebh
         notes: null,
         createdAt: new Date(),
       },
-    });
+    } as any);
 
     vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
     vi.mocked(prisma.payment.findMany).mockResolvedValue([]);
@@ -243,7 +241,7 @@ describe('MercadoPagoGateway.handleWebhook - delegates to processMercadoPagoWebh
         notes: null,
         createdAt: new Date(),
       },
-    });
+    } as any);
 
     vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
     vi.mocked(prisma.payment.findMany).mockResolvedValue([]);
@@ -298,7 +296,7 @@ describe('MercadoPagoGateway.handleWebhook - delegates to processMercadoPagoWebh
         notes: null,
         createdAt: new Date(),
       },
-    });
+    } as any);
 
     vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
     vi.mocked(prisma.payment.findMany).mockResolvedValue([]);
@@ -324,12 +322,12 @@ describe('MercadoPagoGateway.handleWebhook - delegates to processMercadoPagoWebh
     const { prisma } = await import('@/lib/db/prisma');
     const { MercadoPagoGateway } = await import('../gateway');
 
-    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+vi.mocked(prisma.payment.findFirst).mockResolvedValue({
       id: 'pay-1',
       reservationId: 'res-1',
       amount: 50000 as any,
       method: 'MERCADO_PAGO',
-      status: 'FAILED',
+      status: 'PENDING',
       initPoint: 'https://mercadopago.com/tx',
       expiresAt: new Date('2025-12-01'),
       deletedAt: null,
@@ -352,7 +350,7 @@ describe('MercadoPagoGateway.handleWebhook - delegates to processMercadoPagoWebh
         notes: null,
         createdAt: new Date(),
       },
-    });
+    } as any);
 
     vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
     vi.mocked(prisma.payment.findMany).mockResolvedValue([]);
@@ -414,7 +412,7 @@ describe('MercadoPagoGateway.createPaymentLink — external_reference format', (
       createdAt: new Date(),
       property: { id: 'prop-1', name: 'Casa', userId: 'user-1' },
       client: { id: 'client-1', name: 'Juan', email: 'juan@test.com', phone: '+123456' },
-    });
+    } as any);
 
     vi.mocked(prisma.payment.findMany).mockResolvedValue([]);
 
@@ -501,7 +499,7 @@ describe('MercadoPagoGateway.createPaymentLink — external_reference format', (
       createdAt: new Date(),
       property: { id: 'prop-1', name: 'Casa', userId: 'user-1' },
       client: { id: 'client-1', name: 'Juan', email: 'juan@test.com', phone: '+123456' },
-    });
+    } as any);
 
     vi.mocked(prisma.payment.findMany).mockResolvedValue([
       {
@@ -515,7 +513,7 @@ describe('MercadoPagoGateway.createPaymentLink — external_reference format', (
         deletedAt: null,
         mercadoPagoId: 'mp-old',
         createdAt: new Date(),
-      },
+      } as any,
     ]);
 
     const gateway = new MercadoPagoGateway('user-1', 'fake-token');
