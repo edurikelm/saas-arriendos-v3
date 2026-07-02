@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Filter, Grid, Plus, SlidersHorizontal } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { Filter, Grid, Plus, SlidersHorizontal, Globe, AlertTriangle } from "lucide-react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -11,9 +12,10 @@ import { CalendarGrid } from "@/components/calendar/calendar-grid";
 import { CalendarTimeline } from "@/components/calendar/calendar-timeline";
 import { ReservationDetailDialog } from "@/components/reservations/reservation-detail-dialog";
 import { ReservationForm } from "@/components/reservations/reservation-form";
-import type { CalendarReservation } from "@/lib/actions/reservations";
+import type { CalendarReservation, CalendarExternalBlock } from "@/lib/actions/reservations";
 import type { ReservationInput } from "@/lib/validations/reservation";
 import { createReservation, getCalendarReservations } from "@/lib/actions/reservations";
+import { computeConflictDates } from "@/lib/calendar/conflicts";
 
 interface Property {
   id: string;
@@ -49,19 +51,46 @@ interface ReservationDetails {
 
 interface CalendarViewProps {
   initialReservations: CalendarReservation[];
+  initialExternalBlocks?: CalendarExternalBlock[];
+  initialShowExternalBlocks?: boolean;
   properties: Property[];
   clients: Client[];
   plan?: string;
 }
 
-export function CalendarView({ initialReservations, properties, clients, plan = "FREE" }: CalendarViewProps) {
+export function CalendarView({
+  initialReservations,
+  initialExternalBlocks = [],
+  initialShowExternalBlocks = false,
+  properties,
+  clients,
+  plan = "FREE",
+}: CalendarViewProps) {
   const [reservations, setReservations] = useState<CalendarReservation[]>(initialReservations);
+  const [externalBlocks, setExternalBlocks] = useState<CalendarExternalBlock[]>(initialExternalBlocks);
+  const [showExternalBlocks, setShowExternalBlocks] = useState<boolean>(initialShowExternalBlocks);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>("all");
   const [loading, setLoading] = useState(false);
   const [selectedReservation, setSelectedReservation] = useState<ReservationDetails | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [viewMode, setViewMode] = useState<"grid" | "timeline">("timeline");
+
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParamsHook = useSearchParams();
+
+  const handleToggleExternalBlocks = useCallback(() => {
+    const next = !showExternalBlocks;
+    setShowExternalBlocks(next);
+    const params = new URLSearchParams(searchParamsHook.toString());
+    if (next) {
+      params.set("showExternalBlocks", "1");
+    } else {
+      params.delete("showExternalBlocks");
+    }
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [showExternalBlocks, searchParamsHook, router, pathname]);
 
   const fetchReservations = useCallback(async () => {
     setLoading(true);
@@ -74,12 +103,24 @@ export function CalendarView({ initialReservations, properties, clients, plan = 
         propertyId: selectedPropertyId !== "all" ? selectedPropertyId : undefined,
       });
       setReservations(data);
+
+      if (showExternalBlocks) {
+        const { getCalendarExternalBlocks } = await import("@/lib/actions/reservations");
+        const blocksData = await getCalendarExternalBlocks({
+          year,
+          month,
+          propertyId: selectedPropertyId !== "all" ? selectedPropertyId : undefined,
+        });
+        setExternalBlocks(blocksData);
+      } else {
+        setExternalBlocks([]);
+      }
     } catch (error) {
-      console.error("Error fetching reservations:", error);
+      console.error("Error fetching calendar data:", error);
     } finally {
       setLoading(false);
     }
-  }, [selectedPropertyId, currentMonth]);
+  }, [selectedPropertyId, currentMonth, showExternalBlocks]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching on dependency change
@@ -124,6 +165,19 @@ export function CalendarView({ initialReservations, properties, clients, plan = 
   };
 
   const dailyReservations = reservations.filter((r) => r.billingType === "DAILY");
+
+  // Compute conflicts between reservations and external blocks
+  const conflicts = useMemo(() => {
+    if (!showExternalBlocks) return new Set<string>();
+    return computeConflictDates(reservations, externalBlocks);
+  }, [reservations, externalBlocks, showExternalBlocks]);
+
+  // Filter external blocks to selected property (if not "all")
+  const visibleExternalBlocks = useMemo(() => {
+    if (selectedPropertyId === "all") return externalBlocks;
+    return externalBlocks.filter((b) => b.propertyId === selectedPropertyId);
+  }, [externalBlocks, selectedPropertyId]);
+
   const headerActions = (
     <div className="grid w-full grid-cols-[auto_auto_1fr] items-center gap-2 sm:flex sm:w-auto sm:flex-wrap">
       <Button variant="default" onClick={() => setCreateDialogOpen(true)}>
@@ -167,6 +221,19 @@ export function CalendarView({ initialReservations, properties, clients, plan = 
           </SelectContent>
         </Select>
       </div>
+      {plan === "PRO" && (
+        <Button
+          variant={showExternalBlocks ? "secondary" : "outline"}
+          size="sm"
+          aria-pressed={showExternalBlocks}
+          aria-label="Mostrar bloqueos externos"
+          onClick={handleToggleExternalBlocks}
+          className="h-8 rounded-md"
+        >
+          <Globe className="mr-1.5 h-4 w-4" />
+          Bloqueos
+        </Button>
+      )}
     </div>
   );
 
@@ -178,43 +245,59 @@ export function CalendarView({ initialReservations, properties, clients, plan = 
             <div className="flex h-96 items-center justify-center">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
             </div>
-          ) : viewMode === "grid" ? (
-            <CalendarGrid
-              reservations={dailyReservations}
-              onSelectReservation={handleSelectReservation}
-              headerActions={headerActions}
-              currentMonth={currentMonth}
-              onMonthChange={setCurrentMonth}
-            />
           ) : (
-            <CalendarTimeline
-              reservations={dailyReservations.map((r) => ({
-                ...r,
-                propertyId: r.property.id,
-                clientId: "",
-                billingType: "DAILY" as const,
-                unitsBooked: 1,
-                bookingAirbnb: false,
-                notes: null,
-                payments: [],
-                startDate: r.startDate,
-                endDate: r.endDate,
-                totalPrice: String(r.totalPrice),
-                property: {
-                  ...r.property,
-                  color: properties.find((p) => p.id === r.property.id)?.color,
-                },
-                client: {
-                  ...r.client,
-                  id: "",
-                  email: "",
-                },
-              }))}
-              currentMonth={currentMonth}
-              onSelectReservation={handleSelectReservation}
-              onMonthChange={setCurrentMonth}
-              headerActions={headerActions}
-            />
+            <>
+              {showExternalBlocks && conflicts.size > 0 && (
+                <div className="mb-4 flex items-start gap-3 rounded-xl border border-l-2 border-l-amber-500 bg-amber-50/80 dark:bg-amber-950/20 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
+                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-semibold">{conflicts.size} día(s) con conflicto Reserva + Bloqueo externo</p>
+                    <p className="text-xs">La reserva interna prevalece. Los días marcados tienen un punto ámbar.</p>
+                  </div>
+                </div>
+              )}
+              {viewMode === "grid" ? (
+                <CalendarGrid
+                  reservations={dailyReservations}
+                  externalBlocks={showExternalBlocks ? visibleExternalBlocks : []}
+                  conflicts={conflicts}
+                  onSelectReservation={handleSelectReservation}
+                  headerActions={headerActions}
+                  currentMonth={currentMonth}
+                  onMonthChange={setCurrentMonth}
+                />
+              ) : (
+                <CalendarTimeline
+                  reservations={dailyReservations.map((r) => ({
+                    ...r,
+                    propertyId: r.property.id,
+                    clientId: "",
+                    billingType: "DAILY" as const,
+                    unitsBooked: 1,
+                    bookingAirbnb: false,
+                    notes: null,
+                    payments: [],
+                    startDate: r.startDate,
+                    endDate: r.endDate,
+                    totalPrice: String(r.totalPrice),
+                    property: {
+                      ...r.property,
+                      color: properties.find((p) => p.id === r.property.id)?.color,
+                    },
+                    client: {
+                      ...r.client,
+                      id: "",
+                      email: "",
+                    },
+                  }))}
+                  externalBlocks={showExternalBlocks ? visibleExternalBlocks : []}
+                  currentMonth={currentMonth}
+                  onSelectReservation={handleSelectReservation}
+                  onMonthChange={setCurrentMonth}
+                  headerActions={headerActions}
+                />
+              )}
+            </>
           )}
         </CardContent>
       </Card>

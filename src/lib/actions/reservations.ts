@@ -937,3 +937,63 @@ export async function deleteReservation(id: string) {
 
   return { success: true };
 }
+
+export type CalendarExternalBlock = {
+  id: string;
+  startDate: string;
+  endDate: string;
+  channel: "AIRBNB" | "BOOKING_COM" | "VRBO" | "OTHER";
+  propertyId: string;
+  summary?: string | null;
+};
+
+export async function getCalendarExternalBlocks(opts: {
+  year: number;
+  month: number;
+  propertyId?: string;
+}): Promise<CalendarExternalBlock[]> {
+  const session = await getSession();
+  if (!session) return [];
+
+  // Plan gating (ADR-0018): solo PRO tiene acceso a canales externos
+  if (session.plan !== "PRO") return [];
+
+  const startDate = new Date(opts.year, opts.month - 1, 1);
+  const endDate = new Date(opts.year, opts.month, 0, 23, 59, 59);
+
+  const blocks = await prisma.externalChannelBlock.findMany({
+    where: {
+      status: "ACTIVE",
+      ...(opts.propertyId ? { propertyId: opts.propertyId } : {}),
+      OR: [
+        { startDate: { gte: startDate, lte: endDate } },
+        { endDate: { gte: startDate, lte: endDate } },
+        {
+          AND: [
+            { startDate: { lte: startDate } },
+            { endDate: { gte: endDate } },
+          ],
+        },
+      ],
+    },
+    select: {
+      id: true,
+      startDate: true,
+      endDate: true,
+      propertyId: true,
+      summary: true,
+      externalCalendar: {
+        select: { channel: true },
+      },
+    },
+  });
+
+  return blocks.map((b) => ({
+    id: b.id,
+    startDate: b.startDate.toISOString(),
+    endDate: b.endDate.toISOString(),
+    channel: b.externalCalendar.channel,
+    propertyId: b.propertyId,
+    summary: b.summary,
+  }));
+}

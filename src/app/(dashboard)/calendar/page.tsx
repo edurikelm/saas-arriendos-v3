@@ -1,11 +1,18 @@
 import { getProperties } from "@/lib/actions/properties";
 import { getClients } from "@/lib/actions/clients";
-import { getCalendarReservations } from "@/lib/actions/reservations";
+import { getCalendarReservations, getCalendarExternalBlocks } from "@/lib/actions/reservations";
 import { getSession } from "@/lib/actions/auth";
 import { CalendarView } from "@/components/calendar/calendar-view";
 
-export default async function CalendarPage() {
-  const [session, properties, clientsResult, reservations] = await Promise.all([
+interface CalendarPageProps {
+  searchParams: Promise<{ showExternalBlocks?: string }>;
+}
+
+export default async function CalendarPage({ searchParams }: CalendarPageProps) {
+  const params = await searchParams;
+  const showExternalBlocks = params.showExternalBlocks === "1";
+
+  const [session, properties, clientsResult, reservations, externalBlocks] = await Promise.all([
     getSession(),
     getProperties(),
     getClients({ limit: 1000 }),
@@ -13,6 +20,12 @@ export default async function CalendarPage() {
       year: new Date().getFullYear(),
       month: new Date().getMonth() + 1,
     }),
+    showExternalBlocks
+      ? getCalendarExternalBlocks({
+          year: new Date().getFullYear(),
+          month: new Date().getMonth() + 1,
+        })
+      : Promise.resolve([]),
   ]);
 
   const clients = Array.isArray(clientsResult) ? [] : clientsResult.data;
@@ -20,6 +33,8 @@ export default async function CalendarPage() {
   return (
     <CalendarView
       initialReservations={reservations}
+      initialExternalBlocks={externalBlocks}
+      initialShowExternalBlocks={showExternalBlocks}
       plan={session?.plan ?? "FREE"}
       properties={properties.map((p) => ({
         id: p.id,

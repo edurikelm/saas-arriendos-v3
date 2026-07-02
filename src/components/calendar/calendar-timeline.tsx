@@ -252,8 +252,30 @@ export function CalendarMonthGrid({ reservations, currentMonth, onSelectReservat
   );
 }
 
-export function CalendarTimeline({ reservations, currentMonth, onSelectReservation, onMonthChange, headerActions }: {
+import type { CalendarExternalBlock } from "@/lib/actions/reservations";
+
+function channelDotClass(channel: CalendarExternalBlock["channel"]): string {
+  switch (channel) {
+    case "AIRBNB": return "bg-rose-500";
+    case "BOOKING_COM": return "bg-blue-500";
+    case "VRBO": return "bg-indigo-500";
+    case "OTHER": return "bg-zinc-400";
+  }
+}
+
+function channelLabel(channel: CalendarExternalBlock["channel"]): string {
+  switch (channel) {
+    case "AIRBNB": return "A";
+    case "BOOKING_COM": return "B";
+    case "VRBO": return "V";
+    case "OTHER": return "?";
+  }
+}
+
+export function CalendarTimeline({ reservations, externalBlocks = [], currentMonth, onSelectReservation, onMonthChange, headerActions }: {
   reservations: Reservation[];
+  externalBlocks?: CalendarExternalBlock[];
+  conflicts?: Set<string>;
   currentMonth: Date;
   onSelectReservation: (id: string) => void;
   onMonthChange: (date: Date) => void;
@@ -422,7 +444,19 @@ export function CalendarTimeline({ reservations, currentMonth, onSelectReservati
                 parseCalendarDate(a.startDate).getTime() - parseCalendarDate(b.startDate).getTime()
               );
               const timelineReservations = assignTimelineLanes(sortedReservations, monthStart, days.length);
-              const rowHeight = 76;
+
+              // External blocks for this property in this month
+              const propertyBlocks = externalBlocks
+                .filter((b) => b.propertyId === property.id)
+                .filter((b) => {
+                  const start = parseCalendarDate(b.startDate);
+                  const end = parseCalendarDate(b.endDate);
+                  return start <= monthEnd && end >= monthStart;
+                });
+
+              const ROW_HEIGHT = 76;
+              const EXT_ROW_HEIGHT = 32;
+              const totalRowHeight = ROW_HEIGHT + (propertyBlocks.length > 0 ? EXT_ROW_HEIGHT : 0);
 
               return (
                 <div key={property.id} className="flex border-b border-border/60 last:border-b-0" role="row">
@@ -442,7 +476,7 @@ export function CalendarTimeline({ reservations, currentMonth, onSelectReservati
                       </div>
                     </div>
                   </div>
-                  <div className="relative bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px)]" role="gridcell" style={{ width: days.length * dayWidth, height: rowHeight, backgroundSize: `${dayWidth}px 100%` }}>
+                  <div className="relative bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px)]" role="gridcell" style={{ width: days.length * dayWidth, height: totalRowHeight, backgroundSize: `${dayWidth}px 100%` }}>
                     {days.map((day, dayIndex) => isSameDay(day, today) ? (
                       <div
                         key={day.toISOString()}
@@ -481,6 +515,30 @@ export function CalendarTimeline({ reservations, currentMonth, onSelectReservati
                             {getNights(res.startDate, res.endDate)}n
                           </span>
                         </button>
+                      );
+                    })}
+
+                    {/* External blocks sub-row */}
+                    {propertyBlocks.length > 0 && propertyBlocks.map((block) => {
+                      const start = parseCalendarDate(block.startDate);
+                      const end = parseCalendarDate(block.endDate);
+                      const leftOffset = Math.max(0, getDayOffset(start, monthStart));
+                      const rightOffset = Math.min(days.length - 1, getDayOffset(end, monthStart));
+                      const duration = rightOffset - leftOffset + 1;
+                      return (
+                        <div
+                          key={block.id}
+                          className="absolute flex h-5 cursor-default items-center gap-1 overflow-hidden rounded-md border border-dashed border-foreground/40 bg-foreground/[0.04] px-1.5 text-[10px] font-medium text-muted-foreground backdrop-blur-sm"
+                          style={{
+                            left: `${leftOffset * dayWidth + 4}px`,
+                            top: "56px",
+                            width: `${Math.max(duration * dayWidth - 8, 34)}px`,
+                          }}
+                          title={`${block.channel === "AIRBNB" ? "Airbnb" : block.channel === "BOOKING_COM" ? "Booking.com" : block.channel === "VRBO" ? "VRBO" : "Otro canal"} — Not available`}
+                        >
+                          <span className={`h-2 w-2 rounded-full ${channelDotClass(block.channel)}`} />
+                          <span>{channelLabel(block.channel)}</span>
+                        </div>
                       );
                     })}
                   </div>

@@ -17,7 +17,7 @@ import {
 import { es } from "date-fns/locale";
 import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { CalendarReservation } from "@/lib/actions/reservations";
+import type { CalendarReservation, CalendarExternalBlock } from "@/lib/actions/reservations";
 
 const LANE_TOP_OFFSET = 32;
 const LANE_TOP_STEP = 28;
@@ -55,8 +55,28 @@ function parseCalendarDate(dateString: string): Date {
   return new Date(year, month - 1, day);
 }
 
+function channelDotClass(channel: CalendarExternalBlock["channel"]): string {
+  switch (channel) {
+    case "AIRBNB": return "bg-rose-500";
+    case "BOOKING_COM": return "bg-blue-500";
+    case "VRBO": return "bg-indigo-500";
+    case "OTHER": return "bg-zinc-400";
+  }
+}
+
+function channelLabel(channel: CalendarExternalBlock["channel"]): string {
+  switch (channel) {
+    case "AIRBNB": return "A";
+    case "BOOKING_COM": return "B";
+    case "VRBO": return "V";
+    case "OTHER": return "?";
+  }
+}
+
 interface CalendarGridProps {
   reservations: CalendarReservation[];
+  externalBlocks?: CalendarExternalBlock[];
+  conflicts?: Set<string>;
   onSelectReservation?: (id: string) => void;
   onDateClick?: (date: Date) => void;
   headerActions?: ReactNode;
@@ -122,6 +142,8 @@ function assignLanes(weekReservations: WeekReservation[]): WeekReservation[] {
 
 export function CalendarGrid({
   reservations,
+  externalBlocks = [],
+  conflicts = new Set<string>(),
   onSelectReservation,
   onDateClick,
   headerActions,
@@ -197,16 +219,34 @@ export function CalendarGrid({
 
       const withLanes = assignLanes(wrs);
 
+      // External blocks intersecting this week
+      const weekBlocks = externalBlocks
+        .filter((block) => {
+          const start = parseCalendarDate(block.startDate);
+          const end = parseCalendarDate(block.endDate);
+          return start <= weekEnd && end >= weekStart;
+        })
+        .map((block) => {
+          const start = parseCalendarDate(block.startDate);
+          const end = parseCalendarDate(block.endDate);
+          const firstVisibleDay = start < weekStart ? weekStart : start;
+          const lastVisibleDay = end > weekEnd ? weekEnd : end;
+          const startCol = getMondayFirstDayIndex(firstVisibleDay);
+          const span = getMondayFirstDayIndex(lastVisibleDay) - startCol + 1;
+          return { block, startCol, span };
+        });
+
       return {
         week,
         weekReservations: withLanes,
+        weekBlocks,
         numLanes:
           withLanes.length > 0
             ? Math.max(...withLanes.map((w) => w.lane)) + 1
             : 0,
       };
     });
-  }, [weeks, reservations]);
+  }, [weeks, reservations, externalBlocks]);
 
   const perWeekHeight = gridHeight > 0 && weeks.length > 0
     ? gridHeight / weeks.length
@@ -320,7 +360,7 @@ export function CalendarGrid({
           className="grid grid-cols-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto"
           style={gridTemplateRows ? { gridTemplateRows } as CSSProperties : undefined}
         >
-          {weeksData.map(({ week, weekReservations, numLanes }, weekIndex) => {
+          {weeksData.map(({ week, weekReservations, weekBlocks, numLanes }, weekIndex) => {
             const canHoverExpand = expandableWeekIndexSet.has(weekIndex);
             const shouldExpand = expandedGlobal || (canHoverExpand && hoveredWeek === weekIndex);
             const visibleReservations = shouldExpand
@@ -350,11 +390,12 @@ export function CalendarGrid({
                 const dateKey = format(day, "yyyy-MM-dd");
                 const isCurrentMonth = isSameMonth(day, currentMonth);
                 const isToday = isSameDay(day, new Date());
+                const hasConflict = conflicts.has(dateKey);
 
                 return (
                   <div
                     key={dateKey}
-                    className={`group h-full min-h-9 border-r bg-background/75 p-1 transition-colors last:border-r-0 hover:bg-muted/40 sm:min-h-10 sm:p-1.5 md:min-h-12 lg:min-h-0 ${
+                    className={`group relative h-full min-h-9 border-r bg-background/75 p-1 transition-colors last:border-r-0 hover:bg-muted/40 sm:min-h-10 sm:p-1.5 md:min-h-12 lg:min-h-0 ${
                       !isCurrentMonth
                         ? "bg-muted/25 text-muted-foreground"
                         : ""
@@ -379,6 +420,9 @@ export function CalendarGrid({
                         </span>
                       )}
                     </div>
+                    {hasConflict && (
+                      <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-amber-500" aria-label="Conflicto" />
+                    )}
                   </div>
                 );
               })}
@@ -425,6 +469,23 @@ export function CalendarGrid({
                   </button>
                 );
               })}
+
+              {/* External blocks — rendered below reservations, no lane competition */}
+              {weekBlocks.map(({ block, startCol, span }) => (
+                <div
+                  key={block.id}
+                  className="absolute flex h-5 cursor-default items-center gap-1 overflow-hidden rounded-md border border-dashed border-foreground/40 bg-foreground/[0.04] px-1.5 text-[10px] font-medium text-muted-foreground backdrop-blur-sm"
+                  style={{
+                    left: `${(startCol / 7) * 100}%`,
+                    top: `${LANE_TOP_OFFSET + numLanes * LANE_TOP_STEP}px`,
+                    width: `calc(${(span / 7) * 100}% - 4px)`,
+                  }}
+                  title={`${block.channel === "AIRBNB" ? "Airbnb" : block.channel === "BOOKING_COM" ? "Booking.com" : block.channel === "VRBO" ? "VRBO" : "Otro canal"} — Not available`}
+                >
+                  <span className={`h-2 w-2 rounded-full ${channelDotClass(block.channel)}`} />
+                  <span>{channelLabel(block.channel)}</span>
+                </div>
+              ))}
 
               {hiddenCount > 0 && !shouldExpand && (
                 <>
