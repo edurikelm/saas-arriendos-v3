@@ -3,7 +3,8 @@
 import { ReactNode, useState, useEffect } from "react";
 import { DashboardSidebar } from "@/components/layout/dashboard-sidebar";
 import { DashboardNavbar } from "@/components/layout/dashboard-navbar";
-import { Bell, LogOut, Menu, Moon, Sun } from "lucide-react";
+import { NotificationBell } from "@/components/notifications/notification-bell";
+import { LogOut, Menu, Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/components/providers/theme-provider";
 import {
@@ -20,9 +21,10 @@ interface DashboardLayoutClientProps {
   userRole: string | null;
   userPlan: string | null;
   supportUnreadCount?: number;
+  notificationUnreadCount?: number;
 }
 
-export function DashboardLayoutClient({ children, userName, userRole, userPlan, supportUnreadCount = 0 }: DashboardLayoutClientProps) {
+export function DashboardLayoutClient({ children, userName, userRole, userPlan, supportUnreadCount = 0, notificationUnreadCount = 0 }: DashboardLayoutClientProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { setTheme } = useTheme();
@@ -76,9 +78,7 @@ export function DashboardLayoutClient({ children, userName, userRole, userPlan, 
                 <Moon className="h-5 w-5" />
               </Button>
             )}
-            <Button variant="ghost" size="icon" aria-label="Notificaciones" className="rounded-lg">
-              <Bell className="h-5 w-5" />
-            </Button>
+            <NotificationBell unreadCount={notificationUnreadCount} />
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button variant="ghost" aria-label="Menú de usuario" className="h-9 rounded-lg px-1.5 pr-2" />}>
                 <span className="flex size-7 items-center justify-center rounded-full bg-foreground text-xs font-bold text-background">

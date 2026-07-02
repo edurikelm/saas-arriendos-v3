@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requireOwner } from "@/lib/actions/auth";
 import { getUnreadSupportTicketCount } from "@/lib/actions/support-unread";
+import { getUnreadNotificationCount } from "@/lib/actions/notifications";
 import { DashboardLayoutClient } from "@/components/layout/dashboard-layout-client";
 
 export const metadata: Metadata = {
@@ -15,6 +16,7 @@ export default async function DashboardLayout({
 }) {
   const session = await requireOwner();
   const supportUnreadCount = await getUnreadSupportTicketCount();
+  const notificationUnreadCount = await getUnreadNotificationCount(session.userId);
 
   return (
     <DashboardLayoutClient
@@ -22,6 +24,7 @@ export default async function DashboardLayout({
       userRole={session.role}
       userPlan={session.plan}
       supportUnreadCount={supportUnreadCount}
+      notificationUnreadCount={notificationUnreadCount}
     >
       {children}
     </DashboardLayoutClient>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, CalendarDays, LogOut, Moon, Shield, Sun, UserRound } from "lucide-react";
+import { CalendarDays, LogOut, Moon, Shield, Sun, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -12,15 +12,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { logoutAction } from "@/lib/actions/auth";
 import { useTheme } from "@/components/providers/theme-provider";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { useEffect, useState } from "react";
 
 interface DashboardNavbarProps {
   userName?: string | null;
   userRole?: string;
   userPlan?: string | null;
+  notificationUnreadCount?: number;
 }
 
-export function DashboardNavbar({ userName, userRole, userPlan }: DashboardNavbarProps) {
+export function DashboardNavbar({ userName, userRole, userPlan, notificationUnreadCount = 0 }: DashboardNavbarProps) {
   const isSuperAdmin = userRole === "SUPER_ADMIN";
   const { setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -99,9 +101,7 @@ export function DashboardNavbar({ userName, userRole, userPlan }: DashboardNavba
                 <Moon className="h-5 w-5" />
               </Button>
             )}
-            <Button variant="ghost" size="icon" aria-label="Notificaciones" className="rounded-lg">
-              <Bell className="h-5 w-5" />
-            </Button>
+            <NotificationBell unreadCount={notificationUnreadCount} />
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button variant="ghost" aria-label="Menú de usuario" className="h-9 rounded-lg px-1.5 pr-2" />}>
                 <span className="flex size-7 items-center justify-center rounded-full bg-foreground text-xs font-bold text-background">
