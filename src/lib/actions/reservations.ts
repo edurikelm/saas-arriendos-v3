@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { addDays, differenceInDays, differenceInMonths, addMonths } from "date-fns";
 import { generateMonthlyPayments } from "@/lib/payments/monthly";
 import { ZodError } from "zod";
+import { recordDomainEvent } from "@/lib/notifications/record-event";
 
 export type CalendarReservation = {
   id: string;
@@ -414,6 +415,22 @@ export async function createReservation(data: unknown) {
     return { error: "Propiedad no encontrada" };
   }
 
+  // Fetch reservationClient (needed for notification rendering)
+  const client = await prisma.reservationClient.findUnique({
+    where: { id: validated.clientId },
+    select: { name: true, email: true },
+  });
+
+  if (!client) {
+    return { error: "Cliente no encontrado" };
+  }
+
+  // Fetch owner name for the notification
+  const owner = await prisma.userProfile.findUnique({
+    where: { id: session.userId },
+    select: { name: true },
+  });
+
   const startDate = new Date(validated.startDate);
   let endDate = new Date(validated.endDate);
 
@@ -494,6 +511,20 @@ export async function createReservation(data: unknown) {
 
     return newReservation;
   });
+
+  try {
+    await recordDomainEvent({
+      type: "RESERVATION_CREATED",
+      reservationId: reservation.id,
+      ownerId: session.userId,
+      ownerEmail: session.email,
+      ownerName: owner?.name ?? undefined,
+      clientName: client.name,
+      propertyName: property.name,
+    });
+  } catch (err) {
+    console.error("[Notifications] recordDomainEvent failed", err);
+  }
 
   revalidatePath("/reservations");
   revalidatePath("/calendar");

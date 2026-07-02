@@ -6,6 +6,12 @@ const mockPrisma = vi.hoisted(() => ({
   property: {
     findUnique: vi.fn(),
   },
+  reservationClient: {
+    findUnique: vi.fn(),
+  },
+  userProfile: {
+    findUnique: vi.fn(),
+  },
   reservation: {
     findFirst: vi.fn(),
     findMany: vi.fn(),
@@ -34,6 +40,11 @@ vi.mock('@/lib/db/prisma', () => ({
 
 vi.mock('@/lib/actions/auth', () => ({
   getSession: vi.fn(),
+}));
+
+const mockRecordDomainEvent = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/notifications/record-event', () => ({
+  recordDomainEvent: mockRecordDomainEvent,
 }));
 
 vi.mock('next/cache', () => ({
@@ -120,6 +131,15 @@ describe('createReservation - action owns validation', () => {
       createdAt: new Date(),
       currency: 'CLP' as any,
     });
+    vi.mocked(mockPrisma.reservationClient.findUnique).mockResolvedValue({
+      id: 'client-1',
+      name: 'Juan',
+      email: 'juan@test.com',
+      userId: 'user-1',
+      createdAt: new Date(),
+      phone: null,
+      rut: null,
+    });
     vi.mocked(mockPrisma.reservation.findMany).mockResolvedValue([]);
     vi.mocked(mockPrisma.reservation.create).mockResolvedValue({
       id: 'res-1',
@@ -172,6 +192,15 @@ describe('createReservation MONTHLY', () => {
       type: 'APARTMENT' as any,
       createdAt: new Date(),
       currency: 'CLP' as any,
+    });
+    vi.mocked(mockPrisma.reservationClient.findUnique).mockResolvedValue({
+      id: 'client-1',
+      name: 'Juan',
+      email: 'juan@test.com',
+      userId: 'user-1',
+      createdAt: new Date(),
+      phone: null,
+      rut: null,
     });
     vi.mocked(mockPrisma.reservation.findMany).mockResolvedValue([]);
 
@@ -227,6 +256,15 @@ describe('createReservation MONTHLY', () => {
       createdAt: new Date(),
       currency: 'CLP' as any,
     });
+    vi.mocked(mockPrisma.reservationClient.findUnique).mockResolvedValue({
+      id: 'client-1',
+      name: 'Juan',
+      email: 'juan@test.com',
+      userId: 'user-1',
+      createdAt: new Date(),
+      phone: null,
+      rut: null,
+    });
     vi.mocked(mockPrisma.reservation.findMany).mockResolvedValue([]);
 
     const createdReservation = {
@@ -278,6 +316,15 @@ describe('createReservation MONTHLY', () => {
       type: 'APARTMENT' as any,
       createdAt: new Date(),
       currency: 'CLP' as any,
+    });
+    vi.mocked(mockPrisma.reservationClient.findUnique).mockResolvedValue({
+      id: 'client-1',
+      name: 'Juan',
+      email: 'juan@test.com',
+      userId: 'user-1',
+      createdAt: new Date(),
+      phone: null,
+      rut: null,
     });
     vi.mocked(mockPrisma.reservation.findMany).mockResolvedValue([]);
 
@@ -380,5 +427,95 @@ describe('cancelReservation PENDING payments', () => {
     const result = await cancelReservation('res-1');
 
     expect(result).toHaveProperty('success', true);
+  });
+});
+
+describe('createReservation emits RESERVATION_CREATED domain event', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRecordDomainEvent.mockResolvedValue(undefined);
+  });
+
+  it('calls recordDomainEvent once with correct args after successful reservation', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    vi.mocked(mockPrisma.property.findUnique).mockResolvedValue({
+      id: 'prop-1',
+      userId: 'owner-1',
+      name: 'Casa',
+      dailyPrice: 10000 as any,
+      monthlyPrice: null,
+      unitsAvailable: 5,
+      mainImage: '',
+      images: [],
+      amenities: [],
+      color: '#000',
+      type: 'APARTMENT' as any,
+      createdAt: new Date(),
+      currency: 'CLP' as any,
+    });
+    vi.mocked(mockPrisma.reservationClient.findUnique).mockResolvedValue({
+      id: 'client-1',
+      name: 'Juan',
+      email: 'juan@test.com',
+      userId: 'user-1',
+      createdAt: new Date(),
+      phone: null,
+      rut: null,
+    });
+    vi.mocked(mockPrisma.reservation.findMany).mockResolvedValue([]);
+    vi.mocked(mockPrisma.reservation.create).mockResolvedValue({
+      id: 'res-1',
+      userId: 'user-1',
+      propertyId: 'prop-1',
+      clientId: 'client-1',
+      startDate: new Date('2025-01-01'),
+      endDate: new Date('2025-01-10'),
+      billingType: 'DAILY',
+      unitsBooked: 1,
+      totalPrice: 90000 as any,
+      status: 'PENDING',
+      bookingAirbnb: false,
+      notes: null,
+      createdAt: new Date(),
+    });
+
+    const result = await createReservation({
+      propertyId: 'prop-1',
+      clientId: 'client-1',
+      startDate: '01-01-2025',
+      endDate: '10-01-2025',
+      billingType: 'DAILY',
+      unitsBooked: 1,
+    });
+
+    expect(result).toHaveProperty('success', true);
+    expect(mockRecordDomainEvent).toHaveBeenCalledTimes(1);
+    expect(mockRecordDomainEvent).toHaveBeenCalledWith({
+      type: 'RESERVATION_CREATED',
+      reservationId: 'res-1',
+      ownerId: 'user-1',
+      ownerEmail: 'test@test.com',
+      clientName: 'Juan',
+      propertyName: 'Casa',
+    });
+  });
+
+  it('does not call recordDomainEvent when reservation creation fails', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    vi.mocked(mockPrisma.property.findUnique).mockResolvedValue(null);
+
+    const result = await createReservation({
+      propertyId: 'nonexistent',
+      clientId: 'client-1',
+      startDate: '01-01-2025',
+      endDate: '10-01-2025',
+      billingType: 'DAILY',
+      unitsBooked: 1,
+    });
+
+    expect(result).toHaveProperty('error', 'Propiedad no encontrada');
+    expect(mockRecordDomainEvent).not.toHaveBeenCalled();
   });
 });
