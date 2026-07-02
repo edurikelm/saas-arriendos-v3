@@ -65,12 +65,28 @@ Se implementa un parser custom en `src/lib/ical/parser.ts` (~150 LOC) sin depend
 
 Todas las actions mutadoras (`create`, `update`, `delete`, `sync`) requieren `session.plan === "PRO"`.
 
+### Semántica de fuente: iCal NO es fuente financiera
+
+El canal externo iCal cumple **exclusivamente** el rol de importador de ocupación para disponibilidad. Esto es deliberado y se enforces a nivel de modelo de datos y código:
+
+1. **iCal no es fuente financiera.** El sync de `ExternalCalendar` solo escribe en `ExternalCalendar` y `ExternalChannelBlock`. Nunca crea, modifica ni cierra `Payment`.
+2. **iCal no crea entidades de negocio.** El sync no inserta filas en `ReservationClient`, `Reservation`, `PaymentReminder` ni en tablas de auditoría (`ReservationChange`). Solo afecta disponibilidad visual y de `checkAvailability`.
+3. **La conversión Bloqueo → Reserva es manual.** Cuando el owner quiere transformar un `ExternalChannelBlock` en una `Reservation` real con cobro, debe hacerlo desde la UI de calendario o de reservas — el sistema no lo hace automáticamente. Esto preserva el control del owner sobre precios, clientes y pagos.
+
+Estas tres reglas evitan dos clases de bugs que aparecieron antes del bloque iCal:
+
+- Cobros duplicados por un evento importado que no era una reserva real.
+- "Reservas fantasma" generadas por canales con feeds ruidosos o desactualizados.
+
+Cualquier futura integración con un canal externo que quiera crear `Payment`/`Reservation` automáticamente debe romper este contrato explícitamente y crear su propio ADR.
+
 ### ADR de referencia cruzada
 
 - CONTEXT.md líneas 129-174 (se actualiza)
 - #130 (export iCal, anti-reimport) — ver ADR-0019
 - #131 (UI de calendario externo en dashboard)
 - #132 (resolución de conflictos Reserva vs Bloqueo)
+- ADR-0020 (zona horaria de negocio — todas las fechas iCal se interpretan en America/Santiago)
 
 ### Export side (#130)
 

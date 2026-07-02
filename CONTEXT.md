@@ -90,6 +90,7 @@ El webhook intenta matchear el pago en este orden:
 - **Link MP:** se genera bajo demanda (no al crear la reserva), vence en 7 días
 - Al cancelar: DELETE pagos PENDING, KEEP pagos COMPLETED (auditoría financiera)
 - **Transición a CONFIRMED**: una reserva pasa a `CONFIRMED` solo cuando la suma de `Payment` con `status: COMPLETED`, `paymentType: RESERVATION` y `deletedAt: null` alcanza `totalPrice`. Pagos `PENDING` o `paymentType: EXTRA` no participan en esta transición.
+- **Fechas de cobranza y recordatorios** (vencidos / vencen hoy / próximos 7 días) se calculan en wall-time `America/Santiago`, no en UTC. Ver ADR-0020.
 
 ### Cancelación
 - Libre — cualquier parte puede cancelar
@@ -145,6 +146,8 @@ El webhook intenta matchear el pago en este orden:
 - Cuando un evento desaparece del feed: **Bloqueo** se marca `INACTIVE` (no delete físico).
 - Cuando sync falla: se conserva último `lastSyncedAt` válido y se persiste `lastSyncError`.
 - Solo plan PRO. Sync manual vía server action, automático vía Vercel Cron con auth `Bearer ${ICAL_CRON_SECRET}`.
+- **iCal NO es fuente financiera**: el sync nunca crea `Payment`, `ReservationClient` ni `Reservation`; la conversión de un **Bloqueo de Canal Externo** a **Reserva** es siempre manual desde la UI. Ver ADR-0018 ("Semántica de fuente").
+- Todas las fechas importadas/exportadas vía iCal se interpretan en wall-time `America/Santiago`. Ver ADR-0020.
 
 ### Timeline (vista por defecto)
 
@@ -314,3 +317,6 @@ Grid de 7 columnas en todas las resoluciones. Celdas: `min-h-12 sm:min-h-20 lg:m
 - ADR-0002: `docs/adr/0002-nextjs-app-router-patterns.md`
 - ADR-0012: `docs/adr/0012-monthly-payment-generation.md`
 - ADR-0015: `docs/adr/0015-responsive-design-strategy.md`
+- ADR-0018: `docs/adr/0018-external-calendar-sync.md` — iCal import + semántica de fuente no financiera
+- ADR-0019: `docs/adr/0019-ical-export-feed.md` — iCal export por canal con anti-eco
+- ADR-0020: `docs/adr/0020-business-dates-timezone.md` — fechas de negocio en `America/Santiago`
