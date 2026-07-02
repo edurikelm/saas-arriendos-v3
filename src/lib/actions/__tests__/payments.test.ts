@@ -7,6 +7,7 @@ vi.mock('@/lib/db/prisma', () => ({
   prisma: {
     reservation: {
       findFirst: vi.fn(),
+      update: vi.fn(),
     },
     payment: {
       findMany: vi.fn(),
@@ -1401,6 +1402,673 @@ describe('generatePaymentLink - per-user token only', () => {
     const result = await generatePaymentLink('pay-1');
 
     expect(result).toHaveProperty('error', 'Conecta tu cuenta de Mercado Pago en Settings');
+  });
+});
+
+describe('createPayment - RESERVATION balance excludes PENDING and EXTRAs (issue #164)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('acepta RESERVATION cuando hay un PENDING preexistente que no bloquea (PENDING no cuenta)', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    const { prisma } = await import('@/lib/db/prisma');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+
+    // totalPrice 100000, PENDING 80000 + nuevo RESERVATION 40000
+    // Antes: totalPaid = 80000 + 40000 = 120000 > 100000 → error (incorrecto, PENDING no es dinero cobrado)
+    // Después: getReservationPaidAmount = 0, newTotal = 0 + 40000 = 40000 < 100000 → acepta
+    vi.mocked(prisma.reservation.findFirst).mockResolvedValue({
+      ...mockReservation,
+      totalPrice: 100000 as any,
+    });
+
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([
+      {
+        id: 'pay-pending',
+        reservationId: 'res-1',
+        amount: 80000 as any,
+        method: 'MERCADO_PAGO',
+        status: 'PENDING',
+        paymentType: 'RESERVATION',
+        initPoint: null,
+        expiresAt: null,
+        deletedAt: null,
+        mercadoPagoId: null,
+        createdAt: new Date(),
+      },
+    ]);
+
+    vi.mocked(prisma.payment.create).mockResolvedValue({
+      id: 'pay-new',
+      reservationId: 'res-1',
+      amount: 40000 as any,
+      method: 'CASH',
+      status: 'COMPLETED',
+      paymentType: 'RESERVATION',
+      title: null,
+      description: null,
+      initPoint: null,
+      expiresAt: null,
+      paidAt: null,
+      receiptUrl: null,
+      deletedAt: null,
+      mercadoPagoId: null,
+      createdAt: new Date(),
+    } as any);
+
+    const { createPayment } = await import('../payments');
+    const result = await createPayment({
+      reservationId: 'res-1',
+      amount: 40000,
+      method: 'CASH',
+    });
+
+    expect(result).toHaveProperty('success', true);
+    expect(prisma.payment.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('acepta RESERVATION cuando hay un EXTRA COMPLETED preexistente (EXTRAs no cuentan)', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    const { prisma } = await import('@/lib/db/prisma');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+
+    // totalPrice 100000, EXTRA COMPLETED 50000 + nuevo RESERVATION 80000
+    // Antes: totalPaid = 50000 + 80000 = 130000 > 100000 → error (incorrecto, EXTRA no cuenta)
+    // Después: getReservationPaidAmount = 0, newTotal = 0 + 80000 = 80000 < 100000 → acepta
+    vi.mocked(prisma.reservation.findFirst).mockResolvedValue({
+      ...mockReservation,
+      totalPrice: 100000 as any,
+    });
+
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([
+      {
+        id: 'pay-extra',
+        reservationId: 'res-1',
+        amount: 50000 as any,
+        method: 'CASH',
+        status: 'COMPLETED',
+        paymentType: 'EXTRA',
+        title: 'Limpieza extra',
+        description: null,
+        initPoint: null,
+        expiresAt: null,
+        deletedAt: null,
+        mercadoPagoId: null,
+        createdAt: new Date(),
+      },
+    ]);
+
+    vi.mocked(prisma.payment.create).mockResolvedValue({
+      id: 'pay-new',
+      reservationId: 'res-1',
+      amount: 80000 as any,
+      method: 'CASH',
+      status: 'COMPLETED',
+      paymentType: 'RESERVATION',
+      title: null,
+      description: null,
+      initPoint: null,
+      expiresAt: null,
+      paidAt: null,
+      receiptUrl: null,
+      deletedAt: null,
+      mercadoPagoId: null,
+      createdAt: new Date(),
+    } as any);
+
+    const { createPayment } = await import('../payments');
+    const result = await createPayment({
+      reservationId: 'res-1',
+      amount: 80000,
+      method: 'CASH',
+    });
+
+    expect(result).toHaveProperty('success', true);
+    expect(prisma.payment.create).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('createPayment - CONFIRMED transition only counts RESERVATION COMPLETED (issue #164)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('NO transiciona a CONFIRMED si PENDING preexistente + nuevo COMPLETED no alcanzan totalPrice', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    const { prisma } = await import('@/lib/db/prisma');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+
+    // PENDING 80000 + nuevo RESERVATION 40000 COMPLETED
+    // Con fix: solo cuenta COMPLETED RESERVATION = 40000 < 100000 → NO CONFIRMED
+    vi.mocked(prisma.reservation.findFirst).mockResolvedValue({
+      ...mockReservation,
+      totalPrice: 100000 as any,
+    });
+
+    // Primera llamada findMany: solo el PENDING
+    // Segunda llamada: el PENDING + el NUEVO (COMPLETED)
+    vi.mocked(prisma.payment.findMany)
+      .mockResolvedValueOnce([
+        {
+          id: 'pay-pending',
+          reservationId: 'res-1',
+          amount: 80000 as any,
+          method: 'MERCADO_PAGO',
+          status: 'PENDING',
+          paymentType: 'RESERVATION',
+          initPoint: null,
+          expiresAt: null,
+          deletedAt: null,
+          mercadoPagoId: null,
+          createdAt: new Date(),
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 'pay-new',
+          reservationId: 'res-1',
+          amount: 40000 as any,
+          method: 'CASH',
+          status: 'COMPLETED',
+          paymentType: 'RESERVATION',
+          initPoint: null,
+          expiresAt: null,
+          deletedAt: null,
+          mercadoPagoId: null,
+          createdAt: new Date(),
+        },
+      ]);
+
+    vi.mocked(prisma.payment.create).mockResolvedValue({
+      id: 'pay-new',
+      reservationId: 'res-1',
+      amount: 40000 as any,
+      method: 'CASH',
+      status: 'COMPLETED',
+      paymentType: 'RESERVATION',
+      title: null,
+      description: null,
+      initPoint: null,
+      expiresAt: null,
+      paidAt: null,
+      receiptUrl: null,
+      deletedAt: null,
+      mercadoPagoId: null,
+      createdAt: new Date(),
+    } as any);
+
+    vi.mocked(prisma.reservation.update).mockResolvedValue({} as any);
+
+    const { createPayment } = await import('../payments');
+    const result = await createPayment({
+      reservationId: 'res-1',
+      amount: 40000,
+      method: 'CASH',
+    });
+
+    expect(result).toHaveProperty('success', true);
+    expect(prisma.reservation.update).not.toHaveBeenCalled();
+  });
+
+  it('NO transiciona a CONFIRMED si hay un EXTRA COMPLETED que iguala totalPrice + RESERVATION COMPLETED menor', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    const { prisma } = await import('@/lib/db/prisma');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+
+    // EXTRA COMPLETED 50000 + nuevo RESERVATION 50000 COMPLETED → total 100000
+    // Con fix: solo cuenta RESERVATION COMPLETED = 50000 < 100000 → NO CONFIRMED
+    vi.mocked(prisma.reservation.findFirst).mockResolvedValue({
+      ...mockReservation,
+      totalPrice: 100000 as any,
+    });
+
+    vi.mocked(prisma.payment.findMany)
+      .mockResolvedValueOnce([
+        {
+          id: 'pay-extra',
+          reservationId: 'res-1',
+          amount: 50000 as any,
+          method: 'CASH',
+          status: 'COMPLETED',
+          paymentType: 'EXTRA',
+          title: 'Multa',
+          description: null,
+          initPoint: null,
+          expiresAt: null,
+          deletedAt: null,
+          mercadoPagoId: null,
+          createdAt: new Date(),
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 'pay-new',
+          reservationId: 'res-1',
+          amount: 50000 as any,
+          method: 'CASH',
+          status: 'COMPLETED',
+          paymentType: 'RESERVATION',
+          title: null,
+          description: null,
+          initPoint: null,
+          expiresAt: null,
+          paidAt: null,
+          receiptUrl: null,
+          deletedAt: null,
+          mercadoPagoId: null,
+          createdAt: new Date(),
+        },
+      ]);
+
+    vi.mocked(prisma.payment.create).mockResolvedValue({
+      id: 'pay-new',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      method: 'CASH',
+      status: 'COMPLETED',
+      paymentType: 'RESERVATION',
+      title: null,
+      description: null,
+      initPoint: null,
+      expiresAt: null,
+      paidAt: null,
+      receiptUrl: null,
+      deletedAt: null,
+      mercadoPagoId: null,
+      createdAt: new Date(),
+    } as any);
+
+    vi.mocked(prisma.reservation.update).mockResolvedValue({} as any);
+
+    const { createPayment } = await import('../payments');
+    const result = await createPayment({
+      reservationId: 'res-1',
+      amount: 50000,
+      method: 'CASH',
+    });
+
+    expect(result).toHaveProperty('success', true);
+    expect(prisma.reservation.update).not.toHaveBeenCalled();
+  });
+
+  it('SÍ transiciona a CONFIRMED cuando RESERVATION COMPLETED existente + nuevo COMPLETED alcanzan totalPrice', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    const { prisma } = await import('@/lib/db/prisma');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+
+    // RESERVATION COMPLETED 60000 + nuevo RESERVATION 40000 COMPLETED → 100000 >= 100000 → CONFIRMED
+    vi.mocked(prisma.reservation.findFirst).mockResolvedValue({
+      ...mockReservation,
+      totalPrice: 100000 as any,
+    });
+
+    vi.mocked(prisma.payment.findMany)
+      .mockResolvedValueOnce([
+        {
+          id: 'pay-existing',
+          reservationId: 'res-1',
+          amount: 60000 as any,
+          method: 'CASH',
+          status: 'COMPLETED',
+          paymentType: 'RESERVATION',
+          initPoint: null,
+          expiresAt: null,
+          deletedAt: null,
+          mercadoPagoId: null,
+          createdAt: new Date(),
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 'pay-existing',
+          reservationId: 'res-1',
+          amount: 60000 as any,
+          method: 'CASH',
+          status: 'COMPLETED',
+          paymentType: 'RESERVATION',
+          initPoint: null,
+          expiresAt: null,
+          deletedAt: null,
+          mercadoPagoId: null,
+          createdAt: new Date(),
+        },
+        {
+          id: 'pay-new',
+          reservationId: 'res-1',
+          amount: 40000 as any,
+          method: 'CASH',
+          status: 'COMPLETED',
+          paymentType: 'RESERVATION',
+          title: null,
+          description: null,
+          initPoint: null,
+          expiresAt: null,
+          paidAt: null,
+          receiptUrl: null,
+          deletedAt: null,
+          mercadoPagoId: null,
+          createdAt: new Date(),
+        },
+      ]);
+
+    vi.mocked(prisma.payment.create).mockResolvedValue({
+      id: 'pay-new',
+      reservationId: 'res-1',
+      amount: 40000 as any,
+      method: 'CASH',
+      status: 'COMPLETED',
+      paymentType: 'RESERVATION',
+      title: null,
+      description: null,
+      initPoint: null,
+      expiresAt: null,
+      paidAt: null,
+      receiptUrl: null,
+      deletedAt: null,
+      mercadoPagoId: null,
+      createdAt: new Date(),
+    } as any);
+
+    vi.mocked(prisma.reservation.update).mockResolvedValue({} as any);
+
+    const { createPayment } = await import('../payments');
+    const result = await createPayment({
+      reservationId: 'res-1',
+      amount: 40000,
+      method: 'CASH',
+    });
+
+    expect(result).toHaveProperty('success', true);
+    expect(prisma.reservation.update).toHaveBeenCalledWith({
+      where: { id: 'res-1' },
+      data: { status: 'CONFIRMED' },
+    });
+  });
+});
+
+describe('generateMercadoPagoLink - pendingAmount excludes PENDING and EXTRAs (issue #164)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('calcula pendingAmount sin descontar PENDING preexistente', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    const { prisma } = await import('@/lib/db/prisma');
+    const { getMercadoPagoToken } = await import('@/lib/actions/mercado-pago');
+
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    vi.mocked(getMercadoPagoToken).mockResolvedValue('fake-token');
+
+    vi.mocked(prisma.reservation.findFirst).mockResolvedValue({
+      ...mockReservation,
+      totalPrice: 100000 as any,
+    });
+
+    // PENDING 30000 (no cobrado) — no debe afectar pendingAmount
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([
+      {
+        id: 'pay-pending',
+        reservationId: 'res-1',
+        amount: 30000 as any,
+        method: 'MERCADO_PAGO',
+        status: 'PENDING',
+        paymentType: 'RESERVATION',
+        initPoint: null,
+        expiresAt: null,
+        deletedAt: null,
+        mercadoPagoId: null,
+        createdAt: new Date(),
+      },
+    ]);
+
+    vi.mocked(prisma.payment.create).mockResolvedValue({
+      id: 'pay-new',
+      reservationId: 'res-1',
+      amount: 100000 as any,
+      method: 'MERCADO_PAGO',
+      status: 'PENDING',
+      paymentType: 'RESERVATION',
+      title: null,
+      description: null,
+      initPoint: null,
+      expiresAt: null,
+      paidAt: null,
+      receiptUrl: null,
+      deletedAt: null,
+      mercadoPagoId: null,
+      createdAt: new Date(),
+    } as any);
+
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        id: 'mp-pref-1',
+        init_point: 'https://mercadopago.com/link',
+        sandbox_init_point: 'https://sandbox.mercadopago.com/link',
+      }),
+    });
+    global.fetch = mockFetch;
+
+    process.env.NEXT_PUBLIC_APP_URL = 'https://rentalpro.test';
+
+    const { generateMercadoPagoLink } = await import('../payments');
+    await generateMercadoPagoLink('res-1');
+
+    const [, options] = mockFetch.mock.calls[0];
+    const body = JSON.parse(options.body as string);
+
+    // pendingAmount = 100000 (PENDING no descuenta), paymentAmount = 100000
+    expect(body.items[0].unit_price).toBe(100000);
+  });
+
+  it('no afecta pendingAmount con EXTRAs COMPLETED', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    const { prisma } = await import('@/lib/db/prisma');
+    const { getMercadoPagoToken } = await import('@/lib/actions/mercado-pago');
+
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    vi.mocked(getMercadoPagoToken).mockResolvedValue('fake-token');
+
+    vi.mocked(prisma.reservation.findFirst).mockResolvedValue({
+      ...mockReservation,
+      totalPrice: 100000 as any,
+    });
+
+    // EXTRA COMPLETED 50000 — no debe afectar pendingAmount del arriendo
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([
+      {
+        id: 'pay-extra',
+        reservationId: 'res-1',
+        amount: 50000 as any,
+        method: 'CASH',
+        status: 'COMPLETED',
+        paymentType: 'EXTRA',
+        title: 'Limpieza',
+        description: null,
+        initPoint: null,
+        expiresAt: null,
+        deletedAt: null,
+        mercadoPagoId: null,
+        createdAt: new Date(),
+      },
+    ]);
+
+    vi.mocked(prisma.payment.create).mockResolvedValue({
+      id: 'pay-new',
+      reservationId: 'res-1',
+      amount: 100000 as any,
+      method: 'MERCADO_PAGO',
+      status: 'PENDING',
+      paymentType: 'RESERVATION',
+      title: null,
+      description: null,
+      initPoint: null,
+      expiresAt: null,
+      paidAt: null,
+      receiptUrl: null,
+      deletedAt: null,
+      mercadoPagoId: null,
+      createdAt: new Date(),
+    } as any);
+
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        id: 'mp-pref-1',
+        init_point: 'https://mercadopago.com/link',
+        sandbox_init_point: 'https://sandbox.mercadopago.com/link',
+      }),
+    });
+    global.fetch = mockFetch;
+
+    process.env.NEXT_PUBLIC_APP_URL = 'https://rentalpro.test';
+
+    const { generateMercadoPagoLink } = await import('../payments');
+    await generateMercadoPagoLink('res-1');
+
+    const [, options] = mockFetch.mock.calls[0];
+    const body = JSON.parse(options.body as string);
+
+    // pendingAmount = 100000 (EXTRA no descuenta), paymentAmount = 100000
+    expect(body.items[0].unit_price).toBe(100000);
+  });
+});
+
+describe('markPaymentAsPaid - CONFIRMED transition only counts RESERVATION COMPLETED (issue #164)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('NO transiciona a CONFIRMED si solo hay un RESERVATION PENDING que cubre totalPrice', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    const { prisma } = await import('@/lib/db/prisma');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+
+    // totalPrice 100000, PENDING 80000, markPaymentAsPaid de uno PENDING 30000 → COMPLETED
+    // Antes: totalPaid = 80000 + 30000 = 110000 >= 100000 → CONFIRMED (incorrecto, PENDING no es cobrado)
+    // Después: getReservationPaidAmount = 30000 < 100000 → NO CONFIRMED
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+      id: 'pay-to-mark',
+      reservationId: 'res-1',
+      amount: 30000 as any,
+      method: 'CASH',
+      status: 'PENDING',
+      paymentType: 'RESERVATION',
+      initPoint: null,
+      expiresAt: null,
+      deletedAt: null,
+      mercadoPagoId: null,
+      createdAt: new Date(),
+      reservation: { ...mockReservation, totalPrice: 100000 as any },
+    });
+
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([
+      {
+        id: 'pay-other',
+        reservationId: 'res-1',
+        amount: 80000 as any,
+        method: 'MERCADO_PAGO',
+        status: 'PENDING',
+        paymentType: 'RESERVATION',
+        initPoint: null,
+        expiresAt: null,
+        deletedAt: null,
+        mercadoPagoId: null,
+        createdAt: new Date(),
+      },
+      {
+        id: 'pay-to-mark',
+        reservationId: 'res-1',
+        amount: 30000 as any,
+        method: 'CASH',
+        status: 'PENDING', // antes del update
+        paymentType: 'RESERVATION',
+        initPoint: null,
+        expiresAt: null,
+        deletedAt: null,
+        mercadoPagoId: null,
+        createdAt: new Date(),
+      },
+    ]);
+
+    vi.mocked(prisma.reservation.update).mockResolvedValue({} as any);
+
+    const { markPaymentAsPaid } = await import('../payments');
+    const result = await markPaymentAsPaid('pay-to-mark', new Date(), 'CASH');
+
+    expect(result).toHaveProperty('success', true);
+    expect(prisma.reservation.update).not.toHaveBeenCalled();
+  });
+
+  it('SÍ transiciona a CONFIRMED cuando RESERVATION COMPLETED alcanza totalPrice', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    const { prisma } = await import('@/lib/db/prisma');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+
+    // RESERVATION COMPLETED 60000 + markPaymentAsPaid de uno PENDING 40000 → COMPLETED → CONFIRMED
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue({
+      id: 'pay-to-mark',
+      reservationId: 'res-1',
+      amount: 40000 as any,
+      method: 'CASH',
+      status: 'PENDING',
+      paymentType: 'RESERVATION',
+      initPoint: null,
+      expiresAt: null,
+      deletedAt: null,
+      mercadoPagoId: null,
+      createdAt: new Date(),
+      reservation: { ...mockReservation, totalPrice: 100000 as any },
+    });
+
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([
+      {
+        id: 'pay-existing',
+        reservationId: 'res-1',
+        amount: 60000 as any,
+        method: 'CASH',
+        status: 'COMPLETED',
+        paymentType: 'RESERVATION',
+        initPoint: null,
+        expiresAt: null,
+        deletedAt: null,
+        mercadoPagoId: null,
+        createdAt: new Date(),
+      },
+      {
+        id: 'pay-to-mark',
+        reservationId: 'res-1',
+        amount: 40000 as any,
+        method: 'CASH',
+        status: 'COMPLETED', // after the update from PENDING → COMPLETED
+        paymentType: 'RESERVATION',
+        initPoint: null,
+        expiresAt: null,
+        deletedAt: null,
+        mercadoPagoId: null,
+        createdAt: new Date(),
+      },
+    ]);
+
+    vi.mocked(prisma.reservation.update).mockResolvedValue({} as any);
+
+    const { markPaymentAsPaid } = await import('../payments');
+    const result = await markPaymentAsPaid('pay-to-mark', new Date(), 'CASH');
+
+    expect(result).toHaveProperty('success', true);
+    expect(prisma.reservation.update).toHaveBeenCalledWith({
+      where: { id: 'res-1' },
+      data: { status: 'CONFIRMED' },
+    });
   });
 });
 

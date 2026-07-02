@@ -10,6 +10,7 @@ import { uploadImage } from "@/lib/actions/cloudinary";
 import { revalidatePath } from "next/cache";
 import { addDays } from "date-fns";
 import { ZodError } from "zod";
+import { getReservationPaidAmount, getReservationPendingAmount, type PaymentLike } from "@/lib/payments/calculations";
 
 function buildMercadoPagoNotificationUrl(paymentId: string) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -190,7 +191,7 @@ export async function createPayment(data: unknown) {
       },
     });
 
-    const totalPaid = existingPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+    const totalPaid = getReservationPaidAmount(existingPayments as unknown as PaymentLike[]);
     const newTotal = totalPaid + validated.amount;
 
     if (newTotal > Number(reservation.totalPrice)) {
@@ -225,7 +226,7 @@ export async function createPayment(data: unknown) {
       },
     });
 
-    const totalPaid = allPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+    const totalPaid = getReservationPaidAmount(allPayments as unknown as PaymentLike[]);
 
     if (totalPaid >= Number(reservation.totalPrice)) {
       await prisma.reservation.update({
@@ -271,8 +272,7 @@ export async function generateMercadoPagoLink(reservationId: string, amount?: nu
     },
   });
 
-  const totalPaid = existingPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-  const pendingAmount = Number(reservation.totalPrice) - totalPaid;
+  const pendingAmount = getReservationPendingAmount(existingPayments as unknown as PaymentLike[], Number(reservation.totalPrice));
   const paymentAmount = amount ?? pendingAmount;
 
   if (paymentAmount <= 0) {
@@ -478,7 +478,7 @@ export async function processMercadoPagoWebhook(payload: {
       },
     });
 
-    const totalPaid = allPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+    const totalPaid = getReservationPaidAmount(allPayments as unknown as PaymentLike[]);
     const reservation = payment.reservation;
 
     if (totalPaid >= Number(reservation.totalPrice)) {
@@ -767,7 +767,7 @@ export async function updatePayment(id: string, data: { status: "COMPLETED" | "P
       },
     });
 
-    const totalPaid = allPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+    const totalPaid = getReservationPaidAmount(allPayments as unknown as PaymentLike[]);
 
     if (totalPaid >= Number(payment.reservation.totalPrice)) {
       await prisma.reservation.update({
@@ -829,7 +829,7 @@ export async function markPaymentAsPaid(
     },
   });
 
-  const totalPaid = allPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+  const totalPaid = getReservationPaidAmount(allPayments as unknown as PaymentLike[]);
 
   if (totalPaid >= Number(payment.reservation.totalPrice)) {
     await prisma.reservation.update({
@@ -961,7 +961,7 @@ export async function checkMercadoPagoPaymentStatus(paymentId: string) {
           },
         });
 
-        const totalPaid = allPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+        const totalPaid = getReservationPaidAmount(allPayments as unknown as PaymentLike[]);
 
         if (totalPaid >= Number(payment.reservation.totalPrice)) {
           await prisma.reservation.update({

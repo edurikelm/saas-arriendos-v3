@@ -89,6 +89,7 @@ El webhook intenta matchear el pago en este orden:
 - **Generación de pagos:** `amount = monthly_price × units_booked`, `due_date` = día 1 de cada mes cubierto, empezando por el mes de `start_date`
 - **Link MP:** se genera bajo demanda (no al crear la reserva), vence en 7 días
 - Al cancelar: DELETE pagos PENDING, KEEP pagos COMPLETED (auditoría financiera)
+- **Transición a CONFIRMED**: una reserva pasa a `CONFIRMED` solo cuando la suma de `Payment` con `status: COMPLETED`, `paymentType: RESERVATION` y `deletedAt: null` alcanza `totalPrice`. Pagos `PENDING` o `paymentType: EXTRA` no participan en esta transición.
 
 ### Cancelación
 - Libre — cualquier parte puede cancelar
