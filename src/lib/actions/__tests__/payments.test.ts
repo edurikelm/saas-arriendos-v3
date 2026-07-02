@@ -20,6 +20,9 @@ vi.mock('@/lib/db/prisma', () => ({
       update: vi.fn(),
       create: vi.fn(),
     },
+    userProfile: {
+      findUnique: vi.fn(),
+    },
   },
 }));
 
@@ -33,6 +36,11 @@ vi.mock('next/cache', () => ({
 
 vi.mock('@/lib/actions/mercado-pago', () => ({
   getMercadoPagoToken: vi.fn(),
+}));
+
+const mockRecordDomainEvent = vi.fn();
+vi.mock('@/lib/notifications/record-event', () => ({
+  recordDomainEvent: mockRecordDomainEvent,
 }));
 
 const mockSession: SessionUser = {
@@ -2144,5 +2152,342 @@ describe('checkMercadoPagoPaymentStatus - uses payment owner token', () => {
     const result = await checkMercadoPagoPaymentStatus('pay-1');
 
     expect(result).toHaveProperty('error', 'Conecta tu cuenta de Mercado Pago en Settings');
+  });
+});
+
+describe('markPaymentAsPaid - PAYMENT_RECEIVED notification hook', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRecordDomainEvent.mockReset().mockResolvedValue(undefined);
+  });
+
+  it('calls recordDomainEvent with PAYMENT_RECEIVED after marking as paid', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    const { prisma } = await import('@/lib/db/prisma');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+
+    const paymentWithReservation = mockAsAny({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      method: 'CASH',
+      status: 'PENDING',
+      paidAt: null,
+      deletedAt: null,
+      reservation: {
+        ...mockReservation,
+        client: { name: 'Juan' },
+      },
+    });
+
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(paymentWithReservation);
+
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([paymentWithReservation] as any);
+    vi.mocked(prisma.userProfile.findUnique).mockReset().mockResolvedValue({
+      email: 'owner@test.com',
+      name: 'Carlos',
+    } as any);
+
+    const { markPaymentAsPaid } = await import('../payments');
+    const result = await markPaymentAsPaid('pay-1', new Date(), 'CASH');
+
+    expect(result).toHaveProperty('success', true);
+    expect(mockRecordDomainEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'PAYMENT_RECEIVED',
+        paymentId: 'pay-1',
+        ownerId: 'user-1',
+        ownerEmail: 'owner@test.com',
+        ownerName: 'Carlos',
+        clientName: 'Juan',
+        amount: '50000',
+        method: 'CASH',
+        reservationId: 'res-1',
+      }),
+    );
+  });
+
+  it('does not throw and logs error when recordDomainEvent fails', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    const { prisma } = await import('@/lib/db/prisma');
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+
+    const paymentWithReservation = mockAsAny({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      method: 'CASH',
+      status: 'PENDING',
+      paidAt: null,
+      deletedAt: null,
+      reservation: {
+        ...mockReservation,
+        client: { name: 'Juan' },
+      },
+    });
+
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(paymentWithReservation);
+
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([paymentWithReservation] as any);
+    vi.mocked(prisma.userProfile.findUnique).mockReset().mockRejectedValue(new Error('DB error'));
+
+    const { markPaymentAsPaid } = await import('../payments');
+    const result = await markPaymentAsPaid('pay-1', new Date(), 'CASH');
+
+    expect(result).toHaveProperty('success', true);
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('PAYMENT_RECEIVED'),
+      expect.any(Error),
+    );
+    consoleSpy.mockRestore();
+  });
+});
+
+describe('processMercadoPagoWebhook - PAYMENT_RECEIVED notification hook', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRecordDomainEvent.mockReset().mockResolvedValue(undefined);
+  });
+
+  it('calls recordDomainEvent with PAYMENT_RECEIVED when status becomes COMPLETED', async () => {
+    const { prisma } = await import('@/lib/db/prisma');
+
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      status: 'PENDING',
+      deletedAt: null,
+      mercadoPagoId: 'mp-webhook-1',
+      reservation: {
+        ...mockReservation,
+        client: { name: 'María' },
+      },
+    }));
+
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([] as any);
+    vi.mocked(prisma.userProfile.findUnique).mockReset().mockResolvedValue({
+      email: 'owner@test.com',
+      name: 'Carlos',
+    } as any);
+
+    const { processMercadoPagoWebhook } = await import('../payments');
+    const result = await processMercadoPagoWebhook({
+      id: 'mp-webhook-1',
+      status: 'approved',
+      external_reference: 'res-1:pay-1',
+    });
+
+    expect(result).toHaveProperty('success', true);
+    expect(mockRecordDomainEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'PAYMENT_RECEIVED',
+        paymentId: 'pay-1',
+        ownerId: 'user-1',
+        ownerEmail: 'owner@test.com',
+        ownerName: 'Carlos',
+        clientName: 'María',
+        method: 'MERCADO_PAGO',
+        reservationId: 'res-1',
+      }),
+    );
+  });
+
+  it('does not call recordDomainEvent when status is not COMPLETED', async () => {
+    const { prisma } = await import('@/lib/db/prisma');
+
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      status: 'PENDING',
+      deletedAt: null,
+      mercadoPagoId: 'mp-webhook-1',
+      reservation: mockReservation,
+    }));
+
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+
+    const { processMercadoPagoWebhook } = await import('../payments');
+    await processMercadoPagoWebhook({
+      id: 'mp-webhook-1',
+      status: 'pending',
+      external_reference: 'res-1:pay-1',
+    });
+
+    expect(mockRecordDomainEvent).not.toHaveBeenCalled();
+  });
+
+  it('does not throw when recordDomainEvent fails', async () => {
+    const { prisma } = await import('@/lib/db/prisma');
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      status: 'PENDING',
+      deletedAt: null,
+      mercadoPagoId: 'mp-webhook-1',
+      reservation: {
+        ...mockReservation,
+        client: { name: 'Test' },
+      },
+    }));
+
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([] as any);
+    vi.mocked(prisma.userProfile.findUnique).mockReset().mockRejectedValue(new Error('DB error'));
+
+    const { processMercadoPagoWebhook } = await import('../payments');
+    const result = await processMercadoPagoWebhook({
+      id: 'mp-webhook-1',
+      status: 'approved',
+      external_reference: 'res-1:pay-1',
+    });
+
+    expect(result).toHaveProperty('success', true);
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('PAYMENT_RECEIVED'),
+      expect.any(Error),
+    );
+    consoleSpy.mockRestore();
+  });
+});
+
+describe('revertPayment - PAYMENT_REVERTED notification hook', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRecordDomainEvent.mockReset().mockResolvedValue(undefined);
+  });
+
+  it('calls recordDomainEvent with PAYMENT_REVERTED after reverting payment', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    const { prisma } = await import('@/lib/db/prisma');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+
+    vi.mocked(prisma.payment.findFirst).mockReset().mockResolvedValue(mockAsAny({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      status: 'COMPLETED',
+      paidAt: new Date(),
+      deletedAt: null,
+      reservation: {
+        ...mockReservation,
+        client: { name: 'Juan' },
+      },
+    }));
+
+    vi.mocked(prisma.payment.update).mockReset().mockResolvedValue({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      status: 'PENDING',
+      paidAt: null,
+    } as any);
+    vi.mocked(prisma.userProfile.findUnique).mockReset().mockResolvedValue({
+      email: 'owner@test.com',
+      name: 'Carlos',
+    } as any);
+
+    const { revertPayment } = await import('../payments');
+    const result = await revertPayment('pay-1');
+
+    expect(result).toHaveProperty('success', true);
+    expect(mockRecordDomainEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'PAYMENT_REVERTED',
+        paymentId: 'pay-1',
+        ownerId: 'user-1',
+        ownerEmail: 'owner@test.com',
+        ownerName: 'Carlos',
+        clientName: 'Juan',
+        amount: '50000',
+        reservationId: 'res-1',
+      }),
+    );
+  });
+
+  it('returns error when payment not found', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    const { prisma } = await import('@/lib/db/prisma');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+
+    vi.mocked(prisma.payment.findFirst).mockReset().mockResolvedValue(null);
+
+    const { revertPayment } = await import('../payments');
+    const result = await revertPayment('pay-nonexistent');
+
+    expect(result).toHaveProperty('error', 'Pago no encontrado');
+    expect(mockRecordDomainEvent).not.toHaveBeenCalled();
+  });
+
+  it('returns error when user does not own the payment', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    const { prisma } = await import('@/lib/db/prisma');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+
+    vi.mocked(prisma.payment.findFirst).mockReset().mockResolvedValue(mockAsAny({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      status: 'COMPLETED',
+      deletedAt: null,
+      reservation: {
+        ...mockReservation,
+        userId: 'other-user',
+        client: { name: 'Juan' },
+      },
+    }));
+
+    const { revertPayment } = await import('../payments');
+    const result = await revertPayment('pay-1');
+
+    expect(result).toHaveProperty('error', 'No autorizado');
+    expect(mockRecordDomainEvent).not.toHaveBeenCalled();
+  });
+
+  it('does not throw when recordDomainEvent fails', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    const { prisma } = await import('@/lib/db/prisma');
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+
+    vi.mocked(prisma.payment.findFirst).mockReset().mockResolvedValue(mockAsAny({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      status: 'COMPLETED',
+      paidAt: new Date(),
+      deletedAt: null,
+      reservation: {
+        ...mockReservation,
+        client: { name: 'Juan' },
+      },
+    }));
+
+    vi.mocked(prisma.payment.update).mockReset().mockResolvedValue({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      status: 'PENDING',
+      paidAt: null,
+    } as any);
+    vi.mocked(prisma.userProfile.findUnique).mockReset().mockRejectedValue(new Error('DB error'));
+
+    const { revertPayment } = await import('../payments');
+    const result = await revertPayment('pay-1');
+
+    expect(result).toHaveProperty('success', true);
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('PAYMENT_REVERTED'),
+      expect.any(Error),
+    );
+    consoleSpy.mockRestore();
   });
 });

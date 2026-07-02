@@ -17,7 +17,7 @@ export type NotificationChannelName = "in-app" | "email";
  */
 export interface NotificationIntent {
   notificationKey: string;
-  type: "RESERVATION_CREATED" | "RESERVATION_CANCELLED" | "PAYMENT_RECEIVED" | "PAYMENT_REMINDER" | "PAYMENT_FAILED";
+  type: "RESERVATION_CREATED" | "RESERVATION_CANCELLED" | "PAYMENT_RECEIVED" | "PAYMENT_REVERTED" | "PAYMENT_REMINDER" | "PAYMENT_FAILED";
   title: string;
   body: string;
   link?: string;

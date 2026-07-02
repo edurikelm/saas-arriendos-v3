@@ -141,6 +141,55 @@ describe("renderNotification", () => {
     });
   });
 
+  describe("PAYMENT_REVERTED", () => {
+    it("renders correct subject with client and amount", () => {
+      const result = render({
+        type: "PAYMENT_REVERTED",
+        clientName: "María López",
+        amount: "$120.000",
+        paymentId: "pay-rev-1",
+      });
+
+      expect(result.subject).toBe("Pago revertido: María López ($120.000)");
+      expect(result.text).toContain("María López");
+      expect(result.text).toContain("$120.000");
+      expect(result.text).toContain("revirtió");
+    });
+
+    it("includes reason in body when provided", () => {
+      const result = render({
+        type: "PAYMENT_REVERTED",
+        clientName: "Carlos Ruiz",
+        amount: "$50.000",
+        reason: "Cliente solicitó reversa",
+      });
+
+      expect(result.text).toContain("Motivo: Cliente solicitó reversa");
+    });
+
+    it("renders without reason gracefully", () => {
+      const result = render({
+        type: "PAYMENT_REVERTED",
+        clientName: "Ana Torres",
+        amount: "$75.000",
+      });
+
+      expect(result.subject).toBeTruthy();
+      expect(result.text).toBeTruthy();
+    });
+
+    it("includes payment link in HTML when paymentId is provided", () => {
+      const result = render({
+        type: "PAYMENT_REVERTED",
+        clientName: "Test",
+        amount: "$100",
+        paymentId: "pay-123",
+      });
+
+      expect(result.html).toContain("/payments/pay-123");
+    });
+  });
+
   describe("email format", () => {
     it("includes HTML structure with DOCTYPE", () => {
       const result = render({

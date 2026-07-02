@@ -11,6 +11,7 @@ import { revalidatePath } from "next/cache";
 import { addDays } from "date-fns";
 import { ZodError } from "zod";
 import { getReservationPaidAmount, getReservationPendingAmount, type PaymentLike } from "@/lib/payments/calculations";
+import { recordDomainEvent } from "@/lib/notifications/record-event";
 
 function buildMercadoPagoNotificationUrl(paymentId: string) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -381,7 +382,7 @@ export async function processMercadoPagoWebhook(payload: {
 
   console.log(`[MP Webhook] Processing. ID: ${id}, Status: ${status}, ExternalRef: ${external_reference}, PreferenceID: ${preference_id}`);
 
-  let payment: Prisma.PaymentGetPayload<{ include: { reservation: true } }> | null = null;
+  let payment: Prisma.PaymentGetPayload<{ include: { reservation: { include: { client: true } } } }> | null = null;
   const parts = external_reference ? external_reference.split(":") : [];
   const reservationIdFromRef = parts[0] || null;
   const paymentIdFromRef = parts.length > 1 ? parts[1] : null;
@@ -390,14 +391,14 @@ export async function processMercadoPagoWebhook(payload: {
   if (hintedPaymentId) {
     payment = await prisma.payment.findFirst({
       where: { id: hintedPaymentId, deletedAt: null },
-      include: { reservation: true },
+      include: { reservation: { include: { client: true } } },
     });
   }
 
   if (!payment && hasValidPaymentIdInRef) {
     payment = await prisma.payment.findFirst({
       where: { id: paymentIdFromRef!, deletedAt: null },
-      include: { reservation: true },
+      include: { reservation: { include: { client: true } } },
     });
 
     if (payment && reservationIdFromRef && payment.reservationId !== reservationIdFromRef) {
@@ -408,7 +409,7 @@ export async function processMercadoPagoWebhook(payload: {
   if (!payment && preference_id) {
     payment = await prisma.payment.findFirst({
       where: { mercadoPagoId: preference_id, deletedAt: null },
-      include: { reservation: true },
+      include: { reservation: { include: { client: true } } },
     });
 
     if (payment && reservationIdFromRef && payment.reservationId !== reservationIdFromRef) {
@@ -419,7 +420,7 @@ export async function processMercadoPagoWebhook(payload: {
   if (!payment) {
     payment = await prisma.payment.findFirst({
       where: { mercadoPagoId: id, deletedAt: null },
-      include: { reservation: true },
+      include: { reservation: { include: { client: true } } },
     });
 
     if (payment && reservationIdFromRef && payment.reservationId !== reservationIdFromRef) {
@@ -486,6 +487,29 @@ export async function processMercadoPagoWebhook(payload: {
         where: { id: payment.reservationId },
         data: { status: "CONFIRMED" },
       });
+    }
+
+    // Emit PAYMENT_RECEIVED notification post-commit
+    try {
+      const owner = await prisma.userProfile.findUnique({
+        where: { id: payment.reservation.userId },
+        select: { email: true, name: true },
+      });
+      if (owner) {
+        await recordDomainEvent({
+          type: "PAYMENT_RECEIVED",
+          paymentId: payment.id,
+          ownerId: payment.reservation.userId,
+          ownerEmail: owner.email,
+          ownerName: owner.name ?? undefined,
+          clientName: payment.reservation.client.name,
+          amount: String(payment.amount),
+          method: "MERCADO_PAGO",
+          reservationId: payment.reservationId,
+        });
+      }
+    } catch (err) {
+      console.error("[Notifications] PAYMENT_RECEIVED dispatch failed (webhook)", err);
     }
   } else {
     await prisma.payment.update({
@@ -736,7 +760,7 @@ export async function updatePayment(id: string, data: { status: "COMPLETED" | "P
 
   const payment = await prisma.payment.findFirst({
     where: { id, deletedAt: null },
-    include: { reservation: true },
+    include: { reservation: { include: { client: true } } },
   });
 
   if (!payment) return { error: "Pago no encontrado" };
@@ -783,8 +807,55 @@ export async function updatePayment(id: string, data: { status: "COMPLETED" | "P
   return { success: true, payment: { ...updated, amount: String(updated.amount) } };
 }
 
-export async function revertPayment(id: string) {
-  return updatePayment(id, { status: "PENDING" });
+export async function revertPayment(id: string): Promise<
+  { success: true; payment: { id: string; amount: string; status: string; paidAt: Date | null; reservationId: string } } | { error: string }
+> {
+  const session = await getSession();
+  if (!session) return { error: "No autorizado" };
+
+  const existing = await prisma.payment.findFirst({
+    where: { id, deletedAt: null },
+    include: {
+      reservation: {
+        include: { client: { select: { name: true } } },
+      },
+    },
+  });
+
+  if (!existing) return { error: "Pago no encontrado" };
+  if (existing.reservation.userId !== session.userId) {
+    return { error: "No autorizado" };
+  }
+
+  const updated = await prisma.payment.update({
+    where: { id },
+    data: { status: "PENDING", paidAt: null },
+  });
+
+  // Emit PAYMENT_REVERTED notification post-commit
+  try {
+    const owner = await prisma.userProfile.findUnique({
+      where: { id: session.userId },
+      select: { email: true, name: true },
+    });
+    await recordDomainEvent({
+      type: "PAYMENT_REVERTED",
+      paymentId: id,
+      ownerId: session.userId,
+      ownerEmail: owner?.email ?? session.email,
+      ownerName: owner?.name ?? undefined,
+      clientName: existing.reservation.client.name,
+      amount: String(existing.amount),
+      reservationId: existing.reservationId,
+    });
+  } catch (err) {
+    console.error("[Notifications] PAYMENT_REVERTED dispatch failed", err);
+  }
+
+  revalidatePath("/reservations");
+  revalidatePath("/payments");
+
+  return { success: true, payment: { ...updated, amount: String(updated.amount) } };
 }
 
 export async function markPaymentAsPaid(
@@ -798,7 +869,7 @@ export async function markPaymentAsPaid(
 
   const payment = await prisma.payment.findFirst({
     where: { id: paymentId, deletedAt: null },
-    include: { reservation: true },
+    include: { reservation: { include: { client: true } } },
   });
 
   if (!payment) return { error: "Pago no encontrado" };
@@ -838,6 +909,29 @@ export async function markPaymentAsPaid(
     });
   }
 
+  // Emit PAYMENT_RECEIVED notification post-commit
+  try {
+    const owner = await prisma.userProfile.findUnique({
+      where: { id: payment.reservation.userId },
+      select: { email: true, name: true },
+    });
+    if (owner) {
+      await recordDomainEvent({
+        type: "PAYMENT_RECEIVED",
+        paymentId,
+        ownerId: payment.reservation.userId,
+        ownerEmail: owner.email,
+        ownerName: owner.name ?? undefined,
+        clientName: payment.reservation.client.name,
+        amount: String(payment.amount),
+        method,
+        reservationId: payment.reservationId,
+      });
+    }
+  } catch (err) {
+    console.error("[Notifications] PAYMENT_RECEIVED dispatch failed (manual)", err);
+  }
+
   revalidatePath('/reservations');
   revalidatePath(`/reservations/${payment.reservationId}`);
 
@@ -850,7 +944,7 @@ export async function attachReceipt(paymentId: string, receiptUrl: string) {
 
   const payment = await prisma.payment.findFirst({
     where: { id: paymentId, deletedAt: null },
-    include: { reservation: true },
+    include: { reservation: { include: { client: true } } },
   });
 
   if (!payment) return { error: "Pago no encontrado" };
@@ -894,7 +988,7 @@ export async function checkMercadoPagoPaymentStatus(paymentId: string) {
 
   const payment = await prisma.payment.findFirst({
     where: { id: paymentId, deletedAt: null },
-    include: { reservation: true },
+    include: { reservation: { include: { client: true } } },
   });
 
   if (!payment) return { error: "Pago no encontrado" };

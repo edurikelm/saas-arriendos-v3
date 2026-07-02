@@ -1,6 +1,20 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, beforeAll, afterAll, vi, beforeEach } from "vitest";
+import { render, screen, act } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { NotificationBell } from "../notification-bell";
+
+const { mockMarkAll } = vi.hoisted(() => ({
+  mockMarkAll: vi.fn().mockResolvedValue({ success: true, count: 5 }),
+}));
+
+vi.mock("@/lib/actions/notifications", () => ({
+  markAllNotificationsAsRead: mockMarkAll,
+  getRecentNotifications: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock("next/link", () => ({
+  default: ({ children, href }: any) => <a href={href}>{children}</a>,
+}));
 
 beforeAll(() => {
   Object.defineProperty(window, "matchMedia", {
@@ -23,6 +37,10 @@ afterAll(() => {
 });
 
 describe("NotificationBell", () => {
+  beforeEach(() => {
+    mockMarkAll.mockClear().mockResolvedValue({ success: true, count: 5 });
+  });
+
   it("renders the Bell button with rounded-lg and correct aria-label", () => {
     render(<NotificationBell unreadCount={0} />);
     const bell = screen.getByLabelText("Notificaciones");
@@ -31,9 +49,7 @@ describe("NotificationBell", () => {
 
   it("does not render badge when unreadCount is 0", () => {
     const { container } = render(<NotificationBell unreadCount={0} />);
-    const badges = container.querySelectorAll(
-      "span.bg-destructive",
-    );
+    const badges = container.querySelectorAll("span.bg-destructive");
     expect(badges).toHaveLength(0);
   });
 
@@ -68,5 +84,19 @@ describe("NotificationBell", () => {
     render(<NotificationBell unreadCount={10} />);
     const bell = screen.getByLabelText("Notificaciones");
     expect(bell).toBeTruthy();
+  });
+
+  it("calls markAllNotificationsAsRead when popover opens", async () => {
+    const user = userEvent.setup();
+
+    render(<NotificationBell unreadCount={5} />);
+    const bell = screen.getByLabelText("Notificaciones");
+
+    await act(async () => {
+      await user.click(bell);
+    });
+
+    // markAllNotificationsAsRead is called when popover opens
+    expect(mockMarkAll).toHaveBeenCalled();
   });
 });

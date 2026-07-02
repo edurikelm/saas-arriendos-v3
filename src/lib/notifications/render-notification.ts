@@ -11,6 +11,7 @@ export type NotificationEventType =
   | "RESERVATION_CREATED"
   | "RESERVATION_CANCELLED"
   | "PAYMENT_RECEIVED"
+  | "PAYMENT_REVERTED"
   | "PAYMENT_REMINDER"
   | "PAYMENT_FAILED";
 
@@ -32,6 +33,8 @@ export interface NotificationRenderData {
   // For PAYMENT_REMINDER
   dueDate?: string;
   daysFromToday?: number;
+  // For PAYMENT_REVERTED
+  reason?: string;
 }
 
 /**
@@ -52,6 +55,8 @@ export function renderNotification(
       return renderPaymentReceived(data, format);
     case "PAYMENT_REMINDER":
       return renderPaymentReminder(data, format);
+    case "PAYMENT_REVERTED":
+      return renderPaymentReverted(data, format);
     case "PAYMENT_FAILED":
       return renderPaymentFailed(data, format);
     default:
@@ -144,6 +149,18 @@ function renderPaymentFailed(
   const bodyText = `El pago de ${amount} de ${clientName} no pudo procesarse.`;
   const link = data.paymentId ? `/payments/${data.paymentId}` : undefined;
 
+  return buildRendered(subject, bodyText, link, format);
+}
+
+function renderPaymentReverted(
+  data: NotificationRenderData,
+  format: "in-app" | "email",
+): RenderedNotification {
+  const clientName = data.clientName ?? "un cliente";
+  const amount = data.amount ?? "—";
+  const subject = `Pago revertido: ${clientName} (${amount})`;
+  const bodyText = `Se revirtió el pago de ${amount} de ${clientName}.${data.reason ? ` Motivo: ${data.reason}.` : ""}`;
+  const link = data.paymentId ? `/payments/${data.paymentId}` : undefined;
   return buildRendered(subject, bodyText, link, format);
 }
 
