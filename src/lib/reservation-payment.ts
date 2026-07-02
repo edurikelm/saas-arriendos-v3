@@ -20,8 +20,13 @@ export function getPaymentStatus({
   totalPrice,
   status,
 }: {
-  paidAmount: number;
-  totalPrice: number;
+  /**
+   * Acepta `string | number` porque los `Decimal` de Prisma pueden llegar
+   * como string (driver pg) o number (driver binario) segun el flujo.
+   * El cuerpo de la funcion ya hace `Number(paidAmount)` para normalizar.
+   */
+  paidAmount: string | number;
+  totalPrice: string | number;
   status: string;
 }): PaymentStatusResult {
   const paid = Number(paidAmount);
