@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-nocheck — TODO(P1-tests): migrate to per-line @ts-expect-error or proper types
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { SessionUser } from "@/lib/actions/auth";
 
@@ -82,19 +80,19 @@ describe("getDashboardStats", () => {
       role: "SUPER_ADMIN",
     } as any);
 
-    vi.mocked(prisma.userProfile.count).mockImplementation(async ({ where }: any) => {
+    vi.mocked(prisma.userProfile.count).mockImplementation((async ({ where }: any) => {
       if (!where) return 10;
       if (where.role === "OWNER" && where.plan === "PRO") return 3;
       if (where.role === "OWNER" && where.createdAt?.gte && !where.createdAt?.lte) return 5;
       if (where.role === "OWNER" && where.createdAt?.gte && where.createdAt?.lte) return 4;
       if (where.role === "OWNER") return 10;
       return 0;
-    });
+    }) as never);
     vi.mocked(prisma.property.count).mockResolvedValue(25);
     vi.mocked(prisma.reservation.count).mockResolvedValue(100);
     vi.mocked(prisma.payment.aggregate).mockResolvedValue({
       _sum: { amount: 500000 },
-    });
+    } as any);
 
     const { getDashboardStats } = await import("@/lib/actions/super-admin");
     const result = await getDashboardStats();
@@ -116,16 +114,16 @@ describe("getDashboardStats", () => {
       role: "SUPER_ADMIN",
     } as any);
 
-    vi.mocked(prisma.userProfile.count).mockImplementation(async ({ where }: any) => {
+    vi.mocked(prisma.userProfile.count).mockImplementation((async ({ where }: any) => {
       if (where.role === "OWNER" && where.plan === "PRO") return 3;
       if (where.role === "OWNER" && where.createdAt?.gte && !where.createdAt?.lte) return 2;
       if (where.role === "OWNER" && where.createdAt?.gte && where.createdAt?.lte) return 2;
       if (where.role === "OWNER") return 10;
       return 0;
-    });
+    }) as never);
     vi.mocked(prisma.property.count).mockResolvedValue(0);
     vi.mocked(prisma.reservation.count).mockResolvedValue(0);
-    vi.mocked(prisma.payment.aggregate).mockResolvedValue({ _sum: { amount: 0 } });
+    vi.mocked(prisma.payment.aggregate).mockResolvedValue({ _sum: { amount: 0 } } as any);
 
     const { getDashboardStats } = await import("@/lib/actions/super-admin");
     const result = await getDashboardStats();
@@ -143,16 +141,16 @@ describe("getDashboardStats", () => {
       role: "SUPER_ADMIN",
     } as any);
 
-    vi.mocked(prisma.userProfile.count).mockImplementation(async ({ where }: any) => {
+    vi.mocked(prisma.userProfile.count).mockImplementation((async ({ where }: any) => {
       if (where.role === "OWNER" && where.plan === "PRO") return 2;
       if (where.role === "OWNER" && where.createdAt?.gte && !where.createdAt?.lte) return 6;
       if (where.role === "OWNER" && where.createdAt?.gte && where.createdAt?.lte) return 4;
       if (where.role === "OWNER") return 10;
       return 0;
-    });
+    }) as never);
     vi.mocked(prisma.property.count).mockResolvedValue(0);
     vi.mocked(prisma.reservation.count).mockResolvedValue(0);
-    vi.mocked(prisma.payment.aggregate).mockResolvedValue({ _sum: { amount: 0 } });
+    vi.mocked(prisma.payment.aggregate).mockResolvedValue({ _sum: { amount: 0 } } as any);
 
     const { getDashboardStats } = await import("@/lib/actions/super-admin");
     const result = await getDashboardStats();
@@ -175,7 +173,7 @@ describe("getDashboardStats", () => {
     vi.mocked(prisma.userProfile.count).mockResolvedValue(0);
     vi.mocked(prisma.property.count).mockResolvedValue(0);
     vi.mocked(prisma.reservation.count).mockResolvedValue(0);
-    vi.mocked(prisma.payment.aggregate).mockResolvedValue({ _sum: { amount: 0 } });
+    vi.mocked(prisma.payment.aggregate).mockResolvedValue({ _sum: { amount: 0 } } as any);
 
     const { getDashboardStats } = await import("@/lib/actions/super-admin");
     const result = await getDashboardStats();
