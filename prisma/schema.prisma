@@ -113,6 +113,14 @@ enum ExternalBlockStatus {
   INACTIVE
 }
 
+enum NotificationType {
+  RESERVATION_CREATED
+  RESERVATION_CANCELLED
+  PAYMENT_RECEIVED
+  PAYMENT_REMINDER
+  PAYMENT_FAILED
+}
+
 model UserProfile {
   id        String     @id @default(cuid())
   name      String?
@@ -133,6 +141,40 @@ model UserProfile {
   ownerNotes   AdminNote[]      @relation("OwnerNotes")
   adminActions AdminActionLog[] @relation("AdminActions")
   externalCalendars ExternalCalendar[]
+  notifications    Notification[]
+  notificationReads NotificationRead[]
+}
+
+model Notification {
+  id              String           @id @default(cuid())
+  notificationKey String           @unique
+  userId          String
+  type            NotificationType
+  title           String
+  body            String
+  link            String?
+  createdAt       DateTime         @default(now())
+  deliveredAt     DateTime?
+
+  user  UserProfile        @relation(fields: [userId], references: [id])
+  reads NotificationRead[]
+
+  @@index([userId, createdAt])
+  @@index([userId, deliveredAt])
+}
+
+model NotificationRead {
+  id              String   @id @default(cuid())
+  notificationId String
+  userId         String
+  lastReadAt     DateTime @default(now())
+
+  notification Notification @relation(fields: [notificationId], references: [id])
+  user         UserProfile  @relation(fields: [userId], references: [id])
+
+  @@unique([notificationId, userId])
+  @@index([userId])
+  @@index([notificationId])
 }
 
 model SupportTicket {
