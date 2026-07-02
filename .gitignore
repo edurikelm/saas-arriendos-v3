@@ -36,3 +36,7 @@ coverage/
 
 # Scratch / design tools
 .kombai/
+.scratch/
+
+# Supabase CLI local config (linked project ref + temp state)
+supabase/
