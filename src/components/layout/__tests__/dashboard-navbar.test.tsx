@@ -20,8 +20,7 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  // @ts-expect-error cleanup
-  delete window.matchMedia;
+  Reflect.deleteProperty(window, "matchMedia");
 });
 
 function renderNavbar(props: {
