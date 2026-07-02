@@ -15,8 +15,10 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const session = await requireOwner();
-  const supportUnreadCount = await getUnreadSupportTicketCount();
-  const notificationUnreadCount = await getUnreadNotificationCount(session.userId);
+  const [supportUnreadCount, notificationUnreadCount] = await Promise.all([
+    getUnreadSupportTicketCount(),
+    getUnreadNotificationCount(session.userId),
+  ]);
 
   return (
     <DashboardLayoutClient

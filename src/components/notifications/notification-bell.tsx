@@ -21,6 +21,7 @@ export function NotificationBell({ unreadCount }: NotificationBellProps) {
       </Button>
       {unreadCount > 0 && (
         <span
+          aria-label={`${unreadCount} notificaciones sin leer`}
           className={cn(
             "absolute -top-0.5 -right-0.5 inline-flex items-center justify-center rounded-full",
             "bg-destructive px-1 py-0.5 text-xs font-bold text-destructive-foreground",
