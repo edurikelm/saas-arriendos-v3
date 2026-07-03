@@ -30,7 +30,15 @@ export class EmailChannel implements NotificationChannel {
     const fromEmail = process.env.RESEND_FROM_EMAIL;
     const fromName = process.env.RESEND_FROM_NAME ?? "RentalPro";
 
-    // TODO(#172): check UserProfile.notificationsEmailEnabled before sending
+    // Check user email preference before any API calls
+    const recipientPref = await prisma.userProfile.findUnique({
+      where: { id: recipient.userId },
+      select: { notificationsEmailEnabled: true },
+    });
+    if (recipientPref && recipientPref.notificationsEmailEnabled === false) {
+      return { ok: true, skipped: "email-disabled" };
+    }
+
     const renderData: NotificationRenderData = {
       type: intent.type,
       reservationId: intent.link?.startsWith("/reservations/") ? intent.link.split("/").pop() : undefined,

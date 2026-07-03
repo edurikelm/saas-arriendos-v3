@@ -153,3 +153,38 @@ export async function createTestNotification(): Promise<
 
   return { success: true, notification };
 }
+
+/**
+ * Returns the current user's email notification preference.
+ * Returns true (default safe) if no session.
+ */
+export async function getNotificationsEmailEnabled(): Promise<boolean> {
+  const session = await getSession();
+  if (!session) return true;
+
+  const profile = await prisma.userProfile.findUnique({
+    where: { id: session.userId },
+    select: { notificationsEmailEnabled: true },
+  });
+
+  return profile?.notificationsEmailEnabled ?? true;
+}
+
+/**
+ * Updates the current user's email notification preference.
+ * Auth: session required; only own record can be updated.
+ */
+export async function setNotificationsEmailEnabled(
+  enabled: boolean,
+): Promise<{ success: true } | { error: string }> {
+  const session = await getSession();
+  if (!session) return { error: "No autorizado" };
+
+  await prisma.userProfile.update({
+    where: { id: session.userId },
+    data: { notificationsEmailEnabled: enabled },
+  });
+
+  revalidatePath("/settings");
+  return { success: true };
+}

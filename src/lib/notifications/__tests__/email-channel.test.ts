@@ -13,6 +13,9 @@ vi.mock("@/lib/db/prisma", () => ({
       findUnique: vi.fn(),
       update: vi.fn(),
     },
+    userProfile: {
+      findUnique: vi.fn(),
+    },
   },
 }));
 
@@ -20,10 +23,16 @@ describe("EmailChannel", () => {
   const originalApiKey = process.env.RESEND_API_KEY;
   const originalFromEmail = process.env.RESEND_FROM_EMAIL;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
     process.env.RESEND_API_KEY = "re_testkey";
     process.env.RESEND_FROM_EMAIL = "test@example.com";
+
+    // Default: email enabled
+    const { prisma } = await import("@/lib/db/prisma");
+    vi.mocked(prisma.userProfile.findUnique).mockResolvedValue({
+      notificationsEmailEnabled: true,
+    } as any);
   });
 
   afterEach(() => {
@@ -239,5 +248,78 @@ describe("EmailChannel", () => {
 
     expect(result).toEqual({ ok: true, skipped: "no-api-key" });
     expect(prisma.notification.update).not.toHaveBeenCalled();
+  });
+
+  it("does NOT call Resend when notificationsEmailEnabled is false", async () => {
+    const { prisma } = await import("@/lib/db/prisma");
+    const { EmailChannel } = await import("@/lib/notifications/email-channel");
+
+    const channel = new EmailChannel();
+
+    vi.mocked(prisma.userProfile.findUnique).mockResolvedValue({
+      notificationsEmailEnabled: false,
+    } as any);
+
+    const intent = {
+      notificationKey: "reservation-created:res-1",
+      type: "RESERVATION_CREATED" as const,
+      title: "Nueva reserva",
+      body: "Se creó una reserva",
+      userId: "user-1",
+    };
+
+    const result = await channel.dispatch(intent, {
+      userId: "user-1",
+      email: "owner@test.com",
+    });
+
+    expect(result).toEqual({ ok: true, skipped: "email-disabled" });
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("calls Resend when notificationsEmailEnabled is true", async () => {
+    const { prisma } = await import("@/lib/db/prisma");
+    const { EmailChannel } = await import("@/lib/notifications/email-channel");
+
+    const channel = new EmailChannel();
+
+    vi.mocked(prisma.userProfile.findUnique).mockResolvedValue({
+      notificationsEmailEnabled: true,
+    } as any);
+    vi.mocked(prisma.notification.findUnique).mockResolvedValue({
+      id: "notif-1",
+      notificationKey: "reservation-created:res-1",
+      userId: "user-1",
+      type: "RESERVATION_CREATED" as const,
+      title: "Nueva reserva",
+      body: "Se creó una reserva",
+      link: "/reservations/res-1",
+      createdAt: new Date(),
+      deliveredAt: null,
+    });
+    mockSend.mockResolvedValue({ data: { id: "email-123" }, error: null });
+    vi.mocked(prisma.notification.update).mockResolvedValue({} as any);
+
+    const intent = {
+      notificationKey: "reservation-created:res-1",
+      type: "RESERVATION_CREATED" as const,
+      title: "Nueva reserva",
+      body: "Se creó una reserva",
+      link: "/reservations/res-1",
+      userId: "user-1",
+    };
+
+    const result = await channel.dispatch(intent, {
+      userId: "user-1",
+      email: "owner@test.com",
+    });
+
+    expect(result).toEqual({ ok: true, notificationId: "notif-1", deduplicated: false });
+    expect(mockSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "owner@test.com",
+        subject: expect.any(String),
+      }),
+    );
   });
 });

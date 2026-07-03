@@ -13,6 +13,10 @@ vi.mock("@/lib/db/prisma", () => ({
       upsert: vi.fn(),
       createMany: vi.fn(),
     },
+    userProfile: {
+      findUnique: vi.fn(),
+      update: vi.fn(),
+    },
   },
 }));
 
@@ -405,5 +409,103 @@ describe("createTestNotification", () => {
     const result = await createTestNotification();
 
     expect(result).toEqual({ error: "No autorizado" });
+  });
+});
+
+describe("getNotificationsEmailEnabled", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns true when no session (default safe)", async () => {
+    const { getSession } = await import("@/lib/actions/auth");
+    vi.mocked(getSession).mockResolvedValue(null);
+
+    const { getNotificationsEmailEnabled } = await import("../notifications");
+    const result = await getNotificationsEmailEnabled();
+
+    expect(result).toBe(true);
+  });
+
+  it("returns the persisted value from userProfile", async () => {
+    const { getSession } = await import("@/lib/actions/auth");
+    const { prisma } = await import("@/lib/db/prisma");
+    vi.mocked(getSession).mockResolvedValue(ownerSession);
+    vi.mocked(prisma.userProfile.findUnique).mockResolvedValue({
+      notificationsEmailEnabled: false,
+    } as any);
+
+    const { getNotificationsEmailEnabled } = await import("../notifications");
+    const result = await getNotificationsEmailEnabled();
+
+    expect(result).toBe(false);
+    expect(prisma.userProfile.findUnique).toHaveBeenCalledWith({
+      where: { id: "owner-1" },
+      select: { notificationsEmailEnabled: true },
+    });
+  });
+
+  it("returns true when profile not found", async () => {
+    const { getSession } = await import("@/lib/actions/auth");
+    const { prisma } = await import("@/lib/db/prisma");
+    vi.mocked(getSession).mockResolvedValue(ownerSession);
+    vi.mocked(prisma.userProfile.findUnique).mockResolvedValue(null);
+
+    const { getNotificationsEmailEnabled } = await import("../notifications");
+    const result = await getNotificationsEmailEnabled();
+
+    expect(result).toBe(true);
+  });
+});
+
+describe("setNotificationsEmailEnabled", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns error when no session", async () => {
+    const { getSession } = await import("@/lib/actions/auth");
+    vi.mocked(getSession).mockResolvedValue(null);
+
+    const { setNotificationsEmailEnabled } = await import("../notifications");
+    const result = await setNotificationsEmailEnabled(false);
+
+    expect(result).toEqual({ error: "No autorizado" });
+  });
+
+  it("updates only the current user's record", async () => {
+    const { getSession } = await import("@/lib/actions/auth");
+    const { prisma } = await import("@/lib/db/prisma");
+    const { revalidatePath } = await import("next/cache");
+    vi.mocked(getSession).mockResolvedValue(ownerSession);
+    vi.mocked(prisma.userProfile.update).mockResolvedValue({} as any);
+
+    const { setNotificationsEmailEnabled } = await import("../notifications");
+    const result = await setNotificationsEmailEnabled(false);
+
+    expect(result).toEqual({ success: true });
+    expect(prisma.userProfile.update).toHaveBeenCalledWith({
+      where: { id: "owner-1" },
+      data: { notificationsEmailEnabled: false },
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/settings");
+  });
+
+  it("can set the preference back to true", async () => {
+    const { getSession } = await import("@/lib/actions/auth");
+    const { prisma } = await import("@/lib/db/prisma");
+    const { revalidatePath } = await import("next/cache");
+    vi.mocked(getSession).mockResolvedValue(ownerSession);
+    vi.mocked(prisma.userProfile.update).mockResolvedValue({} as any);
+
+    const { setNotificationsEmailEnabled } = await import("../notifications");
+    const result = await setNotificationsEmailEnabled(true);
+
+    expect(result).toEqual({ success: true });
+    expect(prisma.userProfile.update).toHaveBeenCalledWith({
+      where: { id: "owner-1" },
+      data: { notificationsEmailEnabled: true },
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/settings");
   });
 });

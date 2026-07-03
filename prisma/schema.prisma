@@ -123,14 +123,15 @@ enum NotificationType {
 }
 
 model UserProfile {
-  id        String     @id @default(cuid())
-  name      String?
-  email     String     @unique
-  password  String
-  role      UserRole   @default(OWNER)
-  status    UserStatus @default(ACTIVE)
-  plan      Plan?      @default(FREE)
-  createdAt DateTime   @default(now())
+  id                         String     @id @default(cuid())
+  name                       String?
+  email                      String     @unique
+  password                   String
+  role                       UserRole   @default(OWNER)
+  status                     UserStatus @default(ACTIVE)
+  plan                       Plan?      @default(FREE)
+  notificationsEmailEnabled  Boolean    @default(true)
+  createdAt                  DateTime   @default(now())
 
   properties      Property[]
   clients         ReservationClient[]
