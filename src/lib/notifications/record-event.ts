@@ -48,7 +48,29 @@ export type DomainEvent =
       amount: string;
       reason?: string;
       reservationId?: string;
+    }
+  | {
+      type: "PAYMENT_REMINDER";
+      paymentId: string;
+      milestone: string;
+      ownerId: string;
+      ownerEmail: string;
+      ownerName?: string;
+      clientName: string;
+      amount: string;
+      dueDate?: string;
+      reservationId?: string;
     };
+
+/** Maps milestone name to daysFromToday (inverse of milestoneFromDays in select-reminders-for-dispatch) */
+const MILESTONE_TO_DAYS: Record<string, number> = {
+  BEFORE_3_DAYS: 3,
+  BEFORE_1_DAY: 1,
+  DUE_TODAY: 0,
+  OVERDUE_1_DAY: -1,
+  OVERDUE_3_DAYS: -3,
+  OVERDUE_7_DAYS: -7,
+};
 
 async function dispatchIntent(
   intent: NotificationIntent,
@@ -123,6 +145,32 @@ export async function recordDomainEvent(event: DomainEvent): Promise<void> {
       const intent: NotificationIntent = {
         notificationKey: `payment-reverted:${event.paymentId}`,
         type: "PAYMENT_REVERTED",
+        title: rendered.subject,
+        body: rendered.text,
+        link: `/payments/${event.paymentId}`,
+        userId: event.ownerId,
+      };
+      const recipient: NotificationRecipient = {
+        userId: event.ownerId,
+        email: event.ownerEmail,
+        name: event.ownerName,
+      };
+      await dispatchIntent(intent, recipient);
+    } else if (event.type === "PAYMENT_REMINDER") {
+      const daysFromToday = MILESTONE_TO_DAYS[event.milestone] ?? 0;
+      const renderData: NotificationRenderData = {
+        type: "PAYMENT_REMINDER",
+        paymentId: event.paymentId,
+        clientName: event.clientName,
+        amount: event.amount,
+        dueDate: event.dueDate,
+        milestone: event.milestone,
+        daysFromToday,
+      };
+      const rendered = renderNotification(renderData, "in-app");
+      const intent: NotificationIntent = {
+        notificationKey: `payment-reminder:${event.paymentId}:${event.milestone}`,
+        type: "PAYMENT_REMINDER",
         title: rendered.subject,
         body: rendered.text,
         link: `/payments/${event.paymentId}`,

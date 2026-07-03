@@ -243,6 +243,229 @@ describe("recordDomainEvent", () => {
     });
   });
 
+
+
+  describe("PAYMENT_REMINDER", () => {
+    it("dispatches to inAppChannel with correct notificationKey matching select-reminders-for-dispatch", async () => {
+      const { recordDomainEvent } = await import("@/lib/notifications/record-event");
+
+      mockInAppDispatch.mockResolvedValue({ ok: true, notificationId: "notif-4", deduplicated: false });
+      mockEmailDispatch.mockResolvedValue({ ok: true, notificationId: "notif-4", deduplicated: false });
+
+      await recordDomainEvent({
+        type: "PAYMENT_REMINDER",
+        paymentId: "pay-rem-1",
+        milestone: "DUE_TODAY",
+        ownerId: "user-1",
+        ownerEmail: "owner@test.com",
+        ownerName: "Carlos",
+        clientName: "Juan",
+        amount: "$150.000",
+        dueDate: "2026-07-03",
+        reservationId: "res-123",
+      });
+
+      expect(mockInAppDispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          notificationKey: "payment-reminder:pay-rem-1:DUE_TODAY",
+          type: "PAYMENT_REMINDER",
+          title: expect.stringContaining("Juan"),
+          link: "/payments/pay-rem-1",
+          userId: "user-1",
+        }),
+        expect.objectContaining({
+          userId: "user-1",
+          email: "owner@test.com",
+          name: "Carlos",
+        }),
+      );
+    });
+
+    it("calculates daysFromToday = 0 for DUE_TODAY milestone", async () => {
+      const { recordDomainEvent } = await import("@/lib/notifications/record-event");
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+      mockInAppDispatch.mockResolvedValue({ ok: true, notificationId: "notif-4", deduplicated: false });
+      mockEmailDispatch.mockResolvedValue({ ok: true, notificationId: "notif-4", deduplicated: false });
+
+      await recordDomainEvent({
+        type: "PAYMENT_REMINDER",
+        paymentId: "pay-rem-2",
+        milestone: "DUE_TODAY",
+        ownerId: "user-2",
+        ownerEmail: "owner2@test.com",
+        clientName: "María",
+        amount: "$200.000",
+      });
+
+      const inAppCall = mockInAppDispatch.mock.calls[0][0];
+      expect(inAppCall.title).toContain("vence hoy");
+      consoleSpy.mockRestore();
+    });
+
+    it("calculates daysFromToday = -1 for OVERDUE_1_DAY milestone", async () => {
+      const { recordDomainEvent } = await import("@/lib/notifications/record-event");
+
+      mockInAppDispatch.mockResolvedValue({ ok: true, notificationId: "notif-5", deduplicated: false });
+      mockEmailDispatch.mockResolvedValue({ ok: true, notificationId: "notif-5", deduplicated: false });
+
+      await recordDomainEvent({
+        type: "PAYMENT_REMINDER",
+        paymentId: "pay-rem-3",
+        milestone: "OVERDUE_1_DAY",
+        ownerId: "user-1",
+        ownerEmail: "owner@test.com",
+        clientName: "Ana",
+        amount: "$80.000",
+      });
+
+      const inAppCall = mockInAppDispatch.mock.calls[0][0];
+      expect(inAppCall.title).toContain("vencido hace 1 día");
+    });
+
+    it("calculates daysFromToday = 3 for BEFORE_3_DAYS milestone", async () => {
+      const { recordDomainEvent } = await import("@/lib/notifications/record-event");
+
+      mockInAppDispatch.mockResolvedValue({ ok: true, notificationId: "notif-6", deduplicated: false });
+      mockEmailDispatch.mockResolvedValue({ ok: true, notificationId: "notif-6", deduplicated: false });
+
+      await recordDomainEvent({
+        type: "PAYMENT_REMINDER",
+        paymentId: "pay-rem-4",
+        milestone: "BEFORE_3_DAYS",
+        ownerId: "user-1",
+        ownerEmail: "owner@test.com",
+        clientName: "Pedro",
+        amount: "$300.000",
+      });
+
+      const inAppCall = mockInAppDispatch.mock.calls[0][0];
+      expect(inAppCall.title).toContain("pago en 3 días");
+    });
+
+    it("does not throw when InAppChannel fails", async () => {
+      const { recordDomainEvent } = await import("@/lib/notifications/record-event");
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      mockInAppDispatch.mockResolvedValue({ ok: false, error: "DB error" });
+      mockEmailDispatch.mockResolvedValue({ ok: true, skipped: "no-api-key" } as any);
+
+      await expect(
+        recordDomainEvent({
+          type: "PAYMENT_REMINDER",
+          paymentId: "pay-rem-5",
+          milestone: "OVERDUE_3_DAYS",
+          ownerId: "user-1",
+          ownerEmail: "owner@test.com",
+          clientName: "Test",
+          amount: "$100",
+        }),
+      ).resolves.not.toThrow();
+
+      expect(mockEmailDispatch).not.toHaveBeenCalled();
+      consoleSpy.mockRestore();
+    });
+
+    it("does not throw when EmailChannel fails", async () => {
+      const { recordDomainEvent } = await import("@/lib/notifications/record-event");
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      mockInAppDispatch.mockResolvedValue({ ok: true, notificationId: "notif-7", deduplicated: false });
+      mockEmailDispatch.mockResolvedValue({ ok: false, error: "SMTP error" });
+
+      await expect(
+        recordDomainEvent({
+          type: "PAYMENT_REMINDER",
+          paymentId: "pay-rem-6",
+          milestone: "OVERDUE_7_DAYS",
+          ownerId: "user-1",
+          ownerEmail: "owner@test.com",
+          clientName: "Laura",
+          amount: "$500",
+        }),
+      ).resolves.not.toThrow();
+
+      consoleSpy.mockRestore();
+    });
+
+    it("does NOT throw and still dispatches to inAppChannel when email returns skipped-email-disabled (AC #172)", async () => {
+      const { recordDomainEvent } = await import("@/lib/notifications/record-event");
+
+      mockInAppDispatch.mockResolvedValue({ ok: true, notificationId: "notif-ed", deduplicated: false });
+      mockEmailDispatch.mockResolvedValue({ ok: true, skipped: "email-disabled" } as any);
+
+      await expect(
+        recordDomainEvent({
+          type: "PAYMENT_REMINDER",
+          paymentId: "pay-rem-email-skipped",
+          milestone: "DUE_TODAY",
+          ownerId: "user-email",
+          ownerEmail: "owner@test.com",
+          ownerName: "Carlos",
+          clientName: "Juan",
+          amount: "$150.000",
+          dueDate: "2026-07-03",
+          reservationId: "res-email",
+        }),
+      ).resolves.not.toThrow();
+
+      expect(mockInAppDispatch).toHaveBeenCalledTimes(1);
+      expect(mockInAppDispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          notificationKey: "payment-reminder:pay-rem-email-skipped:DUE_TODAY",
+          type: "PAYMENT_REMINDER",
+          link: "/payments/pay-rem-email-skipped",
+          userId: "user-email",
+        }),
+        expect.objectContaining({
+          userId: "user-email",
+          email: "owner@test.com",
+          name: "Carlos",
+        }),
+      );
+    });
+
+    it("MILESTONE_TO_DAYS: BEFORE_1_DAY maps to daysFromToday=1", async () => {
+      const { recordDomainEvent } = await import("@/lib/notifications/record-event");
+
+      mockInAppDispatch.mockResolvedValue({ ok: true, notificationId: "notif-m1", deduplicated: false });
+      mockEmailDispatch.mockResolvedValue({ ok: true, notificationId: "notif-m1", deduplicated: false });
+
+      await recordDomainEvent({
+        type: "PAYMENT_REMINDER",
+        paymentId: "pay-m1",
+        milestone: "BEFORE_1_DAY",
+        ownerId: "user-m1",
+        ownerEmail: "owner@test.com",
+        clientName: "Pedro",
+        amount: "$120.000",
+      });
+
+      const inAppCall = mockInAppDispatch.mock.calls[0][0];
+      expect(inAppCall.title).toContain("pago en 1 día");
+    });
+
+    it("MILESTONE_TO_DAYS: OVERDUE_3_DAYS maps to daysFromToday=-3", async () => {
+      const { recordDomainEvent } = await import("@/lib/notifications/record-event");
+
+      mockInAppDispatch.mockResolvedValue({ ok: true, notificationId: "notif-m3", deduplicated: false });
+      mockEmailDispatch.mockResolvedValue({ ok: true, notificationId: "notif-m3", deduplicated: false });
+
+      await recordDomainEvent({
+        type: "PAYMENT_REMINDER",
+        paymentId: "pay-m3",
+        milestone: "OVERDUE_3_DAYS",
+        ownerId: "user-m3",
+        ownerEmail: "owner@test.com",
+        clientName: "Ana",
+        amount: "$90.000",
+      });
+
+      const inAppCall = mockInAppDispatch.mock.calls[0][0];
+      expect(inAppCall.title).toContain("vencido hace 3 días");
+    });
+  });
+
   describe("PAYMENT_REVERTED", () => {
     it("dispatches to inAppChannel with correct intent including reason", async () => {
       const { recordDomainEvent } = await import("@/lib/notifications/record-event");
