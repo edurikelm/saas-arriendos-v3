@@ -115,7 +115,7 @@ export function MercadoPagoSettings({ oauthStatus }: MercadoPagoSettingsProps) {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-muted-foreground" />
         </CardContent>
       </Card>
     );
@@ -134,8 +134,8 @@ export function MercadoPagoSettings({ oauthStatus }: MercadoPagoSettingsProps) {
           <div
             className={`rounded-md border px-3 py-2 text-sm ${
               oauthMessage.tone === "success"
-                ? "border-green-300 bg-green-50 text-green-900"
-                : "border-red-300 bg-red-50 text-red-900"
+                ? "border-success/20 bg-success/10 text-success-foreground"
+                : "border-destructive/20 bg-destructive/10 text-destructive-foreground"
             }`}
           >
             {oauthMessage.text}
@@ -145,7 +145,7 @@ export function MercadoPagoSettings({ oauthStatus }: MercadoPagoSettingsProps) {
         <div className="flex items-center gap-2">
           <span
             className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium ${
-              isConnected ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"
+              isConnected ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"
             }`}
           >
             {isConnected ? "Conectado" : "No conectado"}
