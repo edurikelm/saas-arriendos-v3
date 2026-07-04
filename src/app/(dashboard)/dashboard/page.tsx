@@ -172,10 +172,10 @@ function ReservationRow({
           </p>
         </div>
         <div className="min-w-24">
-          <p className={mode === "active" ? "text-sm font-semibold text-emerald-600 dark:text-emerald-300" : "text-sm font-semibold text-sky-600 dark:text-sky-300"}>
+          <p className={mode === "active" ? "text-sm font-semibold text-success" : "text-sm font-semibold text-info-foreground"}>
             {mode === "active" ? `Termina en ${remainingDays}d` : `En ${remainingDays}d`}
           </p>
-          {pending > 0 && <p className="text-xs text-amber-600 dark:text-amber-300">{formatCLP(pending)} pte.</p>}
+          {pending > 0 && <p className="text-xs text-warning-foreground">{formatCLP(pending)} pte.</p>}
         </div>
       </div>
     </Link>

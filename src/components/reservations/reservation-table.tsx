@@ -63,9 +63,9 @@ function getMonths(startDate: string, endDate: string): number {
   return getInclusiveMonths(startDate, endDate);
 }
 
-function getTemporalStatus(startDate: string, endDate: string, billingType: string, status?: string): { label: string; variant: "default" | "secondary" | "outline" | "destructive"; color: string; sublabel?: string } {
-  if (status === "CANCELLED") return { label: "Cancelada", variant: "destructive", color: "#EF4444" };
-  if (status === "COMPLETED") return { label: "Finalizada", variant: "outline", color: "#6B7280" };
+function getTemporalStatus(startDate: string, endDate: string, billingType: string, status?: string): { label: string; sublabel?: string } {
+  if (status === "CANCELLED") return { label: "Cancelada" };
+  if (status === "COMPLETED") return { label: "Finalizada" };
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -74,15 +74,15 @@ function getTemporalStatus(startDate: string, endDate: string, billingType: stri
 
   if (today < start) {
     const daysUntil = Math.ceil((start.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    return { label: "Próxima", variant: "secondary", color: "#3B82F6", sublabel: `${daysUntil}d` };
+    return { label: "Próxima", sublabel: `${daysUntil}d` };
   }
-  if (today > end) return { label: "Finalizada", variant: "outline", color: "#6B7280" };
+  if (today > end) return { label: "Finalizada" };
   if (billingType === "MONTHLY") {
     const monthsLeft = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24 * 30));
-    return { label: "Activa", variant: "default", color: "#10B981", sublabel: `${monthsLeft} meses` };
+    return { label: "Activa", sublabel: `${monthsLeft} meses` };
   }
   const nightsLeft = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  return { label: "Activa", variant: "default", color: "#10B981", sublabel: `${nightsLeft} noches` };
+  return { label: "Activa", sublabel: `${nightsLeft} noches` };
 }
 
 function getReservationTone(status: string, startDate: string, endDate: string): PillTone {
@@ -174,7 +174,7 @@ function ReservationMobileCard({ reservation, onEdit, onView, onCancel, onDelete
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5 pl-1.5">
         <ReservationPill tone={stateTone} label={temporal.label} />
-        <ReservationPill tone={reservation.billingType === "DAILY" ? "info" : "info"} label={reservation.billingType === "DAILY" ? "Diario" : "Mensual"} />
+        <ReservationPill tone="info" label={reservation.billingType === "DAILY" ? "Diario" : "Mensual"} />
         <ReservationPill tone={paymentTone} label={paymentStatus.label} />
       </div>
 
@@ -391,7 +391,7 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                     </div>
                   </td>
                   <td className="border-y border-zinc-200/70 bg-white p-4 shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
-                    <ReservationPill tone={res.billingType === "DAILY" ? "info" : "info"} label={res.billingType === "DAILY" ? "Diario" : "Mensual"} />
+                    <ReservationPill tone="info" label={res.billingType === "DAILY" ? "Diario" : "Mensual"} />
                   </td>
                   <td className="border-y border-zinc-200/70 bg-white p-4 text-right shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
                     <span className="font-bold tabular-nums text-zinc-900 dark:text-zinc-100">
