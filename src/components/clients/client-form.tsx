@@ -54,7 +54,7 @@ export function ClientForm({
           placeholder="Juan Pérez"
         />
         {errors.name && (
-          <p className="text-sm text-red-500">{errors.name.message}</p>
+          <p className="text-sm text-destructive">{errors.name.message}</p>
         )}
       </div>
 
@@ -69,10 +69,10 @@ export function ClientForm({
           placeholder="juan@ejemplo.com"
         />
         {errors.email && (
-          <p className="text-sm text-red-500">{errors.email.message}</p>
+          <p className="text-sm text-destructive">{errors.email.message}</p>
         )}
         {serverError && (
-          <p className="text-sm text-red-500">{serverError}</p>
+          <p className="text-sm text-destructive">{serverError}</p>
         )}
       </div>
 
@@ -85,7 +85,7 @@ export function ClientForm({
             placeholder="+56 9 1234 5678"
           />
           {errors.phone && (
-            <p className="text-sm text-red-500">{errors.phone.message}</p>
+            <p className="text-sm text-destructive">{errors.phone.message}</p>
           )}
         </div>
         <div className="space-y-2">
@@ -96,7 +96,7 @@ export function ClientForm({
             placeholder="12.345.678-9"
           />
           {errors.rut && (
-            <p className="text-sm text-red-500">{errors.rut.message}</p>
+            <p className="text-sm text-destructive">{errors.rut.message}</p>
           )}
         </div>
       </div>
@@ -110,7 +110,7 @@ export function ClientForm({
           className="resize-none"
         />
         {errors.notes && (
-          <p className="text-sm text-red-500">{errors.notes.message}</p>
+          <p className="text-sm text-destructive">{errors.notes.message}</p>
         )}
       </div>
 

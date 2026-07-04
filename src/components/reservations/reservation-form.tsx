@@ -169,7 +169,7 @@ export function ReservationForm({
             showSearch={false}
           />
           {errors.propertyId && (
-            <p className="text-sm text-red-500">{errors.propertyId.message}</p>
+            <p className="text-sm text-destructive">{errors.propertyId.message}</p>
           )}
         </div>
 
@@ -187,7 +187,7 @@ export function ReservationForm({
             footerDisabledMessage={isAtFreeLimit ? "Límite de 5 clientes alcanzado (plan FREE)" : undefined}
           />
           {errors.clientId && (
-            <p className="text-sm text-red-500">{errors.clientId.message}</p>
+            <p className="text-sm text-destructive">{errors.clientId.message}</p>
           )}
         </div>
       </div>
@@ -233,7 +233,7 @@ export function ReservationForm({
           </button>
         </div>
         {errors.billingType && (
-          <p className="text-sm text-red-500">{errors.billingType.message}</p>
+          <p className="text-sm text-destructive">{errors.billingType.message}</p>
         )}
         {!selectedProperty?.monthlyPrice && selectedProperty && (
           <p className="text-xs text-muted-foreground">
@@ -252,7 +252,7 @@ export function ReservationForm({
             blockedDates={blockedDates}
           />
           {(errors.startDate || errors.endDate) && (
-            <p className="text-sm text-red-500">
+            <p className="text-sm text-destructive">
               {errors.startDate?.message || errors.endDate?.message}
             </p>
           )}
@@ -279,7 +279,7 @@ export function ReservationForm({
               mode="single"
             />
             {errors.startDate && (
-              <p className="text-sm text-red-500">{errors.startDate.message}</p>
+              <p className="text-sm text-destructive">{errors.startDate.message}</p>
             )}
           </div>
 
@@ -300,7 +300,7 @@ export function ReservationForm({
               placeholder="Ej: 3"
             />
             {errors.months && (
-              <p className="text-sm text-red-500">{errors.months.message}</p>
+              <p className="text-sm text-destructive">{errors.months.message}</p>
             )}
           </div>
         </div>
@@ -353,7 +353,7 @@ export function ReservationForm({
           className="h-9 bg-background/40"
         />
         {errors.unitsBooked && (
-          <p className="text-sm text-red-500">{errors.unitsBooked.message}</p>
+          <p className="text-sm text-destructive">{errors.unitsBooked.message}</p>
         )}
         {selectedProperty && (
           <p className="text-xs text-muted-foreground">
@@ -380,7 +380,7 @@ export function ReservationForm({
           placeholder="Notas para esta reserva (ej: necesita sofá cama)..."
         />
         {errors.notes && (
-          <p className="text-sm text-red-500">{errors.notes.message}</p>
+          <p className="text-sm text-destructive">{errors.notes.message}</p>
         )}
       </div>
 
