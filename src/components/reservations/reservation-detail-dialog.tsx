@@ -124,11 +124,11 @@ const statusConfig: Record<
 
 const paymentStatusConfig: Record<
   string,
-  { label: string; variant: "default" | "secondary" | "destructive" | "outline"; className?: string }
+  { label: string; variant: "default" | "secondary" | "destructive" | "outline" | "warning" | "success" }
 > = {
-  PENDING: { label: "Pendiente", variant: "secondary", className: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800" },
-  COMPLETED: { label: "Pagado", variant: "outline", className: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800" },
-  FAILED: { label: "Fallido", variant: "destructive", className: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-800" },
+  PENDING: { label: "Pendiente", variant: "warning" },
+  COMPLETED: { label: "Pagado", variant: "success" },
+  FAILED: { label: "Fallido", variant: "destructive" },
 };
 
 function formatDate(dateString: string): string {
@@ -360,7 +360,7 @@ if (action === "viewReceipt") {
                   {payment.method === "MERCADO_PAGO" ? "Mercado Pago" : payment.method === "CASH" ? "Efectivo" : payment.method === "TRANSFER" ? "Transferencia" : "—"}
                 </td>
                 <td className="px-3 py-3">
-                  <Badge variant={statusCfg.variant} className={cn("h-5 text-[11px] font-medium", statusCfg.className)}>{statusCfg.label}</Badge>
+                  <Badge variant={statusCfg.variant} className="h-5 text-[11px] font-medium">{statusCfg.label}</Badge>
                 </td>
                 <td className="px-3 py-3">
                   <div className="flex items-center justify-end gap-1">
@@ -678,13 +678,13 @@ onRefresh?.(reservation.id);
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Total general</p>
-                  <p className="mt-1 text-3xl font-semibold tracking-tight text-emerald-500">{formatPrice(grandTotal)}</p>
+                  <p className="mt-1 text-3xl font-semibold tracking-tight text-success">{formatPrice(grandTotal)}</p>
                   <p className="mt-1 text-xs text-muted-foreground">Arriendo + cobros extra</p>
                 </div>
                 {totalPending > 0 && (
-                  <div className="rounded-lg border border-orange-500/20 bg-orange-500/10 px-3 py-2 text-left sm:text-right">
+                  <div className="rounded-lg border border-warning/20 bg-warning/10 px-3 py-2 text-left sm:text-right">
                     <p className="text-xs text-muted-foreground">Pendiente</p>
-                    <p className="text-sm font-semibold text-orange-500">{formatPrice(totalPending)}</p>
+                    <p className="text-sm font-semibold text-warning">{formatPrice(totalPending)}</p>
                   </div>
                 )}
               </div>
@@ -699,7 +699,7 @@ onRefresh?.(reservation.id);
                   {reservation.billingType === "DAILY" && reservation.property.dailyPrice && (
                     <p className="mt-0.5 text-[11px] text-muted-foreground">{formatPrice(reservation.property.dailyPrice)}/noche × {nights}</p>
                   )}
-                  {pendingAmount > 0 && <p className="mt-0.5 text-[11px] text-orange-500">{formatPrice(pendingAmount)} pend.</p>}
+                  {pendingAmount > 0 && <p className="mt-0.5 text-[11px] text-warning">{formatPrice(pendingAmount)} pend.</p>}
                 </div>
                 <div className="rounded-lg bg-background/40 p-3">
                   <p className="text-xs text-muted-foreground">Extras</p>

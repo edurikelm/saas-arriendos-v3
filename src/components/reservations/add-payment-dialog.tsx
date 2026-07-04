@@ -228,11 +228,11 @@ export function AddPaymentDialog({
             </div>
             <div className="flex justify-between mb-1">
               <span className="text-muted-foreground">Ya pagado:</span>
-              <span className="font-medium text-green-600">{formatAmount(paidAmount)}</span>
+              <span className="font-medium text-success">{formatAmount(paidAmount)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Pendiente:</span>
-              <span className="font-medium text-orange-600">{formatAmount(pendingAmount)}</span>
+              <span className="font-medium text-warning">{formatAmount(pendingAmount)}</span>
             </div>
           </div>
 
