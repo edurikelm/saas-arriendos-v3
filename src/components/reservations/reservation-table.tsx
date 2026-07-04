@@ -11,7 +11,7 @@ import { getReservationPaidAmount } from "@/lib/payments/calculations";
 import type { Reservation } from "./types";
 import { formatDate, formatPrice } from "./reservations-utils";
 
-type PillTone = "success" | "info" | "warning" | "destructive" | "neutral";
+type PillTone = "success" | "info" | "info-strong" | "warning" | "destructive" | "neutral";
 
 const statusConfig: Record<string, { label: string; variant: "warning" | "success" | "destructive" | "secondary"; icon: React.ComponentType<{ className?: string }> }> = {
   PENDING: { label: "Pendiente", variant: "warning", icon: AlertCircle },
@@ -23,6 +23,7 @@ const statusConfig: Record<string, { label: string; variant: "warning" | "succes
 const toneClassNames: Record<PillTone, string> = {
   success: "border-success/20 bg-success/10 text-success",
   info: "border-info/20 bg-info/10 text-info-foreground",
+  "info-strong": "border-info/30 bg-info/25 text-info-foreground",
   warning: "border-warning/25 bg-warning/10 text-warning-foreground",
   destructive: "border-destructive/25 bg-destructive/10 text-destructive",
   neutral: "border-muted bg-muted/60 text-muted-foreground",
@@ -31,6 +32,7 @@ const toneClassNames: Record<PillTone, string> = {
 const dotClassNames: Record<PillTone, string> = {
   success: "bg-success",
   info: "bg-info",
+  "info-strong": "bg-info",
   warning: "bg-warning",
   destructive: "bg-destructive",
   neutral: "bg-muted-foreground",
@@ -174,7 +176,7 @@ function ReservationMobileCard({ reservation, onEdit, onView, onCancel, onDelete
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5 pl-1.5">
         <ReservationPill tone={stateTone} label={temporal.label} />
-        <ReservationPill tone="info" label={reservation.billingType === "DAILY" ? "Diario" : "Mensual"} />
+        <ReservationPill tone={reservation.billingType === "DAILY" ? "info" : "info-strong"} label={reservation.billingType === "DAILY" ? "Diario" : "Mensual"} />
         <ReservationPill tone={paymentTone} label={paymentStatus.label} />
       </div>
 
@@ -391,7 +393,7 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                     </div>
                   </td>
                   <td className="border-y border-zinc-200/70 bg-white p-4 shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
-                    <ReservationPill tone="info" label={res.billingType === "DAILY" ? "Diario" : "Mensual"} />
+                    <ReservationPill tone={res.billingType === "DAILY" ? "info" : "info-strong"} label={res.billingType === "DAILY" ? "Diario" : "Mensual"} />
                   </td>
                   <td className="border-y border-zinc-200/70 bg-white p-4 text-right shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
                     <span className="font-bold tabular-nums text-zinc-900 dark:text-zinc-100">
