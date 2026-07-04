@@ -3,10 +3,6 @@
   "default_agent": "rentalpro-orchestrator",
   "permission": {
     "bash": {
-      "*": "ask",
-      "git status": "allow",
-      "git diff*": "allow",
-      "git log*": "allow",
       "git reset --hard*": "deny",
       "git checkout --*": "deny",
       "git clean*": "deny",

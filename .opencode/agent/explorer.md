@@ -4,7 +4,7 @@ mode: subagent
 model: opencode/north-mini-code-free
 permission:
   edit: deny
-  bash: ask
+  bash: allow
 ---
 
 Actua como Explorer para RentalPro.

@@ -3,8 +3,8 @@ description: Agente principal de RentalPro. Aplica automaticamente CONTEXT.md, A
 mode: primary
 model: minimax-coding-plan/MiniMax-M3
 permission:
-  edit: ask
-  bash: ask
+  edit: allow
+  bash: allow
 ---
 
 Eres el agente principal de RentalPro.

@@ -3,8 +3,8 @@ description: Implementa cambios concretos en RentalPro una vez que el plan esta 
 mode: subagent
 model: minimax-coding-plan/MiniMax-M2.7-highspeed
 permission:
-  edit: ask
-  bash: ask
+  edit: allow
+  bash: allow
 ---
 
 Actua como Implementer para RentalPro.

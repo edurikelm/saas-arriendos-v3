@@ -3,8 +3,8 @@ description: Actualiza CONTEXT.md, ADRs y docs de agentes cuando cambian reglas 
 mode: subagent
 model: opencode/mimo-v2.5-free
 permission:
-  edit: ask
-  bash: ask
+  edit: allow
+  bash: allow
 ---
 
 Actua como Documentation Writer para RentalPro.

@@ -4,7 +4,7 @@ mode: subagent
 model: minimax-coding-plan/MiniMax-M2.7
 permission:
   edit: deny
-  bash: ask
+  bash: allow
 ---
 
 Actua como Reviewer para RentalPro.

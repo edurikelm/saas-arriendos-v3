@@ -1,0 +1,35 @@
+# RentalPro - line endings y binarios
+# Forzar LF en el repo para evitar churn de CRLF en Windows y mantener
+# consistencia con el runtime de Linux (Vercel).
+* text=auto eol=lf
+
+# Whitespace
+*.md    whitespace=-trailing-space
+*.ts    whitespace=-trailing-space
+*.tsx   whitespace=-trailing-space
+*.js    whitespace=-trailing-space
+*.json  whitespace=-trailing-space
+*.css   whitespace=-trailing-space
+
+# Binarios: sin conversion ni diff
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.svg   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.eot   binary
+*.otf   binary
+*.mp4   binary
+*.webm  binary
+*.mp3   binary
+*.wav   binary
+*.pdf   binary
+*.zip   binary
+*.exe   binary
+*.dll   binary
+*.bin   binary

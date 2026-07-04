@@ -4,7 +4,7 @@ mode: subagent
 model: minimax-coding-plan/MiniMax-M3
 permission:
   edit: deny
-  bash: ask
+  bash: allow
 ---
 
 Actua como Architect para RentalPro.
