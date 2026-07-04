@@ -5,19 +5,19 @@ import {
   CircleDollarSign,
   Home,
   TrendingUp,
-  WalletCards,
 } from "lucide-react";
 import { CollectionAlertsSection } from "@/components/dashboard/collection-alerts-section";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { MetricCard } from "@/components/ui/metric-card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { classifyCollectionAlerts } from "@/lib/alerts/collection-alerts";
 import { getProperties } from "@/lib/actions/properties";
 import { getReservations } from "@/lib/actions/reservations";
@@ -116,55 +116,14 @@ function getStatusLabel(status: string): string {
   return labels[status] ?? status;
 }
 
-function getStatusBadgeClassName(status: string): string {
-  const classes: Record<string, string> = {
-    PENDING: "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300",
-    CONFIRMED: "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-    CANCELLED: "border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300",
-    COMPLETED: "border-slate-500/20 bg-slate-500/10 text-slate-700 dark:text-slate-300",
+function getStatusBadgeVariant(status: string): "success" | "warning" | "destructive" | "secondary" {
+  const map: Record<string, "success" | "warning" | "destructive" | "secondary"> = {
+    PENDING: "warning",
+    CONFIRMED: "success",
+    CANCELLED: "destructive",
+    COMPLETED: "secondary",
   };
-
-  return classes[status] ?? "border-border bg-muted text-muted-foreground";
-}
-
-function MetricCard({
-  title,
-  value,
-  detail,
-  icon: Icon,
-  tone = "neutral",
-}: {
-  title: string;
-  value: string | number;
-  detail: string;
-  icon: typeof Home;
-  tone?: "neutral" | "green" | "blue" | "amber";
-}) {
-  const toneClassName = {
-    neutral: "bg-muted text-foreground",
-    green: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300",
-    blue: "bg-sky-500/10 text-sky-600 dark:text-sky-300",
-    amber: "bg-amber-500/10 text-amber-600 dark:text-amber-300",
-  }[tone];
-
-  return (
-    <Card className="min-h-32 justify-between transition-colors hover:bg-muted/30">
-      <CardHeader>
-        <CardTitle className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-          {title}
-        </CardTitle>
-        <CardAction>
-          <span className={`flex size-9 items-center justify-center rounded-xl ${toneClassName}`}>
-            <Icon className="size-4" />
-          </span>
-        </CardAction>
-      </CardHeader>
-      <CardContent>
-        <p className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">{value}</p>
-        <p className="mt-2 text-sm text-muted-foreground">{detail}</p>
-      </CardContent>
-    </Card>
-  );
+  return map[status] ?? "secondary";
 }
 
 function ReservationRow({
@@ -195,7 +154,7 @@ function ReservationRow({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="truncate font-medium text-foreground">{reservation.client.name}</p>
-            <Badge variant="outline" className={getStatusBadgeClassName(reservation.status)}>
+            <Badge variant={getStatusBadgeVariant(reservation.status)} className="rounded-md">
               {getStatusLabel(reservation.status)}
             </Badge>
           </div>
@@ -281,6 +240,15 @@ export default async function DashboardPage() {
     })
     .sort((a, b) => b.pending - a.pending);
 
+  const saldosData = pendingPayments.map((item) => ({
+    reservationId: item.reservation.id,
+    reservation: {
+      client: { name: item.reservation.client.name },
+      property: { name: item.reservation.property.name },
+    },
+    pending: item.pending,
+  }));
+
   const collectionAlerts = classifyCollectionAlerts(
     data.reservations.flatMap((reservation) =>
       reservation.payments.map((payment) => ({
@@ -308,169 +276,165 @@ export default async function DashboardPage() {
   const pendingTotal = pendingPayments.reduce((sum, item) => sum + item.pending, 0);
   const completedTotal = data.reservations.reduce((sum, reservation) => sum + getReservationPaidAmount(reservation.payments), 0);
 
+  // KPI tones
+  const kpi1Tone = activeReservations.length > 0 ? "success" : "neutral";
+  const kpi1Status = activeReservations.length > 0 ? "ok" : "neutral";
+
+  const kpi2Tone = next7Days > 0 ? "info" : "neutral";
+  const kpi2Status = next7Days > 0 ? "ok" : "neutral";
+
+  const kpi3Tone = totalUnits === 0 ? "neutral" : occupancyRate < 70 ? "warning" : occupancyRate <= 85 ? "info" : "success";
+  const kpi3Status = totalUnits === 0 ? "neutral" : occupancyRate >= 85 ? "ok" : occupancyRate >= 50 ? "warning" : "critical";
+
+  const kpi4Tone = pendingTotal > 0 ? "destructive" : "neutral";
+  const kpi4Status = pendingTotal > 0 ? "critical" : "ok";
+
   return (
     <div className="space-y-6 pb-10">
+      {/* KPIs */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           title="Activos ahora"
           value={activeReservations.length}
           detail={`${occupiedUnits} de ${totalUnits} unidades ocupadas`}
           icon={Home}
-          tone="green"
+          tone={kpi1Tone}
+          status={kpi1Status}
         />
         <MetricCard
           title="Próximos 7 días"
           value={next7Days}
           detail={`${upcomingReservations.length} reservas futuras`}
           icon={CalendarDays}
-          tone="blue"
+          tone={kpi2Tone}
+          status={kpi2Status}
         />
         <MetricCard
           title="Ocupación"
           value={`${occupancyRate}%`}
           detail={`${data.properties.length} propiedades registradas`}
           icon={TrendingUp}
+          tone={kpi3Tone}
+          status={kpi3Status}
         />
         <MetricCard
           title="Por cobrar"
           value={formatCLP(pendingTotal)}
           detail={`${pendingPayments.length} reservas con saldo`}
           icon={CircleDollarSign}
-          tone="amber"
+          tone={kpi4Tone}
+          status={kpi4Status}
         />
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+      {/* Cobranza full-width */}
+      <CollectionAlertsSection
+        vencidos={collectionAlerts.vencidos}
+        vencenHoy={collectionAlerts.vencenHoy}
+        proximos7Dias={collectionAlerts.proximos7Dias}
+        saldos={saldosData}
+      />
+
+      {/* 2-column layout: Reservas (tabs) | Resumen financiero + Pagos recientes */}
+      <section className="grid gap-6 xl:grid-cols-2">
+        {/* Reservas tabs */}
+        <Card>
+          <CardHeader className="border-b pb-4">
+            <CardTitle>Reservas</CardTitle>
+            <CardDescription>Reservas activas y próximas.</CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <Tabs defaultValue="active" className="w-full">
+              <TabsList variant="line" className="mb-4 w-full justify-start">
+                <TabsTrigger value="active">
+                  En curso
+                  <Badge variant="secondary" className="ml-2">{activeReservations.length}</Badge>
+                </TabsTrigger>
+                <TabsTrigger value="upcoming">
+                  Próximas
+                  <Badge variant="secondary" className="ml-2">{upcomingReservations.length}</Badge>
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="active" className="space-y-2">
+                {activeReservations.length === 0 ? (
+                  <EmptyState title="Sin reservas activas" description="Cuando una estadía esté en curso aparecerá aquí." />
+                ) : (
+                  activeReservations.slice(0, 5).map((reservation) => (
+                    <ReservationRow key={reservation.id} reservation={reservation} today={today} mode="active" />
+                  ))
+                )}
+              </TabsContent>
+              <TabsContent value="upcoming" className="space-y-2">
+                {upcomingReservations.length === 0 ? (
+                  <EmptyState title="Sin próximas reservas" description="No hay check-ins programados desde hoy." />
+                ) : (
+                  upcomingReservations.slice(0, 6).map((reservation) => (
+                    <ReservationRow key={reservation.id} reservation={reservation} today={today} mode="upcoming" />
+                  ))
+                )}
+              </TabsContent>
+            </Tabs>
+            <div className="mt-4">
+              <Link href="/reservations" className={buttonVariants({ variant: "outline", size: "sm" })}>
+                Ver todas las reservas
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Resumen financiero + Pagos recientes */}
         <div className="space-y-6">
           <Card>
-            <CardHeader className="border-b pb-4">
-              <CardTitle>Reservas en curso</CardTitle>
-              <CardDescription>Prioriza las estadías activas y sus saldos pendientes.</CardDescription>
-              <CardAction>
-                <Badge variant="secondary">{activeReservations.length}</Badge>
-              </CardAction>
-            </CardHeader>
-            <CardContent className="space-y-2 pt-0">
-              {activeReservations.length === 0 ? (
-                <EmptyState title="Sin reservas activas" description="Cuando una estadía esté en curso aparecerá aquí." />
-              ) : (
-                activeReservations.slice(0, 5).map((reservation) => (
-                  <ReservationRow key={reservation.id} reservation={reservation} today={today} mode="active" />
-                ))
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="border-b pb-4">
-              <CardTitle>Próximas reservas</CardTitle>
-              <CardDescription>Entradas ordenadas por fecha de inicio.</CardDescription>
-              <CardAction>
-                <Link href="/reservations" className={buttonVariants({ variant: "outline", size: "sm" })}>
-                  Ver todas
-                </Link>
-              </CardAction>
-            </CardHeader>
-            <CardContent className="space-y-2 pt-0">
-              {upcomingReservations.length === 0 ? (
-                <EmptyState title="Sin próximas reservas" description="No hay check-ins programados desde hoy." />
-              ) : (
-                upcomingReservations.slice(0, 6).map((reservation) => (
-                  <ReservationRow key={reservation.id} reservation={reservation} today={today} mode="upcoming" />
-                ))
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        <aside className="space-y-6">
-          <CollectionAlertsSection
-            vencidos={collectionAlerts.vencidos}
-            vencenHoy={collectionAlerts.vencenHoy}
-            proximos7Dias={collectionAlerts.proximos7Dias}
-          />
-
-          <Card className="bg-foreground text-background dark:bg-card dark:text-card-foreground">
             <CardHeader>
-              <CardTitle className="text-background dark:text-foreground">Resumen financiero</CardTitle>
-              <CardDescription className="text-background/70 dark:text-muted-foreground">
+              <CardTitle>Resumen financiero</CardTitle>
+              <CardDescription>
                 Pagado versus saldo pendiente de reservas activas o futuras.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-2xl bg-background/10 p-4 dark:bg-muted/50">
-                  <p className="text-xs text-background/60 dark:text-muted-foreground">Pagado</p>
-                  <p className="mt-1 text-lg font-semibold text-background dark:text-foreground">{formatCLP(completedTotal)}</p>
+                <div className="rounded-2xl bg-success/10 p-4">
+                  <p className="text-xs text-muted-foreground">Pagado</p>
+                  <p className="mt-1 text-lg font-semibold text-success">{formatCLP(completedTotal)}</p>
                 </div>
-                <div className="rounded-2xl bg-amber-400/20 p-4 text-amber-100 dark:bg-amber-500/10 dark:text-amber-300">
-                  <p className="text-xs opacity-80">Pendiente</p>
-                  <p className="mt-1 text-lg font-semibold">{formatCLP(pendingTotal)}</p>
+                <div className="rounded-2xl bg-warning/10 p-4">
+                  <p className="text-xs text-muted-foreground">Pendiente</p>
+                  <p className="mt-1 text-lg font-semibold text-warning-foreground">{formatCLP(pendingTotal)}</p>
                 </div>
               </div>
+
+              {/* Pagos recientes inside Resumen financiero */}
+              <div>
+                <p className="mb-2 text-sm font-medium text-foreground">Pagos recientes</p>
+                {recentPayments.length === 0 ? (
+                  <EmptyState title="Sin pagos recientes" description="Los pagos completados aparecerán aquí." />
+                ) : (
+                  <div className="space-y-2">
+                    {recentPayments.map((payment) => (
+                      <div key={payment.id} className="flex items-center gap-3 rounded-xl bg-muted/50 p-3">
+                        <span className="flex size-9 items-center justify-center rounded-xl bg-success/10 text-success">
+                          <CheckCircle2 className="size-4" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-foreground">{payment.reservation.client.name}</p>
+                          <p className="truncate text-xs text-muted-foreground">{payment.reservation.property.name}</p>
+                        </div>
+                        <p className="text-sm font-semibold text-foreground">{formatCLP(Number(payment.amount))}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <Link
                 href="/reports"
-                className={buttonVariants({ variant: "outline", className: "w-full border-background/20 bg-background/10 text-background hover:bg-background/20 dark:border-border dark:bg-background dark:text-foreground" })}
+                className={buttonVariants({ variant: "outline", className: "w-full" })}
               >
                 Abrir reportes
               </Link>
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader className="border-b pb-4">
-              <CardTitle>Pagos recientes</CardTitle>
-              <CardDescription>Últimos pagos completados.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 pt-0">
-              {recentPayments.length === 0 ? (
-                <EmptyState title="Sin pagos recientes" description="Los pagos completados aparecerán aquí." />
-              ) : (
-                recentPayments.map((payment) => (
-                  <div key={payment.id} className="flex items-center gap-3 rounded-xl bg-muted/50 p-3">
-                    <span className="flex size-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
-                      <CheckCircle2 className="size-4" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">{payment.reservation.client.name}</p>
-                      <p className="truncate text-xs text-muted-foreground">{payment.reservation.property.name}</p>
-                    </div>
-                    <p className="text-sm font-semibold text-foreground">{formatCLP(Number(payment.amount))}</p>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="border-b pb-4">
-              <CardTitle>Saldos pendientes</CardTitle>
-              <CardDescription>Reservas con mayor monto por cobrar.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 pt-0">
-              {pendingPayments.length === 0 ? (
-                <EmptyState title="Todo al día" description="No hay saldos pendientes en reservas activas." />
-              ) : (
-                pendingPayments.slice(0, 5).map((item) => (
-                  <Link
-                    key={item.reservation.id}
-                    href={`/reservations?reservationId=${item.reservation.id}`}
-                    className="flex items-center gap-3 rounded-xl bg-amber-500/10 p-3 transition-colors hover:bg-amber-500/15"
-                  >
-                    <span className="flex size-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-300">
-                      <WalletCards className="size-4" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">{item.reservation.client.name}</p>
-                      <p className="truncate text-xs text-muted-foreground">{item.reservation.property.name}</p>
-                    </div>
-                    <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">{formatCLP(item.pending)}</p>
-                  </Link>
-                ))
-              )}
-            </CardContent>
-          </Card>
-        </aside>
+        </div>
       </section>
     </div>
   );

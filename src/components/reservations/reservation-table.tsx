@@ -1,86 +1,40 @@
 "use client";
 
 import { useState } from "react";
-import { Calendar, Clock, User, CreditCard, CheckCircle2, XCircle, AlertCircle, ChevronRight, ArrowUpDown, MoreHorizontal } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, ArrowUpDown, Eye, Pencil, Ban, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Checkbox } from "@/components/ui/checkbox";
 import { getPaymentStatus } from "@/lib/reservation-payment";
 import { getInclusiveMonths } from "@/lib/reservation-dates";
 import { getReservationPaidAmount } from "@/lib/payments/calculations";
+import type { Reservation } from "./types";
+import { formatDate, formatPrice } from "./reservations-utils";
 
-type PillTone = "green" | "blue" | "purple" | "amber" | "red" | "slate";
+type PillTone = "success" | "info" | "warning" | "destructive" | "neutral";
 
-interface Payment {
-  id: string;
-  amount: string;
-  status: string;
-  method: string;
-  paymentType?: string | null;
-  deletedAt?: string | null;
-}
-
-interface Property {
-  id: string;
-  name: string;
-  color?: string;
-}
-
-interface Client {
-  id: string;
-  name: string;
-  email: string;
-}
-
-interface Reservation {
-  id: string;
-  propertyId: string;
-  clientId: string;
-  startDate: string;
-  endDate: string;
-  billingType: string;
-  unitsBooked: number;
-  totalPrice: string;
-  status: string;
-  bookingAirbnb: boolean;
-  notes: string | null;
-  createdAt: string;
-  property: Property;
-  client: Client;
-  payments: Payment[];
-}
-
-const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ComponentType<{ className?: string }> }> = {
-  PENDING: { label: "Pendiente", variant: "secondary", icon: AlertCircle },
-  CONFIRMED: { label: "Confirmada", variant: "default", icon: CheckCircle2 },
+const statusConfig: Record<string, { label: string; variant: "warning" | "success" | "destructive" | "secondary"; icon: React.ComponentType<{ className?: string }> }> = {
+  PENDING: { label: "Pendiente", variant: "warning", icon: AlertCircle },
+  CONFIRMED: { label: "Confirmada", variant: "success", icon: CheckCircle2 },
   CANCELLED: { label: "Cancelada", variant: "destructive", icon: XCircle },
-  COMPLETED: { label: "Completada", variant: "outline", icon: CheckCircle2 },
+  COMPLETED: { label: "Completada", variant: "secondary", icon: CheckCircle2 },
 };
 
 const toneClassNames: Record<PillTone, string> = {
-  green: "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300",
-  blue: "border-blue-500/20 bg-blue-500/10 text-blue-600 dark:text-blue-300",
-  purple: "border-purple-500/20 bg-purple-500/10 text-purple-600 dark:text-purple-300",
-  amber: "border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-300",
-  red: "border-red-500/25 bg-red-500/10 text-red-600 dark:text-red-300",
-  slate: "border-zinc-500/20 bg-zinc-500/10 text-zinc-600 dark:text-zinc-300",
+  success: "border-success/20 bg-success/10 text-success",
+  info: "border-info/20 bg-info/10 text-info-foreground",
+  warning: "border-warning/25 bg-warning/10 text-warning-foreground",
+  destructive: "border-destructive/25 bg-destructive/10 text-destructive",
+  neutral: "border-muted bg-muted/60 text-muted-foreground",
 };
 
 const dotClassNames: Record<PillTone, string> = {
-  green: "bg-emerald-500",
-  blue: "bg-blue-500",
-  purple: "bg-purple-500",
-  amber: "bg-amber-500",
-  red: "bg-red-500",
-  slate: "bg-zinc-500",
+  success: "bg-success",
+  info: "bg-info",
+  warning: "bg-warning",
+  destructive: "bg-destructive",
+  neutral: "bg-muted-foreground",
 };
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("es-CL", {
-    day: "numeric",
-    month: "short",
-  });
-}
 
 function formatFullDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString("es-CL", {
@@ -88,15 +42,6 @@ function formatFullDate(dateString: string): string {
     month: "short",
     year: "numeric",
   });
-}
-
-function formatPrice(price: string | number): string {
-  return new Intl.NumberFormat("es-CL", {
-    style: "currency",
-    currency: "CLP",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(Number(price));
 }
 
 function getInitials(name: string): string {
@@ -141,23 +86,23 @@ function getTemporalStatus(startDate: string, endDate: string, billingType: stri
 }
 
 function getReservationTone(status: string, startDate: string, endDate: string): PillTone {
-  if (status === "CANCELLED") return "red";
-  if (status === "COMPLETED") return "slate";
+  if (status === "CANCELLED") return "destructive";
+  if (status === "COMPLETED") return "neutral";
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const start = new Date(startDate);
   const end = new Date(endDate);
 
-  if (today >= start && today <= end) return "green";
-  if (today < start) return "blue";
-  return "slate";
+  if (today >= start && today <= end) return "success";
+  if (today < start) return "info";
+  return "neutral";
 }
 
 function getPaymentTone(paidAmount: number, totalPrice: number): PillTone {
-  if (paidAmount >= totalPrice && totalPrice > 0) return "green";
-  if (paidAmount > 0) return "amber";
-  return "red";
+  if (paidAmount >= totalPrice && totalPrice > 0) return "success";
+  if (paidAmount > 0) return "warning";
+  return "destructive";
 }
 
 function ReservationPill({ tone, label }: { tone: PillTone; label: string }) {
@@ -182,426 +127,11 @@ function PaymentProgress({ paidAmount, totalPrice, tone }: { paidAmount: number;
   );
 }
 
-interface ReservationCardBaseProps {
-  reservation: Reservation;
-  onEdit?: () => void;
-  onView?: () => void;
-  onCancel?: () => void;
-  onDelete?: () => void;
-}
-
-export function ReservationCardMinimal({ reservation, onEdit, onView, onCancel, onDelete }: ReservationCardBaseProps) {
-  void onDelete;
-  const status = statusConfig[reservation.status] || statusConfig.PENDING;
-  const StatusIcon = status.icon;
-  const paidAmount = getReservationPaidAmount(reservation.payments);
-  const pendingAmount = Number(reservation.totalPrice) - paidAmount;
-
-  return (
-    <div className="group relative overflow-hidden rounded-2xl border border-zinc-200/50 dark:border-zinc-800/50 bg-white dark:bg-zinc-950 transition-all duration-500 hover:shadow-2xl hover:shadow-black/5 hover:-translate-y-1">
-      <div className="flex">
-        <div
-          className="w-1 shrink-0"
-          style={{ backgroundColor: reservation.property.color || "#6366F1" }}
-        />
-
-        <div className="flex-1 p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-1 min-w-0">
-              <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">
-                {reservation.property.name}
-              </h3>
-              <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-                <User className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">{reservation.client.name}</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <StatusIcon className={`h-4 w-4 text-muted-foreground`} />
-              <Badge variant={status.variant} className="text-xs rounded-md">
-                {status.label}
-              </Badge>
-            </div>
-          </div>
-
-          <div className="mt-4 flex items-center gap-6 text-sm">
-            <div className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400">
-              <Calendar className="h-4 w-4" />
-              <span>
-                {formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}
-              </span>
-              <span className="text-zinc-400">({reservation.billingType === "MONTHLY" ? `${getMonths(reservation.startDate, reservation.endDate)} meses` : `${getNights(reservation.startDate, reservation.endDate)} noches`})</span>
-            </div>
-          </div>
-
-          <div className="mt-4 flex items-end justify-between">
-            <div className="space-y-1">
-              <p className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
-                {formatPrice(reservation.totalPrice)}
-              </p>
-              {reservation.billingType === "DAILY" ? (
-                <p className="text-xs text-zinc-500">por {getNights(reservation.startDate, reservation.endDate)} noches</p>
-              ) : (
-                <p className="text-xs text-zinc-500">precio mensual</p>
-              )}
-            </div>
-
-            {pendingAmount > 0 && (
-              <div className="text-right">
-                <p className="text-xs text-green-600 dark:text-green-400">Pagado: {formatPrice(paidAmount)}</p>
-                <p className="text-xs text-orange-600 dark:text-orange-400">Pendiente: {formatPrice(pendingAmount)}</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="absolute right-4 top-4 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-        <div className="flex gap-1">
-          {onView && (
-            <Button size="icon-xs" variant="ghost" onClick={onView}>
-              👁
-            </Button>
-          )}
-          {onEdit && (
-            <Button size="icon-xs" variant="ghost" onClick={onEdit}>
-              ✎
-            </Button>
-          )}
-          {(reservation.status === "PENDING" || reservation.status === "CONFIRMED") && onCancel && (
-            <Button size="icon-xs" variant="ghost" onClick={onCancel}>
-              ✕
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export function ReservationCardCompact({ reservation, onEdit, onView, onCancel, onDelete }: ReservationCardBaseProps) {
-  void onCancel;
-  const status = statusConfig[reservation.status] || statusConfig.PENDING;
-  const StatusIcon = status.icon;
-  const nights = getNights(reservation.startDate, reservation.endDate);
-  void onDelete;
-  void StatusIcon;
-  void nights;
-
-  return (
-    <div className="group flex items-center gap-4 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 bg-white dark:bg-zinc-950 p-4 transition-all duration-200 hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-lg hover:shadow-black/5">
-      <div
-        className="h-12 w-12 shrink-0 rounded-xl flex items-center justify-center text-white font-semibold text-lg"
-        style={{ backgroundColor: reservation.property.color || "#6366F1" }}
-      >
-        {reservation.property.name[0]}
-      </div>
-
-      <div className="flex-1 min-w-0 space-y-1">
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">
-            {reservation.property.name}
-          </h3>
-          <StatusIcon className={`h-4 w-4 shrink-0 ${status.variant === "destructive" ? "text-destructive" : status.variant === "default" ? "text-green-600" : "text-muted-foreground"}`} />
-        </div>
-        <div className="flex items-center gap-3 text-xs text-zinc-500">
-          <span className="flex items-center gap-1">
-            <User className="h-3 w-3" />
-            {reservation.client.name}
-          </span>
-          <span className="flex items-center gap-1">
-            <Calendar className="h-3 w-3" />
-            {reservation.billingType === "MONTHLY" ? `${getMonths(reservation.startDate, reservation.endDate)} meses` : `${getNights(reservation.startDate, reservation.endDate)} noches`}
-          </span>
-        </div>
-      </div>
-
-      <div className="text-right shrink-0">
-        <p className="font-bold text-zinc-900 dark:text-zinc-100">{formatPrice(reservation.totalPrice)}</p>
-        <p className="text-xs text-muted-foreground">{formatDate(reservation.startDate)}</p>
-      </div>
-
-      <div className="flex gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-        {onView && (
-          <Button size="icon-xs" variant="ghost" onClick={onView}>
-            👁
-          </Button>
-        )}
-        {onEdit && (
-          <Button size="icon-xs" variant="ghost" onClick={onEdit}>
-            ✎
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-export function ReservationCardEditorial({ reservation, onEdit, onView, onCancel, onDelete }: ReservationCardBaseProps) {
-  const status = statusConfig[reservation.status] || statusConfig.PENDING;
-  const StatusIcon = status.icon;
-  const nights = getNights(reservation.startDate, reservation.endDate);
-  const isUpcoming = new Date(reservation.startDate) > new Date();
-  const isPast = new Date(reservation.endDate) < new Date();
-  void onDelete;
-  void StatusIcon;
-  void nights;
-  void isUpcoming;
-  void isPast;
-  const paidAmount = getReservationPaidAmount(reservation.payments);
-  const pendingAmount = Number(reservation.totalPrice) - paidAmount;
-
-  return (
-    <div className="group relative overflow-hidden rounded-2xl border border-stone-200/50 dark:border-stone-800/50 bg-stone-50 dark:bg-stone-900 transition-all duration-500 hover:shadow-2xl">
-      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-4 sm:gap-6 p-4 sm:p-6">
-        <div className="space-y-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-widest text-stone-500">
-                {reservation.property.name}
-              </p>
-              <h3 className="font-serif text-2xl font-medium text-stone-900 dark:text-stone-100 mt-1">
-                {reservation.client.name}
-              </h3>
-            </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-stone-100 dark:bg-stone-800">
-              <StatusIcon className="h-4 w-4 text-stone-600 dark:text-stone-400" />
-              <span className="text-sm font-medium text-stone-700 dark:text-stone-300">
-                {status.label}
-              </span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4 pt-4 border-t border-stone-200 dark:border-stone-800">
-            <div>
-              <p className="text-xs text-stone-500 mb-1">Check-in</p>
-              <p className="font-medium text-stone-900 dark:text-stone-100">
-                {formatFullDate(reservation.startDate)}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-stone-500 mb-1">Check-out</p>
-              <p className="font-medium text-stone-900 dark:text-stone-100">
-                {formatFullDate(reservation.endDate)}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-stone-500 mb-1">Duración</p>
-              <p className="font-medium text-stone-900 dark:text-stone-100">
-                {reservation.billingType === "MONTHLY" ? `${getMonths(reservation.startDate, reservation.endDate)} meses` : `${getNights(reservation.startDate, reservation.endDate)} noches`}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4 pt-2">
-            <div className="flex items-center gap-2 text-sm text-stone-600 dark:text-stone-400">
-              <CreditCard className="h-4 w-4" />
-              <span>{reservation.billingType === "DAILY" ? "Tarifa diaria" : "Tarifa mensual"}</span>
-            </div>
-            {reservation.bookingAirbnb && (
-              <Badge variant="outline" className="text-xs">Booking Airbnb</Badge>
-            )}
-          </div>
-        </div>
-
-        <div className="flex flex-col items-end justify-between">
-          <div className="text-right">
-            <p className="text-3xl font-bold text-stone-900 dark:text-stone-100">
-              {formatPrice(reservation.totalPrice)}
-            </p>
-            <p className="text-sm text-stone-500">total</p>
-          </div>
-
-          {pendingAmount > 0 && (
-            <div className="mt-4 text-right">
-              <p className="text-xs text-stone-500">Pagado</p>
-              <p className="text-sm font-medium text-green-600">{formatPrice(paidAmount)}</p>
-              <p className="text-xs text-orange-600 mt-1">Pendiente: {formatPrice(pendingAmount)}</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between border-t border-stone-200 dark:border-stone-800 px-6 py-3 bg-stone-100/50 dark:bg-stone-800/50">
-        <p className="text-xs text-stone-500 truncate max-w-50">
-          {reservation.client.email}
-        </p>
-        <div className="flex gap-2">
-          {onView && (
-            <Button size="sm" variant="ghost" onClick={onView}>
-              Ver
-            </Button>
-          )}
-          {onEdit && (
-            <Button size="sm" variant="ghost" onClick={onEdit}>
-              Editar
-            </Button>
-          )}
-          {(reservation.status === "PENDING" || reservation.status === "CONFIRMED") && onCancel && (
-            <Button size="sm" variant="ghost" onClick={onCancel}>
-              Cancelar
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export function ReservationCardTimeline({ reservation, onEdit, onView, onCancel, onDelete }: ReservationCardBaseProps) {
-  void onCancel;
-  const status = statusConfig[reservation.status] || statusConfig.PENDING;
-  const StatusIcon = status.icon;
-  void onDelete;
-  void StatusIcon;
-  const nights = getNights(reservation.startDate, reservation.endDate);
-  const startDate = new Date(reservation.startDate);
-  const endDate = new Date(reservation.endDate);
-  const today = new Date();
-
-  const isUpcoming = startDate > today;
-  const isActive = startDate <= today && endDate >= today;
-  const isPast = endDate < today;
-  void nights;
-  void isUpcoming;
-  void isActive;
-  void isPast;
-
-  return (
-    <div className="group relative">
-      <div className="absolute left-4 top-0 bottom-0 w-px bg-zinc-200 dark:bg-zinc-800" />
-
-      <div className="relative flex gap-4 pb-6">
-        <div
-          className={`relative z-10 h-10 w-10 shrink-0 rounded-full flex items-center justify-center text-white font-semibold ${
-            isActive ? "ring-4 ring-green-500/30" : ""
-          }`}
-          style={{ backgroundColor: reservation.property.color || "#6366F1" }}
-        >
-          {isActive ? (
-            <div className="h-3 w-3 rounded-full bg-green-400 animate-pulse" />
-          ) : (
-            reservation.property.name[0]
-          )}
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">
-                {reservation.property.name}
-              </h3>
-              <p className="text-sm text-zinc-500">{reservation.client.name}</p>
-            </div>
-            <Badge variant={status.variant} className="shrink-0 rounded-md">
-              {status.label}
-            </Badge>
-          </div>
-
-          <div className="mt-3 flex items-center gap-4 text-sm">
-            <div className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400">
-              <Calendar className="h-4 w-4" />
-              <span>{formatFullDate(reservation.startDate)}</span>
-            </div>
-            <ChevronRight className="h-4 w-4 text-zinc-300" />
-            <div className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400">
-              <Calendar className="h-4 w-4" />
-              <span>{formatFullDate(reservation.endDate)}</span>
-            </div>
-          </div>
-
-          <div className="mt-3 flex items-center gap-4">
-            <div className="flex items-center gap-2 text-sm text-zinc-500">
-              <Clock className="h-3.5 w-3.5" />
-<span>{reservation.billingType === "MONTHLY" ? `${getMonths(reservation.startDate, reservation.endDate)} meses` : `${getNights(reservation.startDate, reservation.endDate)} noches`}</span>
-            </div>
-            <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              {formatPrice(reservation.totalPrice)}
-            </span>
-          </div>
-
-          <div className="mt-3 flex gap-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-            {onView && (
-              <Button size="sm" variant="outline" onClick={onView}>
-                Ver
-              </Button>
-            )}
-            {onEdit && (
-              <Button size="sm" variant="outline" onClick={onEdit}>
-                Editar
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export function ReservationCardKanban({ reservation, onEdit, onView, onCancel, onDelete }: ReservationCardBaseProps) {
-  const status = statusConfig[reservation.status] || statusConfig.PENDING;
-  const nights = getNights(reservation.startDate, reservation.endDate);
-  void onCancel;
-  void onDelete;
-  void nights;
-
-  return (
-    <div className="group rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 bg-white dark:bg-zinc-950 p-4 transition-all duration-200 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5 cursor-pointer"
-      onClick={onView}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="space-y-1 min-w-0">
-          <h3 className="font-medium text-zinc-900 dark:text-zinc-100 text-sm truncate">
-            {reservation.property.name}
-          </h3>
-          <p className="text-xs text-zinc-500 truncate">{reservation.client.name}</p>
-        </div>
-        <div
-          className="h-2 w-2 rounded-full shrink-0 mt-1.5"
-          style={{ backgroundColor: reservation.property.color || "#6366F1" }}
-        />
-      </div>
-
-      <div className="mt-3 space-y-1.5 text-xs text-zinc-600 dark:text-zinc-400">
-        <div className="flex items-center gap-1.5">
-          <Calendar className="h-3 w-3" />
-          <span>{formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Clock className="h-3 w-3" />
-          <span>{nights} noches</span>
-        </div>
-      </div>
-
-      <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
-        <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-          {formatPrice(reservation.totalPrice)}
-        </span>
-                <Badge variant={status.variant} className="text-xs py-0 rounded-md">
-                  {status.label}
-                </Badge>
-      </div>
-
-      <div className="mt-2 flex gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-        {onEdit && (
-          <Button
-            size="icon-xs"
-            variant="ghost"
-            onClick={(e) => { e.stopPropagation(); onEdit(); }}
-          >
-            ✎
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ReservationMobileCard({ reservation, onEdit, onView, onDelete }: {
+function ReservationMobileCard({ reservation, onEdit, onView, onCancel, onDelete }: {
   reservation: Reservation;
   onEdit?: (id: string) => void;
   onView?: (id: string) => void;
+  onCancel?: (id: string) => void;
   onDelete?: (id: string) => void;
 }) {
   const paidAmount = getReservationPaidAmount(reservation.payments);
@@ -613,9 +143,6 @@ function ReservationMobileCard({ reservation, onEdit, onView, onDelete }: {
   const duration = reservation.billingType === "MONTHLY"
     ? `${getMonths(reservation.startDate, reservation.endDate)} meses`
     : `${getNights(reservation.startDate, reservation.endDate)} noches`;
-  const runAfterMenuClose = (action: () => void) => {
-    window.setTimeout(action, 0);
-  };
 
   return (
     <article className="group relative overflow-hidden rounded-xl border border-zinc-800/80 bg-zinc-950/40 p-3.5 shadow-sm transition-all duration-300 hover:border-zinc-700 hover:bg-zinc-950/70">
@@ -636,19 +163,7 @@ function ReservationMobileCard({ reservation, onEdit, onView, onDelete }: {
                 <span className="truncate">{reservation.property.name}</span>
               </p>
             </div>
-            <div className="flex shrink-0 items-center gap-1">
-              <p className="text-right text-base font-bold tabular-nums text-zinc-100">{formatPrice(reservation.totalPrice)}</p>
-              <DropdownMenu>
-                <DropdownMenuTrigger className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-900 hover:text-zinc-100">
-                  <MoreHorizontal className="h-4 w-4" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {onView && <DropdownMenuItem onClick={() => runAfterMenuClose(() => onView(reservation.id))}>Ver</DropdownMenuItem>}
-                  {onEdit && <DropdownMenuItem onClick={() => runAfterMenuClose(() => onEdit(reservation.id))}>Editar</DropdownMenuItem>}
-                  {onDelete && <DropdownMenuItem variant="destructive" onClick={() => runAfterMenuClose(() => onDelete(reservation.id))}>Eliminar</DropdownMenuItem>}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+            <p className="shrink-0 text-right text-base font-bold tabular-nums text-zinc-100">{formatPrice(reservation.totalPrice)}</p>
           </div>
           <p className="text-xs text-zinc-400">
             <span className="tabular-nums">{formatDate(reservation.startDate)} – {formatDate(reservation.endDate)}</span>
@@ -659,7 +174,7 @@ function ReservationMobileCard({ reservation, onEdit, onView, onDelete }: {
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5 pl-1.5">
         <ReservationPill tone={stateTone} label={temporal.label} />
-        <ReservationPill tone={reservation.billingType === "DAILY" ? "blue" : "purple"} label={reservation.billingType === "DAILY" ? "Diario" : "Mensual"} />
+        <ReservationPill tone={reservation.billingType === "DAILY" ? "info" : "info"} label={reservation.billingType === "DAILY" ? "Diario" : "Mensual"} />
         <ReservationPill tone={paymentTone} label={paymentStatus.label} />
       </div>
 
@@ -670,23 +185,45 @@ function ReservationMobileCard({ reservation, onEdit, onView, onDelete }: {
         </div>
         <PaymentProgress paidAmount={paidAmount} totalPrice={totalPrice} tone={paymentTone} />
       </div>
+
+      <div className="mt-3 flex items-center justify-end gap-1 pl-1.5">
+        {onView && (
+          <Button size="icon" variant="ghost" className="size-8 text-zinc-300 hover:text-zinc-100" onClick={() => onView(reservation.id)} title="Ver">
+            <Eye className="h-4 w-4" />
+          </Button>
+        )}
+        {onEdit && (
+          <Button size="icon" variant="ghost" className="size-8 text-zinc-300 hover:text-zinc-100" onClick={() => onEdit(reservation.id)} title="Editar">
+            <Pencil className="h-4 w-4" />
+          </Button>
+        )}
+        {(reservation.status === "PENDING" || reservation.status === "CONFIRMED") && onCancel && (
+          <Button size="icon" variant="ghost" className="size-8 text-zinc-300 hover:bg-destructive/10 hover:text-destructive" onClick={() => onCancel(reservation.id)} title="Cancelar">
+            <Ban className="h-4 w-4" />
+          </Button>
+        )}
+        {(reservation.status === "CANCELLED" || reservation.status === "COMPLETED") && onDelete && (
+          <Button size="icon" variant="ghost" className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => onDelete(reservation.id)} title="Eliminar">
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
     </article>
   );
 }
 
-export function ReservationTable({ reservations, onEdit, onView, onCancel, onDelete }: {
+export function ReservationTable({ reservations, onEdit, onView, onCancel, onDelete, selectedIds, onToggleSelect }: {
   reservations: Reservation[];
   onEdit?: (id: string) => void;
   onView?: (id: string) => void;
   onCancel?: (id: string) => void;
   onDelete?: (id: string) => void;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
 }) {
-  void onCancel;
+  const isSelectable = Boolean(selectedIds && onToggleSelect);
   const [sortField, setSortField] = useState<"startDate" | "totalPrice" | "client" | "createdAt">("createdAt");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const runAfterMenuClose = (action: () => void) => {
-    window.setTimeout(action, 0);
-  };
 
   const sorted = [...reservations].sort((a, b) => {
     let cmp = 0;
@@ -720,6 +257,7 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
             reservation={res}
             onView={onView}
             onEdit={onEdit}
+            onCancel={onCancel}
             onDelete={onDelete}
           />
         ))}
@@ -730,7 +268,34 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
           <table className="w-full min-w-[1200px] border-separate border-spacing-y-2 text-sm">
           <thead className="sticky top-0 z-10 bg-zinc-100/90 backdrop-blur dark:bg-zinc-950/90">
             <tr>
-              <th className="rounded-l-xl px-4 py-3 text-left font-medium text-zinc-600 dark:text-zinc-400">
+              {isSelectable && (
+                <th className="rounded-l-xl px-3 py-3 text-left font-medium text-zinc-600 dark:text-zinc-400 w-10">
+                  {(() => {
+                    const allSelected = reservations.length > 0 && reservations.every((r) => selectedIds!.has(r.id));
+                    const someSelected = reservations.length > 0 && !allSelected && reservations.some((r) => selectedIds!.has(r.id));
+                    return (
+                      <Checkbox
+                        checked={allSelected}
+                        onCheckedChange={(checked) => {
+                          if (checked || someSelected) {
+                            reservations.forEach((r) => !selectedIds!.has(r.id) && onToggleSelect!(r.id));
+                          } else {
+                            reservations.forEach((r) => selectedIds!.has(r.id) && onToggleSelect!(r.id));
+                          }
+                        }}
+                        aria-label={allSelected ? "Deseleccionar todas" : "Seleccionar todas"}
+                        ref={(el) => {
+                          if (el) {
+                            // @ts-expect-error - indeterminate is a DOM property not in react types
+                            el.indeterminate = someSelected || false;
+                          }
+                        }}
+                      />
+                    );
+                  })()}
+                </th>
+              )}
+              <th className={`${isSelectable ? "" : "rounded-l-xl"} px-4 py-3 text-left font-medium text-zinc-600 dark:text-zinc-400`}>
                 <button
                   onClick={() => toggleSort("client")}
                   className="flex items-center gap-1 hover:text-zinc-900 dark:hover:text-zinc-100"
@@ -762,7 +327,9 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
               </th>
               <th className="px-4 py-3 text-center font-medium text-zinc-600 dark:text-zinc-400">Estado</th>
               <th className="px-4 py-3 text-center font-medium text-zinc-600 dark:text-zinc-400">Pago</th>
-              <th className="rounded-r-xl px-4 py-3 text-right font-medium text-zinc-600 dark:text-zinc-400">Acciones</th>
+              <th className={`rounded-r-xl px-4 py-3 text-right font-medium text-zinc-600 dark:text-zinc-400 ${isSelectable ? "w-32" : ""}`}>
+                Acciones
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -778,9 +345,19 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
               const stateTone = getReservationTone(res.status, res.startDate, res.endDate);
               const paymentTone = getPaymentTone(paidAmount, totalPrice);
               const duration = res.billingType === "MONTHLY" ? `${getMonths(res.startDate, res.endDate)} meses` : `${getNights(res.startDate, res.endDate)} noches`;
+              const isSelected = selectedIds?.has(res.id);
               return (
-                <tr key={res.id} className="group relative transition-transform duration-200 hover:-translate-y-0.5">
-                  <td className="relative rounded-l-xl border-y border-l border-zinc-200/70 bg-white p-4 shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
+                <tr key={res.id} className={`group relative transition-transform duration-200 hover:-translate-y-0.5 ${isSelected ? "bg-muted/30" : ""}`}>
+                  {isSelectable && (
+                    <td className="relative rounded-l-xl border-y border-l border-zinc-200/70 bg-white px-3 py-4 shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => onToggleSelect!(res.id)}
+                        aria-label={`Seleccionar reserva de ${res.client.name}`}
+                      />
+                    </td>
+                  )}
+                  <td className="relative border-y border-zinc-200/70 bg-white p-4 shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
                     <div className={`absolute inset-y-3 left-0 w-1 rounded-r-full ${dotClassNames[stateTone]}`} />
                     <div className="flex items-center gap-3">
                       <div
@@ -814,7 +391,7 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                     </div>
                   </td>
                   <td className="border-y border-zinc-200/70 bg-white p-4 shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
-                    <ReservationPill tone={res.billingType === "DAILY" ? "blue" : "purple"} label={res.billingType === "DAILY" ? "Diario" : "Mensual"} />
+                    <ReservationPill tone={res.billingType === "DAILY" ? "info" : "info"} label={res.billingType === "DAILY" ? "Diario" : "Mensual"} />
                   </td>
                   <td className="border-y border-zinc-200/70 bg-white p-4 text-right shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
                     <span className="font-bold tabular-nums text-zinc-900 dark:text-zinc-100">
@@ -838,22 +415,52 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                       <PaymentProgress paidAmount={paidAmount} totalPrice={totalPrice} tone={paymentTone} />
                     </div>
                   </td>
-                  <td className="rounded-r-xl border-y border-r border-zinc-200/70 bg-white p-4 text-right shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
-                    <div className="flex items-center justify-end gap-1 opacity-70 transition-opacity group-hover:opacity-100">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger className="cursor-pointer rounded-md p-1.5 transition-colors hover:bg-muted">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {onView && <DropdownMenuItem onClick={() => runAfterMenuClose(() => onView(res.id))}>Ver detalle</DropdownMenuItem>}
-                          {onEdit && <DropdownMenuItem onClick={() => runAfterMenuClose(() => onEdit(res.id))}>Editar reserva</DropdownMenuItem>}
-                          {onDelete && (
-                            <DropdownMenuItem variant="destructive" onClick={() => runAfterMenuClose(() => onDelete(res.id))}>
-                              Eliminar
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                  <td className={`rounded-r-xl border-y border-r border-zinc-200/70 bg-white p-4 text-right shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60 ${isSelectable ? "w-32" : ""}`}>
+                    <div className="flex items-center justify-end gap-1">
+                      {onView && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="size-8"
+                          onClick={() => onView(res.id)}
+                          title="Ver"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {onEdit && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="size-8"
+                          onClick={() => onEdit(res.id)}
+                          title="Editar"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {(res.status === "CANCELLED" || res.status === "COMPLETED") && onDelete && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="size-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => onDelete(res.id)}
+                          title="Eliminar"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {(res.status === "PENDING" || res.status === "CONFIRMED") && onCancel && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="size-8 hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => onCancel(res.id)}
+                          title="Cancelar"
+                        >
+                          <Ban className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -863,74 +470,6 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
         </table>
         </div>
       </div>
-    </div>
-  );
-}
-
-export function ReservationTableCards({ reservations, onEdit, onView, onCancel, onDelete }: {
-  reservations: Reservation[];
-  onEdit?: (id: string) => void;
-  onView?: (id: string) => void;
-  onCancel?: (id: string) => void;
-  onDelete?: (id: string) => void;
-}) {
-  void onCancel;
-  void onDelete;
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      {reservations.map((res) => {
-        const status = statusConfig[res.status] || statusConfig.PENDING;
-        return (
-          <div
-            key={res.id}
-            className="group rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 bg-white dark:bg-zinc-950 overflow-hidden transition-all duration-200 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5"
-          >
-            <div className="h-1" style={{ backgroundColor: res.property.color || "#6366F1" }} />
-
-            <div className="p-4 space-y-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground truncate">{res.property.name}</p>
-                  <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">{res.client.name}</h3>
-                </div>
-                <Badge variant={status.variant} className="text-xs shrink-0 rounded-md">
-                  {status.label}
-                </Badge>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="space-y-1">
-                  <p className="text-muted-foreground">Check-in</p>
-                  <p className="font-medium text-zinc-900 dark:text-zinc-100">{formatFullDate(res.startDate)}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-muted-foreground">Check-out</p>
-                  <p className="font-medium text-zinc-900 dark:text-zinc-100">{formatFullDate(res.endDate)}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between pt-2 border-t border-zinc-100 dark:border-zinc-800">
-                <div className="text-right">
-                  <p className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{formatPrice(res.totalPrice)}</p>
-                  <p className="text-xs text-muted-foreground">{res.billingType === "MONTHLY" ? `${getMonths(res.startDate, res.endDate)} meses` : `${getNights(res.startDate, res.endDate)} noches`}</p>
-                </div>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {onView && (
-                    <Button size="icon-xs" variant="ghost" onClick={() => onView(res.id)}>
-                      👁
-                    </Button>
-                  )}
-                  {onEdit && (
-                    <Button size="icon-xs" variant="ghost" onClick={() => onEdit(res.id)}>
-                      ✎
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })}
     </div>
   );
 }

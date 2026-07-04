@@ -1,18 +1,22 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { Calendar, Plus, Pencil, Trash2, Eye, Grid, List, Filter, X } from "lucide-react";
+import { Calendar, Plus, Eye, Grid, List, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
 import { ReservationForm } from "@/components/reservations/reservation-form";
 import { ReservationDetailDialog } from "@/components/reservations/reservation-detail-dialog";
 import { ReservationTable } from "@/components/reservations/reservation-table";
+import { ReservationListItem } from "@/components/reservations/reservation-list-item";
+import { ReservationsKpiCards } from "@/components/reservations/reservations-kpi-cards";
+import { ReservationsBulkActionsBar } from "@/components/reservations/reservations-bulk-actions-bar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Pagination } from "@/components/ui/pagination";
 import { usePagination } from "@/hooks/use-pagination";
+import { useMediaQuery } from "@/hooks/use-media-query";
+import { useReservationFilters } from "@/hooks/use-reservation-filters";
 import { toast } from "sonner";
 import {
   createReservation,
@@ -22,78 +26,18 @@ import {
 } from "@/lib/actions/reservations";
 import { getReservationPaidAmount } from "@/lib/payments/calculations";
 import type { ReservationInput } from "@/lib/validations/reservation";
-
-interface Property {
-  id: string;
-  name: string;
-  unitsAvailable: number;
-  dailyPrice: string;
-  monthlyPrice: string | null;
-}
-
-interface Client {
-  id: string;
-  name: string;
-  email: string;
-}
-
-interface Reservation {
-  id: string;
-  propertyId: string;
-  clientId: string;
-  startDate: string;
-  endDate: string;
-  billingType: string;
-  unitsBooked: number;
-  totalPrice: string;
-  status: string;
-  bookingAirbnb: boolean;
-  notes: string | null;
-  createdAt: string;
-  property: Property;
-  client: Client;
-  payments: Array<{
-    id: string;
-    amount: string;
-    status: string;
-    method: string;
-    initPoint?: string | null;
-    expiresAt?: string | null;
-    deletedAt?: string | null;
-    paymentType?: string | null;
-  }>;
-}
+import type {
+  Reservation,
+  ReservationProperty,
+  ReservationClient,
+  PaginatedReservations,
+} from "@/components/reservations/types";
 
 interface ReservationsListClientProps {
-  initialData: { data: Reservation[]; total: number; page: number; totalPages: number };
-  properties: Property[];
-  clients: Client[];
+  initialData: PaginatedReservations;
+  properties: ReservationProperty[];
+  clients: ReservationClient[];
   plan?: string;
-}
-
-const statusLabels: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  PENDING: { label: "Pendiente", variant: "secondary" },
-  CONFIRMED: { label: "Confirmada", variant: "default" },
-  CANCELLED: { label: "Cancelada", variant: "destructive" },
-  COMPLETED: { label: "Completada", variant: "outline" },
-};
-
-function differenceInDays(end: Date, start: Date): number {
-  const diff = end.getTime() - start.getTime();
-  return Math.round(diff / (1000 * 60 * 60 * 24));
-}
-
-function getNights(startDate: string, endDate: string): number {
-  return differenceInDays(new Date(endDate), new Date(startDate)) + 1;
-}
-
-function formatPrice(price: string | number): string {
-  return new Intl.NumberFormat("es-CL", {
-    style: "currency",
-    currency: "CLP",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(Number(price));
 }
 
 export function ReservationsListClient({
@@ -103,14 +47,20 @@ export function ReservationsListClient({
   plan = "FREE",
 }: ReservationsListClientProps) {
   const searchParams = useSearchParams();
-  const [reservations, setReservations] = useState<Reservation[]>(initialData.data);
+
+  // Server-fetched reservations (affected by server-side filters)
+  const [serverReservations, setServerReservations] = useState<Reservation[]>(initialData.data);
   const [total, setTotal] = useState(initialData.total);
   const [totalPages, setTotalPages] = useState(initialData.totalPages);
+
+  // View mode
   const [viewMode, setViewMode] = useState<"list" | "table">("table");
+  const isMobile = useMediaQuery("(max-width: 767px)");
+
+  // Dialogs
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
   const [viewingReservation, setViewingReservation] = useState<Reservation | null>(null);
-  const [showFilters, setShowFilters] = useState(false);
   const [confirmAction, setConfirmAction] = useState<null | {
     title: string;
     description: string;
@@ -118,16 +68,16 @@ export function ReservationsListClient({
     onConfirm: () => Promise<void>;
   }>(null);
 
-  const [filters, setFilters] = useState({
-    propertyId: "",
-    billingType: "",
-    status: "",
-    payment: "",
-  });
+  // Selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+  // Pagination
   const { page, limit, goToPage, setLimit } = usePagination({ total, totalPages, defaultPage: 1, defaultLimit: 10 });
 
-  const fetchReservations = useCallback(async () => {
+  // Server-side filter changes trigger re-fetch
+  const fetchReservations = useCallback(async (
+    filters: { propertyId: string; billingType: string; status: string }
+  ) => {
     try {
       const params = new URLSearchParams({ page: page.toString(), limit: limit.toString() });
       if (filters.propertyId) params.append("propertyId", filters.propertyId);
@@ -135,76 +85,112 @@ export function ReservationsListClient({
       if (filters.status) params.append("status", filters.status);
       const res = await fetch(`/api/reservations?${params}`);
       const data = await res.json();
-      setReservations(data.data);
+      setServerReservations(data.data);
       setTotal(data.total);
       setTotalPages(data.totalPages);
       return data as { data: Reservation[]; total: number; page: number; totalPages: number };
     } catch {
       return null;
     }
-  }, [page, limit, filters.propertyId, filters.billingType, filters.status]);
+  }, [page, limit]);
 
   const skipNextFetchRef = useRef(false);
 
-  // Fetch when page, limit, or server-relevant filters change
-  useEffect(() => {
-    if (skipNextFetchRef.current) {
-      skipNextFetchRef.current = false;
-      return;
-    }
-    fetchReservations();
-  }, [page, limit, filters.propertyId, filters.billingType, filters.status, fetchReservations]);
+  const {
+    serverFilters,
+    paymentFilter,
+    searchQuery,
+    filteredReservations,
+    hasActiveFilters,
+    updateServerFilter,
+    updatePaymentFilter,
+    handleSearchChange,
+    clearAllFilters,
+  } = useReservationFilters({
+    serverReservations,
+    onServerFiltersChange: fetchReservations,
+  });
 
-  // Reset to page 1 when server-relevant filters change
+  // Re-fetch when server filters change
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch updates component state intentionally
+    fetchReservations(serverFilters);
+  }, [serverFilters, fetchReservations]);
+
+  // Reset to page 1 when server filters change
   useEffect(() => {
     if (page !== 1) {
       skipNextFetchRef.current = true;
       goToPage(1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.propertyId, filters.billingType, filters.status, goToPage]);
+  }, [serverFilters.propertyId, serverFilters.billingType, serverFilters.status, goToPage]);
 
-  const filteredReservations = useMemo(() => {
-    if (!filters.payment) return reservations;
+  // Effective view mode: mobile always uses list
+  const effectiveViewMode = isMobile ? "list" : viewMode;
 
-    return reservations.filter((res) => {
-      const paidAmount = getReservationPaidAmount(res.payments);
-      const totalPrice = Number(res.totalPrice);
-      if (filters.payment === "paid" && paidAmount < totalPrice) return false;
-      if (filters.payment === "pending" && paidAmount > 0) return false;
-      if (filters.payment === "overpaid" && paidAmount <= totalPrice) return false;
-      return true;
-    });
-  }, [reservations, filters.payment]);
-
+  // KPI metrics
   const totalReserved = filteredReservations.reduce((sum, res) => sum + Number(res.totalPrice), 0);
   const totalPaid = filteredReservations.reduce(
     (sum, res) => sum + getReservationPaidAmount(res.payments),
     0,
   );
-  const activeCount = filteredReservations.filter((res) => res.status !== "CANCELLED" && res.status !== "COMPLETED").length;
+  const activeCount = filteredReservations.filter(
+    (res) => res.status !== "CANCELLED" && res.status !== "COMPLETED",
+  ).length;
   const pendingAmount = Math.max(totalReserved - totalPaid, 0);
 
-  const hasActiveFilters = Object.values(filters).some((v) => v !== "");
-
+  // Open detail dialog from URL param
   useEffect(() => {
     const reservationId = searchParams.get("reservationId");
     if (!reservationId) return;
-
-    const target = reservations.find((reservation) => reservation.id === reservationId);
+    const target = serverReservations.find((reservation) => reservation.id === reservationId);
     if (target) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- sync URL param to UI state
       setViewingReservation(target);
     }
-  }, [searchParams, reservations]);
+  }, [searchParams, serverReservations]);
 
-  const clearFilters = () => {
-    setFilters({ propertyId: "", billingType: "", status: "", payment: "" });
-  };
+  // CRUD handlers
+  const handleRefresh = useCallback(async () => {
+    await fetchReservations(serverFilters);
+  }, [fetchReservations, serverFilters]);
 
-  const handleRefresh = async () => {
-    await fetchReservations();
-  };
+  // Selection helpers
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  // Bulk actions
+  const handleBulkCancel = useCallback(() => {
+    const ids = Array.from(selectedIds);
+    setConfirmAction({
+      title: "Cancelar reservas",
+      description: `Se cancelarán ${ids.length} reserva${ids.length > 1 ? "s" : ""}. Los pagos completados se mantendrán como registro financiero.`,
+      confirmLabel: "Cancelar reservas",
+      onConfirm: async () => {
+        for (const id of ids) {
+          await cancelReservation(id, "cancelled_by_user");
+        }
+        toast.success(`${ids.length} reserva${ids.length > 1 ? "s" : ""} cancelada${ids.length > 1 ? "s" : ""}`);
+        clearSelection();
+        handleRefresh();
+      },
+    });
+  }, [selectedIds, clearSelection, handleRefresh]);
+
+  const handleGenerateLinks = useCallback(() => {
+    toast.info("Generación de links en lotecoming soon");
+  }, []);
 
   const handleCreate = async (data: ReservationInput) => {
     const result = await createReservation(data);
@@ -273,14 +259,6 @@ export function ReservationsListClient({
     handleRefresh();
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("es-CL", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  };
-
   return (
     <div className="space-y-6">
       <Card>
@@ -291,20 +269,22 @@ export function ReservationsListClient({
               <CardDescription>Gestiona las reservas de tus propiedades</CardDescription>
             </div>
             <div className="flex gap-2">
-              <div className="flex border rounded-md">
-                <button
-                  onClick={() => setViewMode("list")}
-                  className={`p-2 ${viewMode === "list" ? "bg-muted" : ""}`}
-                >
-                  <List className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => setViewMode("table")}
-                  className={`p-2 ${viewMode === "table" ? "bg-muted" : ""}`}
-                >
-                  <Grid className="h-4 w-4" />
-                </button>
-              </div>
+              {!isMobile && (
+                <div className="flex border rounded-md">
+                  <button
+                    onClick={() => setViewMode("list")}
+                    className={`p-2 ${effectiveViewMode === "list" ? "bg-muted" : ""}`}
+                  >
+                    <List className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => setViewMode("table")}
+                    className={`p-2 ${effectiveViewMode === "table" ? "bg-muted" : ""}`}
+                  >
+                    <Grid className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
               <Button onClick={() => setIsCreateOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Nueva Reserva
@@ -313,7 +293,7 @@ export function ReservationsListClient({
           </div>
         </CardHeader>
         <CardContent>
-          {reservations.length === 0 ? (
+          {serverReservations.length === 0 && !hasActiveFilters ? (
             <div className="text-center py-12">
               <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
               <h3 className="text-lg font-medium mb-2">No hay reservas</h3>
@@ -325,133 +305,101 @@ export function ReservationsListClient({
             </div>
           ) : (
             <>
-              <div className="mb-6 grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
-                <div className="rounded-xl border border-blue-500/15 bg-blue-500/[0.06] p-3 sm:p-4">
-                  <p className="text-[0.65rem] font-medium uppercase tracking-wide text-blue-500 sm:text-xs">Reservas filtradas</p>
-                  <p className="mt-1.5 text-xl font-bold tabular-nums text-foreground sm:mt-2 sm:text-2xl">{filteredReservations.length}</p>
-                  <p className="text-xs text-muted-foreground">{activeCount} activas o pendientes</p>
-                </div>
-                <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/[0.06] p-3 sm:p-4">
-                  <p className="text-[0.65rem] font-medium uppercase tracking-wide text-emerald-500 sm:text-xs">Cobrado</p>
-                  <p className="mt-1.5 text-xl font-bold tabular-nums text-foreground sm:mt-2 sm:text-2xl">{formatPrice(totalPaid)}</p>
-                  <p className="text-xs text-muted-foreground">Pagos completados</p>
-                </div>
-                <div className="rounded-xl border border-amber-500/15 bg-amber-500/[0.06] p-3 sm:p-4">
-                  <p className="text-[0.65rem] font-medium uppercase tracking-wide text-amber-500 sm:text-xs">Por cobrar</p>
-                  <p className="mt-1.5 text-xl font-bold tabular-nums text-foreground sm:mt-2 sm:text-2xl">{formatPrice(pendingAmount)}</p>
-                  <p className="text-xs text-muted-foreground">Saldo de la selección</p>
-                </div>
-                <div className="rounded-xl border border-zinc-500/15 bg-zinc-500/[0.06] p-3 sm:p-4">
-                  <p className="text-[0.65rem] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">Total reservado</p>
-                  <p className="mt-1.5 text-xl font-bold tabular-nums text-foreground sm:mt-2 sm:text-2xl">{formatPrice(totalReserved)}</p>
-                  <p className="text-xs text-muted-foreground">Valor bruto</p>
-                </div>
-              </div>
+              {/* KPI Cards */}
+              <ReservationsKpiCards
+                filteredCount={filteredReservations.length}
+                activeCount={activeCount}
+                totalPaid={totalPaid}
+                pendingAmount={pendingAmount}
+                totalReserved={totalReserved}
+              />
 
-              <div className="mb-6 overflow-hidden rounded-xl border border-foreground/10 bg-gradient-to-br from-muted/40 via-muted/20 to-background shadow-sm sm:rounded-2xl">
+              {/* Filter Bar */}
+              <div className="mb-4 overflow-hidden rounded-xl border border-foreground/10 bg-gradient-to-br from-muted/40 via-muted/20 to-background shadow-sm sm:rounded-2xl">
                 <div className="flex flex-col gap-3 p-3 sm:gap-4 sm:p-4 lg:flex-row lg:items-end lg:justify-between">
-                  <div className="flex items-center justify-between gap-3 lg:w-52 lg:items-start lg:justify-start">
-                    <div className="flex items-center gap-2.5 sm:gap-3">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-blue-500/20 bg-blue-500/10 text-blue-400 sm:h-9 sm:w-9 sm:rounded-xl">
-                        <Filter className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-foreground">Filtros</p>
-                        <p className="text-xs text-muted-foreground">
-                          {filteredReservations.length} de {reservations.length} reservas
-                        </p>
+                  <div className="flex flex-wrap items-end gap-2 sm:gap-3 lg:flex-1">
+                    {/* Search */}
+                    <div className="w-full sm:w-60">
+                      <div className="relative">
+                        <Eye className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                        <input
+                          value={searchQuery}
+                          onChange={(e) => handleSearchChange(e.target.value)}
+                          placeholder="Buscar cliente..."
+                          className="h-9 sm:h-10 w-full rounded-lg border border-input bg-transparent pl-8 pr-2.5 text-sm shadow-inner outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 placeholder:text-muted-foreground"
+                        />
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 lg:hidden">
-                      {hasActiveFilters && (
-                        <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8 rounded-lg px-2 text-xs">
-                          <X className="mr-1 h-3.5 w-3.5" />
-                          Limpiar
-                        </Button>
-                      )}
+
+                    {/* Estado */}
+                    <select
+                      value={serverFilters.status}
+                      onChange={(e) => updateServerFilter("status", e.target.value)}
+                      className="h-9 sm:h-10 w-full rounded-lg border border-input bg-background/80 px-2.5 text-sm font-medium text-foreground shadow-inner outline-none transition-colors sm:w-44"
+                    >
+                      <option value="">Todos los estados</option>
+                      <option value="PENDING">Pendiente</option>
+                      <option value="CONFIRMED">Confirmada</option>
+                      <option value="CANCELLED">Cancelada</option>
+                      <option value="COMPLETED">Completada</option>
+                    </select>
+
+                    {/* Billing type */}
+                    <select
+                      value={serverFilters.billingType}
+                      onChange={(e) => updateServerFilter("billingType", e.target.value)}
+                      className="h-9 sm:h-10 w-full rounded-lg border border-input bg-background/80 px-2.5 text-sm font-medium text-foreground shadow-inner outline-none transition-colors sm:w-40"
+                    >
+                      <option value="">Todos los tipos</option>
+                      <option value="DAILY">Diario</option>
+                      <option value="MONTHLY">Mensual</option>
+                    </select>
+
+                    {/* Propiedad */}
+                    <select
+                      value={serverFilters.propertyId}
+                      onChange={(e) => updateServerFilter("propertyId", e.target.value)}
+                      className="h-9 sm:h-10 w-full rounded-lg border border-input bg-background/80 px-2.5 text-sm font-medium text-foreground shadow-inner outline-none transition-colors sm:w-48"
+                    >
+                      <option value="">Todas las propiedades</option>
+                      {properties.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+
+                    {/* Pago */}
+                    <select
+                      value={paymentFilter}
+                      onChange={(e) => updatePaymentFilter(e.target.value)}
+                      className="h-9 sm:h-10 w-full rounded-lg border border-input bg-background/80 px-2.5 text-sm font-medium text-foreground shadow-inner outline-none transition-colors sm:w-40"
+                    >
+                      <option value="">Todos los pagos</option>
+                      <option value="paid">Pagado</option>
+                      <option value="pending">Pendiente</option>
+                      <option value="overpaid">Exceso</option>
+                    </select>
+                  </div>
+
+                  {hasActiveFilters && (
+                    <div className="flex lg:shrink-0">
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => setShowFilters((current) => !current)}
-                        className="h-8 rounded-lg px-2 text-xs"
+                        onClick={clearAllFilters}
+                        className="h-9 sm:h-10 rounded-lg px-3 text-xs sm:text-sm"
                       >
-                        {showFilters ? "Ocultar" : "Mostrar"}
+                        <X className="mr-1.5 h-3.5 w-3.5 sm:mr-2 sm:h-4 sm:w-4" />
+                        Limpiar
                       </Button>
                     </div>
-                  </div>
-
-                  <div className={`${showFilters ? "grid" : "hidden"} grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4`}>
-                    <label>
-                      <select
-                        value={filters.propertyId}
-                        onChange={(e) => setFilters({ ...filters, propertyId: e.target.value })}
-                        className="h-9 w-full rounded-lg border border-foreground/10 bg-background/80 px-2.5 text-sm font-medium text-foreground shadow-inner outline-none transition-colors hover:border-foreground/20 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15 sm:h-10 sm:px-3"
-                      >
-                        <option value="">Todas las propiedades</option>
-                        {properties.map((p) => (
-                          <option key={p.id} value={p.id}>{p.name}</option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label>
-                      <select
-                        value={filters.billingType}
-                        onChange={(e) => setFilters({ ...filters, billingType: e.target.value })}
-                        className="h-9 w-full rounded-lg border border-foreground/10 bg-background/80 px-2.5 text-sm font-medium text-foreground shadow-inner outline-none transition-colors hover:border-foreground/20 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15 sm:h-10 sm:px-3"
-                      >
-                        <option value="">Todos los tipos</option>
-                        <option value="DAILY">Diario</option>
-                        <option value="MONTHLY">Mensual</option>
-                      </select>
-                    </label>
-
-                    <label>
-                      <select
-                        value={filters.status}
-                        onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-                        className="h-9 w-full rounded-lg border border-foreground/10 bg-background/80 px-2.5 text-sm font-medium text-foreground shadow-inner outline-none transition-colors hover:border-foreground/20 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15 sm:h-10 sm:px-3"
-                      >
-                        <option value="">Todos los estados</option>
-                        <option value="PENDING">Pendiente</option>
-                        <option value="CONFIRMED">Confirmada</option>
-                        <option value="CANCELLED">Cancelada</option>
-                        <option value="COMPLETED">Completada</option>
-                      </select>
-                    </label>
-
-                    <label>
-                      <select
-                        value={filters.payment}
-                        onChange={(e) => setFilters({ ...filters, payment: e.target.value })}
-                        className="h-9 w-full rounded-lg border border-foreground/10 bg-background/80 px-2.5 text-sm font-medium text-foreground shadow-inner outline-none transition-colors hover:border-foreground/20 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/15 sm:h-10 sm:px-3"
-                      >
-                        <option value="">Todos los pagos</option>
-                        <option value="paid">Pagado</option>
-                        <option value="pending">Pendiente</option>
-                        <option value="overpaid">Exceso</option>
-                      </select>
-                    </label>
-                  </div>
-
-                  <div className="hidden gap-2 lg:flex lg:flex-col">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowFilters((current) => !current)}
-                      className="h-10 shrink-0 rounded-lg"
-                    >
-                      <Filter className="mr-1.5 h-4 w-4" />
-                      {showFilters ? "Ocultar" : "Mostrar"}
-                    </Button>
-                    {hasActiveFilters && (
-                      <Button variant="outline" size="sm" onClick={clearFilters} className="h-10 shrink-0 rounded-lg">
-                        <X className="mr-1.5 h-4 w-4" />
-                        Limpiar filtros
-                      </Button>
-                    )}
-                  </div>
+                  )}
                 </div>
+              </div>
+
+              {/* Counter */}
+              <div className="mb-4 text-sm text-muted-foreground">
+                <span className="font-medium text-foreground">{filteredReservations.length}</span>{" "}
+                de {total} reserva{total !== 1 ? "s" : ""}
               </div>
 
               {filteredReservations.length === 0 ? (
@@ -460,22 +408,24 @@ export function ReservationsListClient({
                   <h3 className="text-lg font-medium">No hay reservas con estos filtros</h3>
                   <p className="mt-1 text-sm text-muted-foreground">Prueba limpiar los filtros o crea una nueva reserva.</p>
                   {hasActiveFilters && (
-                    <Button className="mt-4" variant="outline" onClick={clearFilters}>
+                    <Button className="mt-4" variant="outline" onClick={clearAllFilters}>
                       <X className="mr-2 h-4 w-4" />
                       Limpiar filtros
                     </Button>
                   )}
                 </div>
-              ) : viewMode === "table" ? (
+              ) : effectiveViewMode === "table" ? (
                 <div className="overflow-x-auto">
                   <ReservationTable
                     reservations={filteredReservations}
+                    selectedIds={selectedIds}
+                    onToggleSelect={toggleSelect}
                     onView={(id) => {
-                      const res = reservations.find((r) => r.id === id);
+                      const res = serverReservations.find((r) => r.id === id);
                       if (res) setViewingReservation(res);
                     }}
                     onEdit={(id) => {
-                      const res = reservations.find((r) => r.id === id);
+                      const res = serverReservations.find((r) => r.id === id);
                       if (res) setEditingReservation(res);
                     }}
                     onCancel={(id) => handleCancel(id)}
@@ -484,120 +434,38 @@ export function ReservationsListClient({
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {filteredReservations.map((reservation) => {
-                    const status = statusLabels[reservation.status] || statusLabels.PENDING;
-                    const paidAmount = getReservationPaidAmount(reservation.payments);
-                    const pendingAmount = Number(reservation.totalPrice) - paidAmount;
-
-                    return (
-                      <Card key={reservation.id}>
-                        <CardHeader className="pb-3">
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <CardTitle className="text-lg">{reservation.property.name}</CardTitle>
-                              <CardDescription>
-                                {reservation.client.name} • {reservation.client.email}
-                              </CardDescription>
-                            </div>
-                            <Badge variant={status.variant}>{status.label}</Badge>
-                          </div>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-                            <div>
-                              <p className="text-muted-foreground">Fechas</p>
-                              <p className="font-medium">
-                                {formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}
-                                <span className="text-muted-foreground ml-1">
-                                  ({getNights(reservation.startDate, reservation.endDate)} noches)
-                                </span>
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">Tipo</p>
-                              <p className="font-medium">
-                                {reservation.billingType === "DAILY" ? "Diario" : "Mensual"}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">Unidades</p>
-                              <p className="font-medium">{reservation.unitsBooked}</p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">Total</p>
-                              <p className="font-medium">${Number(reservation.totalPrice).toLocaleString("CLP")}</p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">Pagado/Pendiente</p>
-                              <p className="font-medium text-green-600">
-                                ${paidAmount.toLocaleString("CLP")}
-                              </p>
-                              {pendingAmount > 0 && (
-                                <p className="text-xs text-orange-600">
-                                  ${pendingAmount.toLocaleString("CLP")} pendiente
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          {reservation.notes && (
-                            <p className="mt-3 text-sm text-muted-foreground">
-                              <span className="font-medium">Notas:</span> {reservation.notes}
-                            </p>
-                          )}
-
-                          <div className="flex gap-2 mt-4">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setViewingReservation(reservation)}
-                            >
-                              <Eye className="h-4 w-4 mr-1" />
-                              Ver
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setEditingReservation(reservation)}
-                            >
-                              <Pencil className="h-4 w-4 mr-1" />
-                              Editar
-                            </Button>
-                            {reservation.status !== "CANCELLED" && reservation.status !== "COMPLETED" && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleCancel(reservation.id)}
-                              >
-                                <Trash2 className="h-4 w-4 mr-1" />
-                                Cancelar
-                              </Button>
-                            )}
-                            {(reservation.status === "CANCELLED" || reservation.status === "COMPLETED") && (
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => handleDelete(reservation.id)}
-                              >
-                                <Trash2 className="h-4 w-4 mr-1" />
-                                Eliminar
-                              </Button>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
+                  {filteredReservations.map((reservation) => (
+                    <ReservationListItem
+                      key={reservation.id}
+                      reservation={reservation}
+                      isSelected={selectedIds.has(reservation.id)}
+                      onToggleSelect={toggleSelect}
+                      onView={(res) => setViewingReservation(res)}
+                      onEdit={(res) => setEditingReservation(res)}
+                      onCancel={handleCancel}
+                      onDelete={handleDelete}
+                    />
+                  ))}
                 </div>
               )}
             </>
           )}
-
-          {total > limit && (
-            <Pagination page={page} totalPages={totalPages} total={total} limit={limit} onPageChange={goToPage} onLimitChange={setLimit} />
-          )}
         </CardContent>
       </Card>
+
+      {total > limit && (
+        <Pagination page={page} totalPages={totalPages} total={total} limit={limit} onPageChange={goToPage} onLimitChange={setLimit} />
+      )}
+
+      {/* Bulk Actions Bar */}
+      {selectedIds.size > 0 && (
+        <ReservationsBulkActionsBar
+          selectedCount={selectedIds.size}
+          onClearSelection={clearSelection}
+          onBulkCancel={handleBulkCancel}
+          onGenerateLinks={handleGenerateLinks}
+        />
+      )}
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="w-[95vw] max-w-2xl gap-0 p-0">
@@ -616,7 +484,7 @@ export function ReservationsListClient({
               plan={plan as "FREE" | "PRO"}
             />
           ) : (
-            <p className="text-muted-foreground">
+            <p className="p-6 text-muted-foreground">
               Primero necesitas crear propiedades y clientes.
             </p>
           )}
@@ -638,7 +506,7 @@ export function ReservationsListClient({
             handleCancel(viewingReservation.id, () => setViewingReservation(null));
           }}
           onRefresh={async (reservationId) => {
-            const data = await fetchReservations();
+            const data = await fetchReservations(serverFilters);
             if (data?.data) {
               const fresh = data.data.find((r) => r.id === reservationId);
               if (fresh) setViewingReservation(fresh);

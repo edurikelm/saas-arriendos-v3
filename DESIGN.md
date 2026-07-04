@@ -26,6 +26,12 @@ RentalPro es un SaaS de gestión de arriendos de propiedades. Este documento est
 | `--accent-foreground` | `0.3791 0.1378 265.5222` | Texto sobre accent |
 | `--destructive` | `0.6368 0.2078 25.3313` | Estados de error |
 | `--destructive-foreground` | `1.0000 0 0` | Texto sobre destructive |
+| `--success` | `0.95 0.05 145` | Estados OK, completado, sin deuda |
+| `--success-foreground` | `0.40 0.15 145` | Texto sobre success |
+| `--warning` | `0.95 0.06 75` | Estados de atención, vencen pronto |
+| `--warning-foreground` | `0.40 0.15 60` | Texto sobre warning |
+| `--info` | `0.95 0.04 230` | Estados informativos, próximos eventos |
+| `--info-foreground` | `0.40 0.12 240` | Texto sobre info |
 | `--border` | `0.9276 0.0058 264.5313` | Bordes |
 | `--input` | `0.9276 0.0058 264.5313` | Inputs |
 | `--ring` | `0.6231 0.1880 259.8145` | Focus rings |
@@ -43,6 +49,14 @@ RentalPro es un SaaS de gestión de arriendos de propiedades. Este documento est
 | `--muted-foreground` | `0.7155 0 0` | Texto apagado |
 | `--accent` | `0.3791 0.1378 265.5222` | Highlights |
 | `--accent-foreground` | `0.8823 0.0571 254.1284` | Texto sobre accent |
+| `--destructive` | `0.6368 0.2078 25.3313` | Estados de error |
+| `--destructive-foreground` | `1.0000 0 0` | Texto sobre destructive |
+| `--success` | `0.30 0.08 145` | Estados OK |
+| `--success-foreground` | `0.85 0.15 145` | Texto sobre success |
+| `--warning` | `0.30 0.10 60` | Estados de atención |
+| `--warning-foreground` | `0.85 0.15 75` | Texto sobre warning |
+| `--info` | `0.30 0.08 240` | Estados informativos |
+| `--info-foreground` | `0.85 0.12 230` | Texto sobre info |
 | `--border` | `0.3715 0 0` | Bordes |
 | `--input` | `0.3715 0 0` | Inputs |
 
@@ -223,6 +237,36 @@ El sidebar utiliza variables CSS propias para mantener contraste en navegación:
 | Border Radius | `rounded-4xl` (pill) |
 | Font Size | `text-xs` |
 | Icon Size | `size-3!` |
+
+**Variants semánticos** (mapean a tokens):
+
+| Variant | Token base | Uso |
+|---------|-----------|-----|
+| `default` | `primary` | Botones primarios, CTAs |
+| `secondary` | `secondary` | Neutral, inactivo |
+| `destructive` | `destructive` | Errores, pagos vencidos, cancelaciones |
+| `success` | `success` | Pagos completados, reservas confirmadas, KPIs OK |
+| `warning` | `warning` | Atención, vencen hoy, saldos pendientes |
+| `info` | `info` | Próximos eventos, informativo |
+| `outline` | `border` | Bajo énfasis, fondo transparente |
+| `ghost` | `transparent` | Solo en hover |
+
+### Semantic Token Mapping
+
+Estos tokens existen para evitar colores hex hardcodeados (`text-emerald-500`, `bg-amber-500/10`, etc.) en pantallas que muestran estado:
+
+| Concepto | Token | Cuándo |
+|----------|-------|--------|
+| Estado completado / sin deuda / sin alertas | `success` | Reserva CONFIRMED, pago COMPLETED, KPI "ocupación > 85%" |
+| Estado próximo / saldo pendiente / alerta | `warning` | Pago vence hoy, reserva con saldo, KPI "por cobrar" |
+| Estado informativo / futuro / agendado | `info` | Próximos 7 días, próximo check-in |
+| Estado de error / vencido / cancelado | `destructive` | Pago vencido, reserva CANCELLED, KPI crítico |
+
+**Reglas**:
+- Todo badge/pill/dot que indique estado DEBE usar uno de los 4 tokens semánticos (`success`/`warning`/`info`/`destructive`), no hex (`bg-emerald-500`, `bg-amber-500`, etc.).
+- En componentes `<Badge variant="success|warning|info|destructive">` siempre que represente estado.
+- En estilos inline (`bg-success/10 text-success`, etc.) cuando se necesite más control visual.
+- **Excepción documentada**: el table de reservas usa un chrome `bg-zinc-*` intencional (estética dark/Notion-like) que NO se migra a tokens semánticos — son chrome de tabla, no badges de estado.
 
 ---
 

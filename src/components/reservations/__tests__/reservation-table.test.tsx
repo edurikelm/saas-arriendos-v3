@@ -24,7 +24,7 @@ const reservation = {
   bookingAirbnb: false,
   notes: null,
   createdAt: "2025-01-01T00:00:00.000Z",
-  property: { id: "prop-1", name: "Cabaña A", color: "#3B82F6" },
+  property: { id: "prop-1", name: "Cabaña A", color: "#3B82F6", unitsAvailable: 1, dailyPrice: "25000", monthlyPrice: null },
   client: { id: "client-1", name: "Juan Pérez", email: "juan@example.com" },
   payments: [],
 };

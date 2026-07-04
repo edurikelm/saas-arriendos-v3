@@ -10,11 +10,45 @@ import type { CollectionAlertItem } from "@/lib/alerts/collection-alerts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
+interface SaldoItem {
+  reservationId: string;
+  reservation: {
+    client: { name: string };
+    property: { name: string };
+  };
+  pending: number;
+}
+
 interface CollectionAlertsSectionProps {
   vencidos: CollectionAlertItem[];
   vencenHoy: CollectionAlertItem[];
   proximos7Dias: CollectionAlertItem[];
+  saldos: SaldoItem[];
 }
+
+type TabKey = "vencidos" | "vencenHoy" | "proximos7Dias" | "saldos";
+
+type AlertTab = {
+  key: "vencidos" | "vencenHoy" | "proximos7Dias";
+  label: string;
+  items: CollectionAlertItem[];
+  countClassName: string;
+  icon: React.ReactNode;
+  emptyMessage: string;
+  itemNoun: "alerta";
+};
+
+type SaldoTab = {
+  key: "saldos";
+  label: string;
+  items: SaldoItem[];
+  countClassName: string;
+  icon: React.ReactNode;
+  emptyMessage: string;
+  itemNoun: "saldo";
+};
+
+type Tab = AlertTab | SaldoTab;
 
 function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString("es-CL", {
@@ -25,16 +59,25 @@ function formatDate(dateString: string): string {
   });
 }
 
+function formatCLP(amount: number): string {
+  return new Intl.NumberFormat("es-CL", {
+    style: "currency",
+    currency: "CLP",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
 function isActiveLink(expiresAt: string | null): boolean {
   if (!expiresAt) return false;
   return new Date(expiresAt).getTime() > Date.now();
 }
 
-export function CollectionAlertsSection({ vencidos, vencenHoy, proximos7Dias }: CollectionAlertsSectionProps) {
+export function CollectionAlertsSection({ vencidos, vencenHoy, proximos7Dias, saldos }: CollectionAlertsSectionProps) {
   const router = useRouter();
   const [markingId, setMarkingId] = useState<string | null>(null);
   const [linkId, setLinkId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"vencidos" | "vencenHoy" | "proximos7Dias">("vencidos");
+  const [activeTab, setActiveTab] = useState<TabKey>("vencidos");
 
   const handleMarkAsPaid = async (paymentId: string) => {
     setMarkingId(paymentId);
@@ -72,38 +115,48 @@ export function CollectionAlertsSection({ vencidos, vencenHoy, proximos7Dias }: 
 
   const disabled = Boolean(markingId || linkId);
 
-  const tabs = [
+  const tabs: Tab[] = [
     {
-      key: "vencidos" as const,
+      key: "vencidos",
       label: "Vencidos",
       items: vencidos,
-      countClassName: "bg-red-500/10 text-red-700 dark:text-red-300",
+      countClassName: "bg-destructive/10 text-destructive",
       icon: <AlertTriangle className="size-4" />,
-      iconClassName: "bg-red-500/10 text-red-600 dark:text-red-300",
       emptyMessage: "Sin pagos vencidos",
+      itemNoun: "alerta",
     },
     {
-      key: "vencenHoy" as const,
+      key: "vencenHoy",
       label: "Vencen hoy",
       items: vencenHoy,
-      countClassName: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+      countClassName: "bg-warning/10 text-warning-foreground",
       icon: <CalendarClock className="size-4" />,
-      iconClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-300",
       emptyMessage: "Sin pagos que venzan hoy",
+      itemNoun: "alerta",
     },
     {
-      key: "proximos7Dias" as const,
+      key: "proximos7Dias",
       label: "Próx. 7 días",
       items: proximos7Dias,
-      countClassName: "bg-sky-500/10 text-sky-700 dark:text-sky-300",
+      countClassName: "bg-info/10 text-info-foreground",
       icon: <CalendarClock className="size-4" />,
-      iconClassName: "bg-sky-500/10 text-sky-600 dark:text-sky-300",
       emptyMessage: "Sin alertas en próximos 7 días",
+      itemNoun: "alerta",
+    },
+    {
+      key: "saldos",
+      label: "Saldos pendientes",
+      items: saldos,
+      countClassName: "bg-warning/10 text-warning-foreground",
+      icon: <ReceiptText className="size-4" />,
+      emptyMessage: "Sin saldos pendientes",
+      itemNoun: "saldo",
     },
   ];
 
   const currentTab = tabs.find((tab) => tab.key === activeTab) ?? tabs[0];
-  const totalAlerts = vencidos.length + vencenHoy.length + proximos7Dias.length;
+  const totalAlerts = vencidos.length + vencenHoy.length + proximos7Dias.length + saldos.length;
+  const isSaldoTab = currentTab.key === "saldos";
 
   return (
     <Card aria-label="Alertas de Cobranza">
@@ -118,7 +171,7 @@ export function CollectionAlertsSection({ vencidos, vencenHoy, proximos7Dias }: 
       </CardHeader>
 
       <CardContent className="space-y-4 pt-0">
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-4 gap-2">
           {tabs.map((tab) => {
             const isActive = tab.key === currentTab.key;
 
@@ -141,19 +194,38 @@ export function CollectionAlertsSection({ vencidos, vencenHoy, proximos7Dias }: 
         </div>
 
         <div className={disabled ? "pointer-events-none opacity-70" : ""}>
-          <div className="mb-3 flex items-center gap-2">
-            <span className={`flex size-8 items-center justify-center rounded-lg ${currentTab.iconClassName}`}>
-              {currentTab.icon}
-            </span>
-            <div>
-              <p className="text-sm font-semibold text-foreground">{currentTab.label}</p>
-              <p className="text-xs text-muted-foreground">Mostrando {currentTab.items.length} alerta(s)</p>
-            </div>
-          </div>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Mostrando {currentTab.items.length} {currentTab.itemNoun}{currentTab.items.length === 1 ? "" : "s"}
+          </p>
 
           {currentTab.items.length === 0 ? (
             <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
               {currentTab.emptyMessage}
+            </div>
+          ) : isSaldoTab ? (
+            <div className="space-y-3">
+              {currentTab.items.map((item) => (
+                <div key={item.reservationId} className="rounded-xl border bg-muted/30 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-foreground">{item.reservation.client.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">{item.reservation.property.name}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">Saldo</p>
+                      <p className="text-sm font-semibold text-warning-foreground">{formatCLP(item.pending)}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <Link
+                      href={`/reservations?reservationId=${item.reservationId}`}
+                      className="inline-flex h-8 items-center justify-center rounded-lg border border-input bg-background px-3 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+                    >
+                      Ver reserva
+                    </Link>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             <div className="space-y-3">

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Building2, Calendar, Users, BarChart3, Settings, FileText, LifeBuoy, X, PanelLeftClose, PanelLeft } from "lucide-react";
+import { Home, Building2, Calendar, Users, BarChart3, Settings, LifeBuoy, X, PanelLeftClose, PanelLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -98,18 +98,6 @@ export function DashboardSidebar({ open, onClose, collapsed, onToggle, supportUn
               );
             })}
           </nav>
-          <div className={cn("border-t border-sidebar-border p-3", collapsed ? "lg:px-2 lg:py-3" : "")}>
-            <Link 
-              href="/" 
-              className={cn(
-                "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-sidebar-foreground/85 hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground",
-                collapsed ? "lg:justify-center lg:px-0" : ""
-              )}
-            >
-              <FileText className="h-5 w-5 shrink-0" />
-              <span className={cn("transition-opacity duration-200", collapsed ? "lg:opacity-0 lg:w-0" : "lg:opacity-100")}>Licencia</span>
-            </Link>
-          </div>
         </div>
       </aside>
     </>

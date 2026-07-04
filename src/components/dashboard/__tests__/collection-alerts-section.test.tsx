@@ -42,6 +42,7 @@ describe("CollectionAlertsSection - radius system", () => {
         vencidos={[]}
         vencenHoy={[]}
         proximos7Dias={[]}
+        saldos={[]}
       />
     );
 
@@ -59,6 +60,7 @@ describe("CollectionAlertsSection - radius system", () => {
         vencidos={[baseItem]}
         vencenHoy={[baseItem, baseItem]}
         proximos7Dias={[]}
+        saldos={[]}
       />
     );
 
