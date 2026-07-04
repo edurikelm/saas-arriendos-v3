@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { selectRemindersForDispatch } from "@/lib/notifications/select-reminders-for-dispatch";
 
 const mockPrisma = vi.hoisted(() => ({
