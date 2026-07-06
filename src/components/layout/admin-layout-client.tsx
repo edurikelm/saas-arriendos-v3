@@ -38,7 +38,7 @@ export function AdminLayoutClient({ children, userName, userRole, supportUnreadC
           </Button>
           <span className="font-bold text-lg">RentalPro Admin</span>
         </div>
-        <DashboardNavbar userName={userName} userRole={userRole ?? undefined} />
+        <DashboardNavbar />
         <main className="p-4 lg:p-6">{children}</main>
       </div>
     </div>
