@@ -78,8 +78,9 @@ describe("AdminUserDetailPage - radius system", () => {
       expect(container.textContent).toContain("ACTIVE");
     });
 
+    // Badge renders as a span with rounded-md class; find the one with ACTIVE text
     const statusBadge = Array.from(container.querySelectorAll("span")).find(
-      (el) => el.textContent?.trim() === "ACTIVE"
+      (el) => el.textContent?.trim() === "ACTIVE" && el.className.includes("rounded-md")
     );
     expect(statusBadge).toBeTruthy();
     expect(statusBadge!.className).not.toMatch(/\brounded-full\b/);
@@ -121,7 +122,7 @@ describe("AdminUserDetailPage - radius system", () => {
       (el) =>
         el.classList.contains("size-9") &&
         el.classList.contains("rounded-lg") &&
-        el.classList.contains("bg-emerald-500/10")
+        el.classList.contains("bg-success/10")
     );
     expect(connectedContainers.length).toBeGreaterThan(0);
     connectedContainers.forEach((node) => {
@@ -146,7 +147,7 @@ describe("AdminUserDetailPage - radius system", () => {
       (el) =>
         el.classList.contains("size-9") &&
         el.classList.contains("rounded-lg") &&
-        el.classList.contains("bg-amber-500/10")
+        el.classList.contains("bg-warning/10")
     );
     expect(inactiveContainers.length).toBeGreaterThan(0);
     inactiveContainers.forEach((node) => {
@@ -171,7 +172,7 @@ describe("AdminUserDetailPage - radius system", () => {
       (el) =>
         el.classList.contains("size-9") &&
         el.classList.contains("rounded-lg") &&
-        el.classList.contains("bg-red-500/10")
+        el.classList.contains("bg-destructive/10")
     );
     expect(notConfiguredContainers.length).toBeGreaterThan(0);
     notConfiguredContainers.forEach((node) => {

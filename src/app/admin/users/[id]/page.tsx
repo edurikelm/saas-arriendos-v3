@@ -28,6 +28,8 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { MetricCard } from "@/components/ui/metric-card";
+import { DataTable } from "@/components/ui/data-table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -53,36 +55,46 @@ function getInitials(name: string | null, email: string): string {
   return email.slice(0, 2).toUpperCase();
 }
 
-function getStatusBadgeClass(status: string): string {
+/**
+ * Maps user account status to semantic Badge variant.
+ * ACTIVE → success, SUSPENDED → warning, CANCELLED → destructive
+ */
+function getStatusBadgeVariant(status: string): "success" | "warning" | "destructive" | "secondary" {
   switch (status) {
     case "ACTIVE":
-      return "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
+      return "success";
     case "SUSPENDED":
-      return "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300";
+      return "warning";
     case "CANCELLED":
-      return "border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300";
+      return "destructive";
     default:
-      return "";
+      return "secondary";
   }
 }
 
-function getPlanBadgeClass(plan: string | null): string {
-  if (plan === "PRO") {
-    return "border-violet-500/20 bg-violet-500/10 text-violet-700 dark:text-violet-300";
-  }
-  return "border-slate-500/20 bg-slate-500/10 text-slate-700 dark:text-slate-300";
+/**
+ * Maps plan to semantic Badge variant.
+ * PRO → info, FREE/null → secondary
+ */
+function getPlanBadgeVariant(plan: string | null): "info" | "secondary" | "warning" {
+  if (plan === "PRO") return "info";
+  if (plan === "FREE") return "secondary";
+  return "warning";
 }
 
-function getStatusDotClass(status: string): string {
+/**
+ * Maps status to color dot class for inline status indicators.
+ */
+function getStatusDotColor(status: string): string {
   switch (status) {
     case "ACTIVE":
-      return "bg-emerald-500";
+      return "bg-success";
     case "SUSPENDED":
-      return "bg-amber-500";
+      return "bg-warning";
     case "CANCELLED":
-      return "bg-red-500";
+      return "bg-destructive";
     default:
-      return "bg-slate-500";
+      return "bg-muted-foreground";
   }
 }
 
@@ -123,38 +135,33 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
       key: "properties",
       label: "Propiedades",
       value: stats.properties.toString(),
-      subValue: owner.plan === "FREE" ? `${stats.properties}/${stats.propertiesLimit} del plan FREE` : "Sin límite",
+      detail: owner.plan === "FREE" ? `${stats.properties}/${stats.propertiesLimit} del plan FREE` : "Sin límite",
       icon: Building2,
-      iconClass: "bg-blue-500/10 text-blue-600 dark:text-blue-300",
-      accentClass: "bg-blue-500",
+      tone: "info" as const,
     },
     {
       key: "clients",
       label: "Clientes",
       value: stats.clients.toString(),
-      subValue: "Huéspedes registrados",
+      detail: "Huéspedes registrados",
       icon: Users,
-      iconClass: "bg-violet-500/10 text-violet-600 dark:text-violet-300",
-      accentClass: "bg-violet-500",
+      tone: "neutral" as const,
     },
     {
       key: "reservations",
       label: "Reservas",
       value: stats.reservations.toString(),
-      subValue: "Reservas totales",
+      detail: "Reservas totales",
       icon: Calendar,
-      iconClass: "bg-amber-500/10 text-amber-600 dark:text-amber-300",
-      accentClass: "bg-amber-500",
+      tone: "warning" as const,
     },
     {
       key: "revenue",
       label: "Ingresos",
       value: formatCLP(stats.totalRevenue),
-      subValue: "Total facturado",
+      detail: "Total facturado",
       icon: DollarSign,
-      iconClass: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300",
-      accentClass: "bg-emerald-500",
-      isText: true,
+      tone: "success" as const,
     },
   ];
 
@@ -176,7 +183,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
         <CardContent className="relative p-6">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex items-start gap-4">
-              <Avatar size="lg" className="size-16 ring-2 ring-background shadow-sm">
+              <Avatar size="lg" className="size-16 ring-2 ring-background">
                 <AvatarFallback className="bg-gradient-to-br from-primary/20 to-violet-500/20 text-base font-semibold text-foreground">
                   {getInitials(owner.name, owner.email)}
                 </AvatarFallback>
@@ -186,18 +193,16 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                   <h1 className="font-heading text-2xl font-semibold tracking-tight text-balance">
                     {owner.name || "Sin nombre"}
                   </h1>
-                  <span
-                    className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium ${getStatusBadgeClass(owner.status)}`}
-                  >
-                    <span className={`size-1.5 rounded-full ${getStatusDotClass(owner.status)}`} />
-                    {owner.status}
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className={`size-1.5 rounded-full ${getStatusDotColor(owner.status)}`} />
+                    <Badge variant={getStatusBadgeVariant(owner.status)} className="rounded-md">
+                      {owner.status}
+                    </Badge>
                   </span>
-                  <span
-                    className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium ${getPlanBadgeClass(owner.plan)}`}
-                  >
+                  <Badge variant={getPlanBadgeVariant(owner.plan)} className="rounded-md">
                     {owner.plan === "PRO" && <Sparkles className="size-3" />}
                     {owner.plan || "FREE"}
-                  </span>
+                  </Badge>
                 </div>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
                   <span className="inline-flex items-center gap-1.5">
@@ -261,31 +266,14 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
         {kpiCards.map((kpi) => {
           const Icon = kpi.icon;
           return (
-            <Card key={kpi.key} className="relative overflow-hidden border-border/60">
-              <div className={`absolute left-0 top-0 h-full w-1 ${kpi.accentClass}`} />
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      {kpi.label}
-                    </p>
-                    <p
-                      className={`font-heading font-semibold tracking-tight text-foreground ${
-                        kpi.isText ? "text-2xl" : "text-3xl"
-                      }`}
-                    >
-                      {kpi.value}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{kpi.subValue}</p>
-                  </div>
-                  <div
-                    className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${kpi.iconClass}`}
-                  >
-                    <Icon className="size-5" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <MetricCard
+              key={kpi.key}
+              title={kpi.label}
+              value={kpi.value}
+              detail={kpi.detail}
+              icon={Icon}
+              tone={kpi.tone}
+            />
           );
         })}
       </div>
@@ -302,8 +290,8 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                 <CardDescription>Plan actual y uso de recursos</CardDescription>
               </div>
               <Badge
-                variant="outline"
-                className={`rounded-md ${getPlanBadgeClass(owner.plan)} border font-medium`}
+                variant={getPlanBadgeVariant(owner.plan)}
+                className="rounded-md font-medium"
               >
                 {owner.plan === "PRO" && <Sparkles className="size-3" />}
                 Plan {owner.plan || "FREE"}
@@ -317,7 +305,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                   <span className="font-medium">Uso de propiedades</span>
                   <span
                     className={`tabular-nums font-semibold ${
-                      isAtLimit ? "text-red-600 dark:text-red-400" : "text-foreground"
+                      isAtLimit ? "text-destructive" : "text-foreground"
                     }`}
                   >
                     {stats.properties} / {stats.propertiesLimit}
@@ -327,16 +315,16 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                   <div
                     className={`h-full rounded-full transition-all ${
                       isAtLimit
-                        ? "bg-red-500"
+                        ? "bg-destructive"
                         : propertyUsagePercent >= 66
-                          ? "bg-amber-500"
+                          ? "bg-warning"
                           : "bg-primary"
                     }`}
                     style={{ width: `${propertyUsagePercent}%` }}
                   />
                 </div>
                 {isAtLimit && (
-                  <div className="flex items-center gap-2 text-xs text-red-600 dark:text-red-400">
+                  <div className="flex items-center gap-2 text-xs text-destructive">
                     <AlertTriangle className="size-3.5" />
                     Al límite del plan FREE — considera actualizar a PRO
                   </div>
@@ -373,11 +361,11 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
               {stats.hasMpIntegration ? (
                 stats.isMpConnected ? (
                   <div className="flex items-start gap-3">
-                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-success/10 text-success-foreground">
                       <CheckCircle2 className="size-5" />
                     </div>
                     <div className="space-y-0.5">
-                      <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                      <p className="text-sm font-medium text-success">
                         Conectado y activo
                       </p>
                       <p className="text-xs text-muted-foreground">
@@ -387,11 +375,11 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                   </div>
                 ) : (
                   <div className="flex items-start gap-3">
-                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-300">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-warning/10 text-warning-foreground">
                       <AlertTriangle className="size-5" />
                     </div>
                     <div className="space-y-0.5">
-                      <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                      <p className="text-sm font-medium text-warning">
                         Cuenta conectada pero inactiva
                       </p>
                       <p className="text-xs text-muted-foreground">
@@ -402,11 +390,11 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                 )
               ) : (
                 <div className="flex items-start gap-3">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-red-500/10 text-red-600 dark:text-red-300">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive-foreground">
                     <XCircle className="size-5" />
                   </div>
                   <div className="space-y-0.5">
-                    <p className="text-sm font-medium text-red-700 dark:text-red-300">
+                    <p className="text-sm font-medium text-destructive">
                       No configurado
                     </p>
                     <p className="text-xs text-muted-foreground">
@@ -428,7 +416,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
             <CardDescription>Estado de pagos</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="rounded-lg border bg-gradient-to-br from-emerald-500/5 to-emerald-500/0 p-4">
+            <div className="rounded-lg border bg-muted/30 p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Total facturado
               </p>
@@ -440,28 +428,28 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
             <div className="space-y-1">
               <div className="flex items-center justify-between rounded-md px-3 py-2 hover:bg-muted/50">
                 <div className="flex items-center gap-2.5">
-                  <span className="size-2 rounded-full bg-emerald-500" />
+                  <span className="size-2 rounded-full bg-success" />
                   <span className="text-sm text-muted-foreground">Pagado</span>
                 </div>
-                <span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+                <span className="font-semibold tabular-nums text-success">
                   {formatCLP(stats.paidAmount)}
                 </span>
               </div>
               <div className="flex items-center justify-between rounded-md px-3 py-2 hover:bg-muted/50">
                 <div className="flex items-center gap-2.5">
-                  <span className="size-2 rounded-full bg-amber-500" />
+                  <span className="size-2 rounded-full bg-warning" />
                   <span className="text-sm text-muted-foreground">Pendiente</span>
                 </div>
-                <span className="font-semibold tabular-nums text-amber-600 dark:text-amber-400">
+                <span className="font-semibold tabular-nums text-warning">
                   {formatCLP(stats.pendingAmount)}
                 </span>
               </div>
               <div className="flex items-center justify-between rounded-md px-3 py-2 hover:bg-muted/50">
                 <div className="flex items-center gap-2.5">
-                  <span className="size-2 rounded-full bg-red-500" />
+                  <span className="size-2 rounded-full bg-destructive" />
                   <span className="text-sm text-muted-foreground">Vencido</span>
                 </div>
-                <span className="font-semibold tabular-nums text-red-600 dark:text-red-400">
+                <span className="font-semibold tabular-nums text-destructive">
                   {formatCLP(stats.overdueAmount)}
                 </span>
               </div>
@@ -497,8 +485,8 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                     <p className="mt-0.5 font-medium">{owner.plan || "FREE"}</p>
                   </div>
                   <Badge
-                    variant="outline"
-                    className={`rounded-md ${getPlanBadgeClass(owner.plan)} border font-medium`}
+                    variant={getPlanBadgeVariant(owner.plan)}
+                    className="rounded-md font-medium"
                   >
                     {owner.plan || "FREE"}
                   </Badge>
@@ -508,11 +496,11 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                     <p className="text-xs text-muted-foreground">Estado de cuenta</p>
                     <p className="mt-0.5 font-medium">{owner.status}</p>
                   </div>
-                  <span
-                    className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium ${getStatusBadgeClass(owner.status)}`}
-                  >
-                    <span className={`size-1.5 rounded-full ${getStatusDotClass(owner.status)}`} />
-                    {owner.status}
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className={`size-1.5 rounded-full ${getStatusDotColor(owner.status)}`} />
+                    <Badge variant={getStatusBadgeVariant(owner.status)} className="rounded-md">
+                      {owner.status}
+                    </Badge>
                   </span>
                 </div>
                 <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-4">
@@ -610,64 +598,40 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                   </p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b text-left">
-                        <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Cliente
-                        </th>
-                        <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Propiedad
-                        </th>
-                        <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Fechas
-                        </th>
-                        <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Total
-                        </th>
-                        <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Pagado
-                        </th>
-                        <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Estado
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {reservations.map((reservation) => (
-                        <tr key={reservation.id} className="border-b last:border-0 hover:bg-muted/30">
-                          <td className="px-4 py-3 font-medium">{reservation.client.name}</td>
-                          <td className="px-4 py-3 text-muted-foreground">
-                            {reservation.property.name}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-muted-foreground tabular-nums">
-                            {formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}
-                          </td>
-                          <td className="px-4 py-3 font-medium tabular-nums">
-                            {formatCLP(Number(reservation.totalPrice))}
-                          </td>
-                          <td className="px-4 py-3 text-sm tabular-nums text-muted-foreground">
-                            {formatCLP(reservation.paidAmount)}
-                          </td>
-                          <td className="px-4 py-3">
-                            <Badge
-                              variant={
-                                reservation.status === "CONFIRMED"
-                                  ? "default"
-                                  : reservation.status === "PENDING"
-                                    ? "secondary"
-                                    : "destructive"
-                              }
-                            >
-                              {reservation.status}
-                            </Badge>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <DataTable
+                  headers={["Cliente", "Propiedad", "Fechas", "Total", "Pagado", "Estado"]}
+                >
+                  {reservations.map((reservation) => (
+                    <tr key={reservation.id} className="border-b last:border-0 hover:bg-muted/30">
+                      <td className="px-4 py-3 font-medium">{reservation.client.name}</td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {reservation.property.name}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground tabular-nums">
+                        {formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}
+                      </td>
+                      <td className="px-4 py-3 font-medium tabular-nums">
+                        {formatCLP(Number(reservation.totalPrice))}
+                      </td>
+                      <td className="px-4 py-3 text-sm tabular-nums text-muted-foreground">
+                        {formatCLP(reservation.paidAmount)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge
+                          variant={
+                            reservation.status === "CONFIRMED"
+                              ? "default"
+                              : reservation.status === "PENDING"
+                                ? "secondary"
+                                : "destructive"
+                          }
+                        >
+                          {reservation.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </DataTable>
               )}
             </CardContent>
           </Card>
@@ -730,7 +694,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">
                       Pagado
                     </p>
-                    <p className="mt-1 font-heading text-xl font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+                    <p className="mt-1 font-heading text-xl font-semibold tabular-nums text-success">
                       {formatCLP(stats.paidAmount)}
                     </p>
                   </div>
@@ -738,7 +702,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">
                       Pendiente
                     </p>
-                    <p className="mt-1 font-heading text-xl font-semibold tabular-nums text-amber-600 dark:text-amber-400">
+                    <p className="mt-1 font-heading text-xl font-semibold tabular-nums text-warning">
                       {formatCLP(stats.pendingAmount)}
                     </p>
                   </div>
@@ -746,7 +710,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">
                       Vencido
                     </p>
-                    <p className="mt-1 font-heading text-xl font-semibold tabular-nums text-red-600 dark:text-red-400">
+                    <p className="mt-1 font-heading text-xl font-semibold tabular-nums text-destructive">
                       {formatCLP(stats.overdueAmount)}
                     </p>
                   </div>
@@ -828,14 +792,14 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                     key={step}
                     className={`flex items-start gap-4 rounded-lg border p-4 transition-colors ${
                       completed
-                        ? "border-emerald-500/20 bg-emerald-500/5"
+                        ? "border-success/20 bg-success/5"
                         : "bg-muted/20"
                     }`}
                   >
                     <div
                       className={`flex size-10 shrink-0 items-center justify-center rounded-full ${
                         completed
-                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300"
+                          ? "bg-success/10 text-success-foreground"
                           : "bg-muted text-muted-foreground"
                       }`}
                     >
@@ -848,10 +812,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                         </span>
                         <span className="font-medium">{label}</span>
                         {completed ? (
-                          <Badge
-                            variant="outline"
-                            className="rounded-md border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                          >
+                          <Badge variant="success" className="rounded-md">
                             Completado
                           </Badge>
                         ) : (
