@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
-import { DM_Sans } from "next/font/google";
+import { DM_Sans, Lora, IBM_Plex_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-sans" });
+const lora = Lora({ subsets: ["latin"], variable: "--font-serif" });
+const ibmPlexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: "400", variable: "--font-mono" });
 
 export const metadata: Metadata = {
   title: "RentalPro - Sistema de Administración de Arriendos",
@@ -34,7 +36,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" suppressHydrationWarning className={dmSans.variable}>
+    <html lang="es" suppressHydrationWarning className={[dmSans.variable, lora.variable, ibmPlexMono.variable].join(" ")}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
