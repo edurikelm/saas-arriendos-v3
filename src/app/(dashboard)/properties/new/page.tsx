@@ -41,7 +41,7 @@ export default function NewPropertyPage({ open = true, onClose }: NewPropertyPag
     <div className="container mx-auto py-8">
       <h1 className="text-3xl font-bold mb-6">Nueva Propiedad</h1>
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Crear Nueva Propiedad</DialogTitle>
           </DialogHeader>

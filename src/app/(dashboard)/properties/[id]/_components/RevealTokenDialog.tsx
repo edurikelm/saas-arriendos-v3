@@ -114,7 +114,7 @@ export function RevealTokenDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="w-[95vw] max-w-md">
         <DialogHeader>
           <DialogTitle>
             {mode === "create" ? "Feed creado" : "Feed regenerado"}

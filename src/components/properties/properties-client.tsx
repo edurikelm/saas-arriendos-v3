@@ -159,7 +159,7 @@ export function PropertiesClient({ initialProperties, usedColors }: PropertiesCl
             <Plus className="h-4 w-4 mr-2" />
             <span className="sm:inline">Nueva Propiedad</span>
           </Button>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Crear Nueva Propiedad</DialogTitle>
             </DialogHeader>
@@ -223,7 +223,7 @@ export function PropertiesClient({ initialProperties, usedColors }: PropertiesCl
       )}
 
       <Dialog open={!!editingProperty} onOpenChange={() => setEditingProperty(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Propiedad</DialogTitle>
           </DialogHeader>

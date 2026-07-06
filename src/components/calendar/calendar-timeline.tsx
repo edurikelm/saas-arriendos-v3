@@ -720,7 +720,7 @@ export function ReservationDetailDialog({ reservation, onClose }: {
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="w-[95vw] max-w-2xl">
         <DialogHeader>
           <DialogTitle>Detalle de Reserva</DialogTitle>
         </DialogHeader>
