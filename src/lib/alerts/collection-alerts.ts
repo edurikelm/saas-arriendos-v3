@@ -16,6 +16,8 @@ export interface CollectionAlertPayment {
   status: string;
   paymentType?: string | null;
   method: string;
+  /** Payment amount in CLP as a number (Prisma Decimal is normalized to number). */
+  amount: number;
   dueDate?: string | null;
   initPoint?: string | null;
   expiresAt?: string | null;
@@ -29,6 +31,8 @@ export interface CollectionAlertItem {
   propertyName: string;
   dueDate: string;
   method: string;
+  /** Payment amount in CLP. */
+  amount: number;
   initPoint: string | null;
   expiresAt: string | null;
   daysFromToday: number;
@@ -91,6 +95,7 @@ export function classifyCollectionAlerts(
       propertyName: payment.reservation.property.name,
       dueDate: payment.dueDate,
       method: payment.method,
+      amount: Number(payment.amount),
       initPoint: payment.initPoint ?? null,
       expiresAt: payment.expiresAt ?? null,
       daysFromToday,

@@ -6,7 +6,8 @@ import {
   Home,
   TrendingUp,
 } from "lucide-react";
-import { CollectionAlertsSection } from "@/components/dashboard/collection-alerts-section";
+import { PendingBalancesCard } from "@/components/dashboard/pending-balances-card";
+import { UrgentCollectionCard } from "@/components/dashboard/urgent-collection-card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -256,6 +257,7 @@ export default async function DashboardPage() {
         status: payment.status,
         paymentType: payment.paymentType ?? null,
         method: payment.method,
+        amount: Number(payment.amount),
         dueDate: payment.dueDate ?? null,
         initPoint: payment.initPoint ?? null,
         expiresAt: payment.expiresAt ?? null,
@@ -327,13 +329,17 @@ export default async function DashboardPage() {
         />
       </section>
 
-      {/* Cobranza full-width */}
-      <CollectionAlertsSection
-        vencidos={collectionAlerts.vencidos}
-        vencenHoy={collectionAlerts.vencenHoy}
-        proximos7Dias={collectionAlerts.proximos7Dias}
-        saldos={saldosData}
-      />
+      {/* Cobranza: 2 cards separadas (cuotas con due_date | saldos globales) */}
+      <section className="grid gap-4 xl:grid-cols-3">
+        <div className="xl:col-span-2">
+          <UrgentCollectionCard
+            vencidos={collectionAlerts.vencidos}
+            vencenHoy={collectionAlerts.vencenHoy}
+            proximos7Dias={collectionAlerts.proximos7Dias}
+          />
+        </div>
+        <PendingBalancesCard saldos={saldosData} />
+      </section>
 
       {/* 2-column layout: Reservas (tabs) | Resumen financiero + Pagos recientes */}
       <section className="grid gap-6 xl:grid-cols-2">

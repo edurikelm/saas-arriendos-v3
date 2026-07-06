@@ -7,6 +7,7 @@ function buildPayment(overrides: Partial<CollectionAlertPayment> = {}): Collecti
     status: "PENDING",
     paymentType: "RESERVATION",
     method: "MERCADO_PAGO",
+    amount: 100000,
     dueDate: "2026-05-20T16:00:00.000Z",
     initPoint: null,
     expiresAt: null,
@@ -24,10 +25,10 @@ describe("classifyCollectionAlerts", () => {
   it("clasifica en vencidos, vencen hoy y proximos 7 dias", () => {
     const now = new Date("2026-05-20T16:00:00.000Z");
     const payments = [
-      buildPayment({ id: "old", dueDate: "2026-05-19T16:00:00.000Z" }),
-      buildPayment({ id: "today", dueDate: "2026-05-20T16:00:00.000Z" }),
-      buildPayment({ id: "next", dueDate: "2026-05-27T12:00:00.000Z" }),
-      buildPayment({ id: "outside", dueDate: "2026-05-28T12:00:00.000Z" }),
+      buildPayment({ id: "old", dueDate: "2026-05-19T16:00:00.000Z", amount: 50000 }),
+      buildPayment({ id: "today", dueDate: "2026-05-20T16:00:00.000Z", amount: 75000 }),
+      buildPayment({ id: "next", dueDate: "2026-05-27T12:00:00.000Z", amount: 120000 }),
+      buildPayment({ id: "outside", dueDate: "2026-05-28T12:00:00.000Z", amount: 200000 }),
     ];
 
     const result = classifyCollectionAlerts(payments, now);
@@ -62,5 +63,30 @@ describe("classifyCollectionAlerts", () => {
     const result = classifyCollectionAlerts([payment], now);
 
     expect(result.vencenHoy.map((p) => p.paymentId)).toEqual(["scl-today"]);
+  });
+
+  it("propaga el monto del pago a cada alerta clasificada", () => {
+    const now = new Date("2026-05-20T16:00:00.000Z");
+    const payments = [
+      buildPayment({ id: "old", amount: 50000, dueDate: "2026-05-19T16:00:00.000Z" }),
+      buildPayment({ id: "today", amount: 75000, dueDate: "2026-05-20T16:00:00.000Z" }),
+      buildPayment({ id: "next", amount: 120000, dueDate: "2026-05-27T12:00:00.000Z" }),
+    ];
+
+    const result = classifyCollectionAlerts(payments, now);
+
+    expect(result.vencidos[0]?.amount).toBe(50000);
+    expect(result.vencenHoy[0]?.amount).toBe(75000);
+    expect(result.proximos7Dias[0]?.amount).toBe(120000);
+  });
+
+  it("normaliza strings numericos a number en el monto", () => {
+    const now = new Date("2026-05-20T16:00:00.000Z");
+    // Permitimos input flexible (string) y normalizamos.
+    const payment = { ...buildPayment({ id: "x", dueDate: "2026-05-20T16:00:00.000Z" }), amount: "99999.50" as unknown as number };
+
+    const result = classifyCollectionAlerts([payment], now);
+
+    expect(result.vencenHoy[0]?.amount).toBe(99999.5);
   });
 });
