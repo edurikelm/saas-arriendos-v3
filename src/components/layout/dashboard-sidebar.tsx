@@ -149,12 +149,12 @@ export function DashboardSidebar({
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger
-                  render={
-                    <button className="p-1 rounded hover:bg-gray-100">
-                      <MoreVertical className="h-4 w-4 text-muted" />
-                    </button>
-                  }
-                />
+                    render={
+                      <button className="p-1 rounded text-foreground hover:bg-gray-100 hover:text-muted transition-colors">
+                        <MoreVertical className="h-4 w-4" />
+                      </button>
+                    }
+                  />
                 <DropdownMenuContent align="end" className="w-48">
                   <DropdownMenuLabel>Tema</DropdownMenuLabel>
                   {mounted ? (

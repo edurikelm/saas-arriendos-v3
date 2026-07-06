@@ -11,7 +11,7 @@ export function DashboardNavbar({ notificationUnreadCount = 0 }: DashboardNavbar
   return (
     <header className="sticky top-0 h-16 w-full border-b border-border bg-white flex justify-between items-center px-6 z-50">
       {/* Izquierda: eyebrow */}
-      <div className="hidden md:flex items-center text-xs text-muted font-medium uppercase tracking-wider">
+      <div className="hidden md:flex items-center text-xs text-foreground font-medium uppercase tracking-wider">
         Panel de Administración
       </div>
 
@@ -19,7 +19,7 @@ export function DashboardNavbar({ notificationUnreadCount = 0 }: DashboardNavbar
       <div className="flex items-center gap-4">
         {/* Search bar */}
         <div className="hidden sm:flex items-center relative">
-          <Search className="absolute left-3 h-4 w-4 text-muted" />
+          <Search className="absolute left-3 h-4 w-4 text-foreground" />
           <input
             type="text"
             placeholder="Buscar..."
@@ -29,10 +29,10 @@ export function DashboardNavbar({ notificationUnreadCount = 0 }: DashboardNavbar
 
         {/* Icon buttons */}
         <div className="flex items-center gap-2">
-          <button className="p-2 text-muted hover:text-foreground">
+          <button className="p-2 text-foreground hover:text-primary transition-colors">
             <Bell className="h-5 w-5" />
           </button>
-          <button className="p-2 text-muted hover:text-foreground">
+          <button className="p-2 text-foreground hover:text-primary transition-colors">
             <HelpCircle className="h-5 w-5" />
           </button>
         </div>
