@@ -635,7 +635,7 @@ onRefresh?.(reservation.id);
             <div className="flex items-center gap-3 min-w-0">
               <div
                 className="h-12 w-12 shrink-0 rounded-xl flex items-center justify-center text-white font-bold shadow-sm"
-                style={{ backgroundColor: reservation.property.color || "#3B82F6" }}
+                style={{ backgroundColor: reservation.property.color || "var(--primary)" }}
               >
                 {reservation.property.name[0]}
               </div>
