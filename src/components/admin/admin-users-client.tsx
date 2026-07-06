@@ -5,9 +5,11 @@ import { useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
 import { Users, Shield, Trash2, Search, Plus, ChevronDown, ChevronUp, X, Download, Ban, CheckCircle, XCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DataTable } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { HealthBadge } from "@/components/admin/health-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -83,32 +85,6 @@ function getHealthIndicators(user: User): HealthIndicator[] {
   }
 
   return indicators;
-}
-
-function getBadgeVariantForSeverity(severity: HealthSeverity): "destructive" | "secondary" | "outline" | "default" {
-  switch (severity) {
-    case "critical":
-      return "destructive";
-    case "warning":
-      return "secondary";
-    case "limit":
-      return "outline";
-    case "healthy":
-      return "default";
-  }
-}
-
-function getHealthBadgeClassName(severity: HealthSeverity) {
-  switch (severity) {
-    case "critical":
-      return "border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300";
-    case "warning":
-      return "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300";
-    case "limit":
-      return "border-orange-500/20 bg-orange-500/10 text-orange-700 dark:text-orange-300";
-    case "healthy":
-      return "border-green-500/20 bg-green-500/10 text-green-700 dark:text-green-300";
-  }
 }
 
 interface AdminUsersClientProps {
@@ -480,90 +456,77 @@ export function AdminUsersClient({ initialUsers, initialTotal }: AdminUsersClien
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto rounded-lg border">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b bg-muted/50">
-                      <th className="px-4 py-3 text-left text-sm font-medium">Usuario</th>
-                      <th className="px-4 py-3 text-left text-sm font-medium">Estado</th>
-                      <th className="px-4 py-3 text-left text-sm font-medium">Plan</th>
-                      <th className="px-4 py-3 text-left text-sm font-medium">Salud</th>
-                      <th className="px-4 py-3 text-left text-sm font-medium">Propiedades</th>
-                      <th className="px-4 py-3 text-left text-sm font-medium">Clientes</th>
-                      <th className="px-4 py-3 text-left text-sm font-medium">Reservas</th>
-                      <th className="px-4 py-3 text-left text-sm font-medium">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map((user) => (
-                      <tr key={user.id} className="border-b hover:bg-muted/30">
-                        <td className="px-4 py-3">
-                          <div>
-                            <p className="font-medium">{user.name}</p>
-                            <p className="text-sm text-muted-foreground">{user.email}</p>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge
-                            variant={
-                              user.status === "ACTIVE"
-                                ? "default"
-                                : user.status === "SUSPENDED"
-                                ? "secondary"
-                                : "destructive"
-                            }
-                          >
-                            {user.status}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge
-                            variant={
-                              user.plan === "PRO"
-                                ? "secondary"
-                                : "outline"
-                            }
-                          >
-                            {user.plan}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-wrap gap-2">
-                            {getHealthIndicators(user).map((indicator) => (
-                              <Badge
-                                key={indicator.label}
-                                variant={getBadgeVariantForSeverity(indicator.severity)}
-                                className={getHealthBadgeClassName(indicator.severity)}
-                              >
-                                {indicator.label}
-                              </Badge>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-sm">{user._count.properties}</td>
-                        <td className="px-4 py-3 text-sm">{user._count.clients}</td>
-                        <td className="px-4 py-3 text-sm">{user._count.reservations}</td>
-                        <td className="px-4 py-3">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            render={<Link href={`/admin/users/${user.id}`} />}
-                          >
-                            Ver
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                    {users.length === 0 && (
-                      <tr>
-                        <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
-                          No se encontraron usuarios
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable
+                headers={["Usuario", "Estado", "Plan", "Salud", "Propiedades", "Clientes", "Reservas", "Acciones"]}
+                emptyState={<div className="py-8 text-center text-muted-foreground">No se encontraron usuarios</div>}
+              >
+                {users.map((user) => (
+                  <tr key={user.id} className="border-b last:border-0 hover:bg-muted/30">
+                    <td className="px-4 py-3">
+                      <div>
+                        <p className="font-medium">{user.name}</p>
+                        <p className="text-sm text-muted-foreground">{user.email}</p>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge
+                        variant={
+                          user.status === "ACTIVE"
+                            ? "default"
+                            : user.status === "SUSPENDED"
+                            ? "secondary"
+                            : "destructive"
+                        }
+                      >
+                        {user.status}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge
+                        variant={
+                          user.plan === "PRO"
+                            ? "secondary"
+                            : "outline"
+                        }
+                      >
+                        {user.plan}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        {getHealthIndicators(user).map((indicator) => {
+                          const statusMap: Record<HealthSeverity, "healthy" | "attention" | "overdue" | "dormant"> = {
+                            healthy: "healthy",
+                            warning: "attention",
+                            critical: "overdue",
+                            limit: "dormant",
+                          };
+                          return (
+                            <HealthBadge
+                              key={indicator.label}
+                              status={statusMap[indicator.severity]}
+                            >
+                              {indicator.label}
+                            </HealthBadge>
+                          );
+                        })}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm">{user._count.properties}</td>
+                    <td className="px-4 py-3 text-sm">{user._count.clients}</td>
+                    <td className="px-4 py-3 text-sm">{user._count.reservations}</td>
+                    <td className="px-4 py-3">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        render={<Link href={`/admin/users/${user.id}`} />}
+                      >
+                        Ver
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </DataTable>
 
               {total > 20 && (
                 <div className="mt-4 flex items-center justify-between">
