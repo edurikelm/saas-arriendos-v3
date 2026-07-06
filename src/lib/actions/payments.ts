@@ -4,9 +4,12 @@ import { prisma } from "@/lib/db/prisma";
 import type { Prisma } from "@prisma/client";
 import { getSession } from "@/lib/actions/auth";
 import { getMercadoPagoToken } from "@/lib/actions/mercado-pago";
+import { getReservations } from "@/lib/actions/reservations";
 import { paymentSchema, type PaymentInput } from "@/lib/validations/payment";
 import { fileSchema } from "@/lib/validations/file";
 import { uploadImage } from "@/lib/actions/cloudinary";
+import { classifyCollectionAlerts, type CollectionAlertPayment } from "@/lib/alerts/collection-alerts";
+import type { CollectionAlertsResult } from "@/lib/alerts/collection-alerts";
 import { revalidatePath } from "next/cache";
 import { addDays } from "date-fns";
 import { ZodError } from "zod";
@@ -58,9 +61,14 @@ export async function getPayments(filters?: {
   reservationId?: string;
   status?: string;
   method?: string;
+  propertyId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  limit?: number;
 }) {
   const session = await getSession();
-  if (!session) return [];
+  if (!session) return { payments: [], total: 0, totalPages: 0 };
 
   const where: Prisma.PaymentWhereInput = {};
 
@@ -69,7 +77,7 @@ export async function getPayments(filters?: {
       where: { id: filters.reservationId, userId: session.userId },
     });
 
-    if (!reservation) return [];
+    if (!reservation) return { payments: [], total: 0, totalPages: 0 };
     where.reservationId = filters.reservationId;
   }
 
@@ -81,33 +89,61 @@ export async function getPayments(filters?: {
     where.method = filters.method;
   }
 
-  const payments = await prisma.payment.findMany({
-    where: { ...where, deletedAt: null },
-    include: {
-      reservation: {
-        select: {
-          id: true,
-          totalPrice: true,
-          property: {
-            select: { name: true },
-          },
-          client: {
-            select: { name: true },
+  if (filters?.dateFrom) {
+    where.createdAt = { ...where.createdAt as object, gte: new Date(filters.dateFrom) };
+  }
+
+  if (filters?.dateTo) {
+    where.createdAt = { ...where.createdAt as object, lte: new Date(filters.dateTo + "T23:59:59") };
+  }
+
+  // propertyId filter via reservation
+  if (filters?.propertyId) {
+    where.reservation = { ...(where.reservation as object) ?? {}, propertyId: filters.propertyId };
+  }
+
+  const page = filters?.page ?? 1;
+  const limit = filters?.limit ?? 20;
+  const skip = (page - 1) * limit;
+
+  const [payments, total] = await Promise.all([
+    prisma.payment.findMany({
+      where: { ...where, deletedAt: null },
+      include: {
+        reservation: {
+          select: {
+            id: true,
+            totalPrice: true,
+            property: {
+              select: { id: true, name: true },
+            },
+            client: {
+              select: { name: true },
+            },
           },
         },
       },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+    }),
+    prisma.payment.count({ where: { ...where, deletedAt: null } }),
+  ]);
 
-  return payments.map((p) => ({
-    ...p,
-    amount: String(p.amount),
-    reservation: {
-      ...p.reservation,
-      totalPrice: String(p.reservation.totalPrice),
-    },
-  }));
+  const totalPages = Math.ceil(total / limit);
+
+  return {
+    payments: payments.map((p) => ({
+      ...p,
+      amount: String(p.amount),
+      reservation: {
+        ...p.reservation,
+        totalPrice: String(p.reservation.totalPrice),
+      },
+    })),
+    total,
+    totalPages,
+  };
 }
 
 export async function createPayment(data: unknown) {
@@ -1076,4 +1112,38 @@ export async function checkMercadoPagoPaymentStatus(paymentId: string) {
     const message = error instanceof Error ? error.message : String(error);
     return { error: `Error al verificar pago: ${message}` };
   }
+}
+
+export async function getCollectionAlerts(): Promise<CollectionAlertsResult> {
+  const session = await getSession();
+  if (!session) return { vencidos: [], vencenHoy: [], proximos7Dias: [] };
+
+  const reservationsResult = await getReservations({ limit: 1000 });
+
+  type ReservationData = Awaited<ReturnType<typeof getReservations>> extends { data: infer T } ? T : never;
+
+  const reservations: ReservationData = (reservationsResult as { data: ReservationData }).data;
+
+  const payments: CollectionAlertPayment[] = reservations.flatMap((reservation) =>
+    (reservation.payments ?? [])
+      .filter((payment) => payment.status === "PENDING" && payment.paymentType === "RESERVATION")
+      .map((payment) => ({
+        id: payment.id,
+        status: payment.status,
+        paymentType: payment.paymentType ?? null,
+        method: payment.method,
+        amount: Number(payment.amount),
+        dueDate: payment.dueDate ?? null,
+        initPoint: payment.initPoint ?? null,
+        expiresAt: payment.expiresAt ?? null,
+        reservation: {
+          id: reservation.id,
+          status: reservation.status,
+          client: { name: reservation.client?.name ?? "—" },
+          property: { name: reservation.property?.name ?? "—" },
+        },
+      }))
+  );
+
+  return classifyCollectionAlerts(payments);
 }
