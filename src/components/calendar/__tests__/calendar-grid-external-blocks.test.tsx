@@ -84,11 +84,11 @@ describe("CalendarGrid external blocks", () => {
         onMonthChange={() => {}}
       />
     );
-    const amberDot = container.querySelector(".bg-amber-500");
+    const amberDot = container.querySelector(".bg-warning");
     expect(amberDot).not.toBeNull();
   });
 
-  it("renders Airbnb channel dot with rose color", () => {
+  it("renders Airbnb channel dot with info color", () => {
     const { container } = render(
       <CalendarGrid
         reservations={[]}
@@ -98,11 +98,11 @@ describe("CalendarGrid external blocks", () => {
         onMonthChange={() => {}}
       />
     );
-    const roseDot = container.querySelector(".bg-rose-500");
-    expect(roseDot).not.toBeNull();
+    const infoDot = container.querySelector(".bg-info");
+    expect(infoDot).not.toBeNull();
   });
 
-  it("renders Booking.com channel dot with blue color", () => {
+  it("renders Booking.com channel dot with primary color", () => {
     const { container } = render(
       <CalendarGrid
         reservations={[]}
@@ -112,11 +112,11 @@ describe("CalendarGrid external blocks", () => {
         onMonthChange={() => {}}
       />
     );
-    const blueDot = container.querySelector(".bg-blue-500");
-    expect(blueDot).not.toBeNull();
+    const primaryDot = container.querySelector(".bg-primary");
+    expect(primaryDot).not.toBeNull();
   });
 
-  it("renders VRBO channel dot with indigo color", () => {
+  it("renders VRBO channel dot with accent color", () => {
     const { container } = render(
       <CalendarGrid
         reservations={[]}
@@ -126,11 +126,11 @@ describe("CalendarGrid external blocks", () => {
         onMonthChange={() => {}}
       />
     );
-    const indigoDot = container.querySelector(".bg-indigo-500");
-    expect(indigoDot).not.toBeNull();
+    const accentDot = container.querySelector(".bg-accent");
+    expect(accentDot).not.toBeNull();
   });
 
-  it("renders OTHER channel dot with zinc color", () => {
+  it("renders OTHER channel dot with muted-foreground color", () => {
     const { container } = render(
       <CalendarGrid
         reservations={[]}
@@ -140,8 +140,8 @@ describe("CalendarGrid external blocks", () => {
         onMonthChange={() => {}}
       />
     );
-    const zincDot = container.querySelector(".bg-zinc-400");
-    expect(zincDot).not.toBeNull();
+    const mutedDot = container.querySelector(".bg-muted-foreground");
+    expect(mutedDot).not.toBeNull();
   });
 
   it("shows channel letter chip (A for Airbnb)", () => {
@@ -187,10 +187,10 @@ describe("CalendarGrid external blocks", () => {
     const dashedBars = container.querySelectorAll(".border-dashed");
     expect(dashedBars.length).toBeGreaterThanOrEqual(12);
 
-    // Cada canal distinto tiene su dot de color presente.
-    expect(container.querySelector(".bg-rose-500")).not.toBeNull();    // AIRBNB
-    expect(container.querySelector(".bg-blue-500")).not.toBeNull();    // BOOKING_COM
-    expect(container.querySelector(".bg-indigo-500")).not.toBeNull();  // VRBO
-    expect(container.querySelector(".bg-zinc-400")).not.toBeNull();   // OTHER
+    // Cada canal distinto tiene su dot de color presente (tokens semánticos).
+    expect(container.querySelector(".bg-info")).not.toBeNull();          // AIRBNB
+    expect(container.querySelector(".bg-primary")).not.toBeNull();         // BOOKING_COM
+    expect(container.querySelector(".bg-accent")).not.toBeNull();         // VRBO
+    expect(container.querySelector(".bg-muted-foreground")).not.toBeNull(); // OTHER
   });
 });

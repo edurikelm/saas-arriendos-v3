@@ -185,7 +185,7 @@ export function CalendarView({
         <span className="hidden sm:inline">Nueva Reserva</span>
         <span className="sm:hidden">Nueva</span>
       </Button>
-      <div className="flex h-8 overflow-hidden rounded-lg border border-border bg-background shadow-sm">
+      <div className="flex h-8 overflow-hidden rounded-lg border border-border bg-background">
         <button
           type="button"
           aria-label="Ver calendario mensual"
@@ -248,7 +248,7 @@ export function CalendarView({
           ) : (
             <>
               {showExternalBlocks && conflicts.size > 0 && (
-                <div className="mb-4 flex items-start gap-3 rounded-xl border border-l-2 border-l-amber-500 bg-amber-50/80 dark:bg-amber-950/20 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
+                <div className="mb-4 flex items-start gap-3 rounded-xl border border-l-2 border-l-warning bg-warning/10 px-4 py-3 text-sm text-foreground">
                   <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                   <div>
                     <p className="font-semibold">{conflicts.size} día(s) con conflicto Reserva + Bloqueo externo</p>

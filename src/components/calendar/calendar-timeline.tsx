@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getReservationPaidAmount } from "@/lib/payments/calculations";
+import { channelColors } from "@/lib/calendar/channel-colors";
 
 interface Payment {
   id: string;
@@ -47,9 +48,9 @@ interface Reservation {
   payments: Payment[];
 }
 
-const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ComponentType<{ className?: string }> }> = {
+const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" | "success"; icon: React.ComponentType<{ className?: string }> }> = {
   PENDING: { label: "Pendiente", variant: "secondary", icon: AlertCircle },
-  CONFIRMED: { label: "Confirmada", variant: "default", icon: CheckCircle2 },
+  CONFIRMED: { label: "Confirmada", variant: "success", icon: CheckCircle2 },
   CANCELLED: { label: "Cancelada", variant: "destructive", icon: XCircle },
   COMPLETED: { label: "Completada", variant: "outline", icon: CheckCircle2 },
 };
@@ -151,7 +152,7 @@ export function CalendarDayCell({ date, currentMonth, reservations, onSelectRese
 
   if (dayReservations.length === 0) {
     return (
-      <div className={`h-full min-h-24 border border-zinc-100 dark:border-zinc-800 ${padding} ${!isCurrentMonth ? "bg-zinc-50 dark:bg-zinc-900/50" : ""}`}>
+      <div className={`h-full min-h-24 border border-border ${padding} ${!isCurrentMonth ? "bg-muted/40" : ""}`}>
         <div className={`font-medium ${isToday ? "bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center" : "text-muted-foreground"} ${textSize}`}>
           {format(date, "d")}
         </div>
@@ -160,7 +161,7 @@ export function CalendarDayCell({ date, currentMonth, reservations, onSelectRese
   }
 
   return (
-    <div className={`h-full min-h-24 border border-zinc-100 dark:border-zinc-800 ${padding} ${!isCurrentMonth ? "bg-zinc-50 dark:bg-zinc-900/50" : ""}`}>
+    <div className={`h-full min-h-24 border border-border ${padding} ${!isCurrentMonth ? "bg-muted/40" : ""}`}>
       <div className={`font-medium mb-1 ${isToday ? "bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center" : "text-muted-foreground"} ${textSize}`}>
         {format(date, "d")}
       </div>
@@ -169,15 +170,15 @@ export function CalendarDayCell({ date, currentMonth, reservations, onSelectRese
           <button
             key={res.id}
             onClick={() => onSelectReservation(res.id)}
-            className={`w-full text-left rounded-md px-2 py-0.5 text-xs transition-all hover:scale-[1.02] hover:shadow-md ${
+            className={`w-full text-left rounded-md px-2 py-0.5 text-xs transition-all hover:scale-[1.02] ${
               res.status === "CANCELLED"
-                ? "bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500 line-through"
+                ? "bg-muted text-muted-foreground line-through"
                 : res.status === "COMPLETED"
-                ? "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                ? "bg-muted text-muted-foreground"
                 : "text-white"
             }`}
             style={{
-              backgroundColor: res.status === "CANCELLED" || res.status === "COMPLETED" ? undefined : (res.property.color || "#6366F1"),
+              backgroundColor: res.status === "CANCELLED" || res.status === "COMPLETED" ? undefined : (res.property.color || "var(--primary)"),
             }}
           >
             <span className="truncate block">{res.client.name}</span>
@@ -232,7 +233,7 @@ export function CalendarMonthGrid({ reservations, currentMonth, onSelectReservat
 
       <div className="grid grid-cols-7">
         {weekDays.map((day) => (
-          <div key={day} className={`${headerHeight} flex items-center justify-center font-medium text-muted-foreground text-sm border-b border-zinc-200 dark:border-zinc-800`}>
+          <div key={day} className={`${headerHeight} flex items-center justify-center font-medium text-muted-foreground text-sm border-b border-border`}>
             {day}
           </div>
         ))}
@@ -255,12 +256,7 @@ export function CalendarMonthGrid({ reservations, currentMonth, onSelectReservat
 import type { CalendarExternalBlock } from "@/lib/actions/reservations";
 
 function channelDotClass(channel: CalendarExternalBlock["channel"]): string {
-  switch (channel) {
-    case "AIRBNB": return "bg-rose-500";
-    case "BOOKING_COM": return "bg-blue-500";
-    case "VRBO": return "bg-indigo-500";
-    case "OTHER": return "bg-zinc-400";
-  }
+  return channelColors[channel].dotClass;
 }
 
 function channelLabel(channel: CalendarExternalBlock["channel"]): string {
@@ -374,7 +370,7 @@ export function CalendarTimeline({ reservations, externalBlocks = [], currentMon
             {format(currentMonth, "MMMM yyyy", { locale: es })}
           </h2>
         </div>
-        <div className="flex w-fit items-center gap-2 rounded-lg border bg-background/80 p-1 shadow-sm lg:justify-self-center">
+        <div className="flex w-fit items-center gap-2 rounded-lg border bg-background/80 p-1 lg:justify-self-center">
           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => onMonthChange(subMonths(currentMonth, 1))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -392,7 +388,7 @@ export function CalendarTimeline({ reservations, externalBlocks = [], currentMon
         )}
       </div>
 
-      <div className="relative overflow-hidden rounded-xl border bg-gradient-to-br from-card to-muted/30 shadow-sm ring-1 ring-foreground/10">
+      <div className="relative overflow-hidden rounded-xl border bg-gradient-to-br from-card to-muted/30 ring-1 ring-foreground/10">
         <div
           aria-hidden="true"
           className={`pointer-events-none absolute inset-y-0 left-0 z-40 w-8 bg-gradient-to-r from-card to-transparent transition-opacity duration-100 ${scrollState.canScrollLeft ? "opacity-100" : "opacity-0"}`}
@@ -418,7 +414,7 @@ export function CalendarTimeline({ reservations, externalBlocks = [], currentMon
                   role="columnheader"
                   style={{ width: dayWidth }}
                 >
-                  <div className={`mx-auto flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold ${isSameDay(day, today) ? "bg-primary text-primary-foreground shadow-sm" : "text-foreground"}`}>
+                  <div className={`mx-auto flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold ${isSameDay(day, today) ? "bg-primary text-primary-foreground" : "text-foreground"}`}>
                     {format(day, "d")}
                   </div>
                   <div className="mt-0.5 text-[10px] font-medium uppercase text-muted-foreground">
@@ -430,7 +426,7 @@ export function CalendarTimeline({ reservations, externalBlocks = [], currentMon
 
           {propertyGroups.length === 0 ? (
             <div className="flex min-h-40 items-center justify-center px-6 py-8 text-center">
-              <div className="max-w-sm rounded-2xl border bg-background/80 p-6 shadow-sm">
+              <div className="max-w-sm rounded-2xl border bg-background/80 p-6">
                 <Calendar className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
                 <h3 className="font-semibold">Sin reservas diarias este mes</h3>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -467,7 +463,7 @@ export function CalendarTimeline({ reservations, externalBlocks = [], currentMon
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 shrink-0 rounded-full shadow-sm ring-4 ring-muted" style={{ backgroundColor: property.color || "#6366F1" }} />
+                        <div className="h-3 w-3 shrink-0 rounded-full ring-4 ring-muted" style={{ backgroundColor: property.color || "var(--primary)" }} />
                         <span className="truncate text-sm font-semibold leading-snug">{property.name}</span>
                       </div>
                       <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground sm:gap-2">
@@ -494,7 +490,7 @@ export function CalendarTimeline({ reservations, externalBlocks = [], currentMon
                         <button
                           key={res.id}
                           onClick={() => onSelectReservation(res.id)}
-                          className={`group absolute flex h-8 items-center gap-1.5 overflow-hidden rounded-md border px-2 text-left text-xs shadow-sm transition-all hover:z-20 hover:-translate-y-0.5 hover:shadow-lg focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-2 sm:px-3 ${
+                          className={`group absolute flex h-8 items-center gap-1.5 overflow-hidden rounded-md border px-2 text-left text-xs transition-all hover:z-20 hover:-translate-y-0.5 focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-2 sm:px-3 ${
                             isCancelled
                               ? "border-border bg-muted text-muted-foreground line-through"
                               : ended
@@ -505,7 +501,7 @@ export function CalendarTimeline({ reservations, externalBlocks = [], currentMon
                             left: `${leftOffset * dayWidth + 4}px`,
                             top: "12px",
                             width: `${Math.max(duration * dayWidth - 8, 34)}px`,
-                            backgroundColor: isCancelled || ended ? undefined : res.property.color || "#6366F1",
+                            backgroundColor: isCancelled || ended ? undefined : res.property.color || "var(--primary)",
                           }}
                           title={`${res.client.name} - ${formatDate(res.startDate)} a ${formatDate(res.endDate)}`}
                         >
@@ -587,23 +583,23 @@ export function CalendarList({ reservations, currentMonth, onSelectReservation }
           <button
             key={res.id}
             onClick={() => onSelectReservation(res.id)}
-            className="w-full text-left group flex items-center gap-4 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 bg-white dark:bg-zinc-950 p-4 transition-all duration-200 hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-lg hover:shadow-black/5"
+            className="w-full text-left group flex items-center gap-4 rounded-xl border border-border/50 bg-card p-4 transition-all duration-200 hover:border-border/80 hover:shadow-lg hover:shadow-black/5"
           >
             <div
               className="h-12 w-12 shrink-0 rounded-xl flex items-center justify-center text-white font-semibold text-lg"
-              style={{ backgroundColor: res.property.color || "#6366F1" }}
+              style={{ backgroundColor: res.property.color || "var(--primary)" }}
             >
               {format(parseCalendarDate(res.startDate), "d")}
             </div>
 
             <div className="flex-1 min-w-0 space-y-1">
               <div className="flex items-center justify-between gap-2">
-                <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">
+                <h3 className="font-semibold text-foreground truncate">
                   {res.client.name}
                 </h3>
-                <StatusIcon className={`h-4 w-4 shrink-0 ${status.variant === "destructive" ? "text-destructive" : status.variant === "default" ? "text-green-600" : "text-muted-foreground"}`} />
+                <StatusIcon className={`h-4 w-4 shrink-0 ${status.variant === "destructive" ? "text-destructive" : status.variant === "success" ? "text-success" : "text-muted-foreground"}`} />
               </div>
-              <div className="flex items-center gap-3 text-xs text-zinc-500">
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <Home className="h-3 w-3" />
                   {res.property.name}
@@ -616,7 +612,7 @@ export function CalendarList({ reservations, currentMonth, onSelectReservation }
             </div>
 
             <div className="text-right shrink-0">
-              <p className="font-bold text-zinc-900 dark:text-zinc-100">{formatPrice(res.totalPrice)}</p>
+              <p className="font-bold text-foreground">{formatPrice(res.totalPrice)}</p>
               <p className="text-xs text-muted-foreground">
                 {formatDate(res.startDate)} - {formatDate(res.endDate)}
               </p>
@@ -654,7 +650,7 @@ export function CalendarWeekView({ reservations, onSelectReservation }: {
 
       <div className="overflow-x-auto">
         <div className="min-w-2xl">
-          <div className="grid grid-cols-8 border-b border-zinc-200 dark:border-zinc-800">
+          <div className="grid grid-cols-8 border-b border-border">
             <div className="p-2 text-sm text-muted-foreground">Hora</div>
             {days.map((day) => (
               <div key={day.toISOString()} className={`p-2 text-center text-sm font-medium ${isSameDay(day, today) ? "bg-primary/10" : ""}`}>
@@ -668,7 +664,7 @@ export function CalendarWeekView({ reservations, onSelectReservation }: {
 
           <div className="max-h-96 overflow-y-auto">
             {hours.map((hour) => (
-              <div key={hour} className="grid grid-cols-8 border-b border-zinc-100 dark:border-zinc-800">
+              <div key={hour} className="grid grid-cols-8 border-b border-border/60">
                 <div className="p-2 text-xs text-muted-foreground">
                   {hour.toString().padStart(2, "0")}:00
                 </div>
@@ -680,7 +676,7 @@ export function CalendarWeekView({ reservations, onSelectReservation }: {
                   });
 
                   return (
-                    <div key={`${day.toISOString()}-${hour}`} className="relative p-1 border-l border-zinc-100 dark:border-zinc-800 min-h-12">
+                    <div key={`${day.toISOString()}-${hour}`} className="relative p-1 border-l border-border/60 min-h-12">
                       {dayReservations
                         .filter((res) => {
                           const start = parseCalendarDate(res.startDate);
@@ -696,7 +692,7 @@ export function CalendarWeekView({ reservations, onSelectReservation }: {
                             key={res.id}
                             onClick={() => onSelectReservation(res.id)}
                             className="w-full text-left text-xs rounded px-1 py-0.5 text-white mb-1 truncate"
-                            style={{ backgroundColor: res.property.color || "#6366F1" }}
+                            style={{ backgroundColor: res.property.color || "var(--primary)" }}
                           >
                             {res.client.name}
                           </button>
@@ -732,7 +728,7 @@ export function ReservationDetailDialog({ reservation, onClose }: {
           <div className="flex items-center gap-4">
             <div
               className="h-12 w-12 rounded-xl flex items-center justify-center text-white font-semibold text-lg"
-              style={{ backgroundColor: reservation.property.color || "#6366F1" }}
+              style={{ backgroundColor: reservation.property.color || "var(--primary)" }}
             >
               {reservation.property.name[0]}
             </div>
@@ -773,27 +769,27 @@ export function ReservationDetailDialog({ reservation, onClose }: {
           </div>
 
           {pendingAmount > 0 && (
-            <div className="flex items-center justify-between p-4 bg-orange-50 dark:bg-orange-900/20 rounded-xl">
+            <div className="flex items-center justify-between p-4 bg-warning/10 rounded-xl">
               <div>
-                <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Pago pendiente</p>
-                <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{formatPrice(pendingAmount)}</p>
+                <p className="text-sm font-medium text-warning-foreground">Pago pendiente</p>
+                <p className="text-2xl font-bold text-warning-foreground">{formatPrice(pendingAmount)}</p>
               </div>
               <div className="text-right">
                 <p className="text-sm text-muted-foreground">Pagado</p>
-                <p className="font-medium text-green-600">{formatPrice(paidAmount)}</p>
+                <p className="font-medium text-success">{formatPrice(paidAmount)}</p>
               </div>
             </div>
           )}
 
           <div className="flex items-center gap-4 text-sm">
-            <div className={`px-3 py-1.5 rounded-md text-xs font-medium ${reservation.billingType === "DAILY" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"}`}>
+            <div className={`px-3 py-1.5 rounded-md text-xs font-medium ${reservation.billingType === "DAILY" ? "bg-info/10 text-info-foreground" : "bg-secondary text-secondary-foreground"}`}>
               {reservation.billingType === "DAILY" ? "Tarifa diaria" : "Tarifa mensual"}
             </div>
-            <div className={`px-3 py-1.5 rounded-md text-xs font-medium ${reservation.bookingAirbnb ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"}`}>
+            <div className={`px-3 py-1.5 rounded-md text-xs font-medium ${reservation.bookingAirbnb ? "bg-success/10 text-success-foreground" : "bg-muted text-muted-foreground"}`}>
               {reservation.bookingAirbnb ? "Booking Airbnb" : "Directo"}
             </div>
             {reservation.unitsBooked > 1 && (
-              <div className="px-3 py-1.5 rounded-md text-xs font-medium bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+              <div className="px-3 py-1.5 rounded-md text-xs font-medium bg-muted text-muted-foreground">
                 {reservation.unitsBooked} unidades
               </div>
             )}

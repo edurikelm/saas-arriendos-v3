@@ -18,6 +18,7 @@ import { es } from "date-fns/locale";
 import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { CalendarReservation, CalendarExternalBlock } from "@/lib/actions/reservations";
+import { channelColors } from "@/lib/calendar/channel-colors";
 
 const LANE_TOP_OFFSET = 32;
 const LANE_TOP_STEP = 28;
@@ -47,7 +48,7 @@ function isReservationEnded(res: CalendarReservation): boolean {
 }
 
 function getReservationColor(res: CalendarReservation): string {
-  return res.property.color || "#6366F1";
+  return res.property.color || "var(--primary)";
 }
 
 function parseCalendarDate(dateString: string): Date {
@@ -56,12 +57,7 @@ function parseCalendarDate(dateString: string): Date {
 }
 
 function channelDotClass(channel: CalendarExternalBlock["channel"]): string {
-  switch (channel) {
-    case "AIRBNB": return "bg-rose-500";
-    case "BOOKING_COM": return "bg-blue-500";
-    case "VRBO": return "bg-indigo-500";
-    case "OTHER": return "bg-zinc-400";
-  }
+  return channelColors[channel].dotClass;
 }
 
 function channelLabel(channel: CalendarExternalBlock["channel"]): string {
@@ -300,7 +296,7 @@ export function CalendarGrid({
             {format(currentMonth, "MMMM yyyy", { locale: es })}
           </h2>
         </div>
-        <div className="flex w-fit items-center gap-1 rounded-lg border bg-background/80 p-0.5 shadow-sm sm:gap-2 sm:p-1 lg:justify-self-center">
+        <div className="flex w-fit items-center gap-1 rounded-lg border bg-background/80 p-0.5 sm:gap-2 sm:p-1 lg:justify-self-center">
           <Button
             variant="ghost"
             size="icon"
@@ -344,7 +340,7 @@ export function CalendarGrid({
         )}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border bg-gradient-to-br from-background via-background to-muted/30 shadow-sm lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
+      <div className="overflow-hidden rounded-2xl border bg-gradient-to-br from-background via-background to-muted/30 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
         <div className="grid grid-cols-7 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
           {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((day) => (
             <div
@@ -406,7 +402,7 @@ export function CalendarGrid({
                       <div
                         className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold transition-transform group-hover:scale-105 sm:h-6 sm:w-6 sm:text-xs md:h-7 md:w-7 md:text-sm ${
                           isToday
-                            ? "bg-primary text-primary-foreground shadow-sm"
+                            ? "bg-primary text-primary-foreground"
                             : isCurrentMonth
                               ? "text-foreground"
                               : "text-muted-foreground"
@@ -421,7 +417,7 @@ export function CalendarGrid({
                       )}
                     </div>
                     {hasConflict && (
-                      <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-amber-500" aria-label="Conflicto" />
+                      <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-warning" aria-label="Conflicto" />
                     )}
                   </div>
                 );
@@ -443,7 +439,7 @@ export function CalendarGrid({
                     onMouseLeave={() => setHoveredReservationId(null)}
                     onFocus={() => setHoveredReservationId(wr.res.id)}
                     onBlur={() => setHoveredReservationId(null)}
-                    className={`absolute flex h-6 cursor-pointer items-center gap-1 overflow-hidden border px-1.5 text-left text-[10px] font-semibold shadow-sm transition-all hover:z-20 hover:-translate-y-0.5 hover:shadow-lg focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-6 sm:gap-1.5 sm:px-2 sm:text-xs ${radiusClass} ${
+                    className={`absolute flex h-6 cursor-pointer items-center gap-1 overflow-hidden border px-1.5 text-left text-[10px] font-semibold transition-all hover:z-20 hover:-translate-y-0.5 focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-6 sm:gap-1.5 sm:px-2 sm:text-xs ${radiusClass} ${
                       isReservationHovered ? "z-20 -translate-y-0.5 shadow-lg" : "z-10"
                     } ${
                       ended
@@ -505,7 +501,7 @@ export function CalendarGrid({
                         onMouseLeave={() => setHoveredReservationId(null)}
                         onFocus={() => setHoveredReservationId(wr.res.id)}
                         onBlur={() => setHoveredReservationId(null)}
-                        className={`absolute cursor-pointer shadow-sm transition-all hover:z-20 hover:h-2 hover:opacity-100 focus-visible:z-30 focus-visible:h-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${radiusClass} ${
+                        className={`absolute cursor-pointer transition-all hover:z-20 hover:h-2 hover:opacity-100 focus-visible:z-30 focus-visible:h-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${radiusClass} ${
                           isReservationHovered ? "z-20 h-2 opacity-100" : "z-10 h-1.5 opacity-90"
                         }`}
                         style={{
@@ -533,7 +529,7 @@ export function CalendarGrid({
 
         {reservations.length === 0 && (
           <div className="flex min-h-56 items-center justify-center border-t px-6 py-12 text-center">
-            <div className="max-w-sm rounded-2xl border bg-background/80 p-6 shadow-sm">
+            <div className="max-w-sm rounded-2xl border bg-background/80 p-6">
               <Calendar className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
               <h3 className="font-semibold">Sin reservas diarias este mes</h3>
               <p className="mt-1 text-sm text-muted-foreground">
