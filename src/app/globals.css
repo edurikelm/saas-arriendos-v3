@@ -4,7 +4,7 @@
 
 :root {
   /* === Ocean Breeze — light palette (tweakcn preset) === */
-  --background: oklch(0.9751 0.0127 244.2507);
+  --background: oklch(0.978 0.004 160);
   --foreground: oklch(0.3729 0.0306 259.7328);
   --card: oklch(1.0000 0 0);
   --card-foreground: oklch(0.3729 0.0306 259.7328);
@@ -28,13 +28,13 @@
   --chart-3: oklch(0.5960 0.1274 163.2254);
   --chart-4: oklch(0.5081 0.1049 165.6121);
   --chart-5: oklch(0.4318 0.0865 166.9128);
-  --sidebar: oklch(0.9514 0.0250 236.8242);
+  --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0.3729 0.0306 259.7328);
   --sidebar-primary: oklch(0.7227 0.1920 149.5793);
   --sidebar-primary-foreground: oklch(1.0000 0 0);
   --sidebar-accent: oklch(0.9505 0.0507 163.0508);
   --sidebar-accent-foreground: oklch(0.3729 0.0306 259.7328);
-  --sidebar-border: oklch(0.9276 0.0058 264.5313);
+  --sidebar-border: oklch(0.928 0.013 247);
   --sidebar-ring: oklch(0.7227 0.1920 149.5793);
 
   /* === Project-specific tokens (kept, harmonized to teal palette) === */
@@ -44,7 +44,7 @@
   --warning-foreground: oklch(0.30 0.10 60);
   --info: oklch(0.65 0.13 200);
   --info-foreground: oklch(0.30 0.12 210);
-  --navbar: oklch(0.99 0.005 244);
+  --navbar: oklch(1 0 0);
   --navbar-foreground: oklch(0.3729 0.0306 259.7328);
   --beige: oklch(0.97 0.02 200);
   --brand-secondary: oklch(0.72 0.15 195);
