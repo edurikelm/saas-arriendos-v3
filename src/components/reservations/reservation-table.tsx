@@ -5,6 +5,7 @@ import { CheckCircle2, XCircle, AlertCircle, ArrowUpDown, Eye, Pencil, Ban, Tras
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DataTable } from "@/components/ui/data-table";
 import { getPaymentStatus } from "@/lib/reservation-payment";
 import { getInclusiveMonths } from "@/lib/reservation-dates";
 import { getReservationPaidAmount } from "@/lib/payments/calculations";
@@ -151,8 +152,8 @@ function ReservationMobileCard({ reservation, onEdit, onView, onCancel, onDelete
       <div className={`absolute inset-y-0 left-0 w-1 ${dotClassNames[stateTone]}`} />
       <div className="flex items-start gap-3 pl-1.5">
         <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white shadow-lg ring-2 ring-white/10"
-          style={{ backgroundColor: reservation.property.color || "#6366F1" }}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
+          style={{ backgroundColor: reservation.property.color || "var(--primary)" }}
         >
           {getInitials(reservation.client.name)}
         </div>
@@ -161,7 +162,7 @@ function ReservationMobileCard({ reservation, onEdit, onView, onCancel, onDelete
             <div className="min-w-0">
               <h3 className="truncate text-sm font-semibold text-zinc-100">{reservation.client.name}</h3>
               <p className="flex items-center gap-1.5 truncate text-xs text-zinc-500">
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: reservation.property.color || "#6366F1" }} />
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: reservation.property.color || "var(--primary)" }} />
                 <span className="truncate">{reservation.property.name}</span>
               </p>
             </div>
@@ -265,212 +266,143 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
         ))}
       </div>
 
-      <div className="hidden rounded-2xl border border-zinc-200/70 bg-zinc-950/[0.02] p-2 shadow-sm dark:border-zinc-800/80 dark:bg-zinc-950/30 md:block">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1200px] border-separate border-spacing-y-2 text-sm">
-          <thead className="sticky top-0 z-10 bg-zinc-100/90 backdrop-blur dark:bg-zinc-950/90">
-            <tr>
-              {isSelectable && (
-                <th className="rounded-l-xl px-3 py-3 text-left font-medium text-zinc-600 dark:text-zinc-400 w-10">
-                  {(() => {
-                    const allSelected = reservations.length > 0 && reservations.every((r) => selectedIds!.has(r.id));
-                    const someSelected = reservations.length > 0 && !allSelected && reservations.some((r) => selectedIds!.has(r.id));
-                    return (
-                      <Checkbox
-                        checked={allSelected}
-                        onCheckedChange={(checked) => {
-                          if (checked || someSelected) {
-                            reservations.forEach((r) => !selectedIds!.has(r.id) && onToggleSelect!(r.id));
-                          } else {
-                            reservations.forEach((r) => selectedIds!.has(r.id) && onToggleSelect!(r.id));
-                          }
-                        }}
-                        aria-label={allSelected ? "Deseleccionar todas" : "Seleccionar todas"}
-                        ref={(el) => {
-                          if (el) {
-                            // @ts-expect-error - indeterminate is a DOM property not in react types
-                            el.indeterminate = someSelected || false;
-                          }
-                        }}
-                      />
-                    );
-                  })()}
-                </th>
-              )}
-              <th className={`${isSelectable ? "" : "rounded-l-xl"} px-4 py-3 text-left font-medium text-zinc-600 dark:text-zinc-400`}>
-                <button
-                  onClick={() => toggleSort("client")}
-                  className="flex items-center gap-1 hover:text-zinc-900 dark:hover:text-zinc-100"
-                >
-                  Cliente
-                  <ArrowUpDown className="h-3 w-3" />
-                </button>
-              </th>
-              <th className="px-4 py-3 text-left font-medium text-zinc-600 dark:text-zinc-400">
-                <button
-                  onClick={() => toggleSort("createdAt")}
-                  className="flex items-center gap-1 hover:text-zinc-900 dark:hover:text-zinc-100"
-                >
-                  Creación
-                  <ArrowUpDown className="h-3 w-3" />
-                </button>
-              </th>
-              <th className="px-4 py-3 text-left font-medium text-zinc-600 dark:text-zinc-400">Propiedad</th>
-              <th className="px-4 py-3 text-left font-medium text-zinc-600 dark:text-zinc-400">Fechas</th>
-              <th className="px-4 py-3 text-left font-medium text-zinc-600 dark:text-zinc-400">Tipo</th>
-              <th className="px-4 py-3 text-right font-medium text-zinc-600 dark:text-zinc-400">
-                <button
-                  onClick={() => toggleSort("totalPrice")}
-                  className="flex items-center gap-1 ml-auto hover:text-zinc-900 dark:hover:text-zinc-100"
-                >
-                  Total
-                  <ArrowUpDown className="h-3 w-3" />
-                </button>
-              </th>
-              <th className="px-4 py-3 text-center font-medium text-zinc-600 dark:text-zinc-400">Estado</th>
-              <th className="px-4 py-3 text-center font-medium text-zinc-600 dark:text-zinc-400">Pago</th>
-              <th className={`rounded-r-xl px-4 py-3 text-right font-medium text-zinc-600 dark:text-zinc-400 ${isSelectable ? "w-32" : ""}`}>
-                Acciones
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((res) => {
-              const paidAmount = getReservationPaidAmount(res.payments);
-              const totalPrice = Number(res.totalPrice);
-              const paymentStatus = getPaymentStatus({
-                paidAmount,
-                totalPrice,
-                status: res.status,
-              });
-              const temporal = getTemporalStatus(res.startDate, res.endDate, res.billingType, res.status);
-              const stateTone = getReservationTone(res.status, res.startDate, res.endDate);
-              const paymentTone = getPaymentTone(paidAmount, totalPrice);
-              const duration = res.billingType === "MONTHLY" ? `${getMonths(res.startDate, res.endDate)} meses` : `${getNights(res.startDate, res.endDate)} noches`;
-              const isSelected = selectedIds?.has(res.id);
-              return (
-                <tr key={res.id} className={`group relative transition-transform duration-200 hover:-translate-y-0.5 ${isSelected ? "bg-muted/30" : ""}`}>
-                  {isSelectable && (
-                    <td className="relative rounded-l-xl border-y border-l border-zinc-200/70 bg-white px-3 py-4 shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={() => onToggleSelect!(res.id)}
-                        aria-label={`Seleccionar reserva de ${res.client.name}`}
-                      />
-                    </td>
-                  )}
-                  <td className="relative border-y border-zinc-200/70 bg-white p-4 shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
-                    <div className={`absolute inset-y-3 left-0 w-1 rounded-r-full ${dotClassNames[stateTone]}`} />
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white shadow-lg ring-2 ring-white/10"
-                        style={{ backgroundColor: res.property.color || "#6366F1" }}
-                      >
-                        {getInitials(res.client.name)}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold text-zinc-900 dark:text-zinc-100">{res.client.name}</p>
-                        <p className="truncate text-xs text-zinc-500">{res.client.email}</p>
-                      </div>
+      <div className="hidden md:block">
+        <DataTable
+          headers={["Cliente", "Creación", "Propiedad", "Fechas", "Tipo", "Total", "Estado", "Pago", "Acciones"]}
+        >
+          {sorted.map((res) => {
+            const paidAmount = getReservationPaidAmount(res.payments);
+            const totalPrice = Number(res.totalPrice);
+            const paymentStatus = getPaymentStatus({
+              paidAmount,
+              totalPrice,
+              status: res.status,
+            });
+            const temporal = getTemporalStatus(res.startDate, res.endDate, res.billingType, res.status);
+            const stateTone = getReservationTone(res.status, res.startDate, res.endDate);
+            const paymentTone = getPaymentTone(paidAmount, totalPrice);
+            const duration = res.billingType === "MONTHLY" ? `${getMonths(res.startDate, res.endDate)} meses` : `${getNights(res.startDate, res.endDate)} noches`;
+            const isSelected = selectedIds?.has(res.id);
+            return (
+              <tr key={res.id} className={`border-b last:border-0 hover:bg-muted/30 transition-colors ${isSelected ? "bg-muted/30" : ""}`}>
+                {isSelectable && (
+                  <td className="px-3 py-3 w-10">
+                    <Checkbox
+                      checked={isSelected}
+                      onCheckedChange={() => onToggleSelect!(res.id)}
+                      aria-label={`Seleccionar reserva de ${res.client.name}`}
+                    />
+                  </td>
+                )}
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                      style={{ backgroundColor: res.property.color || "var(--primary)" }}
+                    >
+                      {getInitials(res.client.name)}
                     </div>
-                  </td>
-                  <td className="border-y border-zinc-200/70 bg-white p-4 text-sm text-zinc-500 shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
-                    {formatFullDate(res.createdAt)}
-                  </td>
-                  <td className="border-y border-zinc-200/70 bg-white p-4 shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="h-2.5 w-2.5 rounded-full ring-2 ring-white/10"
-                        style={{ backgroundColor: res.property.color || "#6366F1" }}
-                      />
-                      <span className="font-medium text-zinc-700 dark:text-zinc-300">{res.property.name}</span>
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold">{res.client.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">{res.client.email}</p>
                     </div>
-                  </td>
-                  <td className="border-y border-zinc-200/70 bg-white p-4 shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
-                    <div className="space-y-0.5 text-zinc-700 dark:text-zinc-300">
-                      <p className="font-medium">{formatDate(res.startDate)} - {formatDate(res.endDate)}</p>
-                      <p className="text-xs text-zinc-500">{duration}</p>
-                    </div>
-                  </td>
-                  <td className="border-y border-zinc-200/70 bg-white p-4 shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
-                    <ReservationPill tone={res.billingType === "DAILY" ? "info" : "info-strong"} label={res.billingType === "DAILY" ? "Diario" : "Mensual"} />
-                  </td>
-                  <td className="border-y border-zinc-200/70 bg-white p-4 text-right shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
-                    <span className="font-bold tabular-nums text-zinc-900 dark:text-zinc-100">
-                      {formatPrice(res.totalPrice)}
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-sm text-muted-foreground">
+                  {formatFullDate(res.createdAt)}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{ backgroundColor: res.property.color || "var(--primary)" }}
+                    />
+                    <span className="font-medium">{res.property.name}</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="space-y-0.5">
+                    <p className="font-medium">{formatDate(res.startDate)} - {formatDate(res.endDate)}</p>
+                    <p className="text-xs text-muted-foreground">{duration}</p>
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <ReservationPill tone={res.billingType === "DAILY" ? "info" : "info-strong"} label={res.billingType === "DAILY" ? "Diario" : "Mensual"} />
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <span className="font-bold tabular-nums">
+                    {formatPrice(res.totalPrice)}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-center">
+                  <div className="flex flex-col items-center justify-center gap-1">
+                    <ReservationPill tone={stateTone} label={temporal.label} />
+                    {temporal.sublabel && (
+                      <span className="text-xs text-muted-foreground">{temporal.sublabel}</span>
+                    )}
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-center">
+                  <div className="mx-auto w-36">
+                    <ReservationPill tone={paymentTone} label={paymentStatus.label} />
+                    <span className="mt-1 block text-xs tabular-nums text-muted-foreground">
+                      {formatPrice(paidAmount)} / {formatPrice(totalPrice)}
                     </span>
-                  </td>
-                  <td className="border-y border-zinc-200/70 bg-white p-4 text-center shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
-                    <div className="flex flex-col items-center justify-center gap-1">
-                      <ReservationPill tone={stateTone} label={temporal.label} />
-                      {temporal.sublabel && (
-                        <span className="text-xs text-zinc-500">{temporal.sublabel}</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="border-y border-zinc-200/70 bg-white p-4 text-center shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60">
-                    <div className="mx-auto w-36">
-                      <ReservationPill tone={paymentTone} label={paymentStatus.label} />
-                      <span className="mt-1 block text-xs tabular-nums text-muted-foreground">
-                        {formatPrice(paidAmount)} / {formatPrice(totalPrice)}
-                      </span>
-                      <PaymentProgress paidAmount={paidAmount} totalPrice={totalPrice} tone={paymentTone} />
-                    </div>
-                  </td>
-                  <td className={`rounded-r-xl border-y border-r border-zinc-200/70 bg-white p-4 text-right shadow-sm transition-colors group-hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-950/40 dark:group-hover:bg-zinc-900/60 ${isSelectable ? "w-32" : ""}`}>
-                    <div className="flex items-center justify-end gap-1">
-                      {onView && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="size-8"
-                          onClick={() => onView(res.id)}
-                          title="Ver"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      )}
-                      {onEdit && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="size-8"
-                          onClick={() => onEdit(res.id)}
-                          title="Editar"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      )}
-                      {(res.status === "CANCELLED" || res.status === "COMPLETED") && onDelete && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="size-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => onDelete(res.id)}
-                          title="Eliminar"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                      {(res.status === "PENDING" || res.status === "CONFIRMED") && onCancel && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="size-8 hover:bg-destructive/10 hover:text-destructive"
-                          onClick={() => onCancel(res.id)}
-                          title="Cancelar"
-                        >
-                          <Ban className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        </div>
+                    <PaymentProgress paidAmount={paidAmount} totalPrice={totalPrice} tone={paymentTone} />
+                  </div>
+                </td>
+                <td className={`px-4 py-3 text-right ${isSelectable ? "w-32" : ""}`}>
+                  <div className="flex items-center justify-end gap-1">
+                    {onView && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-8"
+                        onClick={() => onView(res.id)}
+                        title="Ver"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {onEdit && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-8"
+                        onClick={() => onEdit(res.id)}
+                        title="Editar"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {(res.status === "CANCELLED" || res.status === "COMPLETED") && onDelete && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => onDelete(res.id)}
+                        title="Eliminar"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {(res.status === "PENDING" || res.status === "CONFIRMED") && onCancel && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-8 hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => onCancel(res.id)}
+                        title="Cancelar"
+                      >
+                        <Ban className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </DataTable>
       </div>
     </div>
   );
