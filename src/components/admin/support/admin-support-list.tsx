@@ -6,6 +6,7 @@ import { LifeBuoy, MessageSquare, User } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { DataTable } from "@/components/ui/data-table";
 import { cn } from "@/lib/utils";
 import type { AdminSupportTicketRow, StatusFilter } from "@/lib/actions/admin-support";
 
@@ -176,74 +177,70 @@ export function AdminSupportList({ tickets, total }: AdminSupportListProps) {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b text-left">
-                  <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">Asunto</th>
-                  <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">Propietario</th>
-                  <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">Estado</th>
-                  <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">Prioridad</th>
-                  <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">Categoría</th>
-                  <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">Mensajes</th>
-                  <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">Actividad</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tickets.map((ticket) => (
-                  <tr
-                    key={ticket.id}
-                    className={cn(
-                      "border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors",
-                      ticket.hasUnread && "bg-primary/5"
+          <DataTable
+            headers={[
+              "Asunto",
+              "Propietario",
+              "Estado",
+              "Prioridad",
+              "Categoría",
+              "Mensajes",
+              "Actividad",
+            ]}
+            caption="Lista de tickets de soporte"
+          >
+            {tickets.map((ticket) => (
+              <tr
+                key={ticket.id}
+                className={cn(
+                  "border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors",
+                  ticket.hasUnread && "bg-primary/5"
+                )}
+                onClick={() => router.push(`/admin/support/${ticket.id}`)}
+              >
+                <td className="px-4 py-3 font-medium">
+                  <div className="flex items-center gap-2">
+                    {ticket.hasUnread && (
+                      <span className="size-2 shrink-0 rounded-full bg-destructive" />
                     )}
-                    onClick={() => router.push(`/admin/support/${ticket.id}`)}
-                  >
-                    <td className="px-4 py-3 font-medium">
-                      <div className="flex items-center gap-2">
-                        {ticket.hasUnread && (
-                          <span className="size-2 shrink-0 rounded-full bg-destructive" />
-                        )}
-                        <span className={cn(ticket.hasUnread && "font-semibold")}>{ticket.subject}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-2">
-                        <User className="size-3.5 shrink-0" />
-                        <span className="truncate max-w-[150px]">{ticket.ownerEmail}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge variant={statusVariants[ticket.status] || "default"}>
-                        {statusLabels[ticket.status] || ticket.status}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">
-                      {priorityLabels[ticket.priority] || ticket.priority}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">
-                      {categoryLabels[ticket.category] || ticket.category}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                        <MessageSquare className="size-3.5" />
-                        <span>{ticket.messageCount}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground tabular-nums">
-                      {new Date(ticket.lastActivityAt).toLocaleDateString("es-CL", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    <span className={cn(ticket.hasUnread && "font-semibold")}>{ticket.subject}</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <User className="size-3.5 shrink-0" />
+                    <span className="truncate max-w-[150px]">{ticket.ownerEmail}</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <Badge variant={statusVariants[ticket.status] || "default"}>
+                    {statusLabels[ticket.status] || ticket.status}
+                  </Badge>
+                </td>
+                <td className="px-4 py-3 text-sm text-muted-foreground">
+                  {priorityLabels[ticket.priority] || ticket.priority}
+                </td>
+                <td className="px-4 py-3 text-sm text-muted-foreground">
+                  {categoryLabels[ticket.category] || ticket.category}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                    <MessageSquare className="size-3.5" />
+                    <span>{ticket.messageCount}</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-sm text-muted-foreground tabular-nums">
+                  {new Date(ticket.lastActivityAt).toLocaleDateString("es-CL", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </td>
+              </tr>
+            ))}
+          </DataTable>
         )}
       </CardContent>
     </Card>
