@@ -2,31 +2,76 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Building2, Calendar, Users, BarChart3, Settings, LifeBuoy, X, PanelLeftClose, PanelLeft, Wallet } from "lucide-react";
+import { useState, useEffect } from "react";
+import {
+  LayoutDashboard,
+  Calendar,
+  BookOpen,
+  Building2,
+  Users,
+  Wallet,
+  BarChart3,
+  Settings,
+  LifeBuoy,
+  X,
+  MoreVertical,
+  LogOut,
+  Sun,
+  Moon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useTheme } from "@/components/providers/theme-provider";
+import { logoutAction } from "@/lib/actions/auth";
 
 const navItems = [
-  { href: "/dashboard", icon: Home, label: "Dashboard" },
-  { href: "/properties", icon: Building2, label: "Propiedades" },
-  { href: "/reservations", icon: Calendar, label: "Reservas" },
+  { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/calendar", icon: Calendar, label: "Calendario" },
+  { href: "/reservations", icon: BookOpen, label: "Reservas" },
+  { href: "/properties", icon: Building2, label: "Propiedades" },
   { href: "/clients", icon: Users, label: "Clientes" },
   { href: "/payments", icon: Wallet, label: "Pagos" },
   { href: "/reports", icon: BarChart3, label: "Reportes" },
-  { href: "/support", icon: LifeBuoy, label: "Soporte" },
   { href: "/settings", icon: Settings, label: "Configuración" },
+  { href: "/support", icon: LifeBuoy, label: "Soporte" },
 ];
 
 interface DashboardSidebarProps {
   open?: boolean;
   onClose?: () => void;
-  collapsed?: boolean;
-  onToggle?: () => void;
+  userName?: string | null;
+  userRole?: string | null;
+  userPlan?: string | null;
   supportUnreadCount?: number;
 }
 
-export function DashboardSidebar({ open, onClose, collapsed, onToggle, supportUnreadCount = 0 }: DashboardSidebarProps) {
+export function DashboardSidebar({
+  open,
+  onClose,
+  userName,
+  userRole,
+  userPlan,
+  supportUnreadCount = 0,
+}: DashboardSidebarProps) {
   const pathname = usePathname();
+  const { setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration safety
+    setMounted(true);
+  }, []);
+
+  const initial = (userName?.[0] ?? "R").toUpperCase();
+  const isSuperAdmin = userRole === "SUPER_ADMIN";
+  const planLabel = isSuperAdmin ? "ADMIN" : userPlan ?? "FREE";
 
   return (
     <>
@@ -38,38 +83,31 @@ export function DashboardSidebar({ open, onClose, collapsed, onToggle, supportUn
       )}
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 h-screen border-r border-sidebar-border bg-sidebar/95 text-sidebar-foreground backdrop-blur-xl transition-all duration-300 lg:z-40 lg:translate-x-0",
-          open ? "translate-x-0" : "-translate-x-full",
-          collapsed ? "lg:w-16" : "lg:w-64"
+          "fixed left-0 top-0 z-50 h-screen w-64 border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-all duration-300 lg:z-40 lg:translate-x-0",
+          open ? "translate-x-0" : "-translate-x-full"
         )}
       >
         <div className="flex h-full flex-col">
-          <div className="flex items-center justify-between p-6 lg:hidden">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">RentalPro</h1>
-              <p className="text-xs text-sidebar-foreground/60">Gestión de arriendos</p>
+          {/* Logo */}
+          <div className="h-16 flex items-center px-6 border-b border-border">
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded bg-primary flex items-center justify-center shrink-0">
+                <Building2 className="h-5 w-5 text-white" />
+              </div>
+              <span className="text-lg font-bold text-foreground">RentalPro</span>
             </div>
+          </div>
+
+          {/* Mobile close button */}
+          <div className="flex items-center justify-between p-6 lg:hidden">
+            <span className="text-lg font-bold text-foreground">RentalPro</span>
             <button onClick={onClose} className="rounded-lg p-2 hover:bg-sidebar-accent">
               <X className="h-5 w-5" />
             </button>
           </div>
-          <div className={cn("hidden lg:flex lg:items-center", collapsed ? "lg:justify-center lg:px-2 lg:py-2" : "lg:justify-between lg:p-2 lg:pr-1")}>
-            <div className={cn("overflow-hidden transition-all duration-200", collapsed ? "lg:w-0 lg:opacity-0" : "lg:w-auto lg:opacity-100")}>
-              <h1 className="whitespace-nowrap text-xl font-bold tracking-tight">RentalPro</h1>
-              <p className="whitespace-nowrap text-xs text-sidebar-foreground/60">Gestión de arriendos</p>
-            </div>
-            <button
-              onClick={onToggle}
-              className={cn(
-                "flex h-10 shrink-0 items-center rounded-xl hover:bg-sidebar-accent",
-                collapsed ? "px-3" : "w-10 justify-center"
-              )}
-              title={collapsed ? "Expandir menú" : "Colapsar menú"}
-            >
-              {collapsed ? <PanelLeft className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
-            </button>
-          </div>
-<nav className={cn("flex-1 space-y-1 px-3", collapsed ? "lg:px-2" : "lg:px-3")}>
+
+          {/* Navigation */}
+          <nav className="flex-1 py-6 px-4 space-y-1 overflow-y-auto">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
@@ -79,19 +117,16 @@ export function DashboardSidebar({ open, onClose, collapsed, onToggle, supportUn
                   href={item.href}
                   onClick={onClose}
                   className={cn(
-                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                    "flex items-center gap-3 px-3 py-2 rounded text-sm transition-colors",
                     isActive
-                      ? "bg-sidebar-accent text-sidebar-accent-foreground ring-1 ring-sidebar-ring/20"
-                      : "text-sidebar-foreground/85 hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground"
+                      ? "bg-primary/10 text-primary font-medium"
+                      : "text-muted hover:bg-gray-50"
                   )}
                 >
                   <Icon className="h-5 w-5 shrink-0" />
-                  <span className={cn("flex-1 transition-opacity duration-200", collapsed ? "lg:opacity-0 lg:w-0" : "lg:opacity-100")}>{item.label}</span>
+                  <span className="flex-1">{item.label}</span>
                   {item.href === "/support" && supportUnreadCount > 0 && (
-                    <span className={cn(
-                      "inline-flex items-center justify-center rounded-full bg-destructive px-1.5 py-0.5 text-xs font-bold text-destructive-foreground",
-                      collapsed ? "lg:hidden" : ""
-                    )}>
+                    <span className="inline-flex items-center justify-center rounded-full bg-destructive px-1.5 py-0.5 text-xs font-bold text-destructive-foreground">
                       {supportUnreadCount}
                     </span>
                   )}
@@ -99,6 +134,62 @@ export function DashboardSidebar({ open, onClose, collapsed, onToggle, supportUn
               );
             })}
           </nav>
+
+          {/* User Footer */}
+          <div className="p-4 border-t border-border">
+            <div className="flex items-center gap-3 px-2">
+              <div className="h-8 w-8 rounded-full bg-gray-100 border border-border overflow-hidden shrink-0">
+                <div className="h-full w-full flex items-center justify-center bg-primary text-primary-foreground text-xs font-bold">
+                  {initial}
+                </div>
+              </div>
+              <div className="overflow-hidden flex-1 min-w-0">
+                <p className="text-xs font-bold text-foreground truncate">{userName ?? "Cuenta"}</p>
+                <p className="text-[10px] text-muted truncate">{planLabel}</p>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <button className="p-1 rounded hover:bg-gray-100">
+                      <MoreVertical className="h-4 w-4 text-muted" />
+                    </button>
+                  }
+                />
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuLabel>Tema</DropdownMenuLabel>
+                  {mounted ? (
+                    <>
+                      <DropdownMenuItem onClick={() => setTheme("light")}>
+                        <Sun className="h-4 w-4 mr-2" />
+                        Claro
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setTheme("dark")}>
+                        <Moon className="h-4 w-4 mr-2" />
+                        Oscuro
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setTheme("system")}>Sistema</DropdownMenuItem>
+                    </>
+                  ) : (
+                    <>
+                      <DropdownMenuItem disabled>Claro</DropdownMenuItem>
+                      <DropdownMenuItem disabled>Oscuro</DropdownMenuItem>
+                      <DropdownMenuItem disabled>Sistema</DropdownMenuItem>
+                    </>
+                  )}
+                  <DropdownMenuSeparator />
+                  <form action={logoutAction}>
+                    <button
+                      type="submit"
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent transition-colors"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Cerrar sesión
+                    </button>
+                  </form>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
         </div>
       </aside>
     </>
