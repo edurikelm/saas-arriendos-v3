@@ -5,7 +5,12 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
-const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-sans" });
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  style: ["normal", "italic"],
+  display: "swap",
+});
 const lora = Lora({ subsets: ["latin"], variable: "--font-serif" });
 const ibmPlexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: "400", variable: "--font-mono" });
 
