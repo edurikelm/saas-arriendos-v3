@@ -1,7 +1,7 @@
 ---
 description: Explora el codebase de RentalPro y resume archivos, flujos, patrones y riesgos antes de implementar.
 mode: subagent
-model: opencode/north-mini-code-free
+model: minimax-coding-plan/MiniMax-M2.7-highspeed
 permission:
   edit: deny
   bash: allow
