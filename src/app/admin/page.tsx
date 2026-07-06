@@ -21,6 +21,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { MetricCard } from "@/components/ui/metric-card";
 import { getDashboardStats, getRecentOwners } from "@/lib/actions/super-admin";
 import { cn } from "@/lib/utils";
 
@@ -30,16 +31,6 @@ const formatCLP = (amount: number) =>
     currency: "CLP",
     minimumFractionDigits: 0,
   }).format(amount);
-
-function getPlanBadgeClass(plan: string | null): string {
-  if (plan === "PRO") {
-    return "border-violet-500/20 bg-violet-500/10 text-violet-700 dark:text-violet-300";
-  }
-  if (plan === "FREE") {
-    return "border-slate-500/20 bg-slate-500/10 text-slate-700 dark:text-slate-300";
-  }
-  return "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300";
-}
 
 function timeAgo(date: Date | string): string {
   const now = Date.now();
@@ -92,38 +83,33 @@ export default async function AdminDashboardPage() {
       key: "owners",
       label: "Total Propietarios",
       value: stats.totalOwners.toString(),
-      sub: "propietarios activos",
+      detail: "propietarios activos",
       icon: Users,
-      iconClass: "bg-blue-500/10 text-blue-600 dark:text-blue-300",
-      accentClass: "bg-blue-500",
+      tone: "neutral" as const,
     },
     {
       key: "properties",
       label: "Total Propiedades",
       value: stats.totalProperties.toString(),
-      sub: "propiedades en el sistema",
+      detail: "propiedades en el sistema",
       icon: Building2,
-      iconClass: "bg-violet-500/10 text-violet-600 dark:text-violet-300",
-      accentClass: "bg-violet-500",
+      tone: "info" as const,
     },
     {
       key: "reservations",
       label: "Reservas Totales",
       value: stats.totalReservations.toString(),
-      sub: "reservas realizadas",
+      detail: "reservas realizadas",
       icon: Calendar,
-      iconClass: "bg-amber-500/10 text-amber-600 dark:text-amber-300",
-      accentClass: "bg-amber-500",
+      tone: "warning" as const,
     },
     {
       key: "revenue",
       label: "Ingresos Totales",
       value: formatCLP(stats.totalRevenue),
-      sub: "pagos completados",
+      detail: "pagos completados",
       icon: DollarSign,
-      iconClass: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300",
-      accentClass: "bg-emerald-500",
-      isText: true,
+      tone: "success" as const,
     },
   ];
 
@@ -170,31 +156,14 @@ export default async function AdminDashboardPage() {
         {primaryKpis.map((kpi) => {
           const Icon = kpi.icon;
           return (
-            <Card key={kpi.key} className="relative overflow-hidden border-border/60">
-              <div className={`absolute left-0 top-0 h-full w-1 ${kpi.accentClass}`} />
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      {kpi.label}
-                    </p>
-                    <p
-                      className={`font-heading font-semibold tracking-tight text-foreground ${
-                        kpi.isText ? "text-2xl" : "text-3xl"
-                      }`}
-                    >
-                      {kpi.value}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{kpi.sub}</p>
-                  </div>
-                  <div
-                    className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${kpi.iconClass}`}
-                  >
-                    <Icon className="size-5" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <MetricCard
+              key={kpi.key}
+              title={kpi.label}
+              value={kpi.value}
+              detail={kpi.detail}
+              icon={Icon}
+              tone={kpi.tone}
+            />
           );
         })}
       </div>
@@ -205,7 +174,7 @@ export default async function AdminDashboardPage() {
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <div className="flex size-8 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-300">
+                  <div className="flex size-8 items-center justify-center rounded-lg bg-info/10 text-info-foreground">
                     <Target className="size-4" />
                   </div>
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -221,12 +190,12 @@ export default async function AdminDashboardPage() {
                 </p>
               </div>
             </div>
-            <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all"
-                style={{ width: `${Math.min(100, stats.conversionPercentage)}%` }}
-              />
-            </div>
+              <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-info transition-all"
+                  style={{ width: `${Math.min(100, stats.conversionPercentage)}%` }}
+                />
+              </div>
           </CardContent>
         </Card>
 
@@ -238,10 +207,10 @@ export default async function AdminDashboardPage() {
                   <div
                     className={`flex size-8 items-center justify-center rounded-lg ${
                       isGrowthDown
-                        ? "bg-red-500/10 text-red-600 dark:text-red-300"
+                        ? "bg-destructive/10 text-destructive-foreground"
                         : isGrowthNeutral
-                          ? "bg-slate-500/10 text-slate-600 dark:text-slate-300"
-                          : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300"
+                          ? "bg-secondary/10 text-secondary-foreground"
+                          : "bg-success/10 text-success-foreground"
                     }`}
                   >
                     {isGrowthDown ? (
@@ -257,9 +226,9 @@ export default async function AdminDashboardPage() {
                 <p
                   className={`font-heading text-3xl font-semibold tracking-tight tabular-nums ${
                     isGrowthDown
-                      ? "text-red-600 dark:text-red-400"
+                      ? "text-destructive"
                       : isGrowthPositive
-                        ? "text-emerald-600 dark:text-emerald-400"
+                        ? "text-success"
                         : "text-foreground"
                   }`}
                 >
@@ -278,7 +247,7 @@ export default async function AdminDashboardPage() {
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <div className="flex size-8 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-300">
+                  <div className="flex size-8 items-center justify-center rounded-lg bg-info/10 text-info-foreground">
                     <UserPlus className="size-4" />
                   </div>
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -373,11 +342,8 @@ export default async function AdminDashboardPage() {
                         </p>
                       </div>
                       <Badge
-                        variant="outline"
-                        className={cn(
-                          "rounded-md border font-medium",
-                          getPlanBadgeClass(owner.plan)
-                        )}
+                        variant={owner.plan === "PRO" ? "info" : owner.plan === "FREE" ? "secondary" : "warning"}
+                        className="rounded-md font-medium"
                       >
                         {owner.plan === "PRO" && <Sparkles className="size-3" />}
                         {owner.plan || "SIN PLAN"}
