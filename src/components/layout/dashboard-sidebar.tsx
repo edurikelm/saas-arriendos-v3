@@ -37,7 +37,7 @@ export function DashboardSidebar({ open, onClose, collapsed, onToggle, supportUn
       )}
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 h-screen border-r border-sidebar-border bg-sidebar/95 text-sidebar-foreground shadow-xl backdrop-blur-xl transition-all duration-300 lg:z-40 lg:translate-x-0 lg:shadow-none",
+          "fixed left-0 top-0 z-50 h-screen border-r border-sidebar-border bg-sidebar/95 text-sidebar-foreground backdrop-blur-xl transition-all duration-300 lg:z-40 lg:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full",
           collapsed ? "lg:w-16" : "lg:w-64"
         )}
@@ -80,7 +80,7 @@ export function DashboardSidebar({ open, onClose, collapsed, onToggle, supportUn
                   className={cn(
                     "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
                     isActive
-                      ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm ring-1 ring-sidebar-ring/10"
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground ring-1 ring-sidebar-ring/20"
                       : "text-sidebar-foreground/85 hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground"
                   )}
                 >

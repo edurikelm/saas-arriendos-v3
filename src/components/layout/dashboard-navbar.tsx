@@ -44,7 +44,7 @@ export function DashboardNavbar({ userName, userRole, userPlan, notificationUnre
   }, []);
 
   return (
-    <header className="sticky top-0 z-30 hidden border-b bg-navbar/90 text-navbar-foreground shadow-sm backdrop-blur-xl lg:block">
+    <header className="sticky top-0 z-30 hidden border-b bg-navbar/90 text-navbar-foreground backdrop-blur-xl lg:block">
       <div className="flex min-h-18 items-center justify-between gap-4 px-4 py-3 lg:px-6">
         <div className="hidden min-w-0 lg:block">
           <div className="flex items-center gap-3">
@@ -71,7 +71,7 @@ export function DashboardNavbar({ userName, userRole, userPlan, notificationUnre
         </div>
         <div className="flex flex-1 items-center justify-end gap-2">
           {dateLabel && (
-            <div className="hidden items-center gap-2 rounded-lg border bg-background/70 px-3 py-2 text-sm text-muted-foreground shadow-xs xl:flex">
+            <div className="hidden items-center gap-2 rounded-lg border bg-background/70 px-3 py-2 text-sm text-muted-foreground xl:flex">
               <CalendarDays className="h-4 w-4 text-primary" />
               <span className="capitalize">{dateLabel}</span>
             </div>
@@ -82,7 +82,7 @@ export function DashboardNavbar({ userName, userRole, userPlan, notificationUnre
               <span className="text-sm font-medium">Super Admin</span>
             </div>
           )}
-          <div className="flex items-center gap-1 rounded-lg border bg-background/70 p-1 shadow-xs">
+          <div className="flex items-center gap-1 rounded-lg border bg-background/70 p-1">
             {mounted ? (
               <DropdownMenu>
                 <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Cambiar tema" className="rounded-lg" />}>

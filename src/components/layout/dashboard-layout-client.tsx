@@ -47,7 +47,7 @@ export function DashboardLayoutClient({ children, userName, userRole, userPlan, 
       />
       <div className={sidebarCollapsed ? "lg:pl-16" : "lg:pl-64"}>
         {/* Barra móvil: RentalPro + acciones */}
-        <div className="sticky top-0 z-30 flex items-center justify-between border-b bg-navbar/90 px-4 py-3 shadow-sm backdrop-blur-xl lg:hidden">
+        <div className="sticky top-0 z-30 flex items-center justify-between border-b bg-navbar/90 px-4 py-3 backdrop-blur-xl lg:hidden">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
@@ -59,7 +59,7 @@ export function DashboardLayoutClient({ children, userName, userRole, userPlan, 
             </Button>
             <span className="font-bold text-lg">RentalPro</span>
           </div>
-          <div className="flex items-center gap-1 rounded-lg border bg-background/70 p-1 shadow-xs">
+          <div className="flex items-center gap-1 rounded-lg border bg-background/70 p-1">
             {mounted ? (
               <DropdownMenu>
                 <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Cambiar tema" className="rounded-lg" />}>
