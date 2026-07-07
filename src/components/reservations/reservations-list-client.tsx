@@ -58,8 +58,8 @@ export function ReservationsListClient({
   const [total, setTotal] = useState(initialData.total);
   const [totalPages, setTotalPages] = useState(initialData.totalPages);
 
-  // View mode
-  const [viewMode, setViewMode] = useState<"list" | "table">("table");
+  // View mode: mobile always falls back to list (cards), desktop stays on table
+  const [viewMode] = useState<"list" | "table">("table");
   const isMobile = useMediaQuery("(max-width: 767px)");
 
   // KPI summary collapsible (hidden by default to match Stitch clean layout)
@@ -334,17 +334,15 @@ export function ReservationsListClient({
             <div className="flex flex-wrap items-center gap-2">
               {/* Propiedad */}
               <DropdownMenu>
-                <DropdownMenuTrigger>
-                  <button
-                    className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
-                      serverFilters.propertyId
-                        ? "bg-primary/10 border-primary/20 text-primary"
-                        : "bg-card border-border text-foreground hover:border-primary"
-                    }`}
-                  >
-                    Propiedad
-                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                  </button>
+                <DropdownMenuTrigger
+                  className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
+                    serverFilters.propertyId
+                      ? "bg-primary/10 border-primary/20 text-primary"
+                      : "bg-white border-border text-foreground hover:border-primary"
+                  }`}
+                >
+                  Propiedad
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="ring-1 ring-foreground/10">
                   <DropdownMenuItem
@@ -367,17 +365,15 @@ export function ReservationsListClient({
 
               {/* Estado */}
               <DropdownMenu>
-                <DropdownMenuTrigger>
-                  <button
-                    className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
-                      serverFilters.status
-                        ? "bg-primary/10 border-primary/20 text-primary"
-                        : "bg-card border-border text-foreground hover:border-primary"
-                    }`}
-                  >
-                    Estado
-                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                  </button>
+                <DropdownMenuTrigger
+                  className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
+                    serverFilters.status
+                      ? "bg-primary/10 border-primary/20 text-primary"
+                      : "bg-white border-border text-foreground hover:border-primary"
+                  }`}
+                >
+                  Estado
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="ring-1 ring-foreground/10">
                   <DropdownMenuItem
@@ -415,17 +411,15 @@ export function ReservationsListClient({
 
               {/* Tipo */}
               <DropdownMenu>
-                <DropdownMenuTrigger>
-                  <button
-                    className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
-                      serverFilters.billingType
-                        ? "bg-primary/10 border-primary/20 text-primary"
-                        : "bg-card border-border text-foreground hover:border-primary"
-                    }`}
-                  >
-                    Tipo
-                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                  </button>
+                <DropdownMenuTrigger
+                  className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
+                    serverFilters.billingType
+                      ? "bg-primary/10 border-primary/20 text-primary"
+                      : "bg-white border-border text-foreground hover:border-primary"
+                  }`}
+                >
+                  Tipo
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="ring-1 ring-foreground/10">
                   <DropdownMenuItem
@@ -451,17 +445,15 @@ export function ReservationsListClient({
 
               {/* Pago */}
               <DropdownMenu>
-                <DropdownMenuTrigger>
-                  <button
-                    className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
-                      paymentFilter
-                        ? "bg-primary/10 border-primary/20 text-primary"
-                        : "bg-card border-border text-foreground hover:border-primary"
-                    }`}
-                  >
-                    Pago
-                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                  </button>
+                <DropdownMenuTrigger
+                  className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
+                    paymentFilter
+                      ? "bg-primary/10 border-primary/20 text-primary"
+                      : "bg-white border-border text-foreground hover:border-primary"
+                  }`}
+                >
+                  Pago
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="ring-1 ring-foreground/10">
                   <DropdownMenuItem

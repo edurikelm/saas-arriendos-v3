@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, XCircle, AlertCircle, MoreHorizontal, Eye, Pencil, Ban, Trash2 } from "lucide-react";
+import { MoreHorizontal, Eye, Pencil, Ban, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataTable } from "@/components/ui/data-table";
@@ -340,10 +340,11 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                 {/* Acciones */}
                 <td className={`px-4 py-3 text-right ${isSelectable ? "w-20" : ""}`}>
                   <DropdownMenu>
-                    <DropdownMenuTrigger>
-                      <Button size="icon" variant="ghost" className="size-8">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
+                    <DropdownMenuTrigger
+                      className="inline-flex size-8 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                      aria-label="Más acciones"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       {onView && (
