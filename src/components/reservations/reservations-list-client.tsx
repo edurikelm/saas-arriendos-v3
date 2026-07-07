@@ -15,7 +15,6 @@ import { ReservationForm } from "@/components/reservations/reservation-form";
 import { ReservationDetailDialog } from "@/components/reservations/reservation-detail-dialog";
 import { ReservationTable } from "@/components/reservations/reservation-table";
 import { ReservationListItem } from "@/components/reservations/reservation-list-item";
-import { ReservationsBulkActionsBar } from "@/components/reservations/reservations-bulk-actions-bar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Pagination } from "@/components/ui/pagination";
 import { usePagination } from "@/hooks/use-pagination";
@@ -70,9 +69,6 @@ export function ReservationsListClient({
     confirmLabel: string;
     onConfirm: () => Promise<void>;
   }>(null);
-
-  // Selection
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Pagination
   const { page, limit, goToPage, setLimit } = usePagination({ total, totalPages, defaultPage: 1, defaultLimit: 10 });
@@ -148,41 +144,7 @@ export function ReservationsListClient({
     await fetchReservations(serverFilters);
   }, [fetchReservations, serverFilters]);
 
-  // Selection helpers
-  const toggleSelect = useCallback((id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
-
-  const clearSelection = useCallback(() => {
-    setSelectedIds(new Set());
-  }, []);
-
-  // Bulk actions
-  const handleBulkCancel = useCallback(() => {
-    const ids = Array.from(selectedIds);
-    setConfirmAction({
-      title: "Cancelar reservas",
-      description: `Se cancelarán ${ids.length} reserva${ids.length > 1 ? "s" : ""}. Los pagos completados se mantendrán como registro financiero.`,
-      confirmLabel: "Cancelar reservas",
-      onConfirm: async () => {
-        for (const id of ids) {
-          await cancelReservation(id, "cancelled_by_user");
-        }
-        toast.success(`${ids.length} reserva${ids.length > 1 ? "s" : ""} cancelada${ids.length > 1 ? "s" : ""}`);
-        clearSelection();
-        handleRefresh();
-      },
-    });
-  }, [selectedIds, clearSelection, handleRefresh]);
-
-  const handleGenerateLinks = useCallback(() => {
-    toast.info("Generación de links en lotecoming soon");
-  }, []);
+  // Bulk actions helpers removed — no selection mode
 
   const handleCreate = async (data: ReservationInput) => {
     const result = await createReservation(data);
@@ -483,8 +445,6 @@ export function ReservationsListClient({
             <div className="overflow-x-auto">
               <ReservationTable
                 reservations={filteredReservations}
-                selectedIds={selectedIds}
-                onToggleSelect={toggleSelect}
                 onView={(id) => {
                   const res = serverReservations.find((r) => r.id === id);
                   if (res) setViewingReservation(res);
@@ -503,8 +463,6 @@ export function ReservationsListClient({
                 <ReservationListItem
                   key={reservation.id}
                   reservation={reservation}
-                  isSelected={selectedIds.has(reservation.id)}
-                  onToggleSelect={toggleSelect}
                   onView={(res) => setViewingReservation(res)}
                   onEdit={(res) => setEditingReservation(res)}
                   onCancel={handleCancel}
@@ -518,16 +476,6 @@ export function ReservationsListClient({
 
       {total > limit && (
         <Pagination page={page} totalPages={totalPages} total={total} limit={limit} onPageChange={goToPage} onLimitChange={setLimit} />
-      )}
-
-      {/* Bulk Actions Bar */}
-      {selectedIds.size > 0 && (
-        <ReservationsBulkActionsBar
-          selectedCount={selectedIds.size}
-          onClearSelection={clearSelection}
-          onBulkCancel={handleBulkCancel}
-          onGenerateLinks={handleGenerateLinks}
-        />
       )}
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>

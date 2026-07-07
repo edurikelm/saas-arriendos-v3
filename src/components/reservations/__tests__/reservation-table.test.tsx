@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
 import { ReservationTable } from "../reservation-table";
-import { Badge } from "@/components/ui/badge";
 
 vi.mock("@/lib/reservation-payment", () => ({
   getPaymentStatus: vi.fn(() => ({ label: "Pendiente", tone: "amber" as const })),

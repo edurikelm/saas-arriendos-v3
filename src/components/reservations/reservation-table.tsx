@@ -1,9 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { MoreVertical, Eye, Pencil, Ban, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { DataTable } from "@/components/ui/data-table";
 import {
   DropdownMenu,
@@ -204,32 +202,15 @@ function ReservationMobileCard({ reservation, onEdit, onView, onCancel, onDelete
   );
 }
 
-export function ReservationTable({ reservations, onEdit, onView, onCancel, onDelete, selectedIds, onToggleSelect }: {
+export function ReservationTable({ reservations, onEdit, onView, onCancel, onDelete }: {
   reservations: Reservation[];
   onEdit?: (id: string) => void;
   onView?: (id: string) => void;
   onCancel?: (id: string) => void;
   onDelete?: (id: string) => void;
-  selectedIds?: Set<string>;
-  onToggleSelect?: (id: string) => void;
 }) {
-  const isSelectable = Boolean(selectedIds && onToggleSelect);
-  const [sortField, setSortField] = useState<"startDate" | "totalPrice" | "client" | "createdAt">("createdAt");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-
-  const sorted = [...reservations].sort((a, b) => {
-    let cmp = 0;
-    if (sortField === "startDate") {
-      cmp = new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
-    } else if (sortField === "totalPrice") {
-      cmp = Number(a.totalPrice) - Number(b.totalPrice);
-    } else if (sortField === "createdAt") {
-      cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-    } else {
-      cmp = a.client.name.localeCompare(b.client.name);
-    }
-    return sortDir === "asc" ? cmp : -cmp;
-  });
+  // Reservations arrive pre-sorted from the server (createdAt desc). No client-side sort UI.
+  const sorted = reservations;
 
   return (
     <div className="space-y-4">
@@ -257,7 +238,6 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
             const stateTone = getReservationTone(res.status, res.startDate, res.endDate);
             const paymentTone = getPaymentTone(paidAmount, totalPrice);
             const duration = res.billingType === "MONTHLY" ? `${getMonths(res.startDate, res.endDate)} meses` : `${getNights(res.startDate, res.endDate)} noches`;
-            const isSelected = selectedIds?.has(res.id);
 
             const finLabel = paymentTone === "success"
               ? "Saldado"
@@ -275,16 +255,7 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                   : "Sin abonos";
 
             return (
-              <tr key={res.id} className={`border-b last:border-0 hover:bg-muted/30 transition-colors ${isSelected ? "bg-muted/30" : ""}`}>
-                {isSelectable && (
-                  <td className="px-6 py-5 w-10">
-                    <Checkbox
-                      checked={isSelected}
-                      onCheckedChange={() => onToggleSelect!(res.id)}
-                      aria-label={`Seleccionar reserva de ${res.client.name}`}
-                    />
-                  </td>
-                )}
+              <tr key={res.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                 {/* Huésped */}
                 <td className="px-6 py-5">
                   <div className="flex items-center gap-3">
@@ -340,7 +311,7 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                   </div>
                 </td>
                 {/* Acciones */}
-                <td className={`px-6 py-5 text-right ${isSelectable ? "w-20" : ""}`}>
+                <td className="px-6 py-5 text-right">
                   <DropdownMenu>
                     <DropdownMenuTrigger
                       className="inline-flex size-8 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"

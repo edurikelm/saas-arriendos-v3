@@ -3,7 +3,6 @@
 import { formatDate, formatPrice } from "./reservations-utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, Pencil, Ban, Trash2 } from "lucide-react";
 import { getReservationPaidAmount } from "@/lib/payments/calculations";
 import { getInclusiveMonths } from "@/lib/reservation-dates";
@@ -96,8 +95,6 @@ const verticalBarClasses: Record<string, string> = {
 
 interface ReservationListItemProps {
   reservation: Reservation;
-  isSelected: boolean;
-  onToggleSelect: (id: string) => void;
   onView: (reservation: Reservation) => void;
   onEdit: (reservation: Reservation) => void;
   onCancel: (id: string) => void;
@@ -106,8 +103,6 @@ interface ReservationListItemProps {
 
 export function ReservationListItem({
   reservation,
-  isSelected,
-  onToggleSelect,
   onView,
   onEdit,
   onCancel,
@@ -150,11 +145,6 @@ export function ReservationListItem({
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <Checkbox
-              checked={isSelected}
-              onCheckedChange={() => onToggleSelect(reservation.id)}
-              aria-label={`Seleccionar reserva de ${reservation.client.name}`}
-            />
             <span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[9px] font-bold uppercase ${pillToneClasses[stateTone]}`}>
               <span className={`h-1.5 w-1.5 rounded-full ${dotClasses[stateTone]}`} />
               {temporal.label}
