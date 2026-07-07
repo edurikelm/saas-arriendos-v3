@@ -1,19 +1,97 @@
 "use client";
 
 import { formatDate, formatPrice } from "./reservations-utils";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, Pencil, Ban, Trash2 } from "lucide-react";
 import { getReservationPaidAmount } from "@/lib/payments/calculations";
+import { getInclusiveMonths } from "@/lib/reservation-dates";
 import type { Reservation } from "@/components/reservations/types";
 
-const statusLabels: Record<string, { label: string; variant: "success" | "warning" | "destructive" | "secondary" }> = {
-  PENDING: { label: "Pendiente", variant: "warning" },
-  CONFIRMED: { label: "Confirmada", variant: "success" },
-  CANCELLED: { label: "Cancelada", variant: "destructive" },
-  COMPLETED: { label: "Completada", variant: "secondary" },
+function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+}
+
+function getNights(startDate: string, endDate: string): number {
+  const diff = new Date(endDate).getTime() - new Date(startDate).getTime();
+  return Math.round(diff / (1000 * 60 * 60 * 24)) + 1;
+}
+
+function getMonths(startDate: string, endDate: string): number {
+  return getInclusiveMonths(startDate, endDate);
+}
+
+function getTemporalStatus(startDate: string, endDate: string, billingType: string, status?: string): { label: string; sublabel?: string } {
+  if (status === "CANCELLED") return { label: "Cancelada" };
+  if (status === "COMPLETED") return { label: "Finalizada" };
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  if (today < start) {
+    const daysUntil = Math.ceil((start.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return { label: "Próxima", sublabel: `${daysUntil}d` };
+  }
+  if (today > end) return { label: "Finalizada" };
+  if (billingType === "MONTHLY") {
+    const monthsLeft = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24 * 30));
+    return { label: "Activa", sublabel: `${monthsLeft} meses` };
+  }
+  const nightsLeft = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  return { label: "Activa", sublabel: `${nightsLeft} noches` };
+}
+
+function getReservationTone(status: string, startDate: string, endDate: string): "success" | "info" | "warning" | "destructive" | "neutral" {
+  if (status === "CANCELLED") return "destructive";
+  if (status === "COMPLETED") return "neutral";
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  if (today >= start && today <= end) return "success";
+  if (today < start) return "info";
+  return "neutral";
+}
+
+function getPaymentTone(paidAmount: number, totalPrice: number): "success" | "warning" | "destructive" {
+  if (paidAmount >= totalPrice && totalPrice > 0) return "success";
+  if (paidAmount > 0) return "warning";
+  return "destructive";
+}
+
+const pillToneClasses: Record<string, string> = {
+  success: "border-success/20 bg-success/10 text-success",
+  info: "border-info/20 bg-info/10 text-info",
+  warning: "border-warning/25 bg-warning/10 text-warning",
+  destructive: "border-destructive/25 bg-destructive/10 text-destructive",
+  neutral: "border-muted bg-muted text-muted-foreground",
+};
+
+const dotClasses: Record<string, string> = {
+  success: "bg-success",
+  info: "bg-info",
+  warning: "bg-warning",
+  destructive: "bg-destructive",
+  neutral: "bg-muted-foreground",
+};
+
+const verticalBarClasses: Record<string, string> = {
+  success: "bg-success",
+  info: "bg-info",
+  warning: "bg-warning",
+  destructive: "bg-destructive",
+  neutral: "bg-muted-foreground",
 };
 
 interface ReservationListItemProps {
@@ -35,60 +113,82 @@ export function ReservationListItem({
   onCancel,
   onDelete,
 }: ReservationListItemProps) {
-  const status = statusLabels[reservation.status] || statusLabels.PENDING;
   const paidAmount = getReservationPaidAmount(reservation.payments);
-  const pendingAmountVal = Number(reservation.totalPrice) - paidAmount;
+  const totalPrice = Number(reservation.totalPrice);
+  const paymentTone = getPaymentTone(paidAmount, totalPrice);
+  const temporal = getTemporalStatus(reservation.startDate, reservation.endDate, reservation.billingType, reservation.status);
+  const stateTone = getReservationTone(reservation.status, reservation.startDate, reservation.endDate);
+  const duration = reservation.billingType === "MONTHLY"
+    ? `${getMonths(reservation.startDate, reservation.endDate)} meses`
+    : `${getNights(reservation.startDate, reservation.endDate)} noches`;
+
+  const finLabel = paymentTone === "success"
+    ? "Saldado"
+    : paymentTone === "warning"
+      ? formatPrice(totalPrice - paidAmount)
+      : formatPrice(totalPrice);
+  const finSubtext = paymentTone === "success"
+    ? `${formatPrice(paidAmount)} pagado`
+    : paymentTone === "warning"
+      ? `Restante de ${formatPrice(totalPrice)}`
+      : reservation.status === "CANCELLED"
+        ? "Pendiente de pago"
+        : "Sin abonos";
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <div>
-            <CardTitle className="text-lg">{reservation.property.name}</CardTitle>
-            <CardDescription>
-              {reservation.client.name} · {reservation.client.email}
-            </CardDescription>
+    <Card className="group relative overflow-hidden">
+      <div className={`absolute inset-y-0 left-0 w-1 ${verticalBarClasses[stateTone]}`} />
+      <CardHeader className="pb-3 pl-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+              {getInitials(reservation.client.name)}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold text-foreground">{reservation.client.name}</p>
+              <p className="truncate text-xs text-muted-foreground">{reservation.client.email}</p>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <Checkbox
               checked={isSelected}
               onCheckedChange={() => onToggleSelect(reservation.id)}
               aria-label={`Seleccionar reserva de ${reservation.client.name}`}
             />
-            <Badge variant={status.variant}>{status.label}</Badge>
+            <span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[9px] font-bold uppercase ${pillToneClasses[stateTone]}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${dotClasses[stateTone]}`} />
+              {temporal.label}
+            </span>
           </div>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+      <CardContent className="pl-4">
+        <div className="flex flex-wrap items-start gap-4 text-sm">
           <div>
-            <p className="text-muted-foreground">Fechas</p>
-            <p className="font-medium">
-              {formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}
+            <p className="text-muted-foreground text-xs">Propiedad</p>
+            <p className="font-medium text-foreground">{reservation.property.name}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground text-xs">Estancia</p>
+            <p className="font-medium text-foreground tabular-nums">
+              {formatDate(reservation.startDate)} – {formatDate(reservation.endDate)}
             </p>
+            <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-tight">{duration}</span>
           </div>
           <div>
-            <p className="text-muted-foreground">Tipo</p>
-            <p className="font-medium">
-              {reservation.billingType === "DAILY" ? "Diario" : "Mensual"}
-            </p>
+            <p className="text-muted-foreground text-xs">Tipo</p>
+            <span className="inline-flex px-2 py-0.5 rounded bg-muted text-muted-foreground text-[9px] font-bold uppercase">
+              {reservation.billingType === "DAILY" ? "Diaria" : "Mensual"}
+            </span>
           </div>
-          <div>
-            <p className="text-muted-foreground">Unidades</p>
-            <p className="font-medium">{reservation.unitsBooked}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground">Total</p>
-            <p className="font-medium">{formatPrice(reservation.totalPrice)}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground">Pagado</p>
-            <p className="font-medium">{formatPrice(paidAmount)}</p>
-            {pendingAmountVal > 0 && (
-              <Badge variant="warning" className="mt-1">
-                {formatPrice(pendingAmountVal)} pendiente
-              </Badge>
-            )}
+          <div className="flex items-stretch gap-2">
+            <div className={`w-0.5 rounded-full ${verticalBarClasses[paymentTone]}`} />
+            <div className="flex flex-col">
+              <p className={`text-xs font-bold ${paymentTone === "success" ? "text-success" : paymentTone === "warning" ? "text-foreground" : "text-destructive"}`}>
+                {finLabel}
+              </p>
+              <p className="text-[10px] text-muted-foreground">{finSubtext}</p>
+            </div>
           </div>
         </div>
 

@@ -2,10 +2,15 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { Calendar, Plus, Eye, Grid, List, X } from "lucide-react";
+import { Calendar, Plus, X, Search, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ReservationForm } from "@/components/reservations/reservation-form";
 import { ReservationDetailDialog } from "@/components/reservations/reservation-detail-dialog";
 import { ReservationTable } from "@/components/reservations/reservation-table";
@@ -56,6 +61,9 @@ export function ReservationsListClient({
   // View mode
   const [viewMode, setViewMode] = useState<"list" | "table">("table");
   const isMobile = useMediaQuery("(max-width: 767px)");
+
+  // KPI summary collapsible (hidden by default to match Stitch clean layout)
+  const [kpiCollapsed, setKpiCollapsed] = useState(true);
 
   // Dialogs
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -261,197 +269,299 @@ export function ReservationsListClient({
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Reservas</CardTitle>
-              <CardDescription>Gestiona las reservas de tus propiedades</CardDescription>
+      {/* Page Header (Stitch pattern) */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-foreground">Reservas</h2>
+          <p className="text-xs text-muted-foreground">Gestiona todas las reservas y su estado operativo</p>
+        </div>
+        <Button onClick={() => setIsCreateOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Nueva Reserva
+        </Button>
+      </div>
+
+      {/* KPI Summary Collapsible */}
+      {serverReservations.length > 0 && (
+        <div>
+          <button
+            onClick={() => setKpiCollapsed(!kpiCollapsed)}
+            className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors mb-2"
+            aria-expanded={!kpiCollapsed}
+          >
+            {kpiCollapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+            {kpiCollapsed ? "Mostrar resumen" : "Ocultar resumen"}
+          </button>
+          {!kpiCollapsed && (
+            <ReservationsKpiCards
+              filteredCount={filteredReservations.length}
+              activeCount={activeCount}
+              totalPaid={totalPaid}
+              pendingAmount={pendingAmount}
+              totalReserved={totalReserved}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Search + Filter Section */}
+      {serverReservations.length === 0 && !hasActiveFilters ? (
+        <div className="text-center py-12">
+          <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+          <h3 className="text-lg font-medium mb-2">No hay reservas</h3>
+          <p className="text-muted-foreground mb-4">Crea tu primera reserva para comenzar</p>
+          <Button onClick={() => setIsCreateOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Crear Reserva
+          </Button>
+        </div>
+      ) : (
+        <>
+          {/* Search + Filter Chips */}
+          <div className="space-y-4">
+            {/* Full Width Search */}
+            <div className="relative w-full">
+              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+              <input
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                placeholder="Buscar por nombre, propiedad o palabra clave..."
+                className="h-10 w-full rounded-lg border border-border bg-card pl-12 pr-4 text-sm text-foreground outline-none placeholder:text-muted-foreground transition-all focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:border-ring"
+              />
             </div>
-            <div className="flex gap-2">
-              {!isMobile && (
-                <div className="flex border rounded-md">
+
+            {/* Filter Chips Row */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Propiedad */}
+              <DropdownMenu>
+                <DropdownMenuTrigger>
                   <button
-                    onClick={() => setViewMode("list")}
-                    className={`p-2 ${effectiveViewMode === "list" ? "bg-muted" : ""}`}
+                    className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
+                      serverFilters.propertyId
+                        ? "bg-primary/10 border-primary/20 text-primary"
+                        : "bg-card border-border text-foreground hover:border-primary"
+                    }`}
                   >
-                    <List className="h-4 w-4" />
+                    Propiedad
+                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                   </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="ring-1 ring-foreground/10">
+                  <DropdownMenuItem
+                    onClick={() => updateServerFilter("propertyId", "")}
+                    className={!serverFilters.propertyId ? "bg-accent" : ""}
+                  >
+                    Todas las propiedades
+                  </DropdownMenuItem>
+                  {properties.map((p) => (
+                    <DropdownMenuItem
+                      key={p.id}
+                      onClick={() => updateServerFilter("propertyId", p.id)}
+                      className={serverFilters.propertyId === p.id ? "bg-accent" : ""}
+                    >
+                      {p.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Estado */}
+              <DropdownMenu>
+                <DropdownMenuTrigger>
                   <button
-                    onClick={() => setViewMode("table")}
-                    className={`p-2 ${effectiveViewMode === "table" ? "bg-muted" : ""}`}
+                    className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
+                      serverFilters.status
+                        ? "bg-primary/10 border-primary/20 text-primary"
+                        : "bg-card border-border text-foreground hover:border-primary"
+                    }`}
                   >
-                    <Grid className="h-4 w-4" />
+                    Estado
+                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                   </button>
-                </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="ring-1 ring-foreground/10">
+                  <DropdownMenuItem
+                    onClick={() => updateServerFilter("status", "")}
+                    className={!serverFilters.status ? "bg-accent" : ""}
+                  >
+                    Todos los estados
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => updateServerFilter("status", "PENDING")}
+                    className={serverFilters.status === "PENDING" ? "bg-accent" : ""}
+                  >
+                    Pendiente
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => updateServerFilter("status", "CONFIRMED")}
+                    className={serverFilters.status === "CONFIRMED" ? "bg-accent" : ""}
+                  >
+                    Confirmada
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => updateServerFilter("status", "CANCELLED")}
+                    className={serverFilters.status === "CANCELLED" ? "bg-accent" : ""}
+                  >
+                    Cancelada
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => updateServerFilter("status", "COMPLETED")}
+                    className={serverFilters.status === "COMPLETED" ? "bg-accent" : ""}
+                  >
+                    Completada
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Tipo */}
+              <DropdownMenu>
+                <DropdownMenuTrigger>
+                  <button
+                    className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
+                      serverFilters.billingType
+                        ? "bg-primary/10 border-primary/20 text-primary"
+                        : "bg-card border-border text-foreground hover:border-primary"
+                    }`}
+                  >
+                    Tipo
+                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="ring-1 ring-foreground/10">
+                  <DropdownMenuItem
+                    onClick={() => updateServerFilter("billingType", "")}
+                    className={!serverFilters.billingType ? "bg-accent" : ""}
+                  >
+                    Todos los tipos
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => updateServerFilter("billingType", "DAILY")}
+                    className={serverFilters.billingType === "DAILY" ? "bg-accent" : ""}
+                  >
+                    Diario
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => updateServerFilter("billingType", "MONTHLY")}
+                    className={serverFilters.billingType === "MONTHLY" ? "bg-accent" : ""}
+                  >
+                    Mensual
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Pago */}
+              <DropdownMenu>
+                <DropdownMenuTrigger>
+                  <button
+                    className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
+                      paymentFilter
+                        ? "bg-primary/10 border-primary/20 text-primary"
+                        : "bg-card border-border text-foreground hover:border-primary"
+                    }`}
+                  >
+                    Pago
+                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="ring-1 ring-foreground/10">
+                  <DropdownMenuItem
+                    onClick={() => updatePaymentFilter("")}
+                    className={!paymentFilter ? "bg-accent" : ""}
+                  >
+                    Todos los pagos
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => updatePaymentFilter("paid")}
+                    className={paymentFilter === "paid" ? "bg-accent" : ""}
+                  >
+                    Pagado
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => updatePaymentFilter("pending")}
+                    className={paymentFilter === "pending" ? "bg-accent" : ""}
+                  >
+                    Pendiente
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => updatePaymentFilter("overpaid")}
+                    className={paymentFilter === "overpaid" ? "bg-accent" : ""}
+                  >
+                    Exceso
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Separator */}
+              <div className="h-4 w-px bg-border mx-1" />
+
+              {/* Limpiar filtros */}
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearAllFilters}
+                  className="h-8 px-3 text-xs font-bold text-muted-foreground hover:text-destructive transition-colors"
+                >
+                  <X className="mr-1.5 h-3.5 w-3.5" />
+                  Limpiar filtros
+                </Button>
               )}
-              <Button onClick={() => setIsCreateOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Nueva Reserva
-              </Button>
             </div>
           </div>
-        </CardHeader>
-        <CardContent>
-          {serverReservations.length === 0 && !hasActiveFilters ? (
-            <div className="text-center py-12">
-              <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-medium mb-2">No hay reservas</h3>
-              <p className="text-muted-foreground mb-4">Crea tu primera reserva para comenzar</p>
-              <Button onClick={() => setIsCreateOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Crear Reserva
-              </Button>
+
+          {/* Counter */}
+          <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            Mostrando {((page - 1) * limit) + 1}-{Math.min(page * limit, filteredReservations.length)} de {total} reserva{total !== 1 ? "s" : ""}
+          </div>
+
+          {filteredReservations.length === 0 ? (
+            <div className="rounded-2xl border border-dashed bg-muted/20 p-10 text-center">
+              <Calendar className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+              <h3 className="text-lg font-medium">No hay reservas con estos filtros</h3>
+              <p className="mt-1 text-sm text-muted-foreground">Prueba limpiar los filtros o crea una nueva reserva.</p>
+              {hasActiveFilters && (
+                <Button className="mt-4" variant="outline" onClick={clearAllFilters}>
+                  <X className="mr-2 h-4 w-4" />
+                  Limpiar filtros
+                </Button>
+              )}
+            </div>
+          ) : effectiveViewMode === "table" ? (
+            <div className="overflow-x-auto">
+              <ReservationTable
+                reservations={filteredReservations}
+                selectedIds={selectedIds}
+                onToggleSelect={toggleSelect}
+                onView={(id) => {
+                  const res = serverReservations.find((r) => r.id === id);
+                  if (res) setViewingReservation(res);
+                }}
+                onEdit={(id) => {
+                  const res = serverReservations.find((r) => r.id === id);
+                  if (res) setEditingReservation(res);
+                }}
+                onCancel={(id) => handleCancel(id)}
+                onDelete={(id) => handleDelete(id)}
+              />
             </div>
           ) : (
-            <>
-              {/* KPI Cards */}
-              <ReservationsKpiCards
-                filteredCount={filteredReservations.length}
-                activeCount={activeCount}
-                totalPaid={totalPaid}
-                pendingAmount={pendingAmount}
-                totalReserved={totalReserved}
-              />
-
-              {/* Filter Bar */}
-              <div className="mb-4 overflow-hidden rounded-xl border border-foreground/10 bg-gradient-to-br from-muted/40 via-muted/20 to-background shadow-sm sm:rounded-2xl">
-                <div className="flex flex-col gap-3 p-3 sm:gap-4 sm:p-4 lg:flex-row lg:items-end lg:justify-between">
-                  <div className="flex flex-wrap items-end gap-2 sm:gap-3 lg:flex-1">
-                    {/* Search */}
-                    <div className="w-full sm:w-60">
-                      <div className="relative">
-                        <Eye className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                        <input
-                          value={searchQuery}
-                          onChange={(e) => handleSearchChange(e.target.value)}
-                          placeholder="Buscar cliente..."
-                          className="h-9 sm:h-10 w-full rounded-lg border border-input bg-transparent pl-8 pr-2.5 text-sm shadow-inner outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 placeholder:text-muted-foreground"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Estado */}
-                    <select
-                      value={serverFilters.status}
-                      onChange={(e) => updateServerFilter("status", e.target.value)}
-                      className="h-9 sm:h-10 w-full rounded-lg border border-input bg-background/80 px-2.5 text-sm font-medium text-foreground shadow-inner outline-none transition-colors sm:w-44"
-                    >
-                      <option value="">Todos los estados</option>
-                      <option value="PENDING">Pendiente</option>
-                      <option value="CONFIRMED">Confirmada</option>
-                      <option value="CANCELLED">Cancelada</option>
-                      <option value="COMPLETED">Completada</option>
-                    </select>
-
-                    {/* Billing type */}
-                    <select
-                      value={serverFilters.billingType}
-                      onChange={(e) => updateServerFilter("billingType", e.target.value)}
-                      className="h-9 sm:h-10 w-full rounded-lg border border-input bg-background/80 px-2.5 text-sm font-medium text-foreground shadow-inner outline-none transition-colors sm:w-40"
-                    >
-                      <option value="">Todos los tipos</option>
-                      <option value="DAILY">Diario</option>
-                      <option value="MONTHLY">Mensual</option>
-                    </select>
-
-                    {/* Propiedad */}
-                    <select
-                      value={serverFilters.propertyId}
-                      onChange={(e) => updateServerFilter("propertyId", e.target.value)}
-                      className="h-9 sm:h-10 w-full rounded-lg border border-input bg-background/80 px-2.5 text-sm font-medium text-foreground shadow-inner outline-none transition-colors sm:w-48"
-                    >
-                      <option value="">Todas las propiedades</option>
-                      {properties.map((p) => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
-
-                    {/* Pago */}
-                    <select
-                      value={paymentFilter}
-                      onChange={(e) => updatePaymentFilter(e.target.value)}
-                      className="h-9 sm:h-10 w-full rounded-lg border border-input bg-background/80 px-2.5 text-sm font-medium text-foreground shadow-inner outline-none transition-colors sm:w-40"
-                    >
-                      <option value="">Todos los pagos</option>
-                      <option value="paid">Pagado</option>
-                      <option value="pending">Pendiente</option>
-                      <option value="overpaid">Exceso</option>
-                    </select>
-                  </div>
-
-                  {hasActiveFilters && (
-                    <div className="flex lg:shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={clearAllFilters}
-                        className="h-9 sm:h-10 rounded-lg px-3 text-xs sm:text-sm"
-                      >
-                        <X className="mr-1.5 h-3.5 w-3.5 sm:mr-2 sm:h-4 sm:w-4" />
-                        Limpiar
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Counter */}
-              <div className="mb-4 text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">{filteredReservations.length}</span>{" "}
-                de {total} reserva{total !== 1 ? "s" : ""}
-              </div>
-
-              {filteredReservations.length === 0 ? (
-                <div className="rounded-2xl border border-dashed bg-muted/20 p-10 text-center">
-                  <Calendar className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
-                  <h3 className="text-lg font-medium">No hay reservas con estos filtros</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">Prueba limpiar los filtros o crea una nueva reserva.</p>
-                  {hasActiveFilters && (
-                    <Button className="mt-4" variant="outline" onClick={clearAllFilters}>
-                      <X className="mr-2 h-4 w-4" />
-                      Limpiar filtros
-                    </Button>
-                  )}
-                </div>
-              ) : effectiveViewMode === "table" ? (
-                <div className="overflow-x-auto">
-                  <ReservationTable
-                    reservations={filteredReservations}
-                    selectedIds={selectedIds}
-                    onToggleSelect={toggleSelect}
-                    onView={(id) => {
-                      const res = serverReservations.find((r) => r.id === id);
-                      if (res) setViewingReservation(res);
-                    }}
-                    onEdit={(id) => {
-                      const res = serverReservations.find((r) => r.id === id);
-                      if (res) setEditingReservation(res);
-                    }}
-                    onCancel={(id) => handleCancel(id)}
-                    onDelete={(id) => handleDelete(id)}
-                  />
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {filteredReservations.map((reservation) => (
-                    <ReservationListItem
-                      key={reservation.id}
-                      reservation={reservation}
-                      isSelected={selectedIds.has(reservation.id)}
-                      onToggleSelect={toggleSelect}
-                      onView={(res) => setViewingReservation(res)}
-                      onEdit={(res) => setEditingReservation(res)}
-                      onCancel={handleCancel}
-                      onDelete={handleDelete}
-                    />
-                  ))}
-                </div>
-              )}
-            </>
+            <div className="space-y-4">
+              {filteredReservations.map((reservation) => (
+                <ReservationListItem
+                  key={reservation.id}
+                  reservation={reservation}
+                  isSelected={selectedIds.has(reservation.id)}
+                  onToggleSelect={toggleSelect}
+                  onView={(res) => setViewingReservation(res)}
+                  onEdit={(res) => setEditingReservation(res)}
+                  onCancel={handleCancel}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </div>
           )}
-        </CardContent>
-      </Card>
+        </>
+      )}
 
       {total > limit && (
         <Pagination page={page} totalPages={totalPages} total={total} limit={limit} onPageChange={goToPage} onLimitChange={setLimit} />
