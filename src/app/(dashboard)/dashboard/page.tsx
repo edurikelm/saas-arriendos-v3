@@ -1,24 +1,8 @@
 import Link from "next/link";
-import {
-  CalendarDays,
-  CheckCircle2,
-  CircleDollarSign,
-  Home,
-  TrendingUp,
-} from "lucide-react";
-import { PendingBalancesCard } from "@/components/dashboard/pending-balances-card";
-import { UrgentCollectionCard } from "@/components/dashboard/urgent-collection-card";
+import { ChevronLeft, ChevronRight, Plus, Wallet } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { MetricCard } from "@/components/ui/metric-card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { StitchKpiCard } from "@/components/ui/stitch-kpi-card";
 import { classifyCollectionAlerts } from "@/lib/alerts/collection-alerts";
 import { getProperties } from "@/lib/actions/properties";
 import { getReservations } from "@/lib/actions/reservations";
@@ -93,102 +77,69 @@ function formatCLP(amount: number): string {
   }).format(amount);
 }
 
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
-
 function daysBetween(from: Date, dateString: string): number {
   return Math.ceil((new Date(dateString).getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-function getStatusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    PENDING: "Pendiente",
-    CONFIRMED: "Confirmada",
-    CANCELLED: "Cancelada",
-    COMPLETED: "Completada",
-  };
-
-  return labels[status] ?? status;
+function startOfMonth(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
 }
 
-function getStatusBadgeVariant(status: string): "success" | "warning" | "destructive" | "secondary" {
-  const map: Record<string, "success" | "warning" | "destructive" | "secondary"> = {
-    PENDING: "warning",
-    CONFIRMED: "success",
-    CANCELLED: "destructive",
-    COMPLETED: "secondary",
-  };
-  return map[status] ?? "secondary";
+function addDays(d: Date, n: number): Date {
+  const result = new Date(d);
+  result.setDate(result.getDate() + n);
+  return result;
 }
 
-function ReservationRow({
-  reservation,
-  today,
-  mode,
-}: {
-  reservation: Reservation;
-  today: Date;
-  mode: "active" | "upcoming";
-}) {
-  const remainingDays = mode === "active" ? daysBetween(today, reservation.endDate) : daysBetween(today, reservation.startDate);
-  const paid = getReservationPaidAmount(reservation.payments);
-  const pending = Math.max(Number(reservation.totalPrice) - paid, 0);
-
+function isSameDay(a: Date, b: Date): boolean {
   return (
-    <Link
-      href={`/reservations?reservationId=${reservation.id}`}
-      className="grid gap-3 rounded-xl border border-transparent p-3 transition-colors hover:border-border hover:bg-muted/40 sm:grid-cols-[1fr_auto]"
-    >
-      <div className="flex min-w-0 items-center gap-3">
-        <div
-          className="flex size-10 shrink-0 items-center justify-center rounded-xl text-sm font-semibold text-white shadow-sm"
-          style={{ backgroundColor: reservation.property.color }}
-        >
-          {getInitials(reservation.client.name)}
-        </div>
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="truncate font-medium text-foreground">{reservation.client.name}</p>
-            <Badge variant={getStatusBadgeVariant(reservation.status)} className="rounded-md">
-              {getStatusLabel(reservation.status)}
-            </Badge>
-          </div>
-          <p className="truncate text-sm text-muted-foreground">{reservation.property.name}</p>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between gap-4 sm:justify-end sm:text-right">
-        <div>
-          <p className="text-sm font-medium text-foreground">
-            {formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {getNights(reservation.startDate, reservation.endDate)} noches · {reservation.unitsBooked} unidad{reservation.unitsBooked === 1 ? "" : "es"}
-          </p>
-        </div>
-        <div className="min-w-24">
-          <p className={mode === "active" ? "text-sm font-semibold text-success" : "text-sm font-semibold text-info-foreground"}>
-            {mode === "active" ? `Termina en ${remainingDays}d` : `En ${remainingDays}d`}
-          </p>
-          {pending > 0 && <p className="text-xs text-warning-foreground">{formatCLP(pending)} pte.</p>}
-        </div>
-      </div>
-    </Link>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
   );
 }
 
-function EmptyState({ title, description }: { title: string; description: string }) {
+function formatDayShort(d: Date): string {
+  return d.toLocaleDateString("es-CL", { day: "numeric", timeZone: "America/Santiago" });
+}
+
+function formatMonthShort(d: Date): string {
+  return d.toLocaleDateString("es-CL", { month: "short", timeZone: "America/Santiago" }).replace(".", "");
+}
+
+function dayLetter(d: Date): string {
+  return d.toLocaleDateString("es-CL", { weekday: "short", timeZone: "America/Santiago" }).charAt(0).toUpperCase();
+}
+
+const CALENDAR_DAYS = 14;
+const WEEKEND_DAY_OF_WEEK = new Set([0, 6]); // Sun, Sat
+
+interface CobranzaItem {
+  reservationId: string;
+  clientName: string;
+  amount: number;
+  dueDate: Date | null;
+  isOverdue: boolean;
+  propertyName: string;
+}
+
+function ReservationStatusBadge({ reservation, today }: { reservation: Reservation; today: Date }) {
+  const start = new Date(reservation.startDate);
+  const isActive = start <= today && new Date(reservation.endDate) >= today;
+
+  if (isActive) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded bg-primary/10 px-2 py-1 text-[10px] font-bold uppercase text-primary">
+        <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+        Activa
+      </span>
+    );
+  }
   return (
-    <div className="rounded-xl border border-dashed p-8 text-center">
-      <p className="font-medium text-foreground">{title}</p>
-      <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-    </div>
+    <span className="inline-flex items-center gap-1.5 rounded border border-info/20 bg-info/10 px-2 py-1 text-[10px] font-bold uppercase text-info-foreground">
+      <span className="h-1.5 w-1.5 rounded-full bg-info" />
+      Próxima
+    </span>
   );
 }
 
@@ -218,38 +169,41 @@ export default async function DashboardPage() {
     .filter((reservation) => new Date(reservation.startDate) > today && reservation.status !== "CANCELLED")
     .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
 
-  // Intencionalmente incluye EXTRAS: es vista de auditoría de cobros,
-  // NO cálculo de saldo. Ver `src/lib/payments/calculations.ts` para saldo.
-  const recentPayments = data.reservations
-    .flatMap((reservation) =>
-      reservation.payments
-        .filter((payment) => payment.status === "COMPLETED" && !payment.deletedAt)
-        .map((payment) => ({ ...payment, reservation }))
+  const allPayments = data.reservations.flatMap((r) =>
+    r.payments.filter((p) => !p.deletedAt).map((p) => ({ ...p, reservation: r }))
+  );
+
+  // KPI 1: Ingresos Mensuales — suma de pagos COMPLETED con paidAt en el mes actual
+  const monthStart = startOfMonth(today);
+  const monthlyIncome = allPayments
+    .filter(
+      (p) =>
+        p.status === "COMPLETED" &&
+        p.paidAt &&
+        new Date(p.paidAt) >= monthStart
     )
-    .sort((a, b) => new Date(b.paidAt || "").getTime() - new Date(a.paidAt || "").getTime())
-    .slice(0, 5);
+    .reduce((sum, p) => sum + Number(p.amount), 0);
 
-  const pendingPayments = data.reservations
-    .flatMap((reservation) => {
-      if (reservation.status === "CANCELLED") return [];
+  // KPI 2: Pagos Pendientes — count de PENDING + X vencidos
+  const pendingPaymentsList = allPayments.filter((p) => p.status === "PENDING");
+  const overdueCount = pendingPaymentsList.filter(
+    (p) => p.dueDate && new Date(p.dueDate) < today
+  ).length;
 
-      const paid = getReservationPaidAmount(reservation.payments);
-      const pending = Number(reservation.totalPrice) - paid;
+  // KPI 3: Próximas Reservas — count + X para esta semana (≤7 días)
+  const next7Days = upcomingReservations.filter(
+    (reservation) => daysBetween(today, reservation.startDate) <= 7
+  ).length;
 
-      if (pending <= 0) return [];
-      return [{ reservation, pending }];
-    })
-    .sort((a, b) => b.pending - a.pending);
+  // KPI 4: Ocupación
+  const totalUnits = data.properties.reduce((sum, property) => sum + property.unitsAvailable, 0);
+  const occupiedUnits = activeReservations.reduce(
+    (sum, reservation) => sum + reservation.unitsBooked,
+    0
+  );
+  const occupancyRate = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0;
 
-  const saldosData = pendingPayments.map((item) => ({
-    reservationId: item.reservation.id,
-    reservation: {
-      client: { name: item.reservation.client.name },
-      property: { name: item.reservation.property.name },
-    },
-    pending: item.pending,
-  }));
-
+  // Cobranza: items derivados de collectionAlerts (vencidos + proximos7Dias ordenados)
   const collectionAlerts = classifyCollectionAlerts(
     data.reservations.flatMap((reservation) =>
       reservation.payments.map((payment) => ({
@@ -271,177 +225,342 @@ export default async function DashboardPage() {
     )
   );
 
-  const totalUnits = data.properties.reduce((sum, property) => sum + property.unitsAvailable, 0);
-  const occupiedUnits = activeReservations.reduce((sum, reservation) => sum + reservation.unitsBooked, 0);
-  const occupancyRate = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0;
-  const next7Days = upcomingReservations.filter((reservation) => daysBetween(today, reservation.startDate) <= 7).length;
-  const pendingTotal = pendingPayments.reduce((sum, item) => sum + item.pending, 0);
-  const completedTotal = data.reservations.reduce((sum, reservation) => sum + getReservationPaidAmount(reservation.payments), 0);
+  const cobranzaItems: CobranzaItem[] = [
+    ...collectionAlerts.vencidos.map<CobranzaItem>((alert) => ({
+      reservationId: alert.reservationId,
+      clientName: alert.clientName,
+      amount: alert.amount,
+      dueDate: alert.dueDate ? new Date(alert.dueDate) : null,
+      isOverdue: true,
+      propertyName: alert.propertyName,
+    })),
+    ...collectionAlerts.proximos7Dias.map<CobranzaItem>((alert) => ({
+      reservationId: alert.reservationId,
+      clientName: alert.clientName,
+      amount: alert.amount,
+      dueDate: alert.dueDate ? new Date(alert.dueDate) : null,
+      isOverdue: false,
+      propertyName: alert.propertyName,
+    })),
+  ].slice(0, 4);
 
-  // KPI tones
-  const kpi1Tone = activeReservations.length > 0 ? "success" : "neutral";
-  const kpi1Status = activeReservations.length > 0 ? "ok" : "neutral";
+  // Tabla Reservas: mezcla de activas + próximas (top 6 ordenadas por startDate)
+  const tableReservations = [...activeReservations, ...upcomingReservations]
+    .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
+    .slice(0, 6);
 
-  const kpi2Tone = next7Days > 0 ? "info" : "neutral";
-  const kpi2Status = next7Days > 0 ? "ok" : "neutral";
+  // Calendario: rango de 14 días desde hoy
+  const calendarStart = today;
+  const calendarEnd = addDays(today, CALENDAR_DAYS - 1);
+  const calendarDays: Date[] = Array.from({ length: CALENDAR_DAYS }, (_, i) => addDays(today, i));
 
-  const kpi3Tone = totalUnits === 0 ? "neutral" : occupancyRate < 70 ? "warning" : occupancyRate <= 85 ? "info" : "success";
-  const kpi3Status = totalUnits === 0 ? "neutral" : occupancyRate >= 85 ? "ok" : occupancyRate >= 50 ? "warning" : "critical";
+  // Reservas que se solapan con el rango
+  const calendarReservations = data.reservations.filter((reservation) => {
+    const start = new Date(reservation.startDate);
+    const end = new Date(reservation.endDate);
+    return start <= calendarEnd && end >= calendarStart && reservation.status !== "CANCELLED";
+  });
 
-  const kpi4Tone = pendingTotal > 0 ? "destructive" : "neutral";
-  const kpi4Status = pendingTotal > 0 ? "critical" : "ok";
+  const calendarProperties = data.properties.slice(0, 6);
 
   return (
     <div className="space-y-6 pb-10">
-      {/* KPIs */}
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          title="Activos ahora"
-          value={activeReservations.length}
-          detail={`${occupiedUnits} de ${totalUnits} unidades ocupadas`}
-          icon={Home}
-          tone={kpi1Tone}
-          status={kpi1Status}
+      {/* 1. Page header */}
+      <div className="flex items-end justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-foreground">Dashboard</h1>
+          <p className="text-xs text-muted-foreground">Vista consolidada del estado operativo</p>
+        </div>
+        <Link href="/reservations/new" className={buttonVariants({ size: "sm" })}>
+          <Plus className="h-3.5 w-3.5" />
+          Nueva Reserva
+        </Link>
+      </div>
+
+      {/* 2. KPI Grid (4 cards estilo Stitch) */}
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StitchKpiCard
+          label="Ingresos Mensuales"
+          value={formatCLP(monthlyIncome)}
+          indicator={{ text: "+0%", variant: "positive" }}
         />
-        <MetricCard
-          title="Próximos 7 días"
-          value={next7Days}
-          detail={`${upcomingReservations.length} reservas futuras`}
-          icon={CalendarDays}
-          tone={kpi2Tone}
-          status={kpi2Status}
+        <StitchKpiCard
+          label="Pagos Pendientes"
+          value={pendingPaymentsList.length}
+          indicator={
+            overdueCount > 0
+              ? { text: `${overdueCount} vencidos`, variant: "warning" }
+              : { text: "Al día", variant: "neutral" }
+          }
         />
-        <MetricCard
-          title="Ocupación"
+        <StitchKpiCard
+          label="Próximas Reservas"
+          value={upcomingReservations.length}
+          indicator={
+            next7Days > 0
+              ? { text: `${next7Days} para esta semana`, variant: "neutral" }
+              : { text: "Sin check-ins próximos", variant: "neutral" }
+          }
+        />
+        <StitchKpiCard
+          label="Ocupación Actual"
           value={`${occupancyRate}%`}
-          detail={`${data.properties.length} propiedades registradas`}
-          icon={TrendingUp}
-          tone={kpi3Tone}
-          status={kpi3Status}
-        />
-        <MetricCard
-          title="Por cobrar"
-          value={formatCLP(pendingTotal)}
-          detail={`${pendingPayments.length} reservas con saldo`}
-          icon={CircleDollarSign}
-          tone={kpi4Tone}
-          status={kpi4Status}
+          progressBar={{ value: occupancyRate }}
         />
       </section>
 
-      {/* Cobranza: 2 cards separadas (cuotas con due_date | saldos globales) */}
-      <section className="grid gap-4 xl:grid-cols-3">
-        <div className="xl:col-span-2">
-          <UrgentCollectionCard
-            vencidos={collectionAlerts.vencidos}
-            vencenHoy={collectionAlerts.vencenHoy}
-            proximos7Dias={collectionAlerts.proximos7Dias}
-          />
+      {/* 3. 3-col grid: Reservas (table) + Cobranza (list) */}
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* Reservas table — col-span-2 */}
+        <div className="overflow-hidden rounded-lg border border-border bg-card lg:col-span-2">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+            <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Reservas</h2>
+            <Link href="/reservations" className="text-[10px] font-bold uppercase text-primary hover:underline">
+              Ver todas
+            </Link>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className="border-b border-border bg-muted">
+                  <th className="w-1/4 px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Propiedad</th>
+                  <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Cliente</th>
+                  <th className="min-w-[120px] px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Estancia</th>
+                  <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Llegada/Salida</th>
+                  <th className="px-6 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Estado</th>
+                  <th className="px-6 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Monto Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {tableReservations.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-8 text-center text-xs text-muted-foreground">
+                      Sin reservas para mostrar
+                    </td>
+                  </tr>
+                ) : (
+                  tableReservations.map((reservation) => {
+                    const start = new Date(reservation.startDate);
+                    const end = new Date(reservation.endDate);
+                    const isActive = start <= today && end >= today;
+                    const nights = getNights(reservation.startDate, reservation.endDate);
+                    const remainingDays = isActive
+                      ? daysBetween(today, reservation.endDate)
+                      : daysBetween(today, reservation.startDate);
+                    const arrivalLabel = isActive
+                      ? `Finaliza en ${remainingDays} ${remainingDays === 1 ? "día" : "días"}`
+                      : `Llega en ${remainingDays} ${remainingDays === 1 ? "día" : "días"}`;
+
+                    return (
+                      <tr key={reservation.id} className="transition-colors hover:bg-muted/50">
+                        <td className="px-6 py-4 text-xs font-bold text-foreground">{reservation.property.name}</td>
+                        <td className="px-6 py-4 text-xs text-muted-foreground">{reservation.client.name}</td>
+                        <td className="px-6 py-4">
+                          <div className="whitespace-nowrap text-xs font-bold text-primary">
+                            {formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}
+                          </div>
+                          <div className="mt-1">
+                            <span className="inline-flex rounded bg-muted px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-tight text-muted-foreground">
+                              {nights} noches
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-xs text-muted-foreground">{arrivalLabel}</td>
+                        <td className="px-6 py-4 text-right">
+                          <ReservationStatusBadge reservation={reservation} today={today} />
+                        </td>
+                        <td className="px-6 py-4 text-right text-xs font-bold text-foreground">
+                          {formatCLP(Number(reservation.totalPrice))}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-        <PendingBalancesCard saldos={saldosData} />
+
+        {/* Cobranza list — col-1 */}
+        <div className="flex flex-col overflow-hidden rounded-lg border border-border bg-card">
+          <div className="border-b border-border px-4 py-3">
+            <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+              Cobranza Reservas Mensuales
+            </h2>
+          </div>
+          <div className="flex-1 p-4">
+            {cobranzaItems.length === 0 ? (
+              <p className="py-6 text-center text-xs text-muted-foreground">Sin cobros pendientes</p>
+            ) : (
+              <ul className="space-y-5">
+                {cobranzaItems.map((item, idx) => (
+                  <li key={`${item.reservationId}-${idx}`} className="flex items-center justify-between">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-bold text-foreground">{item.clientName}</p>
+                      {item.isOverdue ? (
+                        <p className="text-[10px] font-bold text-destructive">
+                          Vencido: {item.dueDate ? formatDate(item.dueDate.toISOString()) : "—"}
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-muted-foreground">
+                          Vence: {item.dueDate ? formatDate(item.dueDate.toISOString()) : "—"}
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs font-bold text-foreground">{formatCLP(item.amount)}</p>
+                      <span
+                        className={
+                          item.isOverdue
+                            ? "text-[9px] font-bold uppercase text-destructive"
+                            : "text-[9px] font-bold uppercase text-warning-foreground"
+                        }
+                      >
+                        {item.isOverdue ? "Vencido" : "Pendiente"}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="border-t border-border bg-muted/40 p-4">
+            <Link href="/payments" className={buttonVariants({ variant: "outline", size: "sm", className: "w-full" })}>
+              <Wallet className="h-3.5 w-3.5" />
+              Gestionar Pagos
+            </Link>
+          </div>
+        </div>
       </section>
 
-      {/* 2-column layout: Reservas (tabs) | Resumen financiero + Pagos recientes */}
-      <section className="grid gap-6 xl:grid-cols-2">
-        {/* Reservas tabs */}
-        <Card>
-          <CardHeader className="border-b pb-4">
-            <CardTitle>Reservas</CardTitle>
-            <CardDescription>Reservas activas y próximas.</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <Tabs defaultValue="active" className="w-full">
-              <TabsList variant="line" className="mb-4 w-full justify-start">
-                <TabsTrigger value="active">
-                  En curso
-                  <Badge variant="secondary" className="ml-2">{activeReservations.length}</Badge>
-                </TabsTrigger>
-                <TabsTrigger value="upcoming">
-                  Próximas
-                  <Badge variant="secondary" className="ml-2">{upcomingReservations.length}</Badge>
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="active" className="space-y-2">
-                {activeReservations.length === 0 ? (
-                  <EmptyState title="Sin reservas activas" description="Cuando una estadía esté en curso aparecerá aquí." />
-                ) : (
-                  activeReservations.slice(0, 5).map((reservation) => (
-                    <ReservationRow key={reservation.id} reservation={reservation} today={today} mode="active" />
-                  ))
-                )}
-              </TabsContent>
-              <TabsContent value="upcoming" className="space-y-2">
-                {upcomingReservations.length === 0 ? (
-                  <EmptyState title="Sin próximas reservas" description="No hay check-ins programados desde hoy." />
-                ) : (
-                  upcomingReservations.slice(0, 6).map((reservation) => (
-                    <ReservationRow key={reservation.id} reservation={reservation} today={today} mode="upcoming" />
-                  ))
-                )}
-              </TabsContent>
-            </Tabs>
-            <div className="mt-4">
-              <Link href="/reservations" className={buttonVariants({ variant: "outline", size: "sm" })}>
-                Ver todas las reservas
-              </Link>
+      {/* 4. Calendario de ocupación — full width */}
+      <div className="overflow-hidden rounded-lg border border-border bg-card">
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+          <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            Calendario de ocupación
+          </h2>
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-primary" />
+              <span className="text-[10px] font-bold text-muted-foreground">Confirmada</span>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Resumen financiero + Pagos recientes */}
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Resumen financiero</CardTitle>
-              <CardDescription>
-                Pagado versus saldo pendiente de reservas activas o futuras.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-2xl bg-success/10 p-4">
-                  <p className="text-xs text-muted-foreground">Pagado</p>
-                  <p className="mt-1 text-lg font-semibold text-success">{formatCLP(completedTotal)}</p>
-                </div>
-                <div className="rounded-2xl bg-warning/10 p-4">
-                  <p className="text-xs text-muted-foreground">Pendiente</p>
-                  <p className="mt-1 text-lg font-semibold text-warning-foreground">{formatCLP(pendingTotal)}</p>
-                </div>
-              </div>
-
-              {/* Pagos recientes inside Resumen financiero */}
-              <div>
-                <p className="mb-2 text-sm font-medium text-foreground">Pagos recientes</p>
-                {recentPayments.length === 0 ? (
-                  <EmptyState title="Sin pagos recientes" description="Los pagos completados aparecerán aquí." />
-                ) : (
-                  <div className="space-y-2">
-                    {recentPayments.map((payment) => (
-                      <div key={payment.id} className="flex items-center gap-3 rounded-xl bg-muted/50 p-3">
-                        <span className="flex size-9 items-center justify-center rounded-xl bg-success/10 text-success">
-                          <CheckCircle2 className="size-4" />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-foreground">{payment.reservation.client.name}</p>
-                          <p className="truncate text-xs text-muted-foreground">{payment.reservation.property.name}</p>
-                        </div>
-                        <p className="text-sm font-semibold text-foreground">{formatCLP(Number(payment.amount))}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <Link
-                href="/reports"
-                className={buttonVariants({ variant: "outline", className: "w-full" })}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="rounded border border-border p-1 text-muted-foreground transition-colors hover:bg-muted"
+                aria-label="Semana anterior"
               >
-                Abrir reportes
-              </Link>
-            </CardContent>
-          </Card>
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+              <span className="min-w-[80px] text-center text-[10px] font-bold text-foreground">
+                {formatDayShort(calendarStart)} {formatMonthShort(calendarStart)} — {formatDayShort(calendarEnd)}{" "}
+                {formatMonthShort(calendarEnd)}
+              </span>
+              <button
+                type="button"
+                className="rounded border border-border p-1 text-muted-foreground transition-colors hover:bg-muted"
+                aria-label="Semana siguiente"
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
         </div>
-      </section>
+        <div className="overflow-x-auto">
+          <div className="min-w-[1000px]">
+            {/* Day headers */}
+            <div className="flex border-b border-border bg-muted">
+              <div className="sticky left-0 z-10 flex w-48 shrink-0 items-center border-r border-border bg-muted px-4 py-3">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Propiedad</span>
+              </div>
+              <div className="grid flex-1" style={{ gridTemplateColumns: `repeat(${CALENDAR_DAYS}, minmax(0, 1fr))` }}>
+                {calendarDays.map((day) => {
+                  const isWeekend = WEEKEND_DAY_OF_WEEK.has(day.getDay());
+                  return (
+                    <div
+                      key={day.toISOString()}
+                      className={`border-r border-border px-1 py-3 text-center last:border-r-0 ${isWeekend ? "bg-muted" : ""}`}
+                    >
+                      <span className="text-[10px] font-bold text-muted-foreground">
+                        {formatDayShort(day)} {dayLetter(day)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            {/* Property rows */}
+            <div className="divide-y divide-border">
+              {calendarProperties.length === 0 ? (
+                <div className="px-6 py-8 text-center text-xs text-muted-foreground">Sin propiedades registradas</div>
+              ) : (
+                calendarProperties.map((property) => {
+                  const propReservations = calendarReservations.filter((r) => r.propertyId === property.id);
+                  return (
+                    <div key={property.id} className="group flex h-14 transition-colors hover:bg-muted/40">
+                      <div className="sticky left-0 z-10 flex w-48 shrink-0 items-center border-r border-border bg-card px-4 group-hover:bg-muted/40">
+                        <span className="truncate text-xs font-bold text-foreground">{property.name}</span>
+                      </div>
+                      <div
+                        className="relative flex-1"
+                        style={{ gridTemplateColumns: `repeat(${CALENDAR_DAYS}, minmax(0, 1fr))` }}
+                      >
+                        {/* Weekend highlight columns */}
+                        {calendarDays.map((day) => {
+                          if (!WEEKEND_DAY_OF_WEEK.has(day.getDay())) return null;
+                          return null; // highlight is on header only in Stitch — keep row clean
+                        })}
+                        {/* Reservation pills */}
+                        {propReservations.map((reservation) => {
+                          const rStart = new Date(reservation.startDate);
+                          const rEnd = new Date(reservation.endDate);
+                          const visibleStart = rStart < calendarStart ? calendarStart : rStart;
+                          const visibleEnd = rEnd > calendarEnd ? calendarEnd : rEnd;
+                          const startOffset = Math.max(0, daysBetween(calendarStart, visibleStart.toISOString()));
+                          const duration = daysBetween(visibleStart, visibleEnd.toISOString()) + 1;
+                          const leftPct = (startOffset / CALENDAR_DAYS) * 100;
+                          const widthPct = (duration / CALENDAR_DAYS) * 100;
+                          const nights = getNights(reservation.startDate, reservation.endDate);
+                          const isConfirmed = reservation.status === "CONFIRMED";
+                          return (
+                            <Link
+                              key={reservation.id}
+                              href={`/reservations?reservationId=${reservation.id}`}
+                              className={`absolute top-3 bottom-3 z-0 flex cursor-pointer items-center justify-center overflow-hidden rounded px-3 transition-all hover:brightness-95 ${
+                                isConfirmed
+                                  ? "border border-primary/20 bg-primary/10"
+                                  : "border border-muted-foreground/20 bg-muted"
+                              }`}
+                              style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+                            >
+                              <div className="flex flex-col items-center gap-0.5 overflow-hidden">
+                                <span
+                                  className={`truncate text-[10px] font-bold ${
+                                    isConfirmed ? "text-primary" : "text-muted-foreground"
+                                  }`}
+                                >
+                                  {reservation.client.name}
+                                </span>
+                                <span
+                                  className={`text-[8px] font-bold uppercase tracking-tighter ${
+                                    isConfirmed ? "text-primary/80" : "text-muted-foreground/80"
+                                  }`}
+                                >
+                                  {nights} noches
+                                </span>
+                              </div>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
