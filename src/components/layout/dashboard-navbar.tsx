@@ -2,6 +2,7 @@
 
 import { Bell, HelpCircle, Search } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 
 interface DashboardNavbarProps {
   notificationUnreadCount?: number;
@@ -9,7 +10,7 @@ interface DashboardNavbarProps {
 
 export function DashboardNavbar({ notificationUnreadCount = 0 }: DashboardNavbarProps) {
   return (
-    <header className="sticky top-0 h-16 w-full border-b border-border bg-white flex justify-between items-center px-6 z-50">
+    <header className="sticky top-0 h-16 w-full border-b border-border bg-navbar flex justify-between items-center px-6 z-50">
       {/* Izquierda: eyebrow */}
       <div className="hidden md:flex items-center text-xs text-foreground font-medium uppercase tracking-wider">
         Panel de Administración
@@ -29,6 +30,7 @@ export function DashboardNavbar({ notificationUnreadCount = 0 }: DashboardNavbar
 
         {/* Icon buttons */}
         <div className="flex items-center gap-2">
+          <ThemeToggle />
           <button className="p-2 text-foreground hover:text-primary transition-colors">
             <Bell className="h-5 w-5" />
           </button>

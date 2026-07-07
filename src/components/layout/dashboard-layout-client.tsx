@@ -38,7 +38,7 @@ export function DashboardLayoutClient({
       />
       <div className="lg:pl-64">
         {/* Barra móvil: RentalPro + acciones */}
-        <div className="sticky top-0 z-30 flex items-center justify-between border-b bg-white px-4 py-3 lg:hidden">
+        <div className="sticky top-0 z-30 flex items-center justify-between border-b bg-background px-4 py-3 lg:hidden">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
