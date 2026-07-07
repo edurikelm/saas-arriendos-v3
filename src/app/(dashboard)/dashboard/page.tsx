@@ -267,7 +267,11 @@ export default async function DashboardPage() {
     );
   });
 
-  const calendarProperties = data.properties.slice(0, 6);
+  const calendarProperties = data.properties
+    .filter((property) =>
+      calendarReservations.some((reservation) => reservation.propertyId === property.id)
+    )
+    .slice(0, 6);
 
   return (
     <div className="space-y-6 pb-10">
@@ -447,12 +451,7 @@ export default async function DashboardPage() {
           <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
             Calendario de ocupación
           </h2>
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-primary" />
-              <span className="text-[10px] font-bold text-muted-foreground">Confirmada</span>
-            </div>
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
               <button
                 type="button"
                 className="rounded border border-border p-1 text-muted-foreground transition-colors hover:bg-muted"
@@ -473,7 +472,6 @@ export default async function DashboardPage() {
               </button>
             </div>
           </div>
-        </div>
         <div className="overflow-x-auto">
           <div className="min-w-[1000px]">
             {/* Day headers */}
@@ -502,8 +500,11 @@ export default async function DashboardPage() {
               {calendarProperties.length === 0 ? (
                 <div className="px-6 py-8 text-center text-xs text-muted-foreground">Sin propiedades registradas</div>
               ) : (
-                calendarProperties.map((property) => {
+                calendarProperties.map((property, propertyIdx) => {
                   const propReservations = calendarReservations.filter((r) => r.propertyId === property.id);
+                  // Alternar variantes de verde por fila (par = sólido, impar = claro).
+                  // Patrón Stitch: row 1/3 sólido bg-primary, row 2/4 claro bg-primary/10.
+                  const isAltRow = propertyIdx % 2 === 1;
                   return (
                     <div key={property.id} className="group flex h-14 transition-colors hover:bg-muted/40">
                       <div className="sticky left-0 z-10 flex w-48 shrink-0 items-center border-r border-border bg-card px-4 group-hover:bg-muted/40">
@@ -529,29 +530,28 @@ export default async function DashboardPage() {
                           const leftPct = (startOffset / CALENDAR_DAYS) * 100;
                           const widthPct = (duration / CALENDAR_DAYS) * 100;
                           const nights = getNights(reservation.startDate, reservation.endDate);
-                          const isConfirmed = reservation.status === "CONFIRMED";
                           return (
                             <Link
                               key={reservation.id}
                               href={`/reservations?reservationId=${reservation.id}`}
                               className={`absolute top-3 bottom-3 z-0 flex cursor-pointer items-center justify-center overflow-hidden rounded px-3 transition-all hover:brightness-95 ${
-                                isConfirmed
+                                isAltRow
                                   ? "border border-primary/20 bg-primary/10"
-                                  : "border border-muted-foreground/20 bg-muted"
+                                  : "bg-primary"
                               }`}
                               style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
                             >
                               <div className="flex flex-col items-center gap-0.5 overflow-hidden">
                                 <span
                                   className={`truncate text-[10px] font-bold ${
-                                    isConfirmed ? "text-primary" : "text-muted-foreground"
+                                    isAltRow ? "text-primary" : "text-white"
                                   }`}
                                 >
                                   {reservation.client.name}
                                 </span>
                                 <span
                                   className={`text-[8px] font-bold uppercase tracking-tighter ${
-                                    isConfirmed ? "text-primary/80" : "text-muted-foreground/80"
+                                    isAltRow ? "text-primary/80" : "text-white/90"
                                   }`}
                                 >
                                   {nights} noches
