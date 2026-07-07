@@ -8,7 +8,6 @@ const currentMonth = new Date("2025-06-15");
 const baseProperty = {
   id: "p1",
   name: "Casa Norte",
-  color: "#6366F1",
 };
 
 const baseClient = {
@@ -58,7 +57,6 @@ describe("CalendarTimeline external blocks", () => {
         externalBlocks={[makeBlock()]}
         currentMonth={currentMonth}
         onSelectReservation={() => {}}
-        onMonthChange={() => {}}
       />
     );
     // Look for dashed border elements (external block bars)
@@ -73,7 +71,6 @@ describe("CalendarTimeline external blocks", () => {
         externalBlocks={[]}
         currentMonth={currentMonth}
         onSelectReservation={() => {}}
-        onMonthChange={() => {}}
       />
     );
     const blocks = container.querySelectorAll(".border-dashed");
@@ -93,7 +90,6 @@ describe("CalendarTimeline external blocks", () => {
         ]}
         currentMonth={currentMonth}
         onSelectReservation={() => {}}
-        onMonthChange={() => {}}
       />
     );
     // Should have 2 external block bars (one per property)
@@ -108,7 +104,6 @@ describe("CalendarTimeline external blocks", () => {
         externalBlocks={[makeBlock({ channel: "AIRBNB" })]}
         currentMonth={currentMonth}
         onSelectReservation={() => {}}
-        onMonthChange={() => {}}
       />
     );
     const chip = Array.from(container.querySelectorAll(".border-dashed")).find((el) =>
@@ -124,7 +119,6 @@ describe("CalendarTimeline external blocks", () => {
         externalBlocks={[makeBlock({ channel: "BOOKING_COM" })]}
         currentMonth={currentMonth}
         onSelectReservation={() => {}}
-        onMonthChange={() => {}}
       />
     );
     const chip = Array.from(container.querySelectorAll(".border-dashed")).find((el) =>
@@ -140,7 +134,6 @@ describe("CalendarTimeline external blocks", () => {
         externalBlocks={[makeBlock({ channel: "AIRBNB" })]}
         currentMonth={currentMonth}
         onSelectReservation={() => {}}
-        onMonthChange={() => {}}
       />
     );
     const block = container.querySelector(".border-dashed");

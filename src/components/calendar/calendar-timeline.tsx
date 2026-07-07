@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameMonth, addMonths, subMonths, startOfWeek, endOfWeek } from "date-fns";
 import { es } from "date-fns/locale/es";
 import { ChevronLeft, ChevronRight, Calendar, Home, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
@@ -22,7 +22,6 @@ interface Payment {
 interface Property {
   id: string;
   name: string;
-  color?: string;
 }
 
 interface Client {
@@ -94,6 +93,23 @@ function isReservationEnded(res: Reservation): boolean {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return end < today || res.status === "COMPLETED";
+}
+
+function isReservationActive(res: Reservation): boolean {
+  if (res.status === "CANCELLED") return false;
+  const start = parseCalendarDate(res.startDate);
+  const end = parseCalendarDate(res.endDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return start <= today && end >= today;
+}
+
+function isReservationUpcoming(res: Reservation): boolean {
+  if (res.status === "CANCELLED") return false;
+  const start = parseCalendarDate(res.startDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return start > today;
 }
 
 function getReservationsInDay(reservations: Reservation[], date: Date): Reservation[] {
@@ -178,7 +194,7 @@ export function CalendarDayCell({ date, currentMonth, reservations, onSelectRese
                 : "text-white"
             }`}
             style={{
-              backgroundColor: res.status === "CANCELLED" || res.status === "COMPLETED" ? undefined : (res.property.color || "var(--primary)"),
+              backgroundColor: res.status === "CANCELLED" || res.status === "COMPLETED" ? undefined : "var(--primary)",
             }}
           >
             <span className="truncate block">{res.client.name}</span>
@@ -268,14 +284,12 @@ function channelLabel(channel: CalendarExternalBlock["channel"]): string {
   }
 }
 
-export function CalendarTimeline({ reservations, externalBlocks = [], currentMonth, onSelectReservation, onMonthChange, headerActions }: {
+export function CalendarTimeline({ reservations, externalBlocks = [], currentMonth, onSelectReservation }: {
   reservations: Reservation[];
   externalBlocks?: CalendarExternalBlock[];
   conflicts?: Set<string>;
   currentMonth: Date;
   onSelectReservation: (id: string) => void;
-  onMonthChange: (date: Date) => void;
-  headerActions?: ReactNode;
 }) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [timelineViewportWidth, setTimelineViewportWidth] = useState(0);
@@ -360,35 +374,7 @@ export function CalendarTimeline({ reservations, externalBlocks = [], currentMon
   );
 
   return (
-    <div className="space-y-3">
-      <div className="grid gap-3 lg:grid-cols-[1fr_auto_1fr] lg:items-end">
-        <div className="min-w-0 leading-tight">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-            Timeline de ocupacion
-          </p>
-          <h2 className="text-2xl font-bold capitalize tracking-tight">
-            {format(currentMonth, "MMMM yyyy", { locale: es })}
-          </h2>
-        </div>
-        <div className="flex w-fit items-center gap-2 rounded-lg border bg-background/80 p-1 lg:justify-self-center">
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => onMonthChange(subMonths(currentMonth, 1))}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button variant="secondary" size="sm" className="h-8 rounded-lg px-4" onClick={() => onMonthChange(new Date())}>
-            Hoy
-          </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => onMonthChange(addMonths(currentMonth, 1))}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-        {headerActions && (
-          <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:justify-self-end">
-            {headerActions}
-          </div>
-        )}
-      </div>
-
-      <div className="relative overflow-hidden rounded-xl border bg-gradient-to-br from-card to-muted/30 ring-1 ring-foreground/10">
+    <div className="relative overflow-hidden rounded-xl border bg-card">
         <div
           aria-hidden="true"
           className={`pointer-events-none absolute inset-y-0 left-0 z-40 w-8 bg-gradient-to-r from-card to-transparent transition-opacity duration-100 ${scrollState.canScrollLeft ? "opacity-100" : "opacity-0"}`}
@@ -463,7 +449,6 @@ export function CalendarTimeline({ reservations, externalBlocks = [], currentMon
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 shrink-0 rounded-full ring-4 ring-muted" style={{ backgroundColor: property.color || "var(--primary)" }} />
                         <span className="truncate text-sm font-semibold leading-snug">{property.name}</span>
                       </div>
                       <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground sm:gap-2">
@@ -485,29 +470,37 @@ export function CalendarTimeline({ reservations, externalBlocks = [], currentMon
                       const StatusIcon = status.icon;
                       const isCancelled = res.status === "CANCELLED";
                       const ended = isReservationEnded(res);
+                      const active = !isCancelled && !ended && isReservationActive(res);
+                      const upcoming = !isCancelled && !ended && isReservationUpcoming(res);
+
+                      // Stitch-style alternation: active (solid primary) vs upcoming (light primary/10)
+                      const barClass = isCancelled
+                        ? "border-border bg-muted text-muted-foreground line-through"
+                        : ended
+                        ? "border-border bg-muted text-muted-foreground opacity-75 line-through decoration-muted-foreground/60"
+                        : active
+                        ? "border-primary bg-primary text-white"
+                        : "border border-primary/20 bg-primary/10 text-primary";
+
+                      const chipClass = active
+                        ? "bg-white/20 text-white"
+                        : "bg-primary/20 text-primary";
 
                       return (
                         <button
                           key={res.id}
                           onClick={() => onSelectReservation(res.id)}
-                          className={`group absolute flex h-8 items-center gap-1.5 overflow-hidden rounded-md border px-2 text-left text-xs transition-all hover:z-20 hover:-translate-y-0.5 focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-2 sm:px-3 ${
-                            isCancelled
-                              ? "border-border bg-muted text-muted-foreground line-through"
-                              : ended
-                                ? "border-border bg-muted text-muted-foreground opacity-75 line-through decoration-muted-foreground/60"
-                                : "border-white/25 text-white"
-                          }`}
+                          className={`group absolute flex h-8 items-center gap-1.5 overflow-hidden rounded-md border px-2 text-left text-xs transition-all hover:z-20 hover:-translate-y-0.5 focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-2 sm:px-3 ${barClass}`}
                           style={{
                             left: `${leftOffset * dayWidth + 4}px`,
                             top: "12px",
                             width: `${Math.max(duration * dayWidth - 8, 34)}px`,
-                            backgroundColor: isCancelled || ended ? undefined : res.property.color || "var(--primary)",
                           }}
                           title={`${res.client.name} - ${formatDate(res.startDate)} a ${formatDate(res.endDate)}`}
                         >
                           <StatusIcon className="h-3.5 w-3.5 shrink-0 opacity-90" />
                           <span className="min-w-0 flex-1 truncate font-semibold">{res.client.name}</span>
-                          <span className="hidden shrink-0 rounded-sm bg-black/10 px-1.5 py-0.5 font-medium sm:inline-flex">
+                          <span className={`hidden shrink-0 rounded-sm px-1.5 py-0.5 font-medium sm:inline-flex ${chipClass}`}>
                             {getNights(res.startDate, res.endDate)}n
                           </span>
                         </button>
@@ -542,7 +535,6 @@ export function CalendarTimeline({ reservations, externalBlocks = [], currentMon
               );
             })
           )}
-        </div>
         </div>
       </div>
     </div>
@@ -587,7 +579,7 @@ export function CalendarList({ reservations, currentMonth, onSelectReservation }
           >
             <div
               className="h-12 w-12 shrink-0 rounded-xl flex items-center justify-center text-white font-semibold text-lg"
-              style={{ backgroundColor: res.property.color || "var(--primary)" }}
+              style={{ backgroundColor: "var(--primary)" }}
             >
               {format(parseCalendarDate(res.startDate), "d")}
             </div>
@@ -692,7 +684,7 @@ export function CalendarWeekView({ reservations, onSelectReservation }: {
                             key={res.id}
                             onClick={() => onSelectReservation(res.id)}
                             className="w-full text-left text-xs rounded px-1 py-0.5 text-white mb-1 truncate"
-                            style={{ backgroundColor: res.property.color || "var(--primary)" }}
+style={{ backgroundColor: "var(--primary)" }}
                           >
                             {res.client.name}
                           </button>
@@ -728,7 +720,7 @@ export function ReservationDetailDialog({ reservation, onClose }: {
           <div className="flex items-center gap-4">
             <div
               className="h-12 w-12 rounded-xl flex items-center justify-center text-white font-semibold text-lg"
-              style={{ backgroundColor: reservation.property.color || "var(--primary)" }}
+              style={{ backgroundColor: "var(--primary)" }}
             >
               {reservation.property.name[0]}
             </div>

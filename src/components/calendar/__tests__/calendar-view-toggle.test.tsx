@@ -30,7 +30,6 @@ vi.mock("next/navigation", () => ({
 const baseProperty = {
   id: "p1",
   name: "Casa",
-  color: "#6366F1",
   unitsAvailable: 2,
   dailyPrice: "50000",
   monthlyPrice: null,
@@ -50,7 +49,7 @@ function makeRes(overrides: Partial<CalendarReservation> = {}): CalendarReservat
     status: "CONFIRMED",
     billingType: "DAILY",
     totalPrice: 100,
-    property: { id: "p1", name: "Casa", color: "#6366F1" },
+    property: { id: "p1", name: "Casa" },
     client: { name: "Juan" },
     ...overrides,
   };

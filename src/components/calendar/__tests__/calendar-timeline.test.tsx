@@ -9,7 +9,6 @@ import {
 const baseProperty = {
   id: "p1",
   name: "Casa Norte",
-  color: "#6366F1",
 };
 
 const baseClient = {
@@ -48,7 +47,6 @@ describe("CalendarTimeline reservation bar", () => {
         reservations={[makeRes()]}
         currentMonth={currentMonth}
         onSelectReservation={() => {}}
-        onMonthChange={() => {}}
       />
     );
     const reservationBar = container.querySelector(
@@ -66,7 +64,6 @@ describe("CalendarTimeline reservation bar", () => {
         reservations={[makeRes()]}
         currentMonth={currentMonth}
         onSelectReservation={() => {}}
-        onMonthChange={() => {}}
       />
     );
     const spans = Array.from(container.querySelectorAll("span"));
@@ -77,64 +74,6 @@ describe("CalendarTimeline reservation bar", () => {
     const cls = nightChip!.className;
     expect(cls).not.toMatch(/rounded-full/);
     expect(cls).toMatch(/rounded-/);
-  });
-});
-
-describe("CalendarTimeline navigation segment", () => {
-  it("renders the nav segment wrapper with a rectangular radius", () => {
-    const { container } = render(
-      <CalendarTimeline
-        reservations={[]}
-        currentMonth={currentMonth}
-        onSelectReservation={() => {}}
-        onMonthChange={() => {}}
-      />
-    );
-    const hoyButton = screen.getByRole("button", { name: "Hoy" });
-    const wrapper = hoyButton.parentElement as HTMLElement;
-    expect(wrapper.className).not.toMatch(/rounded-full/);
-    expect(wrapper.className).toMatch(/rounded-(md|lg)/);
-    expect(container).toBeDefined();
-  });
-
-  it("renders the 'Hoy' button with rounded-lg (ADR-0016 primary control)", () => {
-    render(
-      <CalendarTimeline
-        reservations={[]}
-        currentMonth={currentMonth}
-        onSelectReservation={() => {}}
-        onMonthChange={() => {}}
-      />
-    );
-    const hoyButton = screen.getByRole("button", { name: "Hoy" });
-    const cls = hoyButton.className;
-    expect(cls).not.toMatch(/rounded-full/);
-    expect(cls).not.toMatch(/\brounded-md\b/);
-    expect(cls).toMatch(/\brounded-lg\b/);
-  });
-
-  it("renders the prev/next icon buttons with rounded-lg (ADR-0016 primary control)", () => {
-    const { container } = render(
-      <CalendarTimeline
-        reservations={[]}
-        currentMonth={currentMonth}
-        onSelectReservation={() => {}}
-        onMonthChange={() => {}}
-      />
-    );
-    const hoyButton = screen.getByRole("button", { name: "Hoy" });
-    const wrapper = hoyButton.parentElement as HTMLElement;
-    const buttons = Array.from(wrapper.querySelectorAll("button"));
-    const iconButtons = buttons.filter(
-      (b) => b.querySelector("svg") && b.textContent?.trim() === ""
-    );
-    expect(iconButtons.length).toBe(2);
-    for (const btn of iconButtons) {
-      expect(btn.className).not.toMatch(/rounded-full/);
-      expect(btn.className).not.toMatch(/\brounded-md\b/);
-      expect(btn.className).toMatch(/\brounded-lg\b/);
-    }
-    expect(container).toBeDefined();
   });
 });
 
