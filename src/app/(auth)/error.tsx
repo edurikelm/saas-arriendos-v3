@@ -16,7 +16,7 @@ export default function AuthError({
         <AlertCircle className="h-8 w-8 text-destructive" />
       </div>
       <div className="space-y-2">
-        <h2 className="text-xl font-semibold text-white">Something went wrong</h2>
+        <h2 className="text-xl font-semibold text-foreground">Something went wrong</h2>
         <p className="text-muted-foreground">
           {error.message || "An unexpected error occurred"}
         </p>

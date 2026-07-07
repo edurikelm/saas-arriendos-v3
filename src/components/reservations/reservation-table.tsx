@@ -121,7 +121,7 @@ function PaymentProgress({ paidAmount, totalPrice, tone }: { paidAmount: number;
   const progress = totalPrice > 0 ? Math.min(Math.max((paidAmount / totalPrice) * 100, 0), 100) : 0;
 
   return (
-    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-200/70 dark:bg-zinc-800">
+    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
       <div
         className={`h-full rounded-full ${dotClassNames[tone]} transition-all duration-500`}
         style={{ width: `${progress}%` }}
@@ -148,7 +148,7 @@ function ReservationMobileCard({ reservation, onEdit, onView, onCancel, onDelete
     : `${getNights(reservation.startDate, reservation.endDate)} noches`;
 
   return (
-    <article className="group relative overflow-hidden rounded-xl border border-zinc-800/80 bg-zinc-950/40 p-3.5 shadow-sm transition-all duration-300 hover:border-zinc-700 hover:bg-zinc-950/70">
+    <article className="group relative overflow-hidden rounded-xl border border-border bg-card p-3.5 shadow-sm transition-all duration-300 hover:border-border hover:bg-accent">
       <div className={`absolute inset-y-0 left-0 w-1 ${dotClassNames[stateTone]}`} />
       <div className="flex items-start gap-3 pl-1.5">
         <div
@@ -160,17 +160,17 @@ function ReservationMobileCard({ reservation, onEdit, onView, onCancel, onDelete
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <h3 className="truncate text-sm font-semibold text-zinc-100">{reservation.client.name}</h3>
-              <p className="flex items-center gap-1.5 truncate text-xs text-zinc-500">
+              <h3 className="truncate text-sm font-semibold text-foreground">{reservation.client.name}</h3>
+              <p className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: reservation.property.color || "var(--primary)" }} />
                 <span className="truncate">{reservation.property.name}</span>
               </p>
             </div>
-            <p className="shrink-0 text-right text-base font-bold tabular-nums text-zinc-100">{formatPrice(reservation.totalPrice)}</p>
+            <p className="shrink-0 text-right text-base font-bold tabular-nums text-foreground">{formatPrice(reservation.totalPrice)}</p>
           </div>
-          <p className="text-xs text-zinc-400">
+          <p className="text-xs text-muted-foreground">
             <span className="tabular-nums">{formatDate(reservation.startDate)} – {formatDate(reservation.endDate)}</span>
-            <span className="text-zinc-500"> · {duration}</span>
+            <span className="text-muted-foreground"> · {duration}</span>
           </p>
         </div>
       </div>
@@ -182,7 +182,7 @@ function ReservationMobileCard({ reservation, onEdit, onView, onCancel, onDelete
       </div>
 
       <div className="mt-3 pl-1.5">
-        <div className="flex items-center justify-between text-xs text-zinc-500">
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>Pagado</span>
           <span className="tabular-nums">{formatPrice(paidAmount)} / {formatPrice(totalPrice)}</span>
         </div>
@@ -191,17 +191,17 @@ function ReservationMobileCard({ reservation, onEdit, onView, onCancel, onDelete
 
       <div className="mt-3 flex items-center justify-end gap-1 pl-1.5">
         {onView && (
-          <Button size="icon" variant="ghost" className="size-8 text-zinc-300 hover:text-zinc-100" onClick={() => onView(reservation.id)} title="Ver">
+          <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:text-foreground" onClick={() => onView(reservation.id)} title="Ver">
             <Eye className="h-4 w-4" />
           </Button>
         )}
         {onEdit && (
-          <Button size="icon" variant="ghost" className="size-8 text-zinc-300 hover:text-zinc-100" onClick={() => onEdit(reservation.id)} title="Editar">
+          <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:text-foreground" onClick={() => onEdit(reservation.id)} title="Editar">
             <Pencil className="h-4 w-4" />
           </Button>
         )}
         {(reservation.status === "PENDING" || reservation.status === "CONFIRMED") && onCancel && (
-          <Button size="icon" variant="ghost" className="size-8 text-zinc-300 hover:bg-destructive/10 hover:text-destructive" onClick={() => onCancel(reservation.id)} title="Cancelar">
+          <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => onCancel(reservation.id)} title="Cancelar">
             <Ban className="h-4 w-4" />
           </Button>
         )}
