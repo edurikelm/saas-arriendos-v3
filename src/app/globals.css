@@ -93,8 +93,8 @@
   --accent-foreground: oklch(0.7118 0.0129 286.0665);
   --destructive: oklch(0.6368 0.2078 25.3313);
   --destructive-foreground: oklch(0.2077 0.0398 265.7549);
-  --border: oklch(0.4461 0.0263 256.8018);
-  --input: oklch(0.4461 0.0263 256.8018);
+  --border: oklch(0.55 0.025 256.80);
+  --input: oklch(0.55 0.025 256.80);
   --ring: oklch(0.7729 0.1535 163.2231);
   --chart-1: oklch(0.7729 0.1535 163.2231);
   --chart-2: oklch(0.7845 0.1325 181.9120);
@@ -107,7 +107,7 @@
   --sidebar-primary-foreground: oklch(0.2077 0.0398 265.7549);
   --sidebar-accent: oklch(0.3729 0.0306 259.7328);
   --sidebar-accent-foreground: oklch(0.7118 0.0129 286.0665);
-  --sidebar-border: oklch(0.4461 0.0263 256.8018);
+  --sidebar-border: oklch(0.55 0.025 256.80);
   --sidebar-ring: oklch(0.7729 0.1535 163.2231);
 
   /* === Project-specific tokens (dark) === */
