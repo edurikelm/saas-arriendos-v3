@@ -39,7 +39,7 @@ function getTemporalStatus(startDate: string, endDate: string, billingType: stri
 
   if (today < start) {
     const daysUntil = Math.ceil((start.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    return { label: "Próxima", sublabel: `${daysUntil}d` };
+    return { label: "Próxima", sublabel: `En ${daysUntil} días` };
   }
   if (today > end) return { label: "Finalizada" };
   if (billingType === "MONTHLY") {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MoreHorizontal, Eye, Pencil, Ban, Trash2 } from "lucide-react";
+import { MoreVertical, Eye, Pencil, Ban, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataTable } from "@/components/ui/data-table";
@@ -76,7 +76,7 @@ function getTemporalStatus(startDate: string, endDate: string, billingType: stri
 
   if (today < start) {
     const daysUntil = Math.ceil((start.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    return { label: "Próxima", sublabel: `${daysUntil}d` };
+    return { label: "Próxima", sublabel: `En ${daysUntil} días` };
   }
   if (today > end) return { label: "Finalizada" };
   if (billingType === "MONTHLY") {
@@ -277,7 +277,7 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
             return (
               <tr key={res.id} className={`border-b last:border-0 hover:bg-muted/30 transition-colors ${isSelected ? "bg-muted/30" : ""}`}>
                 {isSelectable && (
-                  <td className="px-4 py-3 w-10">
+                  <td className="px-6 py-5 w-10">
                     <Checkbox
                       checked={isSelected}
                       onCheckedChange={() => onToggleSelect!(res.id)}
@@ -286,7 +286,7 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                   </td>
                 )}
                 {/* Huésped */}
-                <td className="px-4 py-3">
+                <td className="px-6 py-5">
                   <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
                       {getInitials(res.client.name)}
@@ -298,11 +298,11 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                   </div>
                 </td>
                 {/* Propiedad */}
-                <td className="px-4 py-3 text-xs font-medium text-foreground">
+                <td className="px-6 py-5 text-xs font-medium text-foreground">
                   {res.property.name}
                 </td>
                 {/* Estado */}
-                <td className="px-4 py-3">
+                <td className="px-6 py-5">
                   <div className="flex flex-col gap-1">
                     <ReservationPill tone={stateTone} label={temporal.label} />
                     {temporal.sublabel && (
@@ -311,7 +311,7 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                   </div>
                 </td>
                 {/* Estancia */}
-                <td className="px-4 py-3">
+                <td className="px-6 py-5">
                   <div className="text-xs text-foreground font-medium whitespace-nowrap">
                     {formatDate(res.startDate)} - {formatDate(res.endDate)}
                   </div>
@@ -320,7 +320,7 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                   </div>
                 </td>
                 {/* Finanzas */}
-                <td className="px-4 py-3">
+                <td className="px-6 py-5">
                   <div className="flex items-stretch gap-3">
                     <div className={`w-0.5 rounded-full ${verticalBarClassNames[paymentTone]}`} />
                     <div className="flex flex-col">
@@ -332,19 +332,21 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                   </div>
                 </td>
                 {/* Tipo */}
-                <td className="px-4 py-3">
-                  <span className="inline-flex px-2 py-0.5 rounded bg-muted text-muted-foreground text-[9px] font-bold uppercase">
-                    {res.billingType === "DAILY" ? "Diaria" : "Mensual"}
-                  </span>
+                <td className="px-6 py-5">
+                  <div className="flex justify-center">
+                    <span className="inline-flex px-2 py-0.5 rounded bg-muted text-muted-foreground text-[9px] font-bold uppercase">
+                      {res.billingType === "DAILY" ? "Diaria" : "Mensual"}
+                    </span>
+                  </div>
                 </td>
                 {/* Acciones */}
-                <td className={`px-4 py-3 text-right ${isSelectable ? "w-20" : ""}`}>
+                <td className={`px-6 py-5 text-right ${isSelectable ? "w-20" : ""}`}>
                   <DropdownMenu>
                     <DropdownMenuTrigger
                       className="inline-flex size-8 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                       aria-label="Más acciones"
                     >
-                      <MoreHorizontal className="h-4 w-4" />
+                      <MoreVertical className="h-4 w-4" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       {onView && (
