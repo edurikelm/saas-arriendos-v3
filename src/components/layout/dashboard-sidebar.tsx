@@ -120,7 +120,7 @@ export function DashboardSidebar({
                     "flex items-center gap-3 px-3 py-2 rounded text-sm transition-colors",
                     isActive
                       ? "bg-primary/10 text-primary font-medium"
-                      : "text-foreground hover:bg-sidebar-accent"
+                      : "text-muted hover:bg-sidebar-accent hover:text-foreground"
                   )}
                 >
                   <Icon className="h-5 w-5 shrink-0" />
@@ -150,7 +150,7 @@ export function DashboardSidebar({
               <DropdownMenu>
                 <DropdownMenuTrigger
                     render={
-                      <button className="p-1 rounded text-foreground hover:bg-sidebar-accent hover:text-muted transition-colors">
+                      <button className="p-1 rounded text-muted-foreground hover:bg-sidebar-accent hover:text-foreground transition-colors">
                         <MoreVertical className="h-4 w-4" />
                       </button>
                     }
