@@ -1,25 +1,26 @@
 import * as React from "react";
-import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 interface DataTableProps {
   headers: string[];
   children?: React.ReactNode;
   emptyState?: React.ReactNode;
   caption?: string;
+  className?: string;
 }
 
-export function DataTable({ headers, children, emptyState, caption }: DataTableProps) {
+export function DataTable({ headers, children, emptyState, caption, className }: DataTableProps) {
   return (
-    <Card className="ring-1 ring-foreground/10 overflow-hidden">
+    <div className={cn("overflow-hidden rounded-md border border-border bg-card", className)}>
       <div className="overflow-x-auto">
         <table className="w-full">
           {caption && <caption className="sr-only">{caption}</caption>}
           <thead>
-            <tr className="border-b text-left">
+            <tr className="border-b bg-muted/50 text-left">
               {headers.map((header) => (
                 <th
                   key={header}
-                  className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground"
+                  className="px-6 py-3 text-left align-middle text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
                 >
                   {header}
                 </th>
@@ -30,7 +31,7 @@ export function DataTable({ headers, children, emptyState, caption }: DataTableP
             {children}
             {(!children || (Array.isArray(children) && children.length === 0)) && emptyState ? (
               <tr>
-                <td colSpan={headers.length}>
+                <td colSpan={headers.length} className="px-6 py-10 text-center align-middle text-sm text-muted-foreground">
                   {emptyState}
                 </td>
               </tr>
@@ -38,6 +39,6 @@ export function DataTable({ headers, children, emptyState, caption }: DataTableP
           </tbody>
         </table>
       </div>
-    </Card>
+    </div>
   );
 }

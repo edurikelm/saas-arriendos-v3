@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { Calendar, Plus, X, Search, ChevronDown, ChevronUp } from "lucide-react";
+import { Calendar, Plus, X, Search, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -15,7 +15,6 @@ import { ReservationForm } from "@/components/reservations/reservation-form";
 import { ReservationDetailDialog } from "@/components/reservations/reservation-detail-dialog";
 import { ReservationTable } from "@/components/reservations/reservation-table";
 import { ReservationListItem } from "@/components/reservations/reservation-list-item";
-import { ReservationsKpiCards } from "@/components/reservations/reservations-kpi-cards";
 import { ReservationsBulkActionsBar } from "@/components/reservations/reservations-bulk-actions-bar";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Pagination } from "@/components/ui/pagination";
@@ -29,7 +28,6 @@ import {
   cancelReservation,
   deleteReservation,
 } from "@/lib/actions/reservations";
-import { getReservationPaidAmount } from "@/lib/payments/calculations";
 import type { ReservationInput } from "@/lib/validations/reservation";
 import type {
   Reservation,
@@ -61,9 +59,6 @@ export function ReservationsListClient({
   // View mode: mobile always falls back to list (cards), desktop stays on table
   const [viewMode] = useState<"list" | "table">("table");
   const isMobile = useMediaQuery("(max-width: 767px)");
-
-  // KPI summary collapsible (hidden by default to match Stitch clean layout)
-  const [kpiCollapsed, setKpiCollapsed] = useState(true);
 
   // Dialogs
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -136,17 +131,6 @@ export function ReservationsListClient({
 
   // Effective view mode: mobile always uses list
   const effectiveViewMode = isMobile ? "list" : viewMode;
-
-  // KPI metrics
-  const totalReserved = filteredReservations.reduce((sum, res) => sum + Number(res.totalPrice), 0);
-  const totalPaid = filteredReservations.reduce(
-    (sum, res) => sum + getReservationPaidAmount(res.payments),
-    0,
-  );
-  const activeCount = filteredReservations.filter(
-    (res) => res.status !== "CANCELLED" && res.status !== "COMPLETED",
-  ).length;
-  const pendingAmount = Math.max(totalReserved - totalPaid, 0);
 
   // Open detail dialog from URL param
   useEffect(() => {
@@ -280,29 +264,6 @@ export function ReservationsListClient({
           Nueva Reserva
         </Button>
       </div>
-
-      {/* KPI Summary Collapsible */}
-      {serverReservations.length > 0 && (
-        <div>
-          <button
-            onClick={() => setKpiCollapsed(!kpiCollapsed)}
-            className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors mb-2"
-            aria-expanded={!kpiCollapsed}
-          >
-            {kpiCollapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
-            {kpiCollapsed ? "Mostrar resumen" : "Ocultar resumen"}
-          </button>
-          {!kpiCollapsed && (
-            <ReservationsKpiCards
-              filteredCount={filteredReservations.length}
-              activeCount={activeCount}
-              totalPaid={totalPaid}
-              pendingAmount={pendingAmount}
-              totalReserved={totalReserved}
-            />
-          )}
-        </div>
-      )}
 
       {/* Search + Filter Section */}
       {serverReservations.length === 0 && !hasActiveFilters ? (
