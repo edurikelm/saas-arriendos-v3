@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Plus, Wallet } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { StitchKpiCard } from "@/components/ui/stitch-kpi-card";
@@ -244,8 +244,9 @@ export default async function DashboardPage() {
     })),
   ].slice(0, 4);
 
-  // Tabla Reservas: mezcla de activas + próximas (top 6 ordenadas por startDate)
+  // Tabla Reservas Diarias: solo reservas DAILY (mezcla activas + próximas, top 6)
   const tableReservations = [...activeReservations, ...upcomingReservations]
+    .filter((reservation) => reservation.billingType === "DAILY")
     .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
     .slice(0, 6);
 
@@ -254,11 +255,16 @@ export default async function DashboardPage() {
   const calendarEnd = addDays(today, CALENDAR_DAYS - 1);
   const calendarDays: Date[] = Array.from({ length: CALENDAR_DAYS }, (_, i) => addDays(today, i));
 
-  // Reservas que se solapan con el rango
+  // Reservas que se solapan con el rango (solo DAILY)
   const calendarReservations = data.reservations.filter((reservation) => {
     const start = new Date(reservation.startDate);
     const end = new Date(reservation.endDate);
-    return start <= calendarEnd && end >= calendarStart && reservation.status !== "CANCELLED";
+    return (
+      start <= calendarEnd &&
+      end >= calendarStart &&
+      reservation.status !== "CANCELLED" &&
+      reservation.billingType === "DAILY"
+    );
   });
 
   const calendarProperties = data.properties.slice(0, 6);
@@ -314,7 +320,7 @@ export default async function DashboardPage() {
         {/* Reservas table — col-span-2 */}
         <div className="overflow-hidden rounded-lg border border-border bg-card lg:col-span-2">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
-            <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Reservas</h2>
+            <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Reservas Diarias</h2>
             <Link href="/reservations" className="text-[10px] font-bold uppercase text-primary hover:underline">
               Ver todas
             </Link>
@@ -424,9 +430,11 @@ export default async function DashboardPage() {
               </ul>
             )}
           </div>
-          <div className="border-t border-border bg-muted/40 p-4">
-            <Link href="/payments" className={buttonVariants({ variant: "outline", size: "sm", className: "w-full" })}>
-              <Wallet className="h-3.5 w-3.5" />
+          <div className="border-t border-border bg-muted p-4">
+            <Link
+              href="/payments"
+              className="flex w-full items-center justify-center rounded border border-border bg-card py-2 text-[10px] font-bold uppercase text-foreground transition-colors hover:bg-muted"
+            >
               Gestionar Pagos
             </Link>
           </div>
