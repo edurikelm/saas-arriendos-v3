@@ -116,11 +116,11 @@ export function DashboardSidebar({
                   key={item.href}
                   href={item.href}
                   onClick={onClose}
-                  className={cn(
+className={cn(
                     "flex items-center gap-3 px-3 py-2 rounded text-sm transition-colors",
                     isActive
                       ? "bg-primary/10 text-primary font-medium"
-                      : "text-muted hover:bg-sidebar-accent hover:text-foreground"
+                      : "text-foreground hover:bg-sidebar-accent"
                   )}
                 >
                   <Icon className="h-5 w-5 shrink-0" />
