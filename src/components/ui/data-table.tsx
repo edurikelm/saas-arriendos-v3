@@ -16,11 +16,11 @@ export function DataTable({ headers, children, emptyState, caption, className }:
         <table className="w-full">
           {caption && <caption className="sr-only">{caption}</caption>}
           <thead>
-            <tr className="border-b bg-muted/50 text-left">
+            <tr className="border-b text-left">
               {headers.map((header) => (
                 <th
                   key={header}
-                  className="px-6 py-3 text-left align-middle text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+                  className="px-6 py-4 text-left align-middle text-[10px] font-bold uppercase tracking-wider text-foreground/70"
                 >
                   {header}
                 </th>

@@ -287,7 +287,7 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                     {formatDate(res.startDate)} - {formatDate(res.endDate)}
                   </div>
                   <div className="mt-0.5">
-                    <span className="text-[9px] text-muted uppercase font-bold tracking-tight">{duration}</span>
+                    <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-tight">{duration}</span>
                   </div>
                 </td>
                 {/* Finanzas */}

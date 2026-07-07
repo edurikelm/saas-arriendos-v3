@@ -261,7 +261,7 @@ export function ReservationsListClient({
                   className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
                     serverFilters.propertyId
                       ? "bg-primary/10 border-primary/20 text-primary"
-                      : "bg-white border-border text-foreground hover:border-primary"
+                      : "bg-card border-border text-foreground hover:border-primary"
                   }`}
                 >
                   Propiedad
@@ -292,7 +292,7 @@ export function ReservationsListClient({
                   className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
                     serverFilters.status
                       ? "bg-primary/10 border-primary/20 text-primary"
-                      : "bg-white border-border text-foreground hover:border-primary"
+                      : "bg-card border-border text-foreground hover:border-primary"
                   }`}
                 >
                   Estado
@@ -338,7 +338,7 @@ export function ReservationsListClient({
                   className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
                     serverFilters.billingType
                       ? "bg-primary/10 border-primary/20 text-primary"
-                      : "bg-white border-border text-foreground hover:border-primary"
+                      : "bg-card border-border text-foreground hover:border-primary"
                   }`}
                 >
                   Tipo
@@ -372,7 +372,7 @@ export function ReservationsListClient({
                   className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
                     paymentFilter
                       ? "bg-primary/10 border-primary/20 text-primary"
-                      : "bg-white border-border text-foreground hover:border-primary"
+                      : "bg-card border-border text-foreground hover:border-primary"
                   }`}
                 >
                   Pago
@@ -572,3 +572,4 @@ export function ReservationsListClient({
     </div>
   );
 }
+
