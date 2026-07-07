@@ -20,7 +20,6 @@ export type CalendarReservation = {
   property: {
     id: string;
     name: string;
-    color: string;
   };
   client: {
     name: string;

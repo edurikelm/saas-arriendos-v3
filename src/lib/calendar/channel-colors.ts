@@ -11,7 +11,7 @@ export interface ChannelColors {
  * Semantic token mapping for external calendar channels.
  * AIRBNB → info (teal) | BOOKING_COM → primary (teal) | VRBO → accent (mint) | OTHER → muted
  *
- * Consumed by calendar-timeline.tsx and calendar-grid.tsx for consistent channel markers.
+ * Consumed by calendar-timeline.tsx for consistent channel markers.
  * Decision via grill-with-docs (PRD ID-6, slice S3).
  */
 export const channelColors: Record<Channel, ChannelColors> = {

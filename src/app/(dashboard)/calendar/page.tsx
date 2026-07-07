@@ -39,7 +39,6 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
       properties={properties.map((p) => ({
         id: p.id,
         name: p.name,
-        color: p.color ?? undefined,
         unitsAvailable: p.unitsAvailable,
         dailyPrice: p.dailyPrice,
         monthlyPrice: p.monthlyPrice,
