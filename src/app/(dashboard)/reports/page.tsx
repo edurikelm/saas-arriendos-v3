@@ -16,6 +16,7 @@ import { exportToExcel, exportToPDF, type ReservationDetail, type PropertySummar
 import { ExecutiveKpiCard } from "@/components/reports/executive-kpi-card";
 import { ModelDistributionCard } from "@/components/reports/model-distribution-card";
 import { PropertySummaryTable, type PropertySummaryRow } from "@/components/reports/property-summary-table";
+import { RevenueBarChart } from "@/components/reports/revenue-bar-chart";
 import { startOfMonth, endOfMonth, subMonths, format } from "date-fns";
 import { es } from "date-fns/locale/es";
 
@@ -318,6 +319,11 @@ export default function ReportsPage() {
     }).sort((a, b) => b.revenue - a.revenue);
   }, [reservationDetails, properties, effectiveDateRange.from, effectiveDateRange.to]);
 
+  const last6Months = useMemo(
+    () => revenueData.slice(-6).map((r) => ({ month: r.month, revenue: r.totalRevenue })),
+    [revenueData]
+  );
+
   const isFreePlan = session?.plan === "FREE";
 
   const collectionClients = useMemo(() => {
@@ -613,6 +619,10 @@ export default function ReportsPage() {
 
           {propertySummary.length > 0 && (
             <PropertySummaryTable rows={propertySummary} />
+          )}
+
+          {last6Months.length > 0 && (
+            <RevenueBarChart data={last6Months} />
           )}
 
           <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
