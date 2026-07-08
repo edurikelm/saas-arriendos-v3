@@ -16,10 +16,6 @@ import {
   Plus,
   Loader2,
   MoreHorizontal,
-  Info,
-  CheckCircle2,
-  AlertCircle,
-  Hash,
   X as XIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -699,21 +695,9 @@ onRefresh?.(reservation.id);
                   <div className="h-12 w-12 shrink-0 rounded-lg bg-muted ring-1 ring-foreground/10 flex items-center justify-center text-muted-foreground">
                     <Home className="h-5 w-5" />
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold text-foreground truncate">
-                      {reservation.property.name}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
-                      {reservation.property.color && (
-                        <span
-                          className="h-2 w-2 shrink-0 rounded-full ring-1 ring-foreground/10"
-                          style={{ backgroundColor: reservation.property.color }}
-                          aria-hidden="true"
-                        />
-                      )}
-                      <span className="truncate">Color personalizado</span>
-                    </p>
-                  </div>
+                  <p className="text-sm font-bold text-foreground truncate min-w-0">
+                    {reservation.property.name}
+                  </p>
                 </div>
               </div>
 
@@ -776,30 +760,6 @@ onRefresh?.(reservation.id);
               </div>
             </div>
           </div>
-
-          {/* Status banner (info) */}
-          {reservation.status === "CANCELLED" ? (
-            <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2.5">
-              <AlertCircle className="h-4 w-4 text-destructive" />
-              <span className="text-xs font-bold text-destructive uppercase tracking-tight">
-                Reserva cancelada
-              </span>
-            </div>
-          ) : totalPending > 0 ? (
-            <div className="flex items-center gap-2 rounded-lg border border-info/20 bg-info/10 px-3 py-2.5">
-              <Info className="h-4 w-4 text-info" />
-              <span className="text-xs font-bold text-info uppercase tracking-tight">
-                Pago parcial · Saldo pendiente
-              </span>
-            </div>
-          ) : reservation.payments.length > 0 ? (
-            <div className="flex items-center gap-2 rounded-lg border border-success/20 bg-success/10 px-3 py-2.5">
-              <CheckCircle2 className="h-4 w-4 text-success" />
-              <span className="text-xs font-bold text-success uppercase tracking-tight">
-                Reserva saldada
-              </span>
-            </div>
-          ) : null}
 
         {reservation.notes && (
           <div className="p-3 rounded-md bg-muted/30 border border-border">
@@ -894,11 +854,7 @@ onRefresh?.(reservation.id);
         )}
         </div>
 
-        <DialogFooter className="border-t border-border bg-muted/30 px-5 py-3 sm:flex-row sm:justify-end sm:gap-2">
-          <span className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground font-mono mr-auto">
-            <Hash className="h-3 w-3" />
-            {reservation.id.slice(0, 8)}
-          </span>
+        <DialogFooter className="-mx-0 -mb-0 gap-0 border-t border-border bg-muted/30 px-5 py-3 sm:flex-row sm:justify-end sm:gap-2">
           <Button variant="outline" size="sm" className="h-8" onClick={onEdit}>
             Editar Reserva
           </Button>
