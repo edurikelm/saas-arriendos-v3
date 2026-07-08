@@ -4,8 +4,10 @@ import { useState } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import {
-  Calendar,
-  User,
+  CalendarDays,
+  Mail,
+  Phone,
+  Home,
   Check,
   RefreshCw,
   FileText,
@@ -14,6 +16,11 @@ import {
   Plus,
   Loader2,
   MoreHorizontal,
+  Info,
+  CheckCircle2,
+  AlertCircle,
+  Hash,
+  X as XIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +38,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -598,30 +607,6 @@ onRefresh?.(reservation.id);
     }
   };
 
-  const handleGenerateLink = async (amount: number) => {
-    void amount;
-    if (amount <= 0) return;
-    try {
-      const res = await fetch("/api/payments/generate-link", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          reservationId: reservation.id,
-          amount,
-        }),
-      });
-      const result = await res.json();
-      if (result.error) {
-        toast.error(result.error);
-        return;
-      }
-      toast.success("Link generado - Copia el link desde el listado de pagos");
-      onRefresh?.(reservation.id);
-    } catch {
-      toast.error("Error al generar link");
-    }
-  };
-  void handleGenerateLink;
   return (
     <Dialog
       open={open}
@@ -629,99 +614,200 @@ onRefresh?.(reservation.id);
         if (!nextOpen) onClose();
       }}
     >
-      <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-y-auto p-0">
-        <div className="space-y-6 p-5 sm:p-6">
-          <div className="flex items-start justify-between gap-4 pr-8">
+      <DialogContent className="w-[95vw] max-w-2xl gap-0 p-0 overflow-hidden" showCloseButton={false}>
+        <DialogHeader className="border-b border-border px-5 py-4 flex-row items-center justify-between gap-2 space-y-0">
+          <div className="space-y-1">
+            <DialogTitle>Detalles de la Reserva</DialogTitle>
+            <DialogDescription>
+              Información de la estadía, pagos y datos de contacto.
+            </DialogDescription>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="text-muted-foreground hover:text-foreground -mr-2"
+          >
+            <XIcon />
+          </Button>
+        </DialogHeader>
+
+        <div className="space-y-6 p-5 sm:p-6 overflow-y-auto max-h-[calc(90vh-132px)]">
+          {/* Guest & Status Header */}
+          <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
-              <div
-                className="h-12 w-12 shrink-0 rounded-xl flex items-center justify-center text-white font-bold shadow-sm"
-                style={{ backgroundColor: reservation.property.color || "var(--primary)" }}
-              >
-                {reservation.property.name[0]}
+              <div className="h-14 w-14 shrink-0 rounded-full bg-primary/10 ring-1 ring-foreground/10 flex items-center justify-center text-primary text-xl font-bold">
+                {reservation.client.name
+                  .split(" ")
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((part) => part[0])
+                  .join("")
+                  .toUpperCase()}
               </div>
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <DialogTitle className="text-base leading-tight truncate">{reservation.property.name}</DialogTitle>
-                  <Badge variant={status.variant} className="h-5 text-[11px]">{status.label}</Badge>
-                  {reservation.bookingAirbnb && <Badge variant="outline" className="h-5 text-[11px]">Airbnb</Badge>}
+                <h3 className="text-lg font-bold text-foreground leading-tight truncate">
+                  {reservation.client.name}
+                </h3>
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-foreground">
+                  <a
+                    href={`mailto:${reservation.client.email}`}
+                    className="inline-flex items-center gap-1.5 hover:text-primary transition-colors"
+                  >
+                    <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="truncate max-w-[180px]">{reservation.client.email}</span>
+                  </a>
+                  {reservation.client.phone && (
+                    <a
+                      href={`tel:${reservation.client.phone}`}
+                      className="inline-flex items-center gap-1.5 hover:text-primary transition-colors"
+                    >
+                      <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span>{reservation.client.phone}</span>
+                    </a>
+                  )}
                 </div>
-                <p className="text-xs text-muted-foreground">#{reservation.id.slice(0, 8)}</p>
               </div>
+            </div>
+            <div className="flex flex-col items-end gap-1.5 shrink-0">
+              <Badge variant={status.variant} className="h-5 text-[10px] font-bold uppercase tracking-wider">
+                <span className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full ${
+                  status.variant === "default" ? "bg-success" :
+                  status.variant === "destructive" ? "bg-destructive" :
+                  "bg-muted-foreground"
+                }`} />
+                {status.label}
+              </Badge>
+              {reservation.bookingAirbnb && (
+                <Badge variant="outline" className="h-5 text-[10px] font-bold uppercase tracking-wider">
+                  Airbnb
+                </Badge>
+              )}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_1.35fr]">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-              <div className="rounded-xl border border-border/70 bg-muted/20 p-3.5">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Calendar className="h-3 w-3" />
-                  Período
-                </div>
-                <p className="mt-2 text-sm font-medium text-foreground">
-                  {formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}
+          {/* Property + Stay + Payment Summary grid */}
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            {/* Left: Property + Stay */}
+            <div className="space-y-5">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">
+                  Propiedad
                 </p>
-                <p className="text-xs text-muted-foreground">{reservation.billingType === "MONTHLY" ? `${getMonths(reservation.startDate, reservation.endDate)} meses` : `${nights} noches`}</p>
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 shrink-0 rounded-lg bg-muted ring-1 ring-foreground/10 flex items-center justify-center text-muted-foreground">
+                    <Home className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-foreground truncate">
+                      {reservation.property.name}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                      {reservation.property.color && (
+                        <span
+                          className="h-2 w-2 shrink-0 rounded-full ring-1 ring-foreground/10"
+                          style={{ backgroundColor: reservation.property.color }}
+                          aria-hidden="true"
+                        />
+                      )}
+                      <span className="truncate">Color personalizado</span>
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              <div className="rounded-xl border border-border/70 bg-muted/20 p-3.5">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <User className="h-3 w-3" />
-                  Huésped
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">
+                  Estancia
+                </p>
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 shrink-0 rounded-lg bg-muted ring-1 ring-foreground/10 flex items-center justify-center text-muted-foreground">
+                    <CalendarDays className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-foreground">
+                      {formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {reservation.billingType === "MONTHLY" ? `${getMonths(reservation.startDate, reservation.endDate)} meses` : `${nights} noches`}
+                    </p>
+                  </div>
                 </div>
-                <p className="mt-2 font-medium text-sm">{reservation.client.name}</p>
-                <p className="text-xs text-muted-foreground truncate">{reservation.client.email}</p>
-                {reservation.client.phone && <p className="text-xs text-muted-foreground">{reservation.client.phone}</p>}
               </div>
             </div>
 
-            <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Total general</p>
-                  <p className="mt-1 text-3xl font-semibold tracking-tight text-success">{formatPrice(grandTotal)}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Arriendo + cobros extra</p>
+            {/* Right: Payment Summary Card */}
+            <div className="rounded-lg border border-border overflow-hidden ring-1 ring-foreground/10">
+              <div className="px-4 py-3 border-b border-border bg-muted/50">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Resumen de Pago
+                </p>
+              </div>
+              <div className="p-4 space-y-3">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-muted-foreground">Total de estadía</span>
+                  <span className="font-medium text-foreground tabular-nums">{formatPrice(reservation.totalPrice)}</span>
                 </div>
-                {totalPending > 0 && (
-                  <div className="rounded-lg border border-warning/20 bg-warning/10 px-3 py-2 text-left sm:text-right">
-                    <p className="text-xs text-muted-foreground">Pendiente</p>
-                    <p className="text-sm font-semibold text-warning">{formatPrice(totalPending)}</p>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-muted-foreground">Servicios extra</span>
+                  <span className="font-medium text-foreground tabular-nums">{formatPrice(extraTotal)}</span>
+                </div>
+                <div className="pt-2 border-t border-border/50 flex justify-between items-center text-xs">
+                  <span className="font-semibold text-foreground">Monto pagado</span>
+                  <span className="font-bold text-success tabular-nums">{formatPrice(totalPaid)}</span>
+                </div>
+                {pendingAmount > 0 && (
+                  <div className="-mt-1 text-[11px] text-muted-foreground text-right">
+                    <span className="font-medium text-warning">{formatPrice(pendingAmount)} pend.</span>
+                  </div>
+                )}
+                {totalPending > 0 ? (
+                  <div className="flex justify-between items-center text-xs p-2 rounded bg-warning/10 ring-1 ring-warning/20">
+                    <span className="font-semibold text-warning-foreground">Saldo pendiente</span>
+                    <span className="font-bold text-warning tabular-nums">{formatPrice(totalPending)}</span>
+                  </div>
+                ) : (
+                  <div className="flex justify-between items-center text-xs p-2 rounded bg-success/10 ring-1 ring-success/20">
+                    <span className="font-semibold text-success">Saldado</span>
+                    <span className="font-bold text-success tabular-nums">$0</span>
                   </div>
                 )}
               </div>
-
-              <div className="mt-4 grid gap-2 sm:grid-cols-3">
-                <div className="rounded-lg bg-background/40 p-3">
-                  <p className="text-xs text-muted-foreground">Arriendo</p>
-                  <p className="text-sm font-medium">{formatPrice(reservation.totalPrice)}</p>
-                  {reservation.billingType === "MONTHLY" && reservation.property.monthlyPrice && (
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">{formatPrice(reservation.property.monthlyPrice)}/mes × {getMonths(reservation.startDate, reservation.endDate)}</p>
-                  )}
-                  {reservation.billingType === "DAILY" && reservation.property.dailyPrice && (
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">{formatPrice(reservation.property.dailyPrice)}/noche × {nights}</p>
-                  )}
-                  {pendingAmount > 0 && <p className="mt-0.5 text-[11px] text-warning">{formatPrice(pendingAmount)} pend.</p>}
-                </div>
-                <div className="rounded-lg bg-background/40 p-3">
-                  <p className="text-xs text-muted-foreground">Extras</p>
-                  <p className="text-sm font-medium">{formatPrice(extraTotal)}</p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">{extraPayments.length === 1 ? "1 cobro" : `${extraPayments.length} cobros`}</p>
-                </div>
-                <div className="rounded-lg bg-background/40 p-3">
-                  <p className="text-xs text-muted-foreground">Pagado</p>
-                  <p className="text-sm font-medium">{formatPrice(totalPaid)}</p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">Pendiente {formatPrice(totalPending)}</p>
-                </div>
-              </div>
             </div>
           </div>
 
+          {/* Status banner (info) */}
+          {reservation.status === "CANCELLED" ? (
+            <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2.5">
+              <AlertCircle className="h-4 w-4 text-destructive" />
+              <span className="text-xs font-bold text-destructive uppercase tracking-tight">
+                Reserva cancelada
+              </span>
+            </div>
+          ) : totalPending > 0 ? (
+            <div className="flex items-center gap-2 rounded-lg border border-info/20 bg-info/10 px-3 py-2.5">
+              <Info className="h-4 w-4 text-info" />
+              <span className="text-xs font-bold text-info uppercase tracking-tight">
+                Pago parcial · Saldo pendiente
+              </span>
+            </div>
+          ) : reservation.payments.length > 0 ? (
+            <div className="flex items-center gap-2 rounded-lg border border-success/20 bg-success/10 px-3 py-2.5">
+              <CheckCircle2 className="h-4 w-4 text-success" />
+              <span className="text-xs font-bold text-success uppercase tracking-tight">
+                Reserva saldada
+              </span>
+            </div>
+          ) : null}
+
         {reservation.notes && (
-          <div className="p-3 rounded-md bg-muted/30 border border-border mb-6">
+          <div className="p-3 rounded-md bg-muted/30 border border-border">
             <div className="flex items-center gap-2 mb-1">
               <FileText className="h-3 w-3 text-muted-foreground" />
-              <p className="text-xs text-muted-foreground">Notas</p>
+              <p className="text-xs font-medium text-muted-foreground">Notas</p>
             </div>
-            <p className="text-sm">{reservation.notes}</p>
+            <p className="text-sm text-foreground whitespace-pre-wrap">{reservation.notes}</p>
           </div>
         )}
 
@@ -730,7 +816,7 @@ onRefresh?.(reservation.id);
         )}
 
         {(reservationPayments.length > 0 || reservation.payments.length > 0) && (
-          <div className="mb-6 space-y-6">
+          <div className="space-y-6">
             {reservationPayments.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-3">
@@ -743,7 +829,7 @@ onRefresh?.(reservation.id);
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-7 text-xs"
+                          className="h-7 text-[10px] font-bold uppercase tracking-wider border-primary text-primary hover:bg-primary/10"
                           onClick={handleRefreshPayments}
                           disabled={isCheckingAllPayments}
                         >
@@ -753,8 +839,7 @@ onRefresh?.(reservation.id);
                       )}
                       <Button
                         size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
+                        className="h-7 text-[10px] font-bold uppercase tracking-wider"
                         onClick={() => setShowAddPaymentDialog(true)}
                       >
                         <Plus className="h-3 w-3 mr-1" />
@@ -763,7 +848,7 @@ onRefresh?.(reservation.id);
                     </div>
                   )}
                 </div>
-<PaymentsTable
+                <PaymentsTable
                   payments={reservationPayments}
                   onGenerateLink={handleRegenerateLink}
                   onMarkPaid={handleMarkPaidClick}
@@ -781,7 +866,7 @@ onRefresh?.(reservation.id);
                 <div className="mb-3">
                   <p className="text-sm font-medium">Cobros extra</p>
                 </div>
-<PaymentsTable
+                <PaymentsTable
                   payments={extraPayments}
                   onGenerateLink={handleRegenerateLink}
                   onMarkPaid={handleMarkPaidClick}
@@ -798,27 +883,31 @@ onRefresh?.(reservation.id);
         )}
 
         {reservation.status !== "CANCELLED" && reservation.status !== "COMPLETED" && reservation.payments?.length === 0 && (
-          <div className="mb-6">
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full h-8"
-              onClick={() => setShowAddPaymentDialog(true)}
-            >
-              <Plus className="h-3 w-3 mr-1" />
-              Agregar Pago
-            </Button>
-          </div>
+          <Button
+            size="sm"
+            className="w-full h-8 text-[10px] font-bold uppercase tracking-wider"
+            onClick={() => setShowAddPaymentDialog(true)}
+          >
+            <Plus className="h-3 w-3 mr-1" />
+            Agregar Pago
+          </Button>
         )}
-
-
-
-        <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t border-border mt-6">
-          <Button variant="outline" size="sm" className="flex-1 h-8" onClick={onEdit}>Editar Reserva</Button>
-          {reservation.status !== "CANCELLED" && reservation.status !== "COMPLETED" && (
-            <Button variant="destructive" size="sm" className="h-8" onClick={onCancel}>Cancelar</Button>
-          )}
         </div>
+
+        <DialogFooter className="border-t border-border bg-muted/30 px-5 py-3 sm:flex-row sm:justify-end sm:gap-2">
+          <span className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground font-mono mr-auto">
+            <Hash className="h-3 w-3" />
+            {reservation.id.slice(0, 8)}
+          </span>
+          <Button variant="outline" size="sm" className="h-8" onClick={onEdit}>
+            Editar Reserva
+          </Button>
+          {reservation.status !== "CANCELLED" && reservation.status !== "COMPLETED" && (
+            <Button variant="destructive" size="sm" className="h-8" onClick={onCancel}>
+              Cancelar
+            </Button>
+          )}
+        </DialogFooter>
 
         <Dialog open={showMarkPaidModal} onOpenChange={setShowMarkPaidModal}>
           <DialogContent className="w-[95vw] max-w-sm">
@@ -909,7 +998,6 @@ onRefresh?.(reservation.id);
           propertyName={reservation.property.name}
           billingType={reservation.billingType}
         />
-        </div>
       </DialogContent>
     </Dialog>
   );
