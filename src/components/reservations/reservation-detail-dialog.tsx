@@ -741,11 +741,6 @@ onRefresh?.(reservation.id);
                   <span className="font-semibold text-foreground">Monto pagado</span>
                   <span className="font-bold text-success tabular-nums">{formatPrice(totalPaid)}</span>
                 </div>
-                {pendingAmount > 0 && (
-                  <div className="-mt-1 text-[11px] text-muted-foreground text-right">
-                    <span className="font-medium text-warning">{formatPrice(pendingAmount)} pend.</span>
-                  </div>
-                )}
                 {totalPending > 0 ? (
                   <div className="flex justify-between items-center text-xs p-2 rounded bg-warning/10 ring-1 ring-warning/20">
                     <span className="font-semibold text-warning-foreground">Saldo pendiente</span>

@@ -286,7 +286,11 @@ describe('ReservationDetailDialog - paymentType separation', () => {
       />
     );
 
-    // 150000 pend = 200000 total - 50000 completed reservation
-    expect(screen.getByText(/\$?150\.?000.*pend\.?/i)).toBeTruthy();
+    // paidAmount should only count RESERVATION COMPLETED payments:
+    // p1 ($50k RESERVATION COMPLETED) counts, p2 ($40k EXTRA) and p3 ($30k PENDING) don't.
+    // 200000 total - 50000 paid = 150000 pending (shown in the "Saldo pendiente" row).
+    // "Monto pagado" should reflect RESERVATION COMPLETED only ($50k), excluding the $40k EXTRA.
+    expect(screen.getByText('$150.000')).toBeTruthy();
+    expect(screen.getByText('$50.000')).toBeTruthy();
   });
 });
