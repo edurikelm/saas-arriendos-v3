@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { BarChart3, TrendingUp, Building2, Calendar, FileSpreadsheet, SlidersHorizontal, Download, ChevronDown } from "lucide-react";
+import { BarChart3, TrendingUp, Calendar, FileSpreadsheet, SlidersHorizontal, Download, ChevronDown } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ import { getProperties } from "@/lib/actions/properties";
 import { exportToExcel, exportToPDF, type ReservationDetail, type PropertySummary } from "@/lib/export-utils";
 import { ExecutiveKpiCard } from "@/components/reports/executive-kpi-card";
 import { ModelDistributionCard } from "@/components/reports/model-distribution-card";
+import { PropertySummaryTable, type PropertySummaryRow } from "@/components/reports/property-summary-table";
 import { startOfMonth, endOfMonth, subMonths, format } from "date-fns";
 import { es } from "date-fns/locale/es";
 
@@ -216,6 +217,107 @@ export default function ReportsPage() {
     };
   }, [reservationDetails]);
 
+  // Period days: si hay rango explícito, usa el rango; si no, usa el rango natural de las reservas;
+  // si no hay reservas, días del mes actual como fallback razonable.
+  const periodDays = useMemo(() => {
+    if (effectiveDateRange.from && effectiveDateRange.to) {
+      return Math.max(
+        Math.ceil((effectiveDateRange.to.getTime() - effectiveDateRange.from.getTime()) / (1000 * 60 * 60 * 24)) + 1,
+        1
+      );
+    }
+    if (reservationDetails.length > 0) {
+      const minStart = Math.min(...reservationDetails.map((r) => r.startDate.getTime()));
+      const maxEnd = Math.max(...reservationDetails.map((r) => r.endDate.getTime()));
+      return Math.max(Math.ceil((maxEnd - minStart) / (1000 * 60 * 60 * 24)) + 1, 1);
+    }
+    return new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+  }, [effectiveDateRange.from, effectiveDateRange.to, reservationDetails]);
+
+  const propertySummary = useMemo<PropertySummaryRow[]>(() => {
+    const map = new Map<string, {
+      propertyName: string;
+      dailyRevenue: number;
+      monthlyRevenue: number;
+      dailyNights: number;
+      monthlyDays: number;
+      totalRevenue: number;
+    }>();
+
+    reservationDetails.forEach((r) => {
+      const nights = Math.ceil((r.endDate.getTime() - r.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+      if (!map.has(r.propertyName)) {
+        map.set(r.propertyName, {
+          propertyName: r.propertyName,
+          dailyRevenue: 0,
+          monthlyRevenue: 0,
+          dailyNights: 0,
+          monthlyDays: 0,
+          totalRevenue: 0,
+        });
+      }
+
+      const entry = map.get(r.propertyName)!;
+      if (r.billingType === "DAILY") {
+        entry.dailyRevenue += r.totalPrice;
+        entry.dailyNights += nights;
+      } else {
+        entry.monthlyRevenue += r.totalPrice;
+        entry.monthlyDays += nights;
+      }
+      entry.totalRevenue += r.totalPrice;
+    });
+
+    const totalRevenueSum = Array.from(map.values()).reduce((acc, e) => acc + e.totalRevenue, 0);
+    const totalProps = map.size;
+    const avgRevenue = totalProps > 0 ? totalRevenueSum / totalProps : 0;
+
+    return Array.from(map.values()).map((entry) => {
+      const hasDaily = entry.dailyRevenue > 0 || entry.dailyNights > 0;
+      const hasMonthly = entry.monthlyRevenue > 0 || entry.monthlyDays > 0;
+      const modality: "Diario" | "Mensual" | "Mixto" =
+        hasDaily && hasMonthly ? "Mixto" :
+        hasDaily ? "Diario" :
+        "Mensual";
+
+      let nightsOrDays: PropertySummaryRow["nightsOrDays"];
+      if (modality === "Mixto") {
+        const parts: string[] = [];
+        if (entry.dailyNights > 0) parts.push(`${entry.dailyNights} ${entry.dailyNights === 1 ? "Noche" : "Noches"}`);
+        if (entry.monthlyDays > 0) parts.push(`${entry.monthlyDays} ${entry.monthlyDays === 1 ? "Día" : "Días"}`);
+        nightsOrDays = { label: parts.join(" + ") || "—" };
+      } else if (modality === "Diario") {
+        const n = entry.dailyNights;
+        nightsOrDays = { nights: n, label: `${n} ${n === 1 ? "Noche" : "Noches"}` };
+      } else {
+        const d = entry.monthlyDays;
+        nightsOrDays = { days: d, label: `${d} ${d === 1 ? "Día" : "Días"}` };
+      }
+
+      const propData = properties.find((p) => p.name === entry.propertyName);
+      const units = propData?.unitsAvailable || 1;
+      const maxPossibleNights = Math.max(periodDays, 1) * Math.max(units, 1);
+      const totalOccupiedNights = entry.dailyNights + entry.monthlyDays;
+      const occupancyRate = maxPossibleNights > 0 && totalOccupiedNights > 0
+        ? Math.min(100, Math.round((totalOccupiedNights / maxPossibleNights) * 100))
+        : 0;
+
+      const performance = avgRevenue > 0
+        ? Math.round(((entry.totalRevenue / avgRevenue) - 1) * 1000) / 10
+        : 0;
+
+      return {
+        propertyName: entry.propertyName,
+        modality,
+        nightsOrDays,
+        revenue: entry.totalRevenue,
+        occupancyRate,
+        performance,
+      };
+    }).sort((a, b) => b.revenue - a.revenue);
+  }, [reservationDetails, properties, effectiveDateRange.from, effectiveDateRange.to]);
+
   const isFreePlan = session?.plan === "FREE";
 
   const collectionClients = useMemo(() => {
@@ -269,18 +371,6 @@ export default function ReportsPage() {
     : stats?.monthlyRevenue ?? 0;
 
   const totalNights = occupancyData.reduce((acc, p) => acc + p.totalNights, 0);
-
-  // Ocupación real: noches reservadas / (días del período × unidades totales disponibles) × 100
-  const periodDays = useMemo(() => {
-    if (effectiveDateRange.from && effectiveDateRange.to) {
-      return Math.max(
-        Math.ceil((effectiveDateRange.to.getTime() - effectiveDateRange.from.getTime()) / (1000 * 60 * 60 * 24)) + 1,
-        1
-      );
-    }
-    // default "Mes actual": días del mes en curso
-    return new Date(effectiveDateRange.to ?? new Date()).getDate();
-  }, [effectiveDateRange.from, effectiveDateRange.to]);
 
   const totalUnits = properties.reduce((acc, p) => acc + (p.unitsAvailable || 1), 0);
   const maxPossibleNights = Math.max(periodDays, 1) * Math.max(totalUnits, 1);
@@ -521,53 +611,8 @@ export default function ReportsPage() {
               </div>
             )}
 
-          {groupedByProperty.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Building2 className="h-5 w-5" />
-                  Resumen por Propiedad
-                </CardTitle>
-                <CardDescription>
-                  Subtotales de ingresos, reservas y noches
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {groupedByProperty.map((item) => (
-                    <div key={item.propertyName} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                      <div>
-                        <p className="font-medium">{item.propertyName}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {item.totalReservations} reservas · {item.totalNights} noches
-                        </p>
-                      </div>
-                      <div className="text-right space-y-1">
-                        <p className="font-medium text-primary">
-                          {item.totalRevenue.toLocaleString("CLP")}
-                        </p>
-                        <div className="flex gap-4 text-xs text-muted-foreground">
-                          <span>Pagado: {item.paidRevenue.toLocaleString("CLP")}</span>
-                          <span>Pendiente: {item.pendingRevenue.toLocaleString("CLP")}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg font-semibold border-2 border-primary/20">
-                    <span>TOTAL</span>
-                    <div className="text-right">
-                      <p className="text-primary">
-                        {groupedByProperty.reduce((acc, s) => acc + s.totalRevenue, 0).toLocaleString("CLP")}
-                      </p>
-                      <p className="text-xs text-muted-foreground font-normal">
-                        {groupedByProperty.reduce((acc, s) => acc + s.totalReservations, 0)} reservas ·{" "}
-                        {groupedByProperty.reduce((acc, s) => acc + s.totalNights, 0)} noches
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          {propertySummary.length > 0 && (
+            <PropertySummaryTable rows={propertySummary} />
           )}
 
           <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
