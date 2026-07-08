@@ -552,6 +552,7 @@ onRefresh?.(reservation.id);
         toast.error(result.error);
         return;
       }
+      toast.success("Pagos actualizados");
       onRefresh?.(reservation.id);
     } catch {
       toast.error("Error al refrescar pagos");
