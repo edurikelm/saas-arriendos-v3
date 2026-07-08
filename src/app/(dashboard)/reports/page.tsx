@@ -792,8 +792,24 @@ export default function ReportsPage() {
                         <tr key={row.reservationId} className="border-b last:border-0">
                           <td className="py-2 pr-3">{row.propertyName}</td>
                           <td className="py-2 pr-3">{row.clientName}</td>
-                          <td className="py-2 pr-3">{row.billingType === "DAILY" ? "Diario" : "Mensual"}</td>
-                          <td className="py-2 pr-3">{row.reservationStatus}</td>
+                          <td className="py-2 pr-3">
+                            <Badge variant="outline">
+                              {row.billingType === "DAILY" ? "Diario" : "Mensual"}
+                            </Badge>
+                          </td>
+                          <td className="py-2 pr-3">
+                            <Badge variant={
+                              row.reservationStatus === "PENDING" ? "warning" :
+                              row.reservationStatus === "CONFIRMED" ? "success" :
+                              row.reservationStatus === "CANCELLED" ? "destructive" :
+                              "secondary"
+                            }>
+                              {row.reservationStatus === "PENDING" ? "Pendiente" :
+                               row.reservationStatus === "CONFIRMED" ? "Confirmada" :
+                               row.reservationStatus === "CANCELLED" ? "Cancelada" :
+                               "Completada"}
+                            </Badge>
+                          </td>
                           <td className="py-2 pr-3">{row.totalRent.toLocaleString("CLP")}</td>
                           <td className="py-2 pr-3">{row.paid.toLocaleString("CLP")}</td>
                           <td className="py-2 pr-3">{row.pending.toLocaleString("CLP")}</td>
