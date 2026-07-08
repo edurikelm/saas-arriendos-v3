@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { BarChart3, TrendingUp, Calendar, FileSpreadsheet, SlidersHorizontal, Download, ChevronDown } from "lucide-react";
+import { BarChart3, TrendingUp, Calendar, FileSpreadsheet, SlidersHorizontal, Download, ChevronDown, Wallet } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -702,14 +702,17 @@ export default function ReportsPage() {
             </Card>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Reporte de Cobranza</CardTitle>
-              <CardDescription>
-                Deuda activa por reserva con arriendo y extras separados
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <div className="bg-card border border-border rounded overflow-hidden mb-6">
+            <div className="px-4 py-4 border-b border-border flex justify-between items-center bg-muted/30">
+              <div className="flex items-center gap-2">
+                <Wallet className="text-primary size-5" />
+                <h2 className="text-xs font-bold text-foreground uppercase tracking-wider">
+                  Reporte de Cobranza Detallado
+                </h2>
+              </div>
+            </div>
+
+            <div className="p-4 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <Select value={collectionBillingType} onValueChange={(value) => {
                   setCollectionBillingType((value ?? "GENERAL") as "GENERAL" | "DAILY" | "MONTHLY");
@@ -763,24 +766,24 @@ export default function ReportsPage() {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left">
-                      <th className="py-2 pr-3">Propiedad</th>
-                      <th className="py-2 pr-3">Cliente</th>
-                      <th className="py-2 pr-3">Tipo</th>
-                      <th className="py-2 pr-3">Estado reserva</th>
-                      <th className="py-2 pr-3">Total arriendo</th>
-                      <th className="py-2 pr-3">Pagado</th>
-                      <th className="py-2 pr-3">Pendiente</th>
-                      <th className="py-2 pr-3">Vencido</th>
-                      <th className="py-2 pr-3">Próx. vencimiento</th>
-                      <th className="py-2 pr-3">Extras pagados</th>
-                      <th className="py-2 pr-3">Extras pendientes</th>
-                      <th className="py-2 pr-3">Total por cobrar</th>
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-muted/50 border-b border-border">
+                    <tr className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                      <th className="px-6 py-3">Propiedad</th>
+                      <th className="px-6 py-3">Cliente</th>
+                      <th className="px-6 py-3">Tipo</th>
+                      <th className="px-6 py-3">Estado reserva</th>
+                      <th className="px-6 py-3">Total arriendo</th>
+                      <th className="px-6 py-3">Pagado</th>
+                      <th className="px-6 py-3">Pendiente</th>
+                      <th className="px-6 py-3">Vencido</th>
+                      <th className="px-6 py-3">Próx. vencimiento</th>
+                      <th className="px-6 py-3">Extras pagados</th>
+                      <th className="px-6 py-3">Extras pendientes</th>
+                      <th className="px-6 py-3">Total por cobrar</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-border text-xs">
                     {collectionRows.length === 0 ? (
                       <tr>
                         <td className="py-6 text-center text-muted-foreground" colSpan={12}>
@@ -789,15 +792,15 @@ export default function ReportsPage() {
                       </tr>
                     ) : (
                       collectionRows.map((row) => (
-                        <tr key={row.reservationId} className="border-b last:border-0">
-                          <td className="py-2 pr-3">{row.propertyName}</td>
-                          <td className="py-2 pr-3">{row.clientName}</td>
-                          <td className="py-2 pr-3">
+                        <tr key={row.reservationId} className="hover:bg-muted/50 transition-colors">
+                          <td className="px-6 py-4">{row.propertyName}</td>
+                          <td className="px-6 py-4">{row.clientName}</td>
+                          <td className="px-6 py-4">
                             <Badge variant="outline">
                               {row.billingType === "DAILY" ? "Diario" : "Mensual"}
                             </Badge>
                           </td>
-                          <td className="py-2 pr-3">
+                          <td className="px-6 py-4">
                             <Badge variant={
                               row.reservationStatus === "PENDING" ? "warning" :
                               row.reservationStatus === "CONFIRMED" ? "success" :
@@ -810,22 +813,22 @@ export default function ReportsPage() {
                                "Completada"}
                             </Badge>
                           </td>
-                          <td className="py-2 pr-3">{row.totalRent.toLocaleString("CLP")}</td>
-                          <td className="py-2 pr-3">{row.paid.toLocaleString("CLP")}</td>
-                          <td className="py-2 pr-3">{row.pending.toLocaleString("CLP")}</td>
-                          <td className="py-2 pr-3">{row.overdue.toLocaleString("CLP")}</td>
-                          <td className="py-2 pr-3">{row.nextDueDate ? format(row.nextDueDate, "dd-MM-yyyy") : "-"}</td>
-                          <td className="py-2 pr-3">{row.extrasPaid.toLocaleString("CLP")}</td>
-                          <td className="py-2 pr-3">{row.extrasPending.toLocaleString("CLP")}</td>
-                          <td className="py-2 pr-3 font-medium">{row.totalToCollect.toLocaleString("CLP")}</td>
+                          <td className="px-6 py-4 tabular-nums">{row.totalRent.toLocaleString("CLP")}</td>
+                          <td className="px-6 py-4 tabular-nums">{row.paid.toLocaleString("CLP")}</td>
+                          <td className="px-6 py-4 tabular-nums">{row.pending.toLocaleString("CLP")}</td>
+                          <td className="px-6 py-4 tabular-nums">{row.overdue.toLocaleString("CLP")}</td>
+                          <td className="px-6 py-4">{row.nextDueDate ? format(row.nextDueDate, "dd-MM-yyyy") : "-"}</td>
+                          <td className="px-6 py-4 tabular-nums">{row.extrasPaid.toLocaleString("CLP")}</td>
+                          <td className="px-6 py-4 tabular-nums">{row.extrasPending.toLocaleString("CLP")}</td>
+                          <td className="px-6 py-4 font-medium tabular-nums">{row.totalToCollect.toLocaleString("CLP")}</td>
                         </tr>
                       ))
                     )}
                   </tbody>
                 </table>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {yearlySummary && (
             <Card>
