@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { BarChart3, TrendingUp, Building2, Users, Calendar, DollarSign, FileSpreadsheet, FileText } from "lucide-react";
+import { BarChart3, TrendingUp, Building2, Calendar, FileSpreadsheet, SlidersHorizontal, Download, ChevronDown } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import type { CollectionReportRow } from "@/lib/actions/reports-collection";
 import { Pagination } from "@/components/ui/pagination";
 import { getProperties } from "@/lib/actions/properties";
 import { exportToExcel, exportToPDF, type ReservationDetail, type PropertySummary } from "@/lib/export-utils";
+import { ExecutiveKpiCard } from "@/components/reports/executive-kpi-card";
 import { startOfMonth, endOfMonth, subMonths, format } from "date-fns";
 import { es } from "date-fns/locale/es";
 
@@ -29,7 +30,7 @@ const QUICK_RANGES: { value: QuickRange; label: string }[] = [
   { value: "custom", label: "Personalizado" },
 ];
 
-interface Property { id: string; name: string; }
+interface Property { id: string; name: string; unitsAvailable: number; }
 interface SessionInfo { plan: string | null; }
 
 export default function ReportsPage() {
@@ -243,26 +244,101 @@ export default function ReportsPage() {
     }
   };
 
+  // ─── KPI computations for Executive Summary ───────────────────────────────────
+  const totalRevenue = effectiveDateRange.from
+    ? revenueData.reduce((acc, r) => acc + r.totalRevenue, 0)
+    : stats?.monthlyRevenue ?? 0;
+
+  const totalNights = occupancyData.reduce((acc, p) => acc + p.totalNights, 0);
+
+  // Ocupación real: noches reservadas / (días del período × unidades totales disponibles) × 100
+  const periodDays = useMemo(() => {
+    if (effectiveDateRange.from && effectiveDateRange.to) {
+      return Math.max(
+        Math.ceil((effectiveDateRange.to.getTime() - effectiveDateRange.from.getTime()) / (1000 * 60 * 60 * 24)) + 1,
+        1
+      );
+    }
+    // default "Mes actual": días del mes en curso
+    return new Date(effectiveDateRange.to ?? new Date()).getDate();
+  }, [effectiveDateRange.from, effectiveDateRange.to]);
+
+  const totalUnits = properties.reduce((acc, p) => acc + (p.unitsAvailable || 1), 0);
+  const maxPossibleNights = Math.max(periodDays, 1) * Math.max(totalUnits, 1);
+  const occupancyRate = maxPossibleNights > 0 && totalNights > 0
+    ? Math.min(100, Math.round((totalNights / maxPossibleNights) * 100))
+    : 0;
+
+  const totalToCollect = collectionRows.reduce((acc, r) => acc + r.pending + r.extrasPending, 0);
+  const pendingInvoices = collectionRows.filter((r) => r.pending + r.extrasPending > 0).length;
+  const totalOverdue = collectionRows.reduce((acc, r) => acc + r.overdue, 0);
+
+  // Trend for KPI 1 (revenue): compare last month vs previous month if range is "current_month"
+  const revenueTrend = useMemo(() => {
+    if (!effectiveDateRange.from && revenueData.length >= 2) {
+      const last = revenueData[revenueData.length - 1];
+      const prev = revenueData[revenueData.length - 2];
+      if (prev && prev.totalRevenue > 0) {
+        const pct = ((last.totalRevenue - prev.totalRevenue) / prev.totalRevenue) * 100;
+        return {
+          direction: pct >= 0 ? "up" as const : "down" as const,
+          label: `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% vs mes anterior`,
+        };
+      }
+    }
+    return undefined;
+  }, [effectiveDateRange.from, revenueData]);
+
+  // Sublabel contextual para KPI 2 (ocupación)
+  const occupancySublabel = useMemo(() => {
+    if (occupancyRate === 0) return "Sin datos de ocupación";
+    if (occupancyRate >= 85) return "Alta demanda";
+    if (occupancyRate >= 60) return "Demanda estable";
+    if (occupancyRate >= 30) return "Demanda moderada";
+    return "Baja demanda";
+  }, [occupancyRate]);
+
+  const rangeLabel = effectiveDateRange.from && effectiveDateRange.to
+    ? `${format(effectiveDateRange.from, "dd MMM, yyyy", { locale: es })} - ${format(effectiveDateRange.to, "dd MMM, yyyy", { locale: es })}`
+    : "Mes actual";
+
+  const formattedRevenue = typeof totalRevenue === "number" && !isNaN(totalRevenue)
+    ? `$${totalRevenue.toLocaleString("CLP")}`
+    : "$0";
+  const formattedOccupancy = occupancyRate > 0 ? `${occupancyRate}%` : "—";
+  const formattedToCollect = totalToCollect > 0 ? `$${totalToCollect.toLocaleString("CLP")}` : "—";
+  const formattedOverdue = totalOverdue > 0 ? `$${totalOverdue.toLocaleString("CLP")}` : "—";
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <div className="flex items-center gap-3">
-          <BarChart3 className="h-8 w-8 text-primary" />
-          <div>
-            <h1 className="text-3xl font-bold">Reportes</h1>
-            <p className="text-sm text-muted-foreground">
-              Estadísticas y análisis de tu negocio
-            </p>
-          </div>
+      {/* ─── Nuevo Header: Resumen Ejecutivo de Gestión ─── */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold leading-tight">Resumen Ejecutivo de Gestión</h1>
+          <p className="text-sm text-muted-foreground">Análisis estratégico y estado de cobranza</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Date range pill */}
+          <div className="hidden lg:flex items-center bg-card border border-border rounded px-3 py-1.5 gap-2 cursor-pointer hover:bg-muted transition-colors">
+            <Calendar className="size-4 text-muted-foreground" />
+            <span className="text-xs font-medium text-foreground">{rangeLabel}</span>
+            <ChevronDown className="size-4 text-muted-foreground" />
+          </div>
+          {/* Filtros Avanzados placeholder */}
+          <Button variant="outline" size="sm" onClick={() => {}}>
+            {/* TODO: filtros avanzados en panel lateral — fase posterior */}
+            <SlidersHorizontal className="size-4 mr-1" />
+            Filtros Avanzados
+          </Button>
+          {/* Excel (outline, izquierda del PDF) */}
           <Button variant="outline" size="sm" onClick={handleExcelExport} disabled={exportLoading || reservationDetails.length === 0}>
             <FileSpreadsheet className="size-4 mr-1" />
             Excel
           </Button>
-          <Button variant="outline" size="sm" onClick={handlePDFExport} disabled={exportLoading || reservationDetails.length === 0}>
-            <FileText className="size-4 mr-1" />
-            PDF
+          {/* Exportar PDF (primary) */}
+          <Button size="sm" onClick={handlePDFExport} disabled={exportLoading || reservationDetails.length === 0}>
+            <Download className="size-4 mr-1" />
+            Exportar PDF
           </Button>
         </div>
       </div>
@@ -377,52 +453,31 @@ export default function ReportsPage() {
         </div>
       ) : (
         <>
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Propiedades</CardTitle>
-                <Building2 className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats?.totalProperties || 0}</div>
-                <p className="text-xs text-muted-foreground">registradas</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Clientes</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats?.totalClients || 0}</div>
-                <p className="text-xs text-muted-foreground">registrados</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Reservas Activas</CardTitle>
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats?.activeReservations || 0}</div>
-                <p className="text-xs text-muted-foreground">en curso</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Ingresos del Mes</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {Number(stats?.monthlyRevenue || 0).toLocaleString("CLP")}
-                </div>
-                <p className="text-xs text-muted-foreground">este mes</p>
-              </CardContent>
-            </Card>
+          {/* ─── 4 KPIs Ejecutivos ─── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <ExecutiveKpiCard
+              label="Ingresos Totales"
+              value={formattedRevenue}
+              trend={revenueTrend}
+            />
+            <ExecutiveKpiCard
+              label="Ocupación Promedio"
+              value={formattedOccupancy}
+              sublabel={occupancySublabel}
+            />
+            <ExecutiveKpiCard
+              label="Total por Cobrar"
+              value={formattedToCollect}
+              sublabel={pendingInvoices > 0 ? `${pendingInvoices} factura${pendingInvoices !== 1 ? "s" : ""} pendiente${pendingInvoices !== 1 ? "s" : ""}` : "Sin deudas pendientes"}
+              tone={totalToCollect > 0 ? "warning" : "default"}
+            />
+            <ExecutiveKpiCard
+              label="Cobros Vencidos"
+              value={formattedOverdue}
+              sublabel={totalOverdue > 0 ? "Acción requerida" : "Sin vencidos"}
+              tone={totalOverdue > 0 ? "destructive" : "default"}
+              trend={totalOverdue > 0 ? { direction: "warning", label: "Acción requerida" } : undefined}
+            />
           </div>
 
           {groupedByProperty.length > 0 && (
