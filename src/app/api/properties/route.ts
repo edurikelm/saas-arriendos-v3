@@ -1,16 +1,11 @@
 import { NextResponse } from "next/server";
-import { getProperties, createProperty, getUsedColors } from "@/lib/actions/properties";
+import { getProperties, createProperty } from "@/lib/actions/properties";
 import { propertySchema } from "@/lib/validations/property";
 
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const type = url.searchParams.get("type");
-
-    if (type === "colors") {
-      const colors = await getUsedColors();
-      return NextResponse.json(colors);
-    }
 
     const properties = await getProperties(type || undefined);
     return NextResponse.json(properties);

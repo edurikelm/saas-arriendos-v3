@@ -167,7 +167,9 @@ export function PropertyForm({ initialData, onSubmit, onCancel, usedColors = [] 
                 onValueChange={(value) => setValue("type", value as PropertyInput["type"])}
               >
                   <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar tipo" />
+                    <SelectValue placeholder="Seleccionar tipo">
+                      {PROPERTY_TYPES.find((t) => t.value === selectedType)?.label ?? "Seleccionar tipo"}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {PROPERTY_TYPES.map((type) => (

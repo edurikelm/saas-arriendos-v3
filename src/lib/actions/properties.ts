@@ -78,18 +78,10 @@ export async function getPropertyCount() {
   });
 }
 
-export async function getUsedColors() {
-  const session = await getSession();
-  if (!session) return [];
-
-  const properties = await prisma.property.findMany({
-    where: { userId: session.userId },
-    select: { color: true },
-  });
-
-  return properties.map((p) => p.color);
-}
-
+// TODO(cleanup): Remove `color` from Property model and migrate the DB.
+// For now, the user no longer picks a color in the form, so the action
+// auto-assigns the first unused color from the palette to keep the
+// uniqueness invariant on the calendar view.
 const ALL_COLORS = [
   "#3B82F6", // Blue
   "#10B981", // Green
@@ -101,9 +93,13 @@ const ALL_COLORS = [
   "#F97316", // Orange
 ];
 
-export async function getAvailableColors() {
-  const usedColors = await getUsedColors();
-  return ALL_COLORS.filter((color) => !usedColors.includes(color));
+async function pickNextColor(userId: string): Promise<string> {
+  const used = await prisma.property.findMany({
+    where: { userId },
+    select: { color: true },
+  });
+  const usedSet = new Set(used.map((p) => p.color));
+  return ALL_COLORS.find((c) => !usedSet.has(c)) ?? ALL_COLORS[0];
 }
 
 export async function createProperty(data: PropertyInput) {
@@ -124,21 +120,8 @@ export async function createProperty(data: PropertyInput) {
     }
   }
 
-  // Check color uniqueness for this user
-  const existingWithColor = await prisma.property.findFirst({
-    where: {
-      userId: session.userId,
-      color: data.color,
-    },
-  });
-
-  if (existingWithColor) {
-    return {
-      error: "Ese color ya está en uso por otra propiedad. Elige uno diferente.",
-    };
-  }
-
   const validated = propertySchema.parse(data);
+  const color = await pickNextColor(session.userId);
 
   const property = await prisma.property.create({
     data: {
@@ -150,7 +133,7 @@ export async function createProperty(data: PropertyInput) {
       monthlyPrice: validated.monthlyPrice ?? null,
       currency: validated.currency,
       amenities: validated.amenities,
-      color: validated.color,
+      color,
       mainImage: validated.mainImage ?? null,
       images: validated.images,
     },
@@ -171,23 +154,6 @@ export async function updateProperty(id: string, data: PropertyInput) {
 
   if (!existing) return { error: "Propiedad no encontrada" };
 
-  // Check color uniqueness for this user (excluding current property)
-  if (data.color !== existing.color) {
-    const existingWithColor = await prisma.property.findFirst({
-      where: {
-        userId: session.userId,
-        color: data.color,
-        id: { not: id },
-      },
-    });
-
-    if (existingWithColor) {
-      return {
-        error: "Ese color ya está en uso por otra propiedad. Elige uno diferente.",
-      };
-    }
-  }
-
   const validated = propertySchema.parse(data);
 
   const property = await prisma.property.update({
@@ -200,7 +166,8 @@ export async function updateProperty(id: string, data: PropertyInput) {
       monthlyPrice: validated.monthlyPrice ?? null,
       currency: validated.currency,
       amenities: validated.amenities,
-      color: validated.color,
+      // Preserve the existing color — users no longer pick it from the form.
+      color: existing.color,
       mainImage: validated.mainImage ?? null,
       images: validated.images,
     },
