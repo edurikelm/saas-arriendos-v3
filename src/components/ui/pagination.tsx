@@ -18,6 +18,7 @@ interface PaginationProps {
   limit?: number;
   onPageChange: (page: number) => void;
   onLimitChange?: (limit: number) => void;
+  itemLabel?: string;
 }
 
 function getPageNumbers(currentPage: number, totalPages: number): (number | "ellipsis")[] {
@@ -55,6 +56,7 @@ export function Pagination({
   limit = 10,
   onPageChange,
   onLimitChange,
+  itemLabel = "resultados",
 }: PaginationProps) {
   if (totalPages <= 1) return null;
 
@@ -65,7 +67,7 @@ export function Pagination({
   return (
     <div className="flex items-center justify-between gap-4 py-4">
       <span className="text-sm text-muted-foreground">
-        Mostrando {startItem}-{endItem} de {total} resultados
+        Mostrando {startItem}-{endItem} de {total} {itemLabel}
       </span>
       {onLimitChange && (
         <Select

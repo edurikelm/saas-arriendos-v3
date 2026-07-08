@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Users, Plus, Pencil, Trash2, Search, MoreHorizontal } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, X, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -138,110 +137,138 @@ export function ClientsTable({ initialData }: ClientsTableProps) {
     fetchClients();
   };
 
+  const hasActiveFilters = searchQuery.length > 0;
+
+  const handleClearFilters = () => {
+    setSearchQuery("");
+    goToPage(1);
+  };
+
   return (
     <>
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Clientes
-              </CardTitle>
-              <CardDescription>Gestiona tu cartera de clientes</CardDescription>
-            </div>
-            <Button onClick={() => setIsCreateOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              <span className="sm:inline">Nuevo Cliente</span>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">Clientes</h1>
+            <p className="text-xs text-muted-foreground">
+              Directorio centralizado de huéspedes y clientes recurrentes
+            </p>
+          </div>
+          <Button onClick={() => setIsCreateOpen(true)} className="w-full sm:w-auto">
+            <Plus className="h-4 w-4 mr-2" />
+            <span>Nuevo Cliente</span>
+          </Button>
+        </div>
+
+        {/* Search bar full-width */}
+        <div className="relative w-full">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nombre, email, teléfono o RUT..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+
+        {/* Filters row */}
+        {hasActiveFilters && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary">
+              Búsqueda: {searchQuery}
+            </span>
+            <div className="h-4 w-px bg-border mx-1" />
+            <Button variant="ghost" size="sm" onClick={handleClearFilters} className="h-7 text-xs">
+              <X className="h-3.5 w-3.5 mr-1" />
+              Limpiar filtros
             </Button>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="relative w-full sm:max-w-sm mb-6">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por nombre, email, teléfono o RUT..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
+        )}
 
-          {clients.length === 0 && !loading ? (
-            <div className="text-center py-12">
-              <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-medium mb-2">No hay clientes</h3>
-              <p className="text-muted-foreground mb-4">Crea tu primer cliente para comenzar</p>
-              <Button onClick={() => setIsCreateOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Crear Cliente
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>
-                  Mostrando {range.start}-{range.end} de {total} clientes
-                </span>
+        {/* Table */}
+        {clients.length === 0 && !loading ? (
+          <DataTable
+            headers={["Cliente", "Teléfono", "Documento", "Reservas", "Acciones"]}
+            caption="Lista de clientes"
+            emptyState={
+              <div className="space-y-3">
+                <p className="text-sm font-medium">No hay clientes</p>
+                <p className="text-xs text-muted-foreground">
+                  {hasActiveFilters
+                    ? "Ningun cliente coincide con tu búsqueda"
+                    : "Crea tu primer cliente para comenzar"}
+                </p>
+                {!hasActiveFilters && (
+                  <Button onClick={() => setIsCreateOpen(true)} size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Crear Cliente
+                  </Button>
+                )}
               </div>
-
-              <DataTable
-                headers={["Nombre", "Email", "Teléfono", "RUT", "Reservas", "Acciones"]}
-                caption="Lista de clientes"
-              >
-                {clients.map((client) => (
-                  <tr key={client.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-                          {getInitials(client.name)}
-                        </div>
-                        <span className="font-semibold">{client.name}</span>
+            }
+          >
+            {null}
+          </DataTable>
+        ) : (
+          <>
+            <DataTable
+              headers={["Cliente", "Teléfono", "Documento", "Reservas", "Acciones"]}
+              caption="Lista de clientes"
+            >
+              {clients.map((client) => (
+                <tr key={client.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                        {getInitials(client.name)}
                       </div>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{client.email}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{client.phone || "-"}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{client.rut || "-"}</td>
-                    <td className="px-4 py-3 text-center">
-                      <Badge variant="secondary" className="text-xs">
-                        {client.reservationsCount}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger className="cursor-pointer rounded-md p-1.5 hover:bg-muted transition-colors">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setEditingClient(client)}>
-                            <Pencil className="h-4 w-4 mr-2" />
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem variant="destructive" onClick={() => setClientToDelete(client)}>
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Eliminar
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </td>
-                  </tr>
-                ))}
-              </DataTable>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-foreground truncate">{client.name}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{client.email}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-xs text-muted-foreground">{client.phone || "—"}</td>
+                  <td className="px-6 py-4 text-xs text-muted-foreground">{client.rut || "—"}</td>
+                  <td className="px-6 py-4 text-center">
+                    <Badge variant="secondary" className="text-xs">
+                      {client.reservationsCount ?? 0}
+                    </Badge>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger className="cursor-pointer rounded-md p-1.5 hover:bg-muted transition-colors">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setEditingClient(client)}>
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem variant="destructive" onClick={() => setClientToDelete(client)}>
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Eliminar
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </td>
+                </tr>
+              ))}
+            </DataTable>
 
-              {total > limit && (
-                <Pagination
-                  page={page}
-                  totalPages={totalPages}
-                  total={total}
-                  limit={limit}
-                  onPageChange={goToPage}
-                  onLimitChange={setLimit}
-                />
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              total={total}
+              limit={limit}
+              itemLabel="clientes"
+              onPageChange={goToPage}
+              onLimitChange={setLimit}
+            />
+          </>
+        )}
+      </div>
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="w-[95vw] sm:max-w-[425px]">
