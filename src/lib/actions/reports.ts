@@ -44,6 +44,7 @@ export interface ReservationReport {
   totalPrice: number;
   status: string;
   paymentStatus: string;
+  billingType: "DAILY" | "MONTHLY";
   createdAt: Date;
 }
 
@@ -318,6 +319,7 @@ export async function getReservationsReport(options?: {
       startDate: true,
       endDate: true,
       createdAt: true,
+      billingType: true,
       property: { select: { name: true } },
       client: { select: { name: true, email: true } },
       payments: {
@@ -344,6 +346,7 @@ export async function getReservationsReport(options?: {
       totalPrice: Number(r.totalPrice),
       status: r.status,
       paymentStatus,
+      billingType: r.billingType,
       createdAt: r.createdAt,
     };
   });

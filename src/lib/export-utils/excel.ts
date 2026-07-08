@@ -10,6 +10,7 @@ export interface ReservationDetail {
   totalPrice: number;
   status: string;
   paymentStatus: string;
+  billingType: "DAILY" | "MONTHLY";
   createdAt: Date;
 }
 

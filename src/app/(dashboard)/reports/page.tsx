@@ -14,6 +14,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { getProperties } from "@/lib/actions/properties";
 import { exportToExcel, exportToPDF, type ReservationDetail, type PropertySummary } from "@/lib/export-utils";
 import { ExecutiveKpiCard } from "@/components/reports/executive-kpi-card";
+import { ModelDistributionCard } from "@/components/reports/model-distribution-card";
 import { startOfMonth, endOfMonth, subMonths, format } from "date-fns";
 import { es } from "date-fns/locale/es";
 
@@ -149,6 +150,7 @@ export default function ReportsPage() {
         totalPrice: Number(r.totalPrice),
         status: r.status,
         paymentStatus: r.paymentStatus,
+        billingType: r.billingType,
         createdAt: new Date(r.createdAt),
       })));
       if (collection && "data" in collection) {
@@ -195,6 +197,23 @@ export default function ReportsPage() {
       else entry.pendingRevenue += r.totalPrice;
     });
     return Array.from(map.values());
+  }, [reservationDetails]);
+
+  const revenueByBillingType = useMemo(() => {
+    const daily = reservationDetails.filter((r) => r.billingType === "DAILY");
+    const monthly = reservationDetails.filter((r) => r.billingType === "MONTHLY");
+    const dailyRevenue = daily.reduce((acc, r) => acc + r.totalPrice, 0);
+    const monthlyRevenue = monthly.reduce((acc, r) => acc + r.totalPrice, 0);
+    const total = dailyRevenue + monthlyRevenue;
+    const dailyPct = total > 0 ? Math.round((dailyRevenue / total) * 100) : 0;
+    return {
+      dailyRevenue,
+      monthlyRevenue,
+      dailyCount: daily.length,
+      monthlyCount: monthly.length,
+      dailyPct,
+      monthlyPct: total > 0 ? 100 - dailyPct : 0,
+    };
   }, [reservationDetails]);
 
   const isFreePlan = session?.plan === "FREE";
@@ -479,6 +498,28 @@ export default function ReportsPage() {
               trend={totalOverdue > 0 ? { direction: "warning", label: "Acción requerida" } : undefined}
             />
           </div>
+
+          {reservationDetails.length > 0 &&
+            revenueByBillingType.dailyRevenue + revenueByBillingType.monthlyRevenue > 0 && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <ModelDistributionCard
+                  title="Modelo de Negocio: Diario"
+                  description="Ingresos por estancias cortas"
+                  amount={revenueByBillingType.dailyRevenue}
+                  percentage={revenueByBillingType.dailyPct}
+                  reservationCount={revenueByBillingType.dailyCount}
+                  variant="primary"
+                />
+                <ModelDistributionCard
+                  title="Modelo de Negocio: Mensual"
+                  description="Ingresos por contratos de larga duración"
+                  amount={revenueByBillingType.monthlyRevenue}
+                  percentage={revenueByBillingType.monthlyPct}
+                  reservationCount={revenueByBillingType.monthlyCount}
+                  variant="secondary"
+                />
+              </div>
+            )}
 
           {groupedByProperty.length > 0 && (
             <Card>
