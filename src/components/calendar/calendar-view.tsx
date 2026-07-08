@@ -6,7 +6,6 @@ import { addMonths, format, subMonths } from "date-fns";
 import { es } from "date-fns/locale/es";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { StitchKpiCard } from "@/components/ui/stitch-kpi-card";
 import { toast } from "sonner";
@@ -242,7 +241,12 @@ export function CalendarView({
       </Button>
       <Select value={selectedPropertyId} onValueChange={(v) => setSelectedPropertyId(v || "all")}>
         <SelectTrigger className="w-full min-w-0 sm:w-48">
-          <SelectValue placeholder="Propiedades" />
+          <SelectValue placeholder="Propiedades">
+            {(value: string | null) => {
+              if (!value || value === "all") return "Todas";
+              return properties.find((p) => p.id === value)?.name ?? "Propiedades";
+            }}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">Todas</SelectItem>
@@ -315,101 +319,93 @@ export function CalendarView({
         />
       </section>
 
-      {/* 3. Controls bar — Card independiente (Stitch "Timeline Controls") */}
-      <Card>
-        <CardContent className="p-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {/* Sección izquierda: filtro del calendario */}
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center overflow-hidden rounded-lg border">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 rounded-none border-r"
-                  onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-                  aria-label="Mes anterior"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <div className="min-w-[180px] px-4 py-1.5 text-center text-xs font-bold capitalize">
-                  {format(currentMonth, "MMMM yyyy", { locale: es })}
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 rounded-none border-l"
-                  onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-                  aria-label="Mes siguiente"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 px-3 text-xs font-bold"
-                onClick={() => setCurrentMonth(new Date())}
-              >
-                Hoy
-              </Button>
+      {/* 3. Controls bar — sin Card wrapper (sin envoltorio, controles en línea) */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {/* Sección izquierda: filtro del calendario */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center overflow-hidden rounded-lg border">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-none border-r"
+              onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+              aria-label="Mes anterior"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div className="min-w-[180px] px-4 py-1.5 text-center text-xs font-bold capitalize">
+              {format(currentMonth, "MMMM yyyy", { locale: es })}
             </div>
-
-            {/* Sección derecha: acciones */}
-            <div className="flex flex-wrap items-center gap-2">
-              {headerActions}
-            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-none border-l"
+              onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+              aria-label="Mes siguiente"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
-        </CardContent>
-      </Card>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 px-3 text-xs font-bold"
+            onClick={() => setCurrentMonth(new Date())}
+          >
+            Hoy
+          </Button>
+        </div>
 
-      {/* 4. Timeline — Card independiente */}
-      <Card className="lg:min-h-0 lg:gap-0 lg:py-3">
-        <CardContent className="pt-3 lg:min-h-0 lg:pb-0">
-          {loading ? (
-            <div className="flex h-96 items-center justify-center">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        {/* Sección derecha: acciones */}
+        <div className="flex flex-wrap items-center gap-2">
+          {headerActions}
+        </div>
+      </div>
+
+      {/* 4. Timeline — sin Card wrapper (CalendarTimeline ya tiene su propio rounded-xl border) */}
+      {loading ? (
+        <div className="flex h-96 items-center justify-center rounded-xl border bg-card">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        </div>
+      ) : (
+        <>
+          {showExternalBlocks && conflicts.size > 0 && (
+            <div className="mb-4 flex items-start gap-3 rounded-xl border border-l-2 border-l-warning bg-warning/10 px-4 py-3 text-sm text-foreground">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-semibold">{conflicts.size} día(s) con conflicto Reserva + Bloqueo externo</p>
+                <p className="text-xs">La reserva interna prevalece. Los días marcados tienen un punto ámbar.</p>
+              </div>
             </div>
-          ) : (
-            <>
-              {showExternalBlocks && conflicts.size > 0 && (
-                <div className="mb-4 flex items-start gap-3 rounded-xl border border-l-2 border-l-warning bg-warning/10 px-4 py-3 text-sm text-foreground">
-                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="font-semibold">{conflicts.size} día(s) con conflicto Reserva + Bloqueo externo</p>
-                    <p className="text-xs">La reserva interna prevalece. Los días marcados tienen un punto ámbar.</p>
-                  </div>
-                </div>
-              )}
-              <CalendarTimeline
-                reservations={dailyReservations.map((r) => ({
-                  ...r,
-                  propertyId: r.property.id,
-                  clientId: "",
-                  billingType: "DAILY" as const,
-                  unitsBooked: 1,
-                  bookingAirbnb: false,
-                  notes: null,
-                  payments: [],
-                  startDate: r.startDate,
-                  endDate: r.endDate,
-                  totalPrice: String(r.totalPrice),
-                  property: {
-                    ...r.property,
-                  },
-                  client: {
-                    ...r.client,
-                    id: "",
-                    email: "",
-                  },
-                }))}
-                externalBlocks={showExternalBlocks ? visibleExternalBlocks : []}
-                currentMonth={currentMonth}
-                onSelectReservation={handleSelectReservation}
-              />
-            </>
           )}
-        </CardContent>
-      </Card>
+          <CalendarTimeline
+            reservations={dailyReservations.map((r) => ({
+              ...r,
+              propertyId: r.property.id,
+              clientId: "",
+              billingType: "DAILY" as const,
+              unitsBooked: 1,
+              bookingAirbnb: false,
+              notes: null,
+              payments: [],
+              startDate: r.startDate,
+              endDate: r.endDate,
+              totalPrice: String(r.totalPrice),
+              property: {
+                ...r.property,
+              },
+              client: {
+                ...r.client,
+                id: "",
+                email: "",
+              },
+            }))}
+            externalBlocks={showExternalBlocks ? visibleExternalBlocks : []}
+            currentMonth={currentMonth}
+            onSelectReservation={handleSelectReservation}
+          />
+        </>
+      )}
 
       {selectedReservation && (
         <ReservationDetailDialog

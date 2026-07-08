@@ -18,14 +18,14 @@ function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   )
 }
 
-function SelectValue({ className, children, ...props }: SelectPrimitive.Value.Props & { children?: React.ReactNode }) {
+function SelectValue({ className, children, ...props }: SelectPrimitive.Value.Props & { children?: React.ReactNode | ((value: any) => React.ReactNode) }) {
   return (
     <SelectPrimitive.Value
       data-slot="select-value"
       className={cn("flex flex-1 text-left", className)}
       {...props}
     >
-      {children}
+      {children as React.ReactNode}
     </SelectPrimitive.Value>
   )
 }

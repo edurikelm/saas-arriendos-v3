@@ -194,7 +194,7 @@ export function CalendarDayCell({ date, currentMonth, reservations, onSelectRese
                 : "text-white"
             }`}
             style={{
-              backgroundColor: res.status === "CANCELLED" || res.status === "COMPLETED" ? undefined : "var(--primary)",
+              backgroundColor: res.status === "CANCELLED" || res.status === "COMPLETED" ? undefined : "var(--brand-secondary)",
             }}
           >
             <span className="truncate block">{res.client.name}</span>
@@ -473,18 +473,19 @@ export function CalendarTimeline({ reservations, externalBlocks = [], currentMon
                       const active = !isCancelled && !ended && isReservationActive(res);
                       const upcoming = !isCancelled && !ended && isReservationUpcoming(res);
 
-                      // Stitch-style alternation: active (solid primary) vs upcoming (light primary/10)
+                      // Stitch-style alternation: active (solid brand-secondary) vs upcoming (light brand-secondary/10)
+                      // Usa brand-secondary en vez de primary para no chocar con el botón "Nueva Reserva"
                       const barClass = isCancelled
                         ? "border-border bg-muted text-muted-foreground line-through"
                         : ended
                         ? "border-border bg-muted text-muted-foreground opacity-75 line-through decoration-muted-foreground/60"
                         : active
-                        ? "border-primary bg-primary text-white"
-                        : "border border-primary/20 bg-primary/10 text-primary";
+                        ? "border-brand-secondary bg-brand-secondary text-white"
+                        : "border border-brand-secondary/20 bg-brand-secondary/10 text-brand-secondary";
 
                       const chipClass = active
                         ? "bg-white/20 text-white"
-                        : "bg-primary/20 text-primary";
+                        : "bg-brand-secondary/20 text-brand-secondary";
 
                       return (
                         <button
@@ -579,7 +580,7 @@ export function CalendarList({ reservations, currentMonth, onSelectReservation }
           >
             <div
               className="h-12 w-12 shrink-0 rounded-xl flex items-center justify-center text-white font-semibold text-lg"
-              style={{ backgroundColor: "var(--primary)" }}
+              style={{ backgroundColor: "var(--brand-secondary)" }}
             >
               {format(parseCalendarDate(res.startDate), "d")}
             </div>
@@ -684,7 +685,7 @@ export function CalendarWeekView({ reservations, onSelectReservation }: {
                             key={res.id}
                             onClick={() => onSelectReservation(res.id)}
                             className="w-full text-left text-xs rounded px-1 py-0.5 text-white mb-1 truncate"
-style={{ backgroundColor: "var(--primary)" }}
+style={{ backgroundColor: "var(--brand-secondary)" }}
                           >
                             {res.client.name}
                           </button>
@@ -720,7 +721,7 @@ export function ReservationDetailDialog({ reservation, onClose }: {
           <div className="flex items-center gap-4">
             <div
               className="h-12 w-12 rounded-xl flex items-center justify-center text-white font-semibold text-lg"
-              style={{ backgroundColor: "var(--primary)" }}
+              style={{ backgroundColor: "var(--brand-secondary)" }}
             >
               {reservation.property.name[0]}
             </div>
