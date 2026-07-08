@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { Calendar, Plus, X, Search, ChevronDown } from "lucide-react";
+import { Calendar, Plus, X, X as XIcon, Search, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -479,12 +479,23 @@ export function ReservationsListClient({
       )}
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="w-[95vw] max-w-2xl gap-0 p-0">
-          <DialogHeader className="border-b border-border/60 px-5 py-4 pr-12">
-            <DialogTitle>Nueva Reserva</DialogTitle>
-            <DialogDescription>
-              Completa los datos principales de la estadía y confirma la reserva.
-            </DialogDescription>
+        <DialogContent className="w-[95vw] max-w-xl gap-0 p-0 overflow-hidden" showCloseButton={false}>
+          <DialogHeader className="border-b border-border px-5 py-4 flex-row items-center justify-between gap-2 space-y-0">
+            <div className="space-y-1">
+              <DialogTitle>Nueva Reserva</DialogTitle>
+              <DialogDescription>
+                Completa los datos principales de la estadía y confirma la reserva.
+              </DialogDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setIsCreateOpen(false)}
+              aria-label="Cerrar"
+              className="text-muted-foreground hover:text-foreground -mr-2"
+            >
+              <XIcon />
+            </Button>
           </DialogHeader>
           {properties.length > 0 && clients.length > 0 ? (
             <ReservationForm
@@ -527,12 +538,23 @@ export function ReservationsListClient({
       )}
 
       <Dialog open={!!editingReservation} onOpenChange={() => setEditingReservation(null)}>
-        <DialogContent className="w-[95vw] max-w-2xl gap-0 p-0">
-          <DialogHeader className="border-b border-border/60 px-5 py-4 pr-12">
-            <DialogTitle>Editar Reserva</DialogTitle>
-            <DialogDescription>
-              Ajusta los datos de la estadía manteniendo el registro de cambios.
-            </DialogDescription>
+        <DialogContent className="w-[95vw] max-w-xl gap-0 p-0 overflow-hidden" showCloseButton={false}>
+          <DialogHeader className="border-b border-border px-5 py-4 flex-row items-center justify-between gap-2 space-y-0">
+            <div className="space-y-1">
+              <DialogTitle>Editar Reserva</DialogTitle>
+              <DialogDescription>
+                Ajusta los datos de la estadía manteniendo el registro de cambios.
+              </DialogDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setEditingReservation(null)}
+              aria-label="Cerrar"
+              className="text-muted-foreground hover:text-foreground -mr-2"
+            >
+              <XIcon />
+            </Button>
           </DialogHeader>
           {editingReservation && properties.length > 0 && clients.length > 0 && (
             <ReservationForm
