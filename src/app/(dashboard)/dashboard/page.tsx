@@ -373,7 +373,7 @@ export default async function DashboardPage() {
                     </div>
                   </td>
                   <td className="px-6 py-4 text-xs text-muted-foreground">{arrivalLabel}</td>
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-6 py-4">
                     <ReservationStatusBadge reservation={reservation} today={today} />
                   </td>
                   <td className="px-6 py-4 text-right text-xs font-bold text-foreground">
