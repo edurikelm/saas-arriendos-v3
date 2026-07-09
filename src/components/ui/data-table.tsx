@@ -27,7 +27,7 @@ export function DataTable({ headers, children, emptyState, caption, className }:
               ))}
             </tr>
           </thead>
-          <tbody>
+          <tbody className="text-xs">
             {children}
             {(!children || (Array.isArray(children) && children.length === 0)) && emptyState ? (
               <tr>
