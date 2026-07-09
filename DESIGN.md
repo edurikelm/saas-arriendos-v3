@@ -1,13 +1,15 @@
 # RentalPro - Design System
 
-> **Status**: Sincronizado con "Ocean Breeze" — `projects/1529269251022042678` (Stitch) · 2026-07-06
+> **Status**: Ocean Breeze — Fase 1 + Fase 2 cerradas (issues #173, #174, #175, #176) · 2026-07-09
 > **Source of truth visual**: Stitch project `projects/1529269251022042678`
-> **Tokens runtime**: `src/app/globals.css`
-> **Migración**: Fase 1 cerrada en `f19d424` (issue #173). Fase 2 en issues #174, #175, #176.
+> **Tokens runtime**: `src/app/globals.css` (autoritativo — si hay drift, gana `globals.css`)
+> **Migración**: Fase 1 en `f19d424` (#173). Fase 2 cerrada el 2026-07-06 en commits `7fb0892`, `a4bd6c5`, `da9ad0a`, `54bbe28`, `b260fcf`, `2694d9f` (#174, #175, #176).
 
 ## Overview
 
 RentalPro es un SaaS de gestión de arriendos de propiedades. Este documento establece las reglas de diseño para mantener consistencia visual en toda la aplicación. **"Ocean Breeze"** es el tema vigente desde la migración cerrada en `6a214aa`. Inspirado en Linear, Stripe Dashboard y Vercel. Denso-pero-limpio, minimalista, B2B. Sin decoración, sin ilustraciones, sin gradientes en cards de contenido.
+
+> **Nota sobre paleta de colores**: la tabla "Light Mode (Ocean Breeze)" debajo documenta los valores semánticos del preset tweakcn aplicados durante Fase 1. El runtime actual (`globals.css`) ha sido **recalibrado** en commits posteriores (alineación con `tweakcn` definitivo + dark mode a hex Stitch). Si necesitas los valores exactos runtime, consulta `src/app/globals.css:5-50` (light) y `:78-130` (dark). La semántica se conserva; cambia la calibración fina.
 
 ---
 
@@ -127,11 +129,11 @@ Estos tokens cubren los 4 estados canónicos del dominio. **Calibrados en `511c9
 
 | Font | Cargada en `layout.tsx` | Notas |
 |------|------------------------|-------|
-| DM Sans | ✅ Sí (`next/font/google`) | Única en uso en producto |
-| Lora | ❌ **NO** (declarada en tokens, no importada) | Drift conocido — slice S2 del PRD |
-| IBM Plex Mono | ❌ **NO** (declarada en tokens, no importada) | Drift conocido — slice S2 del PRD |
+| DM Sans | ✅ Sí (`next/font/google`) | Única en uso intensivo en producto |
+| Lora | ✅ Sí (`next/font/google`) | Declarada en tokens `--font-serif`. **Sin uso activo** en UI — disponible para futuros componentes marketing/landing. |
+| IBM Plex Mono | ✅ Sí (`next/font/google`, weight 400) | Declarada en tokens `--font-mono`. **Sin uso activo** en UI — disponible para IDs, tokens, datos numéricos si se requiere. |
 
-**Hasta que se cierre el issue #174**, las clases `font-serif` y `font-mono` caen a fallback genérico (serif/monospace del SO). El fix está en el alcance de #174.
+Las tres fuentes se inyectan vía CSS variables en el `<html>` (layout.tsx:44) y están disponibles globalmente vía `font-serif` / `font-mono`. Hoy el producto solo usa DM Sans — Lora y Mono están precargadas para no introducir flash si se activan.
 
 ### Scale (DM Sans)
 
@@ -234,26 +236,53 @@ Base: `0.25rem` (4px). Per `globals.css:75` → `--spacing: 0.25rem`.
 
 ### 1. Tablas → usar `<DataTable>` primitive
 
-> **Pendiente**: primitive en `src/components/ui/data-table.tsx` (issue #176).
+Primitive cerrado en `src/components/ui/data-table.tsx` (commit `7fb0892`, issue #176). Toda tabla del producto DEBE pasar por este primitive.
 
-Wrapper estándar para cualquier `<table>`:
+```tsx
+<DataTable
+  headers={["Cliente", "Teléfono", "Reservas", "Acciones"]}
+  caption="Lista de clientes"
+  emptyState={<>No hay clientes</>}
+>
+  {rows.map((row) => (
+    <tr key={row.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+      {/* ... */}
+    </tr>
+  ))}
+</DataTable>
+```
+
+**API** (`data-table.tsx:4-10`):
+- `headers: string[]` — array de labels para el `<thead>`. Renderiza con `text-[10px] font-bold uppercase tracking-wider text-muted-foreground` y fondo `bg-muted/50`.
+- `children: ReactNode` — las filas (`<tr>`). Si está vacío y `emptyState` está definido, se renderiza el empty state centrado.
+- `emptyState?: ReactNode` — contenido (típicamente `<p>` + acción opcional) que se muestra cuando no hay filas.
+- `caption?: string` — accesible (`<caption className="sr-only">`).
+- `className?: string` — se mergea con `overflow-hidden rounded-md border border-border bg-card`.
+
+El wrapper externo aplica `overflow-x-auto` automáticamente. **No** envolver de nuevo en `<div className="overflow-x-auto">`.
+
+**Tablas migradas a `<DataTable>`** (cerradas en #176):
+
+- `clients-table.tsx`
+- `reservation-table.tsx`
+- `reports/page.tsx`
+- `admin/users/[id]/page.tsx`
+- `admin-users-client.tsx`
+- `admin/support/admin-support-list.tsx`
+
+**Patrón de page wrapping** (ver CONTEXT.md:283-285):
 
 ```tsx
 <Card className="ring-1 ring-foreground/10 overflow-hidden">
-  <div className="overflow-x-auto">
-    <table className="w-full">{/* ... */}</table>
-  </div>
+  <CardHeader>
+    <CardTitle>Título</CardTitle>
+    <CardDescription>Descripción</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <DataTable headers={[...]}>{...}</DataTable>
+  </CardContent>
 </Card>
 ```
-
-**Tablas que DEBEN migrarse a `<DataTable>`** (audit 2026-07-06):
-
-- `clients-table.tsx` (l. 187)
-- `reservation-table.tsx` (l. 268)
-- `reports/page.tsx` (l. 615)
-- `admin/users/[id]/page.tsx` (l. 614)
-- `admin-users-client.tsx` (l. 484)
-- `admin/support/admin-support-list.tsx` (l. 180)
 
 ### 2. Modales → `w-[95vw]` + `max-w-{size}`
 
@@ -263,14 +292,22 @@ Wrapper estándar para cualquier `<table>`:
 </DialogContent>
 ```
 
-**Modales que NO cumplen** (issue #176 los arregla):
+**Modales migrados a `w-[95vw]`** (cerrados en commit `da9ad0a`, #176):
 
-- `calendar-timeline.tsx:727` — solo `max-w-2xl`
-- `properties-client.tsx:162, 226` — solo `max-w-2xl`
-- `properties/new/page.tsx:44` — solo `max-w-2xl`
-- `properties/[id]/_components/RevealTokenDialog.tsx:117` — solo `max-w-lg`
+- `calendar-view.tsx:420`, `calendar-timeline.tsx:716` — `w-[95vw] max-w-2xl`
+- `properties-client.tsx:314, 341` — `w-[95vw] max-w-2xl p-0 gap-0 overflow-hidden flex flex-col`
+- `properties/new/page.tsx:44` — `w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto`
+- `properties/[id]/_components/RevealTokenDialog.tsx:117` — `w-[95vw] max-w-md`
 
-**Excepción consciente**: `confirm-dialog.tsx:39` usa `w-[92vw]` (no `95vw`). Documentado.
+**Excepción consciente**: `confirm-dialog.tsx:39` usa `w-[92vw]` (no `95vw`). Es un diálogo de confirmación destructiva donde la jerarquía visual exige menos espacio. Documentado. No migrar.
+
+**Patrón full-screen modal** (sin padding interno, contenido custom): usado en reservation-detail-dialog, reservation-form, reservations-list-client. Ejemplo:
+
+```tsx
+<DialogContent className="w-[95vw] max-w-2xl gap-0 p-0 overflow-hidden" showCloseButton={false}>
+  {/* contenido custom full-bleed */}
+</DialogContent>
+```
 
 ### 3. Status badges → siempre `<Badge variant>`
 
@@ -303,22 +340,39 @@ style={{ backgroundColor: reservation.property.color || "var(--primary)" }}
 ```
 
 **Antes**: `|| "#6366F1"` (indigo Tailwind v3) o `|| "#3B82F6"` (azul Tailwind v3).
-**Ahora**: `|| "var(--primary)"` (teal Ocean Breeze).
+**Ahora**: `|| "var(--primary)"` (teal Ocean Breeze). Harmonizado en commit `54bbe28` (#176).
 
-Aplica a `reservation-table.tsx:155,164,367,384` y `reservation-detail-dialog.tsx:638` y `calendar-timeline.tsx:180,470,508,594,699,735`.
+Aplica en todos los puntos donde se renderiza el color de propiedad como chip/barra: reservation table, reservation-detail-dialog, calendar-timeline.
+
+**Instancias legítimas de hex** (NO migrar):
+- `src/lib/validations/property.ts:11` — `z.string().default("#3B82F6")` — default de validación Zod (capa datos, no UI).
+- `src/lib/actions/properties.ts:86` y `src/components/properties/property-form.tsx:33,73` — paleta default del color picker (input de usuario). El picker sigue mostrando opciones de color hex porque es data arbitraria.
+- Tests (`__tests__/*.tsx`) — mock data, no producción.
 
 ### 5. External channel markers (Calendar)
 
-> **Pendiente**: utility `src/lib/calendar/channel-colors.ts` (issue #174).
+Cerrado en commit `5bc608e` (#174) con la utility `src/lib/calendar/channel-colors.ts`:
 
-| Channel | Dot class | Uso |
-|---------|-----------|-----|
-| AIRBNB | `bg-info` | iCal feed de Airbnb |
-| BOOKING_COM | `bg-primary` | iCal feed de Booking.com |
-| VRBO | `bg-accent` | iCal feed de VRBO |
-| OTHER | `bg-muted-foreground` | Cualquier otro canal |
+```ts
+import { channelColors } from "@/lib/calendar/channel-colors";
 
-**NO** usar `bg-blue-500` / `bg-rose-500` / `bg-indigo-500` como antes. Consumir siempre la utility para que un cambio de paleta se propague atómicamente.
+const { dotClass, labelClass } = channelColors[block.channel];
+return (
+  <>
+    <span className={cn("size-2 rounded-full", dotClass)} />
+    <span className={labelClass}>{channelLabel(block.channel)}</span>
+  </>
+);
+```
+
+| Channel | Dot class | Label class |
+|---------|-----------|-------------|
+| AIRBNB | `bg-info` | `text-info` |
+| BOOKING_COM | `bg-primary` | `text-primary` |
+| VRBO | `bg-accent` | `text-accent` |
+| OTHER | `bg-muted-foreground` | `text-muted-foreground` |
+
+**NO** usar `bg-blue-500` / `bg-rose-500` / `bg-indigo-500` como antes. Consumir siempre la utility para que un cambio de paleta se propague atómicamente. Test de regresión: `src/lib/calendar/__tests__/channel-colors.test.ts`.
 
 ### 6. Filters y searchbars → texto visible, no iconos solos
 
@@ -499,7 +553,7 @@ Toggle con clase `.dark` en `<html>`. Implementación: `@/components/providers/t
 
 ## Checklist de Migración Ocean Breeze
 
-### Fase 1 (cerrada en `f19d424`)
+### Fase 1 (cerrada en `f19d424` — issue #173)
 
 - [x] Tokens `globals.css` migrados a oklch Ocean Breeze
 - [x] Tipografía: `--font-sans: DM Sans` cargada
@@ -507,34 +561,146 @@ Toggle con clase `.dark` en `<html>`. Implementación: `@/components/providers/t
 - [x] `<Badge>` con variantes semánticas
 - [x] `<MetricCard>` con `tone` variants
 - [x] Refactor dashboard, reservations, forms (5 files), settings, reservation detail dialog
-- [x] Issue #173 cerrado
 - [x] `f19d424` — cleanup residual hex
 
-### Fase 2 (en issues #174, #175, #176)
+### Fase 2 (cerrada el 2026-07-06 — issues #174, #175, #176)
 
-- [ ] **#174** — Calendar tokenizado (timeline + grid + view) + layout cleanup + fonts cargadas
-- [ ] **#175** — Admin refactor (status badges, plan badges, health badges, KPIs)
-- [ ] **#176** — `<DataTable>` primitive + 6 tablas migradas + 4 modales con `w-[95vw]` + hex fallback + nueva ruta `/payments`
+- [x] **#174** — Calendar tokenizado (timeline + view) + layout cleanup + fonts cargadas
+  - `5bc608e` — drop CalendarGrid view, remove property.color from calendar
+  - `ced81d5` — Stitch replication: page header + KPIs + 2-card layout
+  - `748ec55`, `815dac4`, `eb5f2aa`, `1abbf6f` — dashboard calendar + dark mode
+  - `62085c2` — load DM Sans italic axis
+  - `5fcc8f7` — sidebar structure, `52dde38`, `1fbcdd3`, `7c8b2d2` — text/shell color alignment
+  - `7e76886`, `5a47634` — sidebar/navbar text contrast
+  - `ad1bf2e`, `bad99c2`, `83c89d8`, `c3fcb91` — dark mode palette + button contrast
+  - `6661bb5`, `adf63c2` — sidebar/header link colors
+  - `1d20d73`, `3893afe`, `57d2020`, `b0d7a59`, `a2b1bcf`, `dd0f6fe`, `5f8363a`, `065ba1f`, `f324cff` — Reservas Stitch replication
+  - `4bf5cd5`, `6c595e6`, `fa1dc93`, `1b9d02c` — modal/dashboard cleanups
+- [x] **#175** — Admin refactor (status badges, plan badges, health badges, KPIs)
+  - `2694d9f` — migrate admin support list to DataTable
+  - Badges semánticos y hex removidos en admin
+- [x] **#176** — `<DataTable>` primitive + 6 tablas migradas + 4 modales con `w-[95vw]` + hex fallback + nueva ruta `/payments`
+  - `7fb0892` — DataTable primitive + test
+  - `a4bd6c5` — migrate clients + reservations tables
+  - `da9ad0a` — `w-[95vw]` en 4 modales
+  - `54bbe28` — hex fallback property.color → `var(--primary)`
+  - `b260fcf` — nueva ruta `/payments` (page + filters + table + extended server action)
+  - `177`, `178`, `179`, `180`, `181` — payments work derivado (issues posteriores a #176)
+  - `9d17ca8` — remove old `payments-table.tsx` duplicado
 
-### Inconsistencias conocidas (a cerrar en Fase 2)
+### Inconsistencias resueltas (audit 2026-07-09)
 
-- ❌ `dashboard-sidebar.tsx:40` — `shadow-xl backdrop-blur-xl`
-- ❌ `dashboard-navbar.tsx:47,74,85` — `shadow-sm`/`shadow-xs`
-- ❌ `layout.tsx` — Lora + IBM Plex Mono no importadas
-- ❌ `admin/page.tsx` + `admin/users/[id]/page.tsx` — 50+ hex en badges
-- ❌ `calendar-timeline.tsx` + `calendar-grid.tsx` — 50+ `bg-zinc-*` y 6 hex `#6366F1`
-- ❌ `clients-table.tsx` + `reservation-table.tsx` — tablas no envueltas en Card
-- ❌ 4 `DialogContent` sin `w-[95vw]`
-- ❌ Hex fallback `#6366F1`/`#3B82F6` en lugar de `var(--primary)`
-- ❌ `src/app/(dashboard)/payments/page.tsx` no existe (gap Stitch #11)
+- ✅ `dashboard-sidebar.tsx` — `shadow-xl backdrop-blur-xl` eliminados
+- ✅ `dashboard-navbar.tsx` — `shadow-sm`/`shadow-xs` eliminados (usa `border-b`)
+- ✅ `layout.tsx` — Lora + IBM Plex Mono cargadas vía `next/font/google`
+- ✅ `admin/*` — hex en badges migrados a tokens semánticos
+- ✅ `calendar-timeline.tsx` + `calendar-view.tsx` — `bg-zinc-*` y `#6366F1` eliminados
+- ✅ `clients-table.tsx` + `reservation-table.tsx` — usan `<DataTable>` + `<Card>` wrapper
+- ✅ Los 4 `DialogContent` problemáticos ahora usan `w-[95vw]`
+- ✅ Hex fallback `var(--primary)` propagado
+- ✅ `/payments` route existe con rediseño completo (KPIs + filtros + tabla reusable)
+
+### Drift menor conocido (no es bug — es decisión)
+
+- `src/lib/validations/property.ts` y `src/lib/actions/properties.ts` — `#3B82F6` es el **default de la paleta del color picker**, no un fallback de render. Permanece.
+- `src/components/properties/property-form.tsx:33,73` — paleta del color picker (input de usuario).
+- Tests con `color: "#3B82F6"` en mocks — sin acción.
+
+---
+
+## Patrones establecidos (post Fase 2)
+
+Primitivas y patrones creados durante la Fase 2 que **deben usarse** en futuras pantallas.
+
+### Primitivas UI (`src/components/ui/`)
+
+| Primitive | Ubicación | Propósito |
+|-----------|-----------|-----------|
+| `<DataTable>` | `data-table.tsx` | Toda tabla del producto (ver sección 1) |
+| `<MetricCard>` | `metric-card.tsx` | KPI con icono, tone semántico y status dot. Usado en `/admin/users/[id]` |
+| `<StitchKpiCard>` | `stitch-kpi-card.tsx` | KPI minimal (label + value + indicator + progress bar). Usado en `/reports` |
+| `<CurrencyInput>` | `currency-input.tsx` | Input numérico formateado CLP con `Intl.NumberFormat`. Usado en property-form |
+| `<ReceiptUpload>` | `receipt-upload.tsx` | Upload de comprobantes de pago (Cloudinary) |
+
+**Cuándo usar cuál:**
+- `MetricCard` — KPIs administrativos o de owner que necesitan jerarquía visual fuerte (icono + status dot + detalle).
+- `StitchKpiCard` — KPIs agrupados en grid (reports, dashboard executive summary) donde prima densidad sobre jerarquía individual.
+- `Badge` — Estados puntuales cortos (pago completado, reserva confirmada). NO usar para KPIs.
+
+### Patrones de página
+
+#### `/payments` (referencia de rediseño denso)
+
+Layout canónico establecido en `7618e78`:
+
+```
+┌─────────────────────────────────────────────────┐
+│ PageHeader: título + acción principal           │
+├─────────────────────────────────────────────────┤
+│ <PaymentsKpis>  ← grid 4 KPIs ejecutivos       │
+├─────────────────────────────────────────────────┤
+│ <Card>                                           │
+│   <CardHeader> filtros chip + count             │
+│   <CardContent>                                  │
+│     <PaymentsTable> ← primitive reusable       │
+│   </CardContent>                                 │
+│ </Card>                                          │
+└─────────────────────────────────────────────────┘
+```
+
+#### `/reports` (referencia de sección con chart)
+
+Layout canónico establecido en `8fcb505..c7268f3`:
+
+```
+┌─────────────────────────────────────────────────┐
+│ Header: "Resumen Ejecutivo"                      │
+├─────────────────────────────────────────────────┤
+│ [4 KPIs ejecutivos]                              │
+├─────────────────────────────────────────────────┤
+│ Distribución por Modelo (SVG rings)              │
+├─────────────────────────────────────────────────┤
+│ Resumen Operativo por Propiedad (progress bars) │
+├─────────────────────────────────────────────────┤
+│ Histórico de Ingresos (vertical bar chart)      │
+├─────────────────────────────────────────────────┤
+│ Cobranza (tabla con badges semánticos)          │
+└─────────────────────────────────────────────────┘
+```
+
+#### `ReservationPill` (estado temporal inline)
+
+Para celdas de tabla donde se muestra el estado temporal de una reserva (Próxima/Activa/Finalizada/Cancelada), se usa un pill **inline** (no `<Badge>`) con clases semánticas. Definido en `src/components/reservations/reservation-table.tsx:18-45`:
+
+```tsx
+type PillTone = "success" | "info" | "info-strong" | "warning" | "destructive" | "neutral";
+
+const toneClassNames: Record<PillTone, string> = {
+  success: "border-success/20 bg-success/10 text-success",
+  info: "border-info/20 bg-info/10 text-info",
+  "info-strong": "border-info/30 bg-info/25 text-info",
+  warning: "border-warning/25 bg-warning/10 text-warning",
+  destructive: "border-destructive/25 bg-destructive/10 text-destructive",
+  neutral: "border-muted bg-muted text-muted-foreground",
+};
+```
+
+**Regla**: usar `ReservationPill` solo dentro de la tabla de reservas. Para otros estados puntuales (pagos, propiedades, etc.) usar `<Badge variant>`. La razón de ser un primitive distinto: el pill admite un `sublabel` (ej. "En 5 días", "3 noches") debajo del label principal, lo que `<Badge>` no soporta nativamente.
+
+### Reglas para futuros rediseños
+
+1. **Toda pantalla de datos** debe terminar en `<Card>` + `<DataTable>` o `<Card>` + grid de cards. Nunca tabla suelta.
+2. **Toda página de filtros** debe tener filtros colapsables con `Ocultar`/`Mostrar` (ver CONTEXT.md:296-297) cuando hay más de 3 controles.
+3. **Toda KPI** debe usar `<MetricCard>` o `<StitchKpiCard>` según el contexto (admin/dashboard vs. reports).
+4. **Todo estado** debe usar `<Badge variant>` o `ReservationPill` (solo en tabla de reservas). No reinventar pills inline.
+5. **Todo color hex** debe pasar por tokens semánticos. Excepciones documentadas arriba.
 
 ---
 
 ## References
 
 - **Stitch project**: `projects/1529269251022042678` ("RentalPro - Rediseño UI") — fuente visual
-- **PRD**: `docs/agents/prd-ocean-breeze-fase-2.md` — plan completo de Fase 2
+- **PRD**: `docs/agents/prd-ocean-breeze-fase-2.md` — plan de Fase 2 (cerrado)
 - **ADR-0014**: `docs/adr/0014-theme-architecture.md` — arquitectura de theme
-- **Audit visual**: memoria de Engram (`audit/ocean-breeze-vs-stitch`)
-- **Issues abiertas**: #174, #175, #176
-- **Issue cerrado**: #173 (Fase 1)
+- **Issues cerradas**: #173 (Fase 1), #174 / #175 / #176 (Fase 2, 2026-07-06)
+- **Issues derivadas abiertas**: #177, #178, #179, #180, #181 (pagos work post-rediseño), #182 (dashboard UrgentCollectionCard refactor)
