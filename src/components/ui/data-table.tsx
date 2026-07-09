@@ -1,12 +1,31 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+export type DataTableHeaderAlign = "left" | "right" | "center";
+
+export type DataTableHeader =
+  | string
+  | { label: string; align?: DataTableHeaderAlign };
+
 interface DataTableProps {
-  headers: string[];
+  headers: DataTableHeader[];
   children?: React.ReactNode;
   emptyState?: React.ReactNode;
   caption?: string;
   className?: string;
+}
+
+function normalizeHeader(header: DataTableHeader): { label: string; align: DataTableHeaderAlign } {
+  if (typeof header === "string") {
+    return { label: header, align: "left" };
+  }
+  return { label: header.label, align: header.align ?? "left" };
+}
+
+function alignClass(align: DataTableHeaderAlign): string {
+  if (align === "right") return "text-right";
+  if (align === "center") return "text-center";
+  return "text-left";
 }
 
 export function DataTable({ headers, children, emptyState, caption, className }: DataTableProps) {
@@ -16,15 +35,21 @@ export function DataTable({ headers, children, emptyState, caption, className }:
         <table className="w-full">
           {caption && <caption className="sr-only">{caption}</caption>}
           <thead>
-            <tr className="border-b bg-muted/50 text-left">
-              {headers.map((header) => (
-                <th
-                  key={header}
-                  className="px-6 py-4 text-left align-middle text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
-                >
-                  {header}
-                </th>
-              ))}
+            <tr className="border-b bg-muted/50">
+              {headers.map((header, idx) => {
+                const { label, align } = normalizeHeader(header);
+                return (
+                  <th
+                    key={`${label}-${idx}`}
+                    className={cn(
+                      "px-6 py-4 align-middle text-[10px] font-bold uppercase tracking-wider text-muted-foreground",
+                      alignClass(align)
+                    )}
+                  >
+                    {label}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody className="text-xs">

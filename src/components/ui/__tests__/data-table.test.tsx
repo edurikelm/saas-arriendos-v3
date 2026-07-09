@@ -48,4 +48,35 @@ describe("DataTable", () => {
 
     expect(document.querySelector("caption")?.textContent).toBe("Lista de usuarios");
   });
+
+  it("applies per-column alignment from header objects", () => {
+    render(
+      <DataTable
+        headers={[
+          { label: "Cliente", align: "left" },
+          { label: "Monto", align: "right" },
+          { label: "Acciones", align: "center" },
+        ]}
+      >
+        <tr><td>Test</td></tr>
+      </DataTable>
+    );
+
+    const ths = document.querySelectorAll("th");
+    expect(ths[0].className).toContain("text-left");
+    expect(ths[1].className).toContain("text-right");
+    expect(ths[2].className).toContain("text-center");
+  });
+
+  it("defaults string headers to text-left alignment", () => {
+    render(
+      <DataTable headers={["A", "B", "C"]}>
+        <tr><td>Test</td></tr>
+      </DataTable>
+    );
+
+    document.querySelectorAll("th").forEach((th) => {
+      expect(th.className).toContain("text-left");
+    });
+  });
 });
