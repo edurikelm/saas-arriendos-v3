@@ -454,16 +454,50 @@ Si la métrica necesita ícono (ej. notification bell), que sea `<Badge>` latera
 
 ### Sidebar
 
+Layout estructural compartido por los dos sidebars:
+
 | Property | Value |
 |----------|-------|
 | Width | `w-64` (256px) |
-| Background | `bg-sidebar` (NO hardcoded slate) |
-| Text Color | `text-sidebar-foreground` |
-| Active Item | `bg-sidebar-accent text-sidebar-accent-foreground` + `ring-1 ring-sidebar-ring/20` |
-| Inactive Item | `text-sidebar-foreground hover:bg-sidebar-accent` |
+| Background | `bg-sidebar` (NO hardcoded slate, blanco en light / `#0d1c2d` en dark) |
+| Border | `border-r border-sidebar-border` |
+| Icon size (nav) | `h-5 w-5` (20px) |
+| Layout item | `flex items-center gap-3 px-3 py-2 rounded text-sm transition-colors` |
 | Mobile | `fixed`, overlay con `bg-black/50` |
+| Hover bg (todos los elementos) | `hover:bg-muted` (gray neutral, NO tinte teal) |
 
-**Sin shadows**. Si se necesita jerarquía: `ring-1`.
+**Sin shadows**. Si se necesita jerarquía activa: background tint + font weight.
+
+#### Owner sidebar (`dashboard-sidebar.tsx`)
+
+| Estado | Tipografía | Background | Font weight |
+|--------|------------|------------|-------------|
+| Inactivo | `text-muted-foreground` (#64748B slate-500, matchea code.html) | transparent | default |
+| Inactivo hover | (heredada) | `bg-muted` (pale gray neutral) | default |
+| **Activo** | `text-primary` (#2DBE85 teal) | `bg-primary/10` (teal al 10%) | `font-medium` |
+
+#### Admin sidebar (`dashboard-sidebar-admin.tsx`)
+
+| Estado | Tipografía | Background | Font weight |
+|--------|------------|------------|-------------|
+| Inactivo | `text-muted-foreground` | transparent | default |
+| Inactivo hover | (heredada) | `bg-muted` | default |
+| **Activo** | `text-sidebar-accent-foreground` (#131f1a) | `bg-sidebar-accent` (pale mint) | `font-medium` |
+
+**Diferencia entre sidebars**: el owner usa teal accent (`bg-primary/10`) para el active state porque matchea `code.html` (Stitch reference). El admin usa el token `bg-sidebar-accent` directamente (pale mint bg + dark text). Son dos patrones intencionales, NO son drift.
+
+#### Reglas de uso de tokens de sidebar
+
+| Token | Cuándo usar | Cuándo NO usar |
+|-------|-------------|----------------|
+| `bg-sidebar` | Background del container del sidebar | Para hover ni para active |
+| `bg-sidebar-accent` | Active state del admin sidebar | Para hover (drift corregido — usar `bg-muted`) |
+| `text-sidebar-foreground` | Color base del container (texto e iconos inactivos del shell) | Para nav links (usar `text-muted-foreground`) |
+| `text-muted-foreground` | Tipografía de nav links inactivos (slate-500) | Para active state (usar `text-primary` o `text-sidebar-accent-foreground`) |
+| `bg-muted` | Hover bg de todos los elementos del sidebar | Para active state |
+| `bg-primary/10` + `text-primary` | Active state del owner sidebar | En admin sidebar (usa `bg-sidebar-accent`) |
+
+**Iconografía**: `h-5 w-5` (20px) para nav. `h-4 w-4` (16px) para iconos auxiliares (theme toggle, logout, dropdown trigger). `h-5 w-5` para mobile close button.
 
 ### Page Layout
 
