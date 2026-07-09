@@ -2,21 +2,15 @@
 
 import { useState } from "react";
 import { format } from "date-fns";
-import { es } from "date-fns/locale";
 import {
   CalendarDays,
   Mail,
   Phone,
   Home,
-  Check,
   RefreshCw,
-  FileText,
-  ExternalLink,
-  Copy,
   Plus,
-  Loader2,
-  MoreHorizontal,
   X as XIcon,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,12 +31,6 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -52,10 +40,11 @@ import { SendPaymentLinkDialog } from "./send-payment-link-dialog";
 import { ReceiptUpload } from "@/components/ui/receipt-upload";
 import { ReservationDocumentsPanel } from "./reservation-documents-panel";
 import { getInclusiveMonths } from "@/lib/reservation-dates";
+import { PaymentsTable } from "@/components/payments/payments-table";
 
 export interface Payment {
   id: string;
-  installmentIndex?: number;
+  installmentIndex?: number | null;
   amount: string;
   dueDate?: string | null;
   status: string;
@@ -68,6 +57,8 @@ export interface Payment {
   paymentType?: string | null;
   title?: string | null;
   description?: string | null;
+  overdueDays?: number | null;
+  installmentLabel?: string | null;
 }
 
 interface Property {
@@ -127,34 +118,12 @@ const statusConfig: Record<
   COMPLETED: { label: "Completada", variant: "outline" },
 };
 
-const paymentStatusConfig: Record<
-  string,
-  { label: string; variant: "default" | "secondary" | "destructive" | "outline" | "warning" | "success" }
-> = {
-  PENDING: { label: "Pendiente", variant: "warning" },
-  COMPLETED: { label: "Pagado", variant: "success" },
-  FAILED: { label: "Fallido", variant: "destructive" },
-};
-
 function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString("es-CL", {
     day: "numeric",
     month: "short",
     year: "numeric",
   });
-}
-
-function formatDueDate(dateString: string): string {
-  return format(new Date(dateString), "d MMM yyyy", { locale: es });
-}
-
-function formatAmount(amount: string | number): string {
-  return new Intl.NumberFormat("es-CL", {
-    style: "currency",
-    currency: "CLP",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(Number(amount));
 }
 
 function formatPrice(price: string | number): string {
@@ -173,231 +142,6 @@ function getNights(startDate: string, endDate: string): number {
 
 function getMonths(startDate: string, endDate: string): number {
   return getInclusiveMonths(startDate, endDate);
-}
-
-export function PaymentsTable({
-  payments,
-  onGenerateLink,
-  onMarkPaid,
-  onDeletePayment,
-  onAttachReceipt,
-  onSendLink,
-  showInstallmentColumns,
-  showConceptColumn = false,
-  generatingLinkId,
-}: {
-  payments: Payment[];
-  onGenerateLink?: (paymentId: string) => void;
-  onMarkPaid?: (paymentId: string) => void;
-onDeletePayment?: (paymentId: string) => void;
-  onAttachReceipt?: (paymentId: string) => void;
-  onSendLink?: (payment: Payment) => void;
-  showInstallmentColumns: boolean;
-  showConceptColumn?: boolean;
-  generatingLinkId?: string | null;
-}) {
-  return (
-    <div className="overflow-x-auto rounded-xl border border-border/70">
-      <table className="w-full text-xs">
-        <thead className="bg-muted/30">
-          <tr>
-            {showInstallmentColumns && (
-              <th className="px-3 py-2 text-left font-medium text-muted-foreground">Cuota</th>
-            )}
-            {showConceptColumn && (
-              <th className="px-3 py-2 text-left font-medium text-muted-foreground">Concepto</th>
-            )}
-            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Monto</th>
-            {showInstallmentColumns && (
-              <th className="px-3 py-2 text-left font-medium text-muted-foreground">Vencimiento</th>
-            )}
-            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Fecha Pago</th>
-            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Medio</th>
-            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Estado</th>
-            <th className="px-3 py-2 text-right font-medium text-muted-foreground w-[180px]">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {[...payments].sort((a, b) => (a.installmentIndex ?? 0) - (b.installmentIndex ?? 0)).map((payment) => {
-            const statusCfg = paymentStatusConfig[payment.status] || paymentStatusConfig.PENDING;
-            const isPending = payment.status === "PENDING";
-            const isCompleted = payment.status === "COMPLETED";
-            const isMercadoPago = payment.method === "MERCADO_PAGO";
-            const canGenerateLink = isPending && isMercadoPago && !payment.initPoint && onGenerateLink;
-            const canCopyLink = isPending && isMercadoPago && payment.initPoint;
-            const canMarkPaid = isPending && onMarkPaid;
-            const canDelete = isPending && !isMercadoPago && onDeletePayment;
-            const canViewReceipt = Boolean(payment.receiptUrl);
-            const canAttachReceipt = isCompleted && !payment.receiptUrl && onAttachReceipt;
-            const canSendLink = isPending && isMercadoPago && payment.initPoint && onSendLink;
-            const primaryAction = canGenerateLink
-              ? "generate"
-              : canCopyLink
-                ? "copy"
-                : canMarkPaid
-                  ? "markPaid"
-                  : canViewReceipt
-                    ? "viewReceipt"
-                    : null;
-const secondaryActions = [
-              canMarkPaid && primaryAction !== "markPaid" ? "markPaid" : null,
-              canDelete ? "delete" : null,
-              canViewReceipt && primaryAction !== "viewReceipt" ? "viewReceipt" : null,
-              canAttachReceipt ? "attachReceipt" : null,
-              canSendLink ? "sendLink" : null,
-            ].filter(Boolean) as Array<"markPaid" | "delete" | "viewReceipt" | "attachReceipt" | "sendLink">;
-
-            const renderActionButton = (action: typeof primaryAction) => {
-              if (!action) return null;
-
-              if (action === "generate") {
-                return (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 px-2 text-xs"
-                    disabled={generatingLinkId === payment.id}
-                    onClick={() => onGenerateLink?.(payment.id)}
-                  >
-                    {generatingLinkId === payment.id ? (
-                      <Loader2 className="mr-1 size-3 animate-spin" />
-                    ) : (
-                      <ExternalLink className="mr-1 size-3" />
-                    )}
-                    Generar link
-                  </Button>
-                );
-              }
-
-              if (action === "copy") {
-                return (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => {
-                      navigator.clipboard.writeText(payment.initPoint!);
-                      toast.success("Link copiado al portapapeles");
-                    }}
-                  >
-                    <Copy className="mr-1 size-3" />
-                    Copiar link
-                  </Button>
-                );
-              }
-
-              if (action === "markPaid") {
-                return (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => onMarkPaid?.(payment.id)}
-                  >
-                    <Check className="mr-1 size-3" />
-                    Marcar pagado
-                  </Button>
-                );
-              }
-
-              if (action === "viewReceipt") {
-                return (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => window.open(payment.receiptUrl!, "_blank")}
-                  >
-                    <FileText className="mr-1 size-3" />
-                    Ver comp.
-                  </Button>
-                );
-              }
-
-              return null;
-            };
-
-            const renderMenuItem = (action: (typeof secondaryActions)[number]) => {
-              if (action === "markPaid") {
-                return <DropdownMenuItem onClick={() => onMarkPaid?.(payment.id)}>Marcar como pagado</DropdownMenuItem>;
-              }
-
-              if (action === "delete") {
-                return <DropdownMenuItem variant="destructive" onClick={() => onDeletePayment?.(payment.id)}>Eliminar pago</DropdownMenuItem>;
-              }
-
-if (action === "viewReceipt") {
-                return <DropdownMenuItem onClick={() => window.open(payment.receiptUrl!, "_blank")}>Ver comprobante</DropdownMenuItem>;
-              }
-
-              if (action === "sendLink") {
-                return <DropdownMenuItem onClick={() => onSendLink?.(payment)}>Enviar link</DropdownMenuItem>;
-              }
-
-              return <DropdownMenuItem onClick={() => onAttachReceipt?.(payment.id)}>Adjuntar comprobante</DropdownMenuItem>;
-            };
-
-            return (
-              <tr key={payment.id} className="border-t border-border/60 transition-colors hover:bg-muted/20">
-                {showInstallmentColumns && (
-                  <td className="px-3 py-3 font-medium">
-                    {payment.installmentIndex ?? "—"}
-                  </td>
-                )}
-                {showConceptColumn && (
-                  <td className="px-3 py-3">
-                    <p className="font-medium text-foreground">{payment.title || "Cobro extra"}</p>
-                    {payment.description && (
-                      <p className="text-xs text-muted-foreground line-clamp-1">{payment.description}</p>
-                    )}
-                  </td>
-                )}
-                <td className="px-3 py-3 font-medium">{formatAmount(payment.amount)}</td>
-                {showInstallmentColumns && (
-                  <td className="px-3 py-3">
-                    {payment.dueDate ? formatDueDate(payment.dueDate) : "—"}
-                  </td>
-                )}
-                <td className="px-3 py-3 text-muted-foreground text-xs">
-                  {payment.paidAt ? formatDate(payment.paidAt) : "—"}
-                </td>
-                <td className="px-3 py-3">
-                  {payment.method === "MERCADO_PAGO" ? "Mercado Pago" : payment.method === "CASH" ? "Efectivo" : payment.method === "TRANSFER" ? "Transferencia" : "—"}
-                </td>
-                <td className="px-3 py-3">
-                  <Badge variant={statusCfg.variant} className="h-5 text-[11px] font-medium">{statusCfg.label}</Badge>
-                </td>
-                <td className="px-3 py-3">
-                  <div className="flex items-center justify-end gap-1">
-                    {renderActionButton(primaryAction)}
-                    {secondaryActions.length > 0 && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          render={
-                            <Button size="icon" variant="ghost" className="size-7" aria-label="Más acciones">
-                              <MoreHorizontal className="size-3.5" />
-                            </Button>
-                          }
-                        />
-                        <DropdownMenuContent align="end" className="w-44">
-                          {secondaryActions.map((action) => (
-                            <div key={action}>{renderMenuItem(action)}</div>
-                          ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                    {!primaryAction && secondaryActions.length === 0 && (
-                      <span className="text-muted-foreground text-[10px]">—</span>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
 }
 
 export function ReservationDetailDialog({

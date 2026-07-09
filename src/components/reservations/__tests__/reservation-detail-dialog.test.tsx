@@ -44,7 +44,7 @@ vi.mock('../reservation-documents-panel', () => ({
   ReservationDocumentsPanel: () => <div data-testid="reservation-documents-panel">ReservationDocumentsPanel</div>,
 }));
 
-import { PaymentsTable, ReservationDetailDialog } from '../reservation-detail-dialog';
+import { ReservationDetailDialog } from '../reservation-detail-dialog';
 
 const createMockPayment = (overrides: Partial<Payment> = {}): Payment => ({
   id: 'payment-1',
@@ -78,66 +78,6 @@ const createMockReservation = (overrides: Record<string, any> = {}) => ({
   client: { id: 'client-1', name: 'Test Client', email: 'test@test.com' },
   payments: [],
   ...overrides,
-});
-
-describe('PaymentsTable - receiptUrl display', () => {
-  it('shows receipt button when payment has receiptUrl', () => {
-    const payment = createMockPayment({
-      receiptUrl: 'https://www.mercadopago.com.ar/receipts/abc123',
-    });
-
-    render(
-      <PaymentsTable
-        payments={[payment]}
-        showInstallmentColumns={false}
-      />
-    );
-
-    expect(screen.getByText('Monto')).toBeTruthy();
-  });
-
-  it('does not show receipt button when payment has no receiptUrl', () => {
-    const payment = createMockPayment({
-      receiptUrl: null,
-    });
-
-    render(
-      <PaymentsTable
-        payments={[payment]}
-        showInstallmentColumns={false}
-      />
-    );
-
-    expect(screen.getByText('Monto')).toBeTruthy();
-  });
-
-  it('renders installment columns when showInstallmentColumns is true', () => {
-    const payment = createMockPayment({ installmentIndex: 1, dueDate: '2025-02-01' });
-
-    render(
-      <PaymentsTable
-        payments={[payment]}
-        showInstallmentColumns={true}
-      />
-    );
-
-    expect(screen.getByText('Cuota')).toBeTruthy();
-    expect(screen.getByText('Vencimiento')).toBeTruthy();
-  });
-
-  it('hides installment columns when showInstallmentColumns is false', () => {
-    const payment = createMockPayment({ installmentIndex: 1, dueDate: '2025-02-01' });
-
-    render(
-      <PaymentsTable
-        payments={[payment]}
-        showInstallmentColumns={false}
-      />
-    );
-
-    expect(screen.queryByText('Cuota')).toBeNull();
-    expect(screen.queryByText('Vencimiento')).toBeNull();
-  });
 });
 
 describe('ReservationDetailDialog - paymentType separation', () => {

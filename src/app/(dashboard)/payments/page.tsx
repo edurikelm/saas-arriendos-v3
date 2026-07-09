@@ -1,10 +1,13 @@
+import Link from "next/link";
 import { getSession } from "@/lib/actions/auth";
-import { getPayments, getCollectionAlerts } from "@/lib/actions/payments";
+import { getPayments, getPaymentsKpis } from "@/lib/actions/payments";
 import { getProperties } from "@/lib/actions/properties";
-import { UrgentCollectionCard } from "@/components/dashboard/urgent-collection-card";
+import { PaymentsKpis } from "@/components/payments/payments-kpis";
 import { PaymentsFilters } from "./_components/payments-filters";
-import { PaymentsTable } from "./_components/payments-table";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PaymentsTableClient } from "./_components/payment-actions";
+import { PaginationWrapper } from "./_components/pagination-wrapper";
+import { Button } from "@/components/ui/button";
+import { ReceiptText, X } from "lucide-react";
 
 export const metadata = { title: "Pagos — RentalPro" };
 
@@ -13,6 +16,7 @@ interface PaymentsPageProps {
     propertyId?: string;
     method?: string;
     status?: string;
+    paymentType?: string;
     dateFrom?: string;
     dateTo?: string;
     page?: string;
@@ -26,65 +30,90 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
   const params = await searchParams;
   const page = Number(params.page ?? "1");
 
-  const [{ payments, total, totalPages }, properties, collectionAlerts] = await Promise.all([
+  const [{ payments, total, totalPages }, properties, kpis] = await Promise.all([
     getPayments({
       propertyId: params.propertyId,
       method: params.method,
       status: params.status,
+      paymentType: params.paymentType,
       dateFrom: params.dateFrom,
       dateTo: params.dateTo,
       page,
       limit: 20,
     }),
     getProperties(),
-    getCollectionAlerts(),
+    getPaymentsKpis(),
   ]);
 
   const filterProps = {
     propertyId: params.propertyId ?? "",
     method: params.method ?? "",
     status: params.status ?? "",
+    paymentType: params.paymentType ?? "",
     dateFrom: params.dateFrom ?? "",
     dateTo: params.dateTo ?? "",
   };
 
+  const hasFilters = Object.values(filterProps).some(Boolean);
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Pagos</h1>
-        <p className="text-muted-foreground text-sm">
-          Gestiona tus pagos y cobrazas pendientes
-        </p>
+      {/* Header */}
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight">Pagos</h1>
+          <p className="text-xs text-muted-foreground">
+            Gestión de ingresos, facturación y conciliación bancaria
+          </p>
+        </div>
       </div>
 
-      {/* Cobranza urgente widget */}
-      <UrgentCollectionCard
-        vencidos={collectionAlerts.vencidos}
-        vencenHoy={collectionAlerts.vencenHoy}
-        proximos7Dias={collectionAlerts.proximos7Dias}
+      {/* KPIs */}
+      <PaymentsKpis kpis={kpis} />
+
+      {/* Filters */}
+      <PaymentsFilters
+        properties={properties}
+        {...filterProps}
       />
 
-      {/* Filters + Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Todos los pagos</CardTitle>
-          <CardDescription>
-            Listado completo de pagos con filtros por propiedad, método y estado
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <PaymentsFilters
-            properties={properties}
-            {...filterProps}
-          />
-          <PaymentsTable
-            payments={payments}
-            total={total}
-            totalPages={totalPages}
-            page={page}
-          />
-        </CardContent>
-      </Card>
+      {/* Counter */}
+      {payments.length > 0 && (
+        <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+          Mostrando {(page - 1) * 20 + 1}-{Math.min(page * 20, total)} de {total} pago{total !== 1 ? "s" : ""}
+        </div>
+      )}
+
+      {/* Table OR Empty State */}
+      {payments.length === 0 ? (
+        <div className="rounded-2xl border border-dashed bg-muted/20 p-10 text-center">
+          <ReceiptText className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+          <h3 className="text-lg font-medium">No hay pagos</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {hasFilters
+              ? "Ningún pago coincide con los filtros seleccionados."
+              : "Aún no tienes pagos registrados."}
+          </p>
+          {hasFilters && (
+            <Button variant="outline" className="mt-4" render={<Link href="/payments" />}>
+              <X className="mr-2 h-4 w-4" />
+              Limpiar filtros
+            </Button>
+          )}
+        </div>
+      ) : (
+        <PaymentsTableClient
+          payments={payments}
+          showInstallmentColumns={true}
+          showConceptColumn={true}
+          showContextColumns={true}
+        />
+      )}
+
+      {/* Pagination condicional */}
+      {totalPages > 1 && (
+        <PaginationWrapper page={page} totalPages={totalPages} total={total} limit={20} />
+      )}
     </div>
   );
 }

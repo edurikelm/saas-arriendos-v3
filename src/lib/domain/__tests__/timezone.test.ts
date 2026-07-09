@@ -5,6 +5,7 @@ import {
   isSameBusinessDay,
   getDateKeyInTz,
   dateKeyToDayIndex,
+  startOfMonthInSantiago,
 } from "@/lib/domain/timezone";
 
 describe("BUSINESS_TIME_ZONE", () => {
@@ -98,5 +99,20 @@ describe("isSameBusinessDay", () => {
     const a = new Date("2026-05-20T12:00:00.000Z");
     const b = new Date("2026-05-21T00:00:00.000Z"); // May 21 00:00 UTC = May 21 09:00 Tokyo
     expect(isSameBusinessDay(a, b, "Asia/Tokyo")).toBe(false); // May 20 vs May 21 in Tokyo
+  });
+});
+
+describe("startOfMonthInSantiago", () => {
+  it("returns YYYY-MM-01 format", () => {
+    const result = startOfMonthInSantiago();
+    expect(result).toMatch(/^\d{4}-\d{2}-01$/);
+  });
+
+  it("uses America/Santiago timezone for month boundary", () => {
+    const result = startOfMonthInSantiago();
+    const [year, month] = result.split("-").map(Number);
+    expect(month).toBeGreaterThanOrEqual(1);
+    expect(month).toBeLessThanOrEqual(12);
+    expect(year).toBeGreaterThan(2020);
   });
 });

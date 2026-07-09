@@ -15,7 +15,7 @@ import {
 
 interface Payment {
   id: string;
-  installmentIndex?: number;
+  installmentIndex?: number | null;
   amount: string;
   dueDate?: string | null;
   status: string;
@@ -59,7 +59,7 @@ function getDefaultTemplate(params: {
   dueDate?: string | null;
   month?: string;
   link: string;
-  installmentIndex?: number;
+  installmentIndex?: number | null;
   title?: string | null;
   billingType: string;
 }): string {

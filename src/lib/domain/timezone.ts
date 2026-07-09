@@ -65,3 +65,12 @@ export function isSameBusinessDay(
 
   return getDateKeyInTz(dateA, tz) === getDateKeyInTz(dateB, tz);
 }
+
+/**
+ * Returns the first day of the current calendar month in America/Santiago wall-time,
+ * formatted as YYYY-MM-01.
+ */
+export function startOfMonthInSantiago(): string {
+  const today = getDateKeyInTz(new Date());
+  return today.slice(0, 7) + "-01";
+}

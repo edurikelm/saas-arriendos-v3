@@ -15,6 +15,7 @@ import { addDays } from "date-fns";
 import { ZodError } from "zod";
 import { getReservationPaidAmount, getReservationPendingAmount, type PaymentLike } from "@/lib/payments/calculations";
 import { recordDomainEvent } from "@/lib/notifications/record-event";
+import { daysFromNowInBusinessTz, startOfMonthInSantiago } from "@/lib/domain/timezone";
 
 function buildMercadoPagoNotificationUrl(paymentId: string) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -62,6 +63,7 @@ export async function getPayments(filters?: {
   status?: string;
   method?: string;
   propertyId?: string;
+  paymentType?: string;
   dateFrom?: string;
   dateTo?: string;
   page?: number;
@@ -89,6 +91,10 @@ export async function getPayments(filters?: {
     where.method = filters.method;
   }
 
+  if (filters?.paymentType && (filters.paymentType === "RESERVATION" || filters.paymentType === "EXTRA")) {
+    where.paymentType = filters.paymentType;
+  }
+
   if (filters?.dateFrom) {
     where.createdAt = { ...where.createdAt as object, gte: new Date(filters.dateFrom) };
   }
@@ -106,7 +112,7 @@ export async function getPayments(filters?: {
   const limit = filters?.limit ?? 20;
   const skip = (page - 1) * limit;
 
-  const [payments, total] = await Promise.all([
+  const [payments, total, totalsByReservation] = await Promise.all([
     prisma.payment.findMany({
       where: { ...where, deletedAt: null },
       include: {
@@ -114,6 +120,7 @@ export async function getPayments(filters?: {
           select: {
             id: true,
             totalPrice: true,
+            billingType: true,
             property: {
               select: { id: true, name: true },
             },
@@ -128,19 +135,57 @@ export async function getPayments(filters?: {
       take: limit,
     }),
     prisma.payment.count({ where: { ...where, deletedAt: null } }),
+    prisma.payment.groupBy({
+      by: ["reservationId"],
+      where: {
+        installmentIndex: { not: null },
+        deletedAt: null,
+        reservation: { userId: session.userId },
+        ...(filters?.reservationId ? { reservationId: filters.reservationId } : {}),
+      },
+      _max: { installmentIndex: true },
+    }),
   ]);
 
+  const totalMap = new Map(
+    totalsByReservation.map((r) => [r.reservationId, r._max.installmentIndex ?? 0])
+  );
+
   const totalPages = Math.ceil(total / limit);
+  const today = new Date();
 
   return {
-    payments: payments.map((p) => ({
-      ...p,
-      amount: String(p.amount),
-      reservation: {
-        ...p.reservation,
-        totalPrice: String(p.reservation.totalPrice),
-      },
-    })),
+    payments: payments.map((p) => {
+      const isPending = p.status === "PENDING";
+      // daysFromNowInBusinessTz returns negative for past dates; negate so overdueDays is positive
+      const rawDays = isPending && p.dueDate ? daysFromNowInBusinessTz(p.dueDate, today) : null;
+      const overdueDays: number | null = rawDays !== null ? -rawDays : null;
+
+      const isMonthly = p.reservation.billingType === "MONTHLY";
+      const totalInstallments = totalMap.get(p.reservationId) ?? null;
+      const installmentLabel: string | null =
+        isMonthly && p.installmentIndex != null && totalInstallments != null && totalInstallments > 0
+          ? `${p.installmentIndex} / ${totalInstallments}`
+          : null;
+
+      return {
+        ...p,
+        amount: String(p.amount),
+        overdueDays,
+        installmentLabel,
+        createdAt: p.createdAt ? p.createdAt.toISOString() : null,
+        clientName: p.reservation.client?.name ?? null,
+        propertyName: p.reservation.property?.name ?? null,
+        dueDate: p.dueDate ? p.dueDate.toISOString() : null,
+        paidAt: p.paidAt ? p.paidAt.toISOString() : null,
+        expiresAt: p.expiresAt ? p.expiresAt.toISOString() : null,
+        deletedAt: p.deletedAt ? p.deletedAt.toISOString() : null,
+        reservation: {
+          ...p.reservation,
+          totalPrice: String(p.reservation.totalPrice),
+        },
+      };
+    }),
     total,
     totalPages,
   };
@@ -635,6 +680,7 @@ export async function generatePaymentLink(paymentId: string) {
 
     revalidatePath("/reservations");
     revalidatePath(`/reservations/${payment.reservationId}`);
+    revalidatePath("/payments");
 
     return {
       success: true,
@@ -758,6 +804,7 @@ export async function deletePayment(id: string) {
 
   revalidatePath("/reservations");
   revalidatePath(`/reservations/${payment.reservationId}`);
+  revalidatePath("/payments");
 
   return { success: true };
 }
@@ -786,8 +833,9 @@ export async function restorePayment(id: string) {
 
   revalidatePath("/reservations");
   revalidatePath(`/reservations/${payment.reservationId}`);
+  revalidatePath("/payments");
 
-return { success: true };
+  return { success: true };
 }
 
 export async function updatePayment(id: string, data: { status: "COMPLETED" | "PENDING" }) {
@@ -970,6 +1018,7 @@ export async function markPaymentAsPaid(
 
   revalidatePath('/reservations');
   revalidatePath(`/reservations/${payment.reservationId}`);
+  revalidatePath("/payments");
 
   return { success: true };
 }
@@ -995,6 +1044,7 @@ export async function attachReceipt(paymentId: string, receiptUrl: string) {
 
   revalidatePath("/reservations");
   revalidatePath(`/reservations/${payment.reservationId}`);
+  revalidatePath("/payments");
 
   return { success: true };
 }
@@ -1103,6 +1153,7 @@ export async function checkMercadoPagoPaymentStatus(paymentId: string) {
 
       revalidatePath("/reservations");
       revalidatePath(`/reservations/${payment.reservationId}`);
+      revalidatePath("/payments");
 
       return { success: true, newStatus };
     }
@@ -1146,4 +1197,56 @@ export async function getCollectionAlerts(): Promise<CollectionAlertsResult> {
   );
 
   return classifyCollectionAlerts(payments);
+}
+
+export interface PaymentsKpis {
+  cobradoMes: number;
+  pendiente: number;
+  pendienteCount: number;
+  proximos7DiasCount: number;
+}
+
+export async function getPaymentsKpis(): Promise<PaymentsKpis> {
+  const session = await getSession();
+  if (!session) return { cobradoMes: 0, pendiente: 0, pendienteCount: 0, proximos7DiasCount: 0 };
+
+  const startOfMonth = startOfMonthInSantiago();
+
+  const [cobradoMesAgg, pendienteAgg, pendienteCount, alerts] = await Promise.all([
+    prisma.payment.aggregate({
+      where: {
+        status: "COMPLETED",
+        paymentType: "RESERVATION",
+        paidAt: { gte: new Date(startOfMonth) },
+        deletedAt: null,
+        reservation: { userId: session.userId },
+      },
+      _sum: { amount: true },
+    }),
+    prisma.payment.aggregate({
+      where: {
+        status: "PENDING",
+        paymentType: "RESERVATION",
+        deletedAt: null,
+        reservation: { userId: session.userId },
+      },
+      _sum: { amount: true },
+    }),
+    prisma.payment.count({
+      where: {
+        status: "PENDING",
+        paymentType: "RESERVATION",
+        deletedAt: null,
+        reservation: { userId: session.userId },
+      },
+    }),
+    getCollectionAlerts(),
+  ]);
+
+  return {
+    cobradoMes: Number(cobradoMesAgg._sum.amount ?? 0),
+    pendiente: Number(pendienteAgg._sum.amount ?? 0),
+    pendienteCount,
+    proximos7DiasCount: alerts.proximos7Dias.length,
+  };
 }

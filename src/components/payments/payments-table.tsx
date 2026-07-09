@@ -1,0 +1,375 @@
+"use client";
+
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import {
+  ExternalLink,
+  Copy,
+  Check,
+  FileText,
+  Loader2,
+  MoreHorizontal,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { DataTable } from "@/components/ui/data-table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
+
+export interface Payment {
+  id: string;
+  installmentIndex?: number | null;
+  amount: string;
+  dueDate?: string | null;
+  status: string;
+  method: string;
+  initPoint?: string | null;
+  expiresAt?: string | null;
+  paidAt?: string | null;
+  deletedAt?: string | null;
+  receiptUrl?: string | null;
+  paymentType?: string | null;
+  title?: string | null;
+  description?: string | null;
+  overdueDays?: number | null;
+  installmentLabel?: string | null;
+  createdAt?: string | Date | null;
+  clientName?: string | null;
+  propertyName?: string | null;
+}
+
+const paymentStatusConfig: Record<
+  string,
+  { label: string; variant: "default" | "secondary" | "destructive" | "outline" | "warning" | "success" }
+> = {
+  PENDING: { label: "Pendiente", variant: "warning" },
+  COMPLETED: { label: "Pagado", variant: "success" },
+  FAILED: { label: "Fallido", variant: "destructive" },
+};
+
+function formatDate(dateString: string): string {
+  return new Date(dateString).toLocaleDateString("es-CL", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatDueDate(dateString: string | null | undefined): string {
+  if (!dateString) return "—";
+  return format(new Date(dateString), "d MMM yyyy", { locale: es });
+}
+
+function formatAmount(amount: string | number): string {
+  return new Intl.NumberFormat("es-CL", {
+    style: "currency",
+    currency: "CLP",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Number(amount));
+}
+
+function getConceptLabel(payment: Payment): { primary: string } {
+  // Pago EXTRA → título obligatorio del modelo
+  if (payment.paymentType === "EXTRA") {
+    return { primary: payment.title ?? "Cobro extra" };
+  }
+
+  // Pago RESERVATION mensual con cuota → "Mensualidad"
+  if (payment.paymentType === "RESERVATION" && payment.installmentIndex != null) {
+    return { primary: "Mensualidad" };
+  }
+
+  // Pago RESERVATION diario (sin cuota) → "Arriendo"
+  return { primary: "Arriendo" };
+}
+
+type ConceptVariant = "info" | "warning";
+
+function getConceptBadgeVariant(payment: Payment): ConceptVariant {
+  // EXTRA → warning (atención: cobro adicional al arriendo)
+  if (payment.paymentType === "EXTRA") {
+    return "warning";
+  }
+  // RESERVATION (Arriendo o Mensualidad) → info (caso estándar)
+  return "info";
+}
+
+export function PaymentsTable({
+  payments,
+  onGenerateLink,
+  onMarkPaid,
+  onDeletePayment,
+  onAttachReceipt,
+  onSendLink,
+  showInstallmentColumns,
+  showConceptColumn = false,
+  showContextColumns = false,
+  generatingLinkId,
+  attachingReceiptId,
+}: {
+  payments: Payment[];
+  onGenerateLink?: (paymentId: string) => void;
+  onMarkPaid?: (paymentId: string) => void;
+  onDeletePayment?: (paymentId: string) => void;
+  onAttachReceipt?: (paymentId: string) => void;
+  onSendLink?: (payment: Payment) => void;
+  showInstallmentColumns: boolean;
+  showConceptColumn?: boolean;
+  showContextColumns?: boolean;
+  generatingLinkId?: string | null;
+  attachingReceiptId?: string | null;
+}) {
+  // Build headers array based on toggles
+  const headers = [
+    ...(showContextColumns ? ["Fecha creación", "Cliente", "Propiedad"] : []),
+    ...(showInstallmentColumns ? ["Cuota"] : []),
+    ...(showConceptColumn ? ["Concepto"] : []),
+    "Monto",
+    ...(showInstallmentColumns ? ["Vencimiento"] : []),
+    "Fecha Pago",
+    "Medio",
+    "Estado",
+    "Acciones",
+  ];
+
+  const sortedPayments = [...payments].sort(
+    (a, b) => (a.installmentIndex ?? 0) - (b.installmentIndex ?? 0)
+  );
+
+  return (
+    <DataTable headers={headers} caption="Listado de pagos">
+      {sortedPayments.length === 0 ? null : sortedPayments.map((payment) => {
+        const statusCfg = paymentStatusConfig[payment.status] || paymentStatusConfig.PENDING;
+        const isPending = payment.status === "PENDING";
+        const isCompleted = payment.status === "COMPLETED";
+        const isMercadoPago = payment.method === "MERCADO_PAGO";
+        const canGenerateLink = isPending && isMercadoPago && !payment.initPoint && onGenerateLink;
+        const canCopyLink = isPending && isMercadoPago && payment.initPoint;
+        const canMarkPaid = isPending && onMarkPaid;
+        const canDelete = isPending && !isMercadoPago && onDeletePayment;
+        const canViewReceipt = Boolean(payment.receiptUrl);
+        const canAttachReceipt = isCompleted && !payment.receiptUrl && onAttachReceipt;
+        const canSendLink = isPending && isMercadoPago && payment.initPoint && onSendLink;
+        const primaryAction = canGenerateLink
+          ? "generate"
+          : canCopyLink
+            ? "copy"
+            : canMarkPaid
+              ? "markPaid"
+              : canViewReceipt
+                ? "viewReceipt"
+                : null;
+        const secondaryActions = [
+          canMarkPaid && primaryAction !== "markPaid" ? "markPaid" : null,
+          canDelete ? "delete" : null,
+          canViewReceipt && primaryAction !== "viewReceipt" ? "viewReceipt" : null,
+          canAttachReceipt ? "attachReceipt" : null,
+          canSendLink ? "sendLink" : null,
+        ].filter(Boolean) as Array<"markPaid" | "delete" | "viewReceipt" | "attachReceipt" | "sendLink">;
+
+        const renderActionButton = (action: typeof primaryAction) => {
+          if (!action) return null;
+
+          if (action === "generate") {
+            return (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-xs"
+                disabled={generatingLinkId === payment.id}
+                onClick={() => onGenerateLink?.(payment.id)}
+              >
+                {generatingLinkId === payment.id ? (
+                  <Loader2 className="mr-1 size-3 animate-spin" />
+                ) : (
+                  <ExternalLink className="mr-1 size-3" />
+                )}
+                Generar link
+              </Button>
+            );
+          }
+
+          if (action === "copy") {
+            return (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-xs"
+                onClick={() => {
+                  navigator.clipboard.writeText(payment.initPoint!);
+                  toast.success("Link copiado al portapapeles");
+                }}
+              >
+                <Copy className="mr-1 size-3" />
+                Copiar link
+              </Button>
+            );
+          }
+
+          if (action === "markPaid") {
+            return (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-xs"
+                onClick={() => onMarkPaid?.(payment.id)}
+              >
+                <Check className="mr-1 size-3" />
+                Marcar pagado
+              </Button>
+            );
+          }
+
+          if (action === "viewReceipt") {
+            return (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs"
+                onClick={() => window.open(payment.receiptUrl!, "_blank")}
+              >
+                <FileText className="mr-1 size-3" />
+                Ver comp.
+              </Button>
+            );
+          }
+
+          return null;
+        };
+
+        const renderMenuItem = (action: (typeof secondaryActions)[number]) => {
+          if (action === "markPaid") {
+            return <DropdownMenuItem onClick={() => onMarkPaid?.(payment.id)}>Marcar como pagado</DropdownMenuItem>;
+          }
+
+          if (action === "delete") {
+            return <DropdownMenuItem variant="destructive" onClick={() => onDeletePayment?.(payment.id)}>Eliminar pago</DropdownMenuItem>;
+          }
+
+          if (action === "viewReceipt") {
+            return <DropdownMenuItem onClick={() => window.open(payment.receiptUrl!, "_blank")}>Ver comprobante</DropdownMenuItem>;
+          }
+
+          if (action === "sendLink") {
+            return <DropdownMenuItem onClick={() => onSendLink?.(payment)}>Enviar link</DropdownMenuItem>;
+          }
+
+          return (
+            <DropdownMenuItem
+              disabled={attachingReceiptId === payment.id}
+              onClick={() => onAttachReceipt?.(payment.id)}
+            >
+              {attachingReceiptId === payment.id ? "Adjuntando..." : "Adjuntar comprobante"}
+            </DropdownMenuItem>
+          );
+        };
+
+        return (
+          <tr key={payment.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+            {showContextColumns && (
+              <>
+                <td className="px-6 py-4">
+                  <p className="text-xs text-muted-foreground whitespace-nowrap">
+                    {payment.createdAt ? formatDate(String(payment.createdAt)) : "—"}
+                  </p>
+                </td>
+                <td className="px-6 py-4">
+                  <p className="font-bold text-xs text-foreground truncate">{payment.clientName ?? "—"}</p>
+                </td>
+                <td className="px-6 py-4">
+                  <p className="text-xs text-muted-foreground truncate">{payment.propertyName ?? "—"}</p>
+                </td>
+              </>
+            )}
+            {showInstallmentColumns && (
+              <td className="px-6 py-4">
+                <p className="text-xs font-medium text-foreground">
+                  {payment.installmentLabel ?? payment.installmentIndex ?? "—"}
+                </p>
+              </td>
+            )}
+            {showConceptColumn && (
+              <td className="px-6 py-4">
+                <div className="flex flex-col gap-1">
+                  <Badge
+                    variant={getConceptBadgeVariant(payment)}
+                    className="w-fit text-[10px] font-bold uppercase tracking-tight"
+                  >
+                    {getConceptLabel(payment).primary}
+                  </Badge>
+                  {payment.description && (
+                    <p className="text-[10px] text-muted-foreground line-clamp-1">{payment.description}</p>
+                  )}
+                </div>
+              </td>
+            )}
+            <td className="px-6 py-4">
+              <p className="text-xs font-bold text-foreground tabular-nums">
+                {formatAmount(payment.amount)}
+              </p>
+            </td>
+            {showInstallmentColumns && (
+              <td className="px-6 py-4">
+                <p className="text-xs text-muted-foreground">
+                  {payment.dueDate ? formatDueDate(payment.dueDate) : "—"}
+                </p>
+              </td>
+            )}
+            <td className="px-6 py-4">
+              <p className="text-xs text-muted-foreground">
+                {payment.paidAt ? formatDate(payment.paidAt) : "—"}
+              </p>
+            </td>
+            <td className="px-6 py-4">
+              <p className="text-xs text-muted-foreground">
+                {payment.method === "MERCADO_PAGO" ? "Mercado Pago" : payment.method === "CASH" ? "Efectivo" : payment.method === "TRANSFER" ? "Transferencia" : "—"}
+              </p>
+            </td>
+            <td className="px-6 py-4 align-middle">
+              <div className="flex flex-col gap-1">
+                <Badge variant={statusCfg.variant} className="h-5 text-[11px] font-medium w-fit">
+                  {statusCfg.label}
+                </Badge>
+                {isPending && payment.overdueDays != null && payment.overdueDays > 0 && (
+                  <p className="text-[10px] text-destructive">
+                    Vencido hace {payment.overdueDays} {payment.overdueDays === 1 ? "día" : "días"}
+                  </p>
+                )}
+              </div>
+            </td>
+            <td className="px-6 py-4 text-right">
+              <div className="flex items-center justify-end gap-1">
+                {renderActionButton(primaryAction)}
+                {secondaryActions.length > 0 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={
+                        <Button size="icon" variant="ghost" className="size-7" aria-label="Más acciones">
+                          <MoreHorizontal className="size-3.5" />
+                        </Button>
+                      }
+                    />
+                    <DropdownMenuContent align="end" className="w-44">
+                      {secondaryActions.map((action) => (
+                        <div key={action}>{renderMenuItem(action)}</div>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+                {!primaryAction && secondaryActions.length === 0 && (
+                  <span className="text-muted-foreground text-[10px]">—</span>
+                )}
+              </div>
+            </td>
+          </tr>
+        );
+      })}
+    </DataTable>
+  );
+}

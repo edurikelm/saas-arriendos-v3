@@ -1,3 +1,5 @@
+import { BUSINESS_TIME_ZONE, daysFromNowInBusinessTz } from "@/lib/domain/timezone";
+
 export type ReservationStatus = "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED" | string;
 
 export interface CollectionAlertReservation {
@@ -44,30 +46,6 @@ export interface CollectionAlertsResult {
   proximos7Dias: CollectionAlertItem[];
 }
 
-const BUSINESS_TIME_ZONE = "America/Santiago";
-
-function getSantiagoDateKey(date: Date): string {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: BUSINESS_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  return formatter.format(date);
-}
-
-function dateKeyToDayIndex(dateKey: string): number {
-  const [year, month, day] = dateKey.split("-").map(Number);
-  return Math.floor(Date.UTC(year, month - 1, day) / 86400000);
-}
-
-function getDaysFromTodayInSantiago(targetDate: Date, now: Date): number {
-  const todayKey = getSantiagoDateKey(now);
-  const targetKey = getSantiagoDateKey(targetDate);
-
-  return dateKeyToDayIndex(targetKey) - dateKeyToDayIndex(todayKey);
-}
-
 export function classifyCollectionAlerts(
   payments: CollectionAlertPayment[],
   now: Date = new Date()
@@ -86,7 +64,7 @@ export function classifyCollectionAlerts(
     if (!allowedReservationStatuses.has(payment.reservation.status)) continue;
     if (!payment.dueDate) continue;
 
-    const daysFromToday = getDaysFromTodayInSantiago(new Date(payment.dueDate), now);
+    const daysFromToday = daysFromNowInBusinessTz(new Date(payment.dueDate), now);
 
     const item: CollectionAlertItem = {
       paymentId: payment.id,
