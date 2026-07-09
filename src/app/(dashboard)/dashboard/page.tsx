@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { StitchKpiCard } from "@/components/ui/stitch-kpi-card";
+import { DataTable } from "@/components/ui/data-table";
 import { classifyCollectionAlerts } from "@/lib/alerts/collection-alerts";
 import { getProperties } from "@/lib/actions/properties";
 import { getReservations } from "@/lib/actions/reservations";
@@ -322,73 +323,59 @@ export default async function DashboardPage() {
       {/* 3. 3-col grid: Reservas (table) + Cobranza (list) */}
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Reservas table — col-span-2 */}
-        <div className="overflow-hidden rounded-lg border border-border bg-card lg:col-span-2">
-          <div className="flex items-center justify-between border-b border-border px-4 py-3">
-            <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Reservas Diarias</h2>
+        <div className="lg:col-span-2">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+              Reservas Diarias
+            </h2>
             <Link href="/reservations" className="text-[10px] font-bold uppercase text-primary hover:underline">
               Ver todas
             </Link>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left">
-              <thead>
-                <tr className="border-b border-border bg-muted">
-                  <th className="w-1/4 px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Propiedad</th>
-                  <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Cliente</th>
-                  <th className="min-w-[120px] px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Estancia</th>
-                  <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Llegada/Salida</th>
-                  <th className="px-6 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Estado</th>
-                  <th className="px-6 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Monto Total</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {tableReservations.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-xs text-muted-foreground">
-                      Sin reservas para mostrar
-                    </td>
-                  </tr>
-                ) : (
-                  tableReservations.map((reservation) => {
-                    const start = new Date(reservation.startDate);
-                    const end = new Date(reservation.endDate);
-                    const isActive = start <= today && end >= today;
-                    const nights = getNights(reservation.startDate, reservation.endDate);
-                    const remainingDays = isActive
-                      ? daysBetween(today, reservation.endDate)
-                      : daysBetween(today, reservation.startDate);
-                    const arrivalLabel = isActive
-                      ? `Finaliza en ${remainingDays} ${remainingDays === 1 ? "día" : "días"}`
-                      : `Llega en ${remainingDays} ${remainingDays === 1 ? "día" : "días"}`;
+          <DataTable
+            headers={["Propiedad", "Cliente", "Estancia", "Llegada/Salida", "Estado", "Monto Total"]}
+            caption="Reservas diarias"
+            emptyState={
+              <p className="text-sm text-muted-foreground">Sin reservas para mostrar</p>
+            }
+          >
+            {tableReservations.map((reservation) => {
+              const start = new Date(reservation.startDate);
+              const end = new Date(reservation.endDate);
+              const isActive = start <= today && end >= today;
+              const nights = getNights(reservation.startDate, reservation.endDate);
+              const remainingDays = isActive
+                ? daysBetween(today, reservation.endDate)
+                : daysBetween(today, reservation.startDate);
+              const arrivalLabel = isActive
+                ? `Finaliza en ${remainingDays} ${remainingDays === 1 ? "día" : "días"}`
+                : `Llega en ${remainingDays} ${remainingDays === 1 ? "día" : "días"}`;
 
-                    return (
-                      <tr key={reservation.id} className="transition-colors hover:bg-muted/50">
-                        <td className="px-6 py-4 text-xs font-bold text-foreground">{reservation.property.name}</td>
-                        <td className="px-6 py-4 text-xs text-muted-foreground">{reservation.client.name}</td>
-                        <td className="px-6 py-4">
-                          <div className="whitespace-nowrap text-xs font-bold text-primary">
-                            {formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}
-                          </div>
-                          <div className="mt-1">
-                            <span className="inline-flex rounded bg-muted px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-tight text-muted-foreground">
-                              {nights} noches
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-xs text-muted-foreground">{arrivalLabel}</td>
-                        <td className="px-6 py-4 text-right">
-                          <ReservationStatusBadge reservation={reservation} today={today} />
-                        </td>
-                        <td className="px-6 py-4 text-right text-xs font-bold text-foreground">
-                          {formatCLP(Number(reservation.totalPrice))}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+              return (
+                <tr key={reservation.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                  <td className="px-6 py-4 text-xs font-bold text-foreground">{reservation.property.name}</td>
+                  <td className="px-6 py-4 text-xs text-muted-foreground">{reservation.client.name}</td>
+                  <td className="px-6 py-4">
+                    <div className="whitespace-nowrap text-xs font-bold text-primary">
+                      {formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}
+                    </div>
+                    <div className="mt-1">
+                      <span className="inline-flex rounded bg-muted px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-tight text-muted-foreground">
+                        {nights} noches
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-xs text-muted-foreground">{arrivalLabel}</td>
+                  <td className="px-6 py-4 text-right">
+                    <ReservationStatusBadge reservation={reservation} today={today} />
+                  </td>
+                  <td className="px-6 py-4 text-right text-xs font-bold text-foreground">
+                    {formatCLP(Number(reservation.totalPrice))}
+                  </td>
+                </tr>
+              );
+            })}
+          </DataTable>
         </div>
 
         {/* Cobranza list — col-1 */}
