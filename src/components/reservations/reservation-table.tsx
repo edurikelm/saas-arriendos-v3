@@ -282,7 +282,7 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                 </td>
                 {/* Estado */}
                 <td className="px-6 py-5 align-middle">
-                  <div className="flex flex-col items-center gap-1">
+                  <div className="flex flex-col items-start gap-1">
                     <ReservationPill tone={stateTone} label={temporal.label} />
                     {temporal.sublabel && (
                       <span className="text-[9px] text-muted-foreground">{temporal.sublabel}</span>
