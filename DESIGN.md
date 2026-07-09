@@ -271,6 +271,34 @@ El wrapper externo aplica `overflow-x-auto` automáticamente. **No** envolver de
 
 **Regla**: no especificar `text-xs` en celdas individuales — el `<tbody>` ya lo provee. Si una celda necesita más peso visual (ej: monto destacado), agregar solo `font-bold` o `font-medium`, no cambiar el tamaño. El padding recomendado es `px-4 py-3` (compacto) o `px-6 py-4` (holgado) según densidad.
 
+### Alineación de headers por columna
+
+El primitive acepta headers en dos formas (backward-compatible):
+
+```tsx
+// Forma simple — string, alineación por default = "left"
+<DataTable headers={["Cliente", "Propiedad", "Estado"]} />
+
+// Forma extendida — objeto con label + align opcional
+<DataTable
+  headers={[
+    "Cliente",
+    "Propiedad",
+    { label: "Monto", align: "right" },
+    { label: "Estado", align: "center" },
+  ]}
+/>
+```
+
+**Cuándo usar cada align**:
+- `left` (default) — datos textuales (nombres, descripciones, fechas absolutas)
+- `right` — números/montos (Monto, Total, Pagado), acciones de fila
+- `center` — estados cortos (badges), contadores pequeños
+
+**Regla crítica**: la alineación del `<th>` DEBE coincidir con la alineación del `<td>` de la misma columna. Si una celda usa `text-right`, el header correspondiente debe usar `align: "right"`. La desalineación es visible sobre todo en dark mode.
+
+**Type exportado**: `DataTableHeader = string | { label: string; align?: "left" | "right" | "center" }` (`data-table.tsx:5-8`). Si construyes el array dinámicamente, anotarlo como `DataTableHeader[]` para que TypeScript no infiera tipos widen.
+
 **Tablas migradas a `<DataTable>`** (cerradas en #176):
 
 - `clients-table.tsx`
