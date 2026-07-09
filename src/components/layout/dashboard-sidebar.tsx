@@ -101,7 +101,7 @@ export function DashboardSidebar({
           {/* Mobile close button */}
           <div className="flex items-center justify-between p-6 lg:hidden">
             <span className="text-lg font-bold text-foreground">RentalPro</span>
-            <button onClick={onClose} className="rounded-lg p-2 hover:bg-sidebar-accent">
+            <button onClick={onClose} className="rounded-lg p-2 hover:bg-muted">
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -150,7 +150,7 @@ className={cn(
               <DropdownMenu>
                 <DropdownMenuTrigger
                     render={
-                      <button className="p-1 rounded text-muted-foreground hover:bg-sidebar-accent hover:text-foreground transition-colors">
+                      <button className="p-1 rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
                         <MoreVertical className="h-4 w-4" />
                       </button>
                     }
