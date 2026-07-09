@@ -234,7 +234,7 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
             "Propiedad",
             "Estado",
             "Estancia",
-            { label: "Finanzas", align: "right" },
+            "Finanzas",
             "Tipo",
             { label: "Acciones", align: "right" },
           ]}
@@ -312,7 +312,7 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                 </td>
                 {/* Tipo */}
                 <td className="px-6 py-5">
-                  <div className="flex justify-center">
+                  <div className="flex justify-start">
                     <span className="inline-flex px-2 py-0.5 rounded bg-muted text-muted-foreground text-[9px] font-bold uppercase">
                       {res.billingType === "DAILY" ? "Diaria" : "Mensual"}
                     </span>
