@@ -583,58 +583,56 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
         </TabsContent>
 
         <TabsContent value="reservas" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Reservas ({reservations.length})</CardTitle>
-              <CardDescription>Últimas reservas del propietario</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {reservations.length === 0 ? (
-                <div className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-muted/20 py-12 text-center">
-                  <Calendar className="mb-2 size-8 text-muted-foreground/50" />
-                  <p className="text-sm font-medium">No hay reservas</p>
-                  <p className="text-xs text-muted-foreground">
-                    Las reservas del propietario aparecerán aquí
-                  </p>
-                </div>
-              ) : (
-                <DataTable
-                  headers={["Cliente", "Propiedad", "Fechas", "Total", "Pagado", "Estado"]}
-                >
-                  {reservations.map((reservation) => (
-                    <tr key={reservation.id} className="border-b last:border-0 hover:bg-muted/30">
-                      <td className="px-4 py-3 font-medium">{reservation.client.name}</td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {reservation.property.name}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground tabular-nums">
-                        {formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}
-                      </td>
-                      <td className="px-4 py-3 font-medium tabular-nums">
-                        {formatCLP(Number(reservation.totalPrice))}
-                      </td>
-                      <td className="px-4 py-3 text-sm tabular-nums text-muted-foreground">
-                        {formatCLP(reservation.paidAmount)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge
-                          variant={
-                            reservation.status === "CONFIRMED"
-                              ? "default"
-                              : reservation.status === "PENDING"
-                                ? "secondary"
-                                : "destructive"
-                          }
-                        >
-                          {reservation.status}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
-                </DataTable>
-              )}
-            </CardContent>
-          </Card>
+          <div className="mb-4">
+            <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+              Reservas ({reservations.length})
+            </h2>
+            <p className="text-xs text-muted-foreground">Últimas reservas del propietario</p>
+          </div>
+          {reservations.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-muted/20 py-12 text-center">
+              <Calendar className="mb-2 size-8 text-muted-foreground/50" />
+              <p className="text-sm font-medium">No hay reservas</p>
+              <p className="text-xs text-muted-foreground">
+                Las reservas del propietario aparecerán aquí
+              </p>
+            </div>
+          ) : (
+            <DataTable
+              headers={["Cliente", "Propiedad", "Fechas", "Total", "Pagado", "Estado"]}
+            >
+              {reservations.map((reservation) => (
+                <tr key={reservation.id} className="border-b last:border-0 hover:bg-muted/30">
+                  <td className="px-4 py-3 font-medium">{reservation.client.name}</td>
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {reservation.property.name}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-muted-foreground tabular-nums">
+                    {formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}
+                  </td>
+                  <td className="px-4 py-3 font-medium tabular-nums">
+                    {formatCLP(Number(reservation.totalPrice))}
+                  </td>
+                  <td className="px-4 py-3 text-sm tabular-nums text-muted-foreground">
+                    {formatCLP(reservation.paidAmount)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge
+                      variant={
+                        reservation.status === "CONFIRMED"
+                          ? "default"
+                          : reservation.status === "PENDING"
+                            ? "secondary"
+                            : "destructive"
+                      }
+                    >
+                      {reservation.status}
+                    </Badge>
+                  </td>
+                </tr>
+              ))}
+            </DataTable>
+          )}
         </TabsContent>
 
         <TabsContent value="financiero" className="mt-4">
