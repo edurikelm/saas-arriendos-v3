@@ -12,6 +12,7 @@ import type { DashboardStats, RevenueReport, OccupancyReport, ReservationReport 
 import type { CollectionReportRow } from "@/lib/actions/reports-collection";
 import { getCollectionDueLabel, getCollectionStatus } from "@/lib/actions/reports-collection";
 import { Pagination } from "@/components/ui/pagination";
+import { DataTable } from "@/components/ui/data-table";
 import { getProperties } from "@/lib/actions/properties";
 import { exportToExcel, exportToPDF, type ReservationDetail, type PropertySummary } from "@/lib/export-utils";
 import { ExecutiveKpiCard } from "@/components/reports/executive-kpi-card";
@@ -717,147 +718,128 @@ export default function ReportsPage() {
             </Card>
           </div>
 
-          <div className="bg-card border border-border rounded overflow-hidden mb-6">
-            <div className="px-4 py-4 border-b border-border flex justify-between items-center bg-muted/30">
-              <div className="flex items-center gap-2">
-                <Wallet className="text-primary size-5" />
-                <h2 className="text-xs font-bold text-foreground uppercase tracking-wider">
-                  Reporte de Cobranza Detallado
-                </h2>
-              </div>
-            </div>
-
-            <div className="p-4 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <Select value={collectionBillingType} onValueChange={(value) => {
-                  setCollectionBillingType((value ?? "GENERAL") as "GENERAL" | "DAILY" | "MONTHLY");
-                  setCollectionPage(1);
-                }}>
-                  <SelectTrigger className="w-full sm:w-44">
-                    <SelectValue placeholder="Tipo arriendo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="GENERAL">General</SelectItem>
-                    <SelectItem value="DAILY">Diario</SelectItem>
-                    <SelectItem value="MONTHLY">Mensual</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Select value={collectionClientId} onValueChange={(value) => {
-                  setCollectionClientId(value ?? "all");
-                  setCollectionPage(1);
-                }}>
-                  <SelectTrigger className="w-full sm:w-52">
-                    <SelectValue placeholder="Cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos los clientes</SelectItem>
-                    {collectionClients.map((client) => (
-                      <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select value={collectionDebtStatus} onValueChange={(value) => {
-                  setCollectionDebtStatus((value ?? "ACTIVE") as "ACTIVE" | "ALL" | "OVERDUE" | "UPCOMING" | "PAID");
-                  setCollectionPage(1);
-                }}>
-                  <SelectTrigger className="w-full sm:w-44">
-                    <SelectValue placeholder="Estado deuda" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ACTIVE">Deuda activa</SelectItem>
-                    <SelectItem value="OVERDUE">Vencida</SelectItem>
-                    <SelectItem value="UPCOMING">Por vencer</SelectItem>
-                    <SelectItem value="PAID">Pagada</SelectItem>
-                    <SelectItem value="ALL">Todos</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <DateRangePicker date={collectionDueRange} onDateChange={(d) => {
-                  setCollectionDueRange(d);
-                  setCollectionPage(1);
-                }} />
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead className="bg-muted/50 border-b border-border">
-                    <tr className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                      <th className="px-6 py-3">Cliente</th>
-                      <th className="px-6 py-3">Propiedad</th>
-                      <th className="px-6 py-3">Vencimiento</th>
-                      <th className="px-6 py-3 text-right">Monto a cobrar</th>
-                      <th className="px-6 py-3">Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border text-xs">
-                    {collectionRows.length === 0 ? (
-                      <tr>
-                        <td className="py-6 text-center text-muted-foreground" colSpan={5}>
-                          Sin reservas para los filtros seleccionados
-                        </td>
-                      </tr>
-                    ) : (
-                      collectionRows.map((row) => {
-                        const status = getCollectionStatus(row);
-                        const billingLabel = row.billingType === "DAILY" ? "Diario" : "Mensual";
-
-                        // "Monto a cobrar" = lo que el owner debe pedir HOY
-                        // para poner la cuenta al día. Se alinea con el contexto
-                        // temporal de la fila (nextDueDate + Estado):
-                        //   - Vencido     → suma de TODAS las cuotas atrasadas
-                        //                    (el owner quiere normalizar la deuda)
-                        //   - Pagado      → "—" (no hay nada que cobrar)
-                        //   - Resto       → próxima cuota individual + extras
-                        const isPaid = status.status === "PAID";
-                        const rentAmount = row.overdue > 0
-                          ? row.overdue
-                          : row.nextInstallmentAmount;
-                        const amountToShow = isPaid ? 0 : rentAmount + row.extrasPending;
-                        const showExtrasBreakdown =
-                          !isPaid && row.extrasPending > 0 && amountToShow > row.extrasPending;
-
-                        return (
-                          <tr key={row.reservationId} className="hover:bg-muted/50 transition-colors">
-                            <td className="px-6 py-4">
-                              <div className="font-medium text-foreground leading-tight">{row.clientName}</div>
-                              <div className="text-[10px] text-muted-foreground mt-0.5">
-                                #{row.reservationId.slice(0, 8)} · {billingLabel}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 text-foreground">{row.propertyName}</td>
-                            <td className="px-6 py-4 text-foreground">
-                              {getCollectionDueLabel(row.nextDueDate)}
-                            </td>
-                            <td className="px-6 py-4 text-right">
-                              {isPaid ? (
-                                <span className="text-muted-foreground tabular-nums">—</span>
-                              ) : (
-                                <>
-                                  <div className="text-sm font-bold tabular-nums text-foreground">
-                                    {formatCLP(amountToShow)}
-                                  </div>
-                                  {showExtrasBreakdown && (
-                                    <div className="text-[10px] text-muted-foreground mt-0.5 tabular-nums">
-                                      + {formatCLP(row.extrasPending)} extras
-                                    </div>
-                                  )}
-                                </>
-                              )}
-                            </td>
-                            <td className="px-6 py-4">
-                              <Badge variant={status.variant}>{status.label}</Badge>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+          <div className="mb-4 flex items-center gap-2">
+            <Wallet className="text-primary size-5" />
+            <h2 className="text-xs font-bold text-foreground uppercase tracking-wider">
+              Reporte de Cobranza Detallado
+            </h2>
           </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-4">
+            <Select value={collectionBillingType} onValueChange={(value) => {
+              setCollectionBillingType((value ?? "GENERAL") as "GENERAL" | "DAILY" | "MONTHLY");
+              setCollectionPage(1);
+            }}>
+              <SelectTrigger className="w-full sm:w-44">
+                <SelectValue placeholder="Tipo arriendo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="GENERAL">General</SelectItem>
+                <SelectItem value="DAILY">Diario</SelectItem>
+                <SelectItem value="MONTHLY">Mensual</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={collectionClientId} onValueChange={(value) => {
+              setCollectionClientId(value ?? "all");
+              setCollectionPage(1);
+            }}>
+              <SelectTrigger className="w-full sm:w-52">
+                <SelectValue placeholder="Cliente" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los clientes</SelectItem>
+                {collectionClients.map((client) => (
+                  <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={collectionDebtStatus} onValueChange={(value) => {
+              setCollectionDebtStatus((value ?? "ACTIVE") as "ACTIVE" | "ALL" | "OVERDUE" | "UPCOMING" | "PAID");
+              setCollectionPage(1);
+            }}>
+              <SelectTrigger className="w-full sm:w-44">
+                <SelectValue placeholder="Estado deuda" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ACTIVE">Deuda activa</SelectItem>
+                <SelectItem value="OVERDUE">Vencida</SelectItem>
+                <SelectItem value="UPCOMING">Por vencer</SelectItem>
+                <SelectItem value="PAID">Pagada</SelectItem>
+                <SelectItem value="ALL">Todos</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <DateRangePicker date={collectionDueRange} onDateChange={(d) => {
+              setCollectionDueRange(d);
+              setCollectionPage(1);
+            }} />
+          </div>
+
+          <DataTable
+            headers={["Cliente", "Propiedad", "Vencimiento", "Monto a cobrar", "Estado"]}
+            caption="Reporte de cobranza detallado"
+            emptyState={
+              <p className="text-sm text-muted-foreground">
+                Sin reservas para los filtros seleccionados
+              </p>
+            }
+          >
+            {collectionRows.map((row) => {
+              const status = getCollectionStatus(row);
+              const billingLabel = row.billingType === "DAILY" ? "Diario" : "Mensual";
+
+              // "Monto a cobrar" = lo que el owner debe pedir HOY
+              // para poner la cuenta al día. Se alinea con el contexto
+              // temporal de la fila (nextDueDate + Estado):
+              //   - Vencido     → suma de TODAS las cuotas atrasadas
+              //                    (el owner quiere normalizar la deuda)
+              //   - Pagado      → "—" (no hay nada que cobrar)
+              //   - Resto       → próxima cuota individual + extras
+              const isPaid = status.status === "PAID";
+              const rentAmount = row.overdue > 0
+                ? row.overdue
+                : row.nextInstallmentAmount;
+              const amountToShow = isPaid ? 0 : rentAmount + row.extrasPending;
+              const showExtrasBreakdown =
+                !isPaid && row.extrasPending > 0 && amountToShow > row.extrasPending;
+
+              return (
+                <tr key={row.reservationId} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-foreground leading-tight">{row.clientName}</div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                      #{row.reservationId.slice(0, 8)} · {billingLabel}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-foreground">{row.propertyName}</td>
+                  <td className="px-4 py-3 text-foreground">
+                    {getCollectionDueLabel(row.nextDueDate)}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {isPaid ? (
+                      <span className="text-muted-foreground tabular-nums">—</span>
+                    ) : (
+                      <>
+                        <div className="text-sm font-bold tabular-nums text-foreground">
+                          {formatCLP(amountToShow)}
+                        </div>
+                        {showExtrasBreakdown && (
+                          <div className="text-[10px] text-muted-foreground mt-0.5 tabular-nums">
+                            + {formatCLP(row.extrasPending)} extras
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge variant={status.variant}>{status.label}</Badge>
+                  </td>
+                </tr>
+              );
+            })}
+          </DataTable>
 
           {yearlySummary && (
             <Card>
