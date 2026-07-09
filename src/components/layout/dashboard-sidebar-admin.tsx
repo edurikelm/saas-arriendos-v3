@@ -45,7 +45,7 @@ export function DashboardSidebarAdmin({ open, onClose, collapsed, onToggle, supp
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between p-6 lg:hidden">
             <h1 className="text-2xl font-bold">RentalPro Admin</h1>
-            <button onClick={onClose} className="p-2 hover:bg-sidebar-accent rounded-lg">
+            <button onClick={onClose} className="p-2 hover:bg-muted rounded-lg">
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -56,7 +56,7 @@ export function DashboardSidebarAdmin({ open, onClose, collapsed, onToggle, supp
             <button
               onClick={onToggle}
               className={cn(
-                "flex h-10 shrink-0 items-center rounded-xl hover:bg-sidebar-accent",
+                "flex h-10 shrink-0 items-center rounded-xl hover:bg-muted",
                 collapsed ? "px-3" : "w-10 justify-center"
               )}
               title={collapsed ? "Expandir menú" : "Colapsar menú"}
@@ -75,7 +75,7 @@ export function DashboardSidebarAdmin({ open, onClose, collapsed, onToggle, supp
                   onClick={onClose}
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-muted-foreground hover:bg-muted"
                   )}
                 >
                   <Icon className="h-5 w-5 shrink-0" />
