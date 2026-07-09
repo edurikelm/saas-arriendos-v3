@@ -10,6 +10,7 @@ import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { getDashboardStats, getRevenueReport, getOccupancyReport, getYearlySummary, getReservationsReport, getCollectionReport } from "@/lib/actions/reports";
 import type { DashboardStats, RevenueReport, OccupancyReport, ReservationReport } from "@/lib/actions/reports";
 import type { CollectionReportRow } from "@/lib/actions/reports-collection";
+import { getCollectionDueLabel, getCollectionStatus } from "@/lib/actions/reports-collection";
 import { Pagination } from "@/components/ui/pagination";
 import { getProperties } from "@/lib/actions/properties";
 import { exportToExcel, exportToPDF, type ReservationDetail, type PropertySummary } from "@/lib/export-utils";
@@ -35,6 +36,20 @@ const QUICK_RANGES: { value: QuickRange; label: string }[] = [
 
 interface Property { id: string; name: string; unitsAvailable: number; }
 interface SessionInfo { plan: string | null; }
+
+// Formato CLP hydration-safe: "es-CL" + currency:CLP → "$1.250.000".
+// Mismo patrón que `formatPrice` en property-card.tsx (ver bugfix hydration
+// mismatch en memoria de Engram). NO usar `toLocaleString("CLP")` porque "CLP"
+// no es un BCP 47 válido y cae al default del runtime.
+const clpFormatter = new Intl.NumberFormat("es-CL", {
+  style: "currency",
+  currency: "CLP",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+});
+function formatCLP(amount: number): string {
+  return clpFormatter.format(amount);
+}
 
 export default function ReportsPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -769,60 +784,74 @@ export default function ReportsPage() {
                 <table className="w-full text-left border-collapse">
                   <thead className="bg-muted/50 border-b border-border">
                     <tr className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                      <th className="px-6 py-3">Propiedad</th>
                       <th className="px-6 py-3">Cliente</th>
-                      <th className="px-6 py-3">Tipo</th>
-                      <th className="px-6 py-3">Estado reserva</th>
-                      <th className="px-6 py-3">Total arriendo</th>
-                      <th className="px-6 py-3">Pagado</th>
-                      <th className="px-6 py-3">Pendiente</th>
-                      <th className="px-6 py-3">Vencido</th>
-                      <th className="px-6 py-3">Próx. vencimiento</th>
-                      <th className="px-6 py-3">Extras pagados</th>
-                      <th className="px-6 py-3">Extras pendientes</th>
-                      <th className="px-6 py-3">Total por cobrar</th>
+                      <th className="px-6 py-3">Propiedad</th>
+                      <th className="px-6 py-3">Vencimiento</th>
+                      <th className="px-6 py-3 text-right">Monto a cobrar</th>
+                      <th className="px-6 py-3">Estado</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border text-xs">
                     {collectionRows.length === 0 ? (
                       <tr>
-                        <td className="py-6 text-center text-muted-foreground" colSpan={12}>
+                        <td className="py-6 text-center text-muted-foreground" colSpan={5}>
                           Sin reservas para los filtros seleccionados
                         </td>
                       </tr>
                     ) : (
-                      collectionRows.map((row) => (
-                        <tr key={row.reservationId} className="hover:bg-muted/50 transition-colors">
-                          <td className="px-6 py-4">{row.propertyName}</td>
-                          <td className="px-6 py-4">{row.clientName}</td>
-                          <td className="px-6 py-4">
-                            <Badge variant="outline">
-                              {row.billingType === "DAILY" ? "Diario" : "Mensual"}
-                            </Badge>
-                          </td>
-                          <td className="px-6 py-4">
-                            <Badge variant={
-                              row.reservationStatus === "PENDING" ? "warning" :
-                              row.reservationStatus === "CONFIRMED" ? "success" :
-                              row.reservationStatus === "CANCELLED" ? "destructive" :
-                              "secondary"
-                            }>
-                              {row.reservationStatus === "PENDING" ? "Pendiente" :
-                               row.reservationStatus === "CONFIRMED" ? "Confirmada" :
-                               row.reservationStatus === "CANCELLED" ? "Cancelada" :
-                               "Completada"}
-                            </Badge>
-                          </td>
-                          <td className="px-6 py-4 tabular-nums">{row.totalRent.toLocaleString("CLP")}</td>
-                          <td className="px-6 py-4 tabular-nums">{row.paid.toLocaleString("CLP")}</td>
-                          <td className="px-6 py-4 tabular-nums">{row.pending.toLocaleString("CLP")}</td>
-                          <td className="px-6 py-4 tabular-nums">{row.overdue.toLocaleString("CLP")}</td>
-                          <td className="px-6 py-4">{row.nextDueDate ? format(row.nextDueDate, "dd-MM-yyyy") : "-"}</td>
-                          <td className="px-6 py-4 tabular-nums">{row.extrasPaid.toLocaleString("CLP")}</td>
-                          <td className="px-6 py-4 tabular-nums">{row.extrasPending.toLocaleString("CLP")}</td>
-                          <td className="px-6 py-4 font-medium tabular-nums">{row.totalToCollect.toLocaleString("CLP")}</td>
-                        </tr>
-                      ))
+                      collectionRows.map((row) => {
+                        const status = getCollectionStatus(row);
+                        const billingLabel = row.billingType === "DAILY" ? "Diario" : "Mensual";
+
+                        // "Monto a cobrar" = lo que el owner debe pedir HOY
+                        // para poner la cuenta al día. Se alinea con el contexto
+                        // temporal de la fila (nextDueDate + Estado):
+                        //   - Vencido     → suma de TODAS las cuotas atrasadas
+                        //                    (el owner quiere normalizar la deuda)
+                        //   - Pagado      → "—" (no hay nada que cobrar)
+                        //   - Resto       → próxima cuota individual + extras
+                        const isPaid = status.status === "PAID";
+                        const rentAmount = row.overdue > 0
+                          ? row.overdue
+                          : row.nextInstallmentAmount;
+                        const amountToShow = isPaid ? 0 : rentAmount + row.extrasPending;
+                        const showExtrasBreakdown =
+                          !isPaid && row.extrasPending > 0 && amountToShow > row.extrasPending;
+
+                        return (
+                          <tr key={row.reservationId} className="hover:bg-muted/50 transition-colors">
+                            <td className="px-6 py-4">
+                              <div className="font-medium text-foreground leading-tight">{row.clientName}</div>
+                              <div className="text-[10px] text-muted-foreground mt-0.5">
+                                #{row.reservationId.slice(0, 8)} · {billingLabel}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-foreground">{row.propertyName}</td>
+                            <td className="px-6 py-4 text-foreground">
+                              {getCollectionDueLabel(row.nextDueDate)}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              {isPaid ? (
+                                <span className="text-muted-foreground tabular-nums">—</span>
+                              ) : (
+                                <>
+                                  <div className="text-sm font-bold tabular-nums text-foreground">
+                                    {formatCLP(amountToShow)}
+                                  </div>
+                                  {showExtrasBreakdown && (
+                                    <div className="text-[10px] text-muted-foreground mt-0.5 tabular-nums">
+                                      + {formatCLP(row.extrasPending)} extras
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </td>
+                            <td className="px-6 py-4">
+                              <Badge variant={status.variant}>{status.label}</Badge>
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
