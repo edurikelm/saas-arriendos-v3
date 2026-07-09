@@ -261,6 +261,16 @@ Primitive cerrado en `src/components/ui/data-table.tsx` (commit `7fb0892`, issue
 
 El wrapper externo aplica `overflow-x-auto` automáticamente. **No** envolver de nuevo en `<div className="overflow-x-auto">`.
 
+**Tipografía por defecto** (NO requiere configuración en celdas individuales):
+
+| Elemento | Tamaño | Clase Tailwind | Dónde |
+|----------|--------|----------------|-------|
+| Header (`<th>`) | 10px | `text-[10px] font-bold uppercase tracking-wider text-muted-foreground` | `data-table.tsx:23` |
+| Body (`<tbody>`) | 12px | `text-xs` | `data-table.tsx:30` |
+| Empty state (`<td>`) | 14px | `text-sm text-muted-foreground` | `data-table.tsx:34` |
+
+**Regla**: no especificar `text-xs` en celdas individuales — el `<tbody>` ya lo provee. Si una celda necesita más peso visual (ej: monto destacado), agregar solo `font-bold` o `font-medium`, no cambiar el tamaño. El padding recomendado es `px-4 py-3` (compacto) o `px-6 py-4` (holgado) según densidad.
+
 **Tablas migradas a `<DataTable>`** (cerradas en #176):
 
 - `clients-table.tsx`
