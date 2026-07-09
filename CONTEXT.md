@@ -282,7 +282,15 @@ const session = await requireSuperAdmin();
 
 ### Card wrapping en páginas de tabla
 
-Todas las páginas que contienen tablas (clientes, reservas, admin/users) envuelven el contenido en el componente `<Card>` de shadcn/ui con `<CardHeader>` (título, descripción, acción principal) y `<CardContent>` (búsqueda, filtros, tabla). Esto da framing visual con `ring-1 ring-foreground/10` y separa claramente el área de datos del fondo. El layout (sidebar, navbar) provee el `bg-background` general; el Card aporta elevación sobre ese fondo.
+**Decisión de diseño**: las tablas NO se envuelven en `<Card>`. El `<DataTable>` primitive ya provee su propio framing con `rounded-md border border-border bg-card` (ver `src/components/ui/data-table.tsx:14`). Envolver la tabla en un `<Card>` adicional genera doble borde y rompe la jerarquía visual.
+
+Patrón canónico:
+- Página de lista → `PageHeader` + barra de filtros + `<DataTable>` directo (sin Card)
+- Sección de página (ej: `/admin/users/[id]` tab "Reservas") → título/descripción como bloque standalone + `<DataTable>` directo
+- `/dashboard` sección "Reservas Diarias" → título + link "Ver todas" como bloque standalone + `<DataTable>` directo
+- `/reports` sección "Reporte de Cobranza" → título + filtros standalone + `<DataTable>` directo
+
+`<Card>` se reserva para: KPIs (no tablas), settings, forms, secciones de detalle sin tabla, integración de Mercado Pago. **NO** usar Card para envolver tablas.
 
 ### Diseño Responsive
 

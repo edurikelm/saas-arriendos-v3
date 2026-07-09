@@ -689,11 +689,24 @@ const toneClassNames: Record<PillTone, string> = {
 
 ### Reglas para futuros rediseños
 
-1. **Toda pantalla de datos** debe terminar en `<Card>` + `<DataTable>` o `<Card>` + grid de cards. Nunca tabla suelta.
+1. **Las tablas NO se envuelven en `<Card>`**. El `<DataTable>` primitive ya provee su propio framing con `rounded-md border border-border bg-card` (ver `data-table.tsx:14`). Patrón canónico: `PageHeader` + barra de filtros + `<DataTable>` directo. Para tablas dentro de secciones (ej: tabs en `/admin/users/[id]`, secciones en `/dashboard`, secciones en `/reports`): título/descripción como bloque standalone encima + `<DataTable>` directo. Ver CONTEXT.md sección "Card wrapping en páginas de tabla".
 2. **Toda página de filtros** debe tener filtros colapsables con `Ocultar`/`Mostrar` (ver CONTEXT.md:296-297) cuando hay más de 3 controles.
 3. **Toda KPI** debe usar `<MetricCard>` o `<StitchKpiCard>` según el contexto (admin/dashboard vs. reports).
 4. **Todo estado** debe usar `<Badge variant>` o `ReservationPill` (solo en tabla de reservas). No reinventar pills inline.
 5. **Todo color hex** debe pasar por tokens semánticos. Excepciones documentadas arriba.
+
+### Cuándo SÍ usar `<Card>`
+
+- KPIs (`<MetricCard>` ya lo usa internamente — no envolver de nuevo)
+- Settings (secciones de `/settings`)
+- Forms completos (crear propiedad, editar reserva, etc.)
+- Secciones de detalle sin tabla (ej: `Marketplace`, `Propiedades` tab en `/admin/users/[id]` cuando solo es metadata)
+- Integración de Mercado Pago (`MercadoPagoSettings`)
+
+### Cuándo NO usar `<Card>`
+
+- Alrededor de `<DataTable>` o `<table>` raw (rompe el framing del primitive)
+- Como contenedor genérico de página (el `bg-background` ya provee el canvas)
 
 ---
 
