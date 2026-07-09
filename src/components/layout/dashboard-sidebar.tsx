@@ -120,7 +120,7 @@ className={cn(
                     "flex items-center gap-3 px-3 py-2 rounded text-sm transition-colors",
                     isActive
                       ? "bg-primary/10 text-primary font-medium"
-                      : "text-foreground hover:bg-sidebar-accent"
+                      : "text-muted-foreground hover:bg-muted"
                   )}
                 >
                   <Icon className="h-5 w-5 shrink-0" />
