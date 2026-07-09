@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { DataTable } from "@/components/ui/data-table";
+import { DataTable, type DataTableHeader } from "@/components/ui/data-table";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -126,16 +126,16 @@ export function PaymentsTable({
   attachingReceiptId?: string | null;
 }) {
   // Build headers array based on toggles
-  const headers = [
+  const headers: DataTableHeader[] = [
     ...(showContextColumns ? ["Fecha creación", "Cliente", "Propiedad"] : []),
     ...(showInstallmentColumns ? ["Cuota"] : []),
     ...(showConceptColumn ? ["Concepto"] : []),
-    "Monto",
+    { label: "Monto", align: "right" },
     ...(showInstallmentColumns ? ["Vencimiento"] : []),
     "Fecha Pago",
     "Medio",
     "Estado",
-    "Acciones",
+    { label: "Acciones", align: "right" },
   ];
 
   const sortedPayments = [...payments].sort(

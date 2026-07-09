@@ -598,9 +598,16 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
               </p>
             </div>
           ) : (
-            <DataTable
-              headers={["Cliente", "Propiedad", "Fechas", "Total", "Pagado", "Estado"]}
-            >
+<DataTable
+                  headers={[
+                    "Cliente",
+                    "Propiedad",
+                    "Fechas",
+                    { label: "Total", align: "right" },
+                    { label: "Pagado", align: "right" },
+                    "Estado",
+                  ]}
+                >
               {reservations.map((reservation) => (
                 <tr key={reservation.id} className="border-b last:border-0 hover:bg-muted/30">
                   <td className="px-4 py-3 font-medium">{reservation.client.name}</td>

@@ -333,7 +333,14 @@ export default async function DashboardPage() {
             </Link>
           </div>
           <DataTable
-            headers={["Propiedad", "Cliente", "Estancia", "Llegada/Salida", "Estado", "Monto Total"]}
+            headers={[
+              "Propiedad",
+              "Cliente",
+              "Estancia",
+              "Llegada/Salida",
+              "Estado",
+              { label: "Monto Total", align: "right" },
+            ]}
             caption="Reservas diarias"
             emptyState={
               <p className="text-sm text-muted-foreground">Sin reservas para mostrar</p>

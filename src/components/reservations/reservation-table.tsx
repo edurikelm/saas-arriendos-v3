@@ -229,7 +229,15 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
 
       <div className="hidden md:block">
         <DataTable
-          headers={["Huésped", "Propiedad", "Estado", "Estancia", "Finanzas", "Tipo", "Acciones"]}
+          headers={[
+            "Huésped",
+            "Propiedad",
+            "Estado",
+            "Estancia",
+            { label: "Finanzas", align: "right" },
+            "Tipo",
+            { label: "Acciones", align: "right" },
+          ]}
         >
           {sorted.map((res) => {
             const paidAmount = getReservationPaidAmount(res.payments);

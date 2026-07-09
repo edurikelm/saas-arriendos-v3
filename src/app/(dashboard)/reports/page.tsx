@@ -778,7 +778,13 @@ export default function ReportsPage() {
           </div>
 
           <DataTable
-            headers={["Cliente", "Propiedad", "Vencimiento", "Monto a cobrar", "Estado"]}
+            headers={[
+              "Cliente",
+              "Propiedad",
+              "Vencimiento",
+              { label: "Monto a cobrar", align: "right" },
+              "Estado",
+            ]}
             caption="Reporte de cobranza detallado"
             emptyState={
               <p className="text-sm text-muted-foreground">
