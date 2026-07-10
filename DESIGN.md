@@ -886,6 +886,39 @@ Layout canónico establecido en la sesión `/support` (commit post-Fase 2):
 └─────────────────────────────────────────────────┘
 ```
 
+#### `/admin` (Consola Super Admin — dashboard global)
+
+Layout canónico replicando el mockup Stitch `code.html` (Consola de Super Administrador):
+
+```
+┌─────────────────────────────────────────────────┐
+│ [título "Panel de Control Global"] [Ver usuarios]│
+│ ← flex justify-between + subtítulo             │
+├─────────────────────────────────────────────────┤
+│ [4 KpiCard] ← grid-cols-1 sm:2 lg:4 (sección 7) │
+│   Propiedades · Propietarios · Ingresos · Tickets│
+├─────────────────────────────────────────────────┤
+│ grid lg:grid-cols-3 gap-6                        │
+│ ┌──────────────────────────┐ ┌────────────────┐ │
+│ │ col-span-2               │ │ col-span-1     │ │
+│ │ [título + "Ver todas"]   │ │ <Card>         │ │
+│ │ <DataTable /> directo    │ │ Actividad      │ │
+│ │ (Últimos Propietarios)   │ │ Reciente       │ │
+│ │                          │ │ (timeline)     │ │
+│ └──────────────────────────┘ └────────────────┘ │
+└─────────────────────────────────────────────────┘
+```
+
+**Reglas específicas de `/admin`**:
+
+- **KPIs con `<KpiCard>`** (sección 7): "Tickets de Soporte" usa `tone="destructive"` solo cuando hay pendientes (`pendingSupportTickets > 0`), si no `tone="default"`. Ingresos con formato CLP compacto (`$1.5M` / `$800K`).
+- **Tabla izquierda**: `<DataTable>` directo (sin `<Card>`) con header standalone (`[título] [Ver todas]`) encima. Columnas con `align` explícito (`Propiedades`/`Reservas` centrados, `Fecha Registro` a la derecha). Plan badges con `<Badge className="rounded-md">` (ADR-0016). Filas sin `onClick` (sección 9).
+- **Panel de actividad (derecha)**: `<Card>` con timeline. Cada item tiene conector vertical (`absolute left-4 top-8 bottom-[-24px] w-px bg-border`, omitido en el último) + icono circular `size-8 rounded-full` con tono semántico por tipo:
+  - `OWNER_REGISTERED` → `bg-primary/10 text-primary`
+  - `SUPPORT_TICKET` → `bg-warning/10 text-warning` (o `bg-destructive/10 text-destructive` si prioridad `HIGH`)
+  - `PAYMENT_COMPLETED` → `bg-info/10 text-info`
+- **Fuente de datos**: `getSystemActivity()` (super-admin.ts) hace merge de registros de propietarios + tickets + pagos completados, ordenado desc. NO usa hex; siempre tokens semánticos.
+
 Establece los patrones descritos en las secciones 7, 8 y 9 de este documento. Aplicable a futuras páginas owner-facing con KPIs + filter pills + action list.
 
 ### Reglas para futuros rediseños
