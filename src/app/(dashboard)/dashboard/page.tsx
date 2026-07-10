@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Wallet, Clock, CalendarCheck, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { StitchKpiCard } from "@/components/ui/stitch-kpi-card";
+import { KpiCard } from "@/components/ui/kpi-card";
 import { DataTable } from "@/components/ui/data-table";
 import { classifyCollectionAlerts } from "@/lib/alerts/collection-alerts";
 import { getProperties } from "@/lib/actions/properties";
@@ -290,32 +290,40 @@ export default async function DashboardPage() {
 
       {/* 2. KPI Grid (4 cards estilo Stitch) */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StitchKpiCard
+        <KpiCard
           label="Ingresos Mensuales"
           value={formatCLP(monthlyIncome)}
+          icon={Wallet}
+          tone="success"
           indicator={{ text: "+0%", variant: "positive" }}
         />
-        <StitchKpiCard
+        <KpiCard
           label="Pagos Pendientes"
           value={pendingPaymentsList.length}
+          icon={Clock}
+          tone={overdueCount > 0 ? "warning" : "default"}
           indicator={
             overdueCount > 0
               ? { text: `${overdueCount} vencidos`, variant: "warning" }
               : { text: "Al día", variant: "neutral" }
           }
         />
-        <StitchKpiCard
+        <KpiCard
           label="Próximas Reservas"
           value={upcomingReservations.length}
+          icon={CalendarCheck}
+          tone="default"
           indicator={
             next7Days > 0
               ? { text: `${next7Days} para esta semana`, variant: "neutral" }
               : { text: "Sin check-ins próximos", variant: "neutral" }
           }
         />
-        <StitchKpiCard
+        <KpiCard
           label="Ocupación Actual"
           value={`${occupancyRate}%`}
+          icon={TrendingUp}
+          tone="default"
           progressBar={{ value: occupancyRate }}
         />
       </section>

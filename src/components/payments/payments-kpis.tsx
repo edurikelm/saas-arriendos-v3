@@ -1,4 +1,5 @@
-import { ExecutiveKpiCard } from "@/components/reports/executive-kpi-card";
+import { KpiCard } from "@/components/ui/kpi-card";
+import { Wallet, Clock, AlertTriangle } from "lucide-react";
 import { formatCLP } from "@/lib/format/currency";
 
 interface PaymentsKpisProps {
@@ -13,22 +14,25 @@ interface PaymentsKpisProps {
 export function PaymentsKpis({ kpis }: PaymentsKpisProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-      <ExecutiveKpiCard
+      <KpiCard
         label="Cobrado este mes"
         value={formatCLP(kpis.cobradoMes)}
-        tone="default"
+        icon={Wallet}
+        tone="success"
       />
-      <ExecutiveKpiCard
+      <KpiCard
         label="Pendiente de cobro"
         value={formatCLP(kpis.pendiente)}
-        sublabel={`${kpis.pendienteCount} ${kpis.pendienteCount === 1 ? "pago pendiente" : "pagos pendientes"}`}
+        icon={Clock}
         tone="warning"
+        sublabel={`${kpis.pendienteCount} ${kpis.pendienteCount === 1 ? "pago pendiente" : "pagos pendientes"}`}
       />
-      <ExecutiveKpiCard
+      <KpiCard
         label="Próximos vencimientos"
         value={kpis.proximos7DiasCount}
-        sublabel="Próximos 7 días"
+        icon={AlertTriangle}
         tone="default"
+        sublabel="Próximos 7 días"
       />
     </div>
   );

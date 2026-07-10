@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { BarChart3, TrendingUp, Calendar, FileSpreadsheet, SlidersHorizontal, Download, ChevronDown, Wallet } from "lucide-react";
+import { BarChart3, TrendingUp, Calendar, FileSpreadsheet, SlidersHorizontal, Download, ChevronDown, Wallet, Building2, AlertCircle, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +15,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { DataTable } from "@/components/ui/data-table";
 import { getProperties } from "@/lib/actions/properties";
 import { exportToExcel, exportToPDF, type ReservationDetail, type PropertySummary } from "@/lib/export-utils";
-import { ExecutiveKpiCard } from "@/components/reports/executive-kpi-card";
+import { KpiCard } from "@/components/ui/kpi-card";
 import { ModelDistributionCard } from "@/components/reports/model-distribution-card";
 import { PropertySummaryTable, type PropertySummaryRow } from "@/components/reports/property-summary-table";
 import { RevenueBarChart } from "@/components/reports/revenue-bar-chart";
@@ -586,28 +586,39 @@ export default function ReportsPage() {
         <>
           {/* ─── 4 KPIs Ejecutivos ─── */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <ExecutiveKpiCard
+            <KpiCard
               label="Ingresos Totales"
               value={formattedRevenue}
-              trend={revenueTrend}
+              icon={Wallet}
+              tone="success"
+              indicator={
+                revenueTrend
+                  ? { text: revenueTrend.label, variant: "positive" }
+                  : undefined
+              }
             />
-            <ExecutiveKpiCard
+            <KpiCard
               label="Ocupación Promedio"
               value={formattedOccupancy}
-              sublabel={occupancySublabel}
+              icon={Building2}
+              tone="default"
             />
-            <ExecutiveKpiCard
+            <KpiCard
               label="Total por Cobrar"
               value={formattedToCollect}
-              sublabel={pendingInvoices > 0 ? `${pendingInvoices} factura${pendingInvoices !== 1 ? "s" : ""} pendiente${pendingInvoices !== 1 ? "s" : ""}` : "Sin deudas pendientes"}
+              icon={AlertCircle}
               tone={totalToCollect > 0 ? "warning" : "default"}
             />
-            <ExecutiveKpiCard
+            <KpiCard
               label="Cobros Vencidos"
               value={formattedOverdue}
-              sublabel={totalOverdue > 0 ? "Acción requerida" : "Sin vencidos"}
+              icon={AlertTriangle}
               tone={totalOverdue > 0 ? "destructive" : "default"}
-              trend={totalOverdue > 0 ? { direction: "warning", label: "Acción requerida" } : undefined}
+              indicator={
+                totalOverdue > 0
+                  ? { text: "Acción requerida", variant: "warning" }
+                  : undefined
+              }
             />
           </div>
 

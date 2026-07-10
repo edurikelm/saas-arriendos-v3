@@ -429,24 +429,127 @@ return (
 
 Excepción: si es un toggle binario conocido (mostrar/ocultar filtros), el icono solo es aceptable **acompañado de label accesible** (`aria-label`).
 
-### 7. KPIs → número grande + label pequeño, sin íconos dominantes
+### 7. KPIs → `<KpiCard>` (primitive único)
+
+Todo KPI del producto usa el primitive `<KpiCard>` (`src/components/ui/kpi-card.tsx`). NO hay otras variantes. ADR-0024 documenta la consolidación.
+
+**Estructura**:
 
 ```tsx
-<Card className="p-4">
-  <p className="text-sm text-muted-foreground">Cobrado este mes</p>
-  <p className="text-2xl font-bold tabular-nums">$1.234.567</p>
-</Card>
+<KpiCard
+  label="Ingresos mensuales"
+  value={formatCLP(amount)}
+  icon={Wallet}
+  tone="success"
+  indicator={{ text: "+12% vs mes anterior", variant: "positive" }}
+  progressBar={{ value: 64 }}
+/>
 ```
 
-**No** hacer:
+**Slots**:
+- `label` (string, requerido): `text-[10px] font-bold uppercase tracking-wider text-muted-foreground`.
+- `value` (string | number, requerido): `text-xl font-bold tabular-nums`.
+- `icon` (LucideIcon, opcional): contenedor `size-9 rounded-xl bg-{tone}/10 text-{tone}` en esquina superior derecha. NO se renderiza si no se pasa.
+- `tone` (`"default" | "success" | "info" | "warning" | "destructive"`, default `"default"`): afecta color del icon container y, solo si es `"warning"` o `"destructive"`, también el color del value text.
+- `indicator` ({ text, variant }, opcional): texto pequeño con ícono (TrendingUp / AlertTriangle) bajo el value. Variants: `"positive" | "warning" | "neutral"`.
+- `progressBar` ({ value: 0-100 }, opcional): barra de progreso `h-1 rounded-full bg-muted` con fill `bg-primary`.
+- `unit` (string, opcional): unidad pequeña al lado del value (ej: `%`, `CLP`).
+- `sublabel` (string, opcional): texto auxiliar pequeño bajo el value (ej: `detail` de admin pages).
+
+**Reglas duras**:
+- NO hex (`bg-orange-50`, `text-blue-600`, etc.) — siempre semantic tokens.
+- NO `shadow-*` — el primitive usa `rounded-lg border border-border` para jerarquía.
+- NO status dot — la decisión de eliminar el status dot fue parte de la consolidación (ADR-0024).
+- NO diferentes primitives en la misma página. Si ves `StitchKpiCard`, `MetricCard` o `ExecutiveKpiCard` en código, es drift.
+
+### 8. Filter pills (segmented control compacto)
+
+Patrón para filtros de estado inline en headers de sección (3–7 opciones). Replica el mockup Stitch de `code.html` usando semantic tokens.
+
+**Estructura**:
+
 ```tsx
-<Card className="p-4">
-  <DollarSign className="h-8 w-8 text-success mb-2" />
-  <p className="text-3xl font-bold">$1.234.567</p>
-</Card>
+<div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3">
+  <h2 className="text-sm font-bold text-foreground">Mis Tickets de Soporte</h2>
+  <div className="flex items-center gap-1 rounded-full border border-border bg-muted p-1">
+    {options.map((opt) => {
+      const isActive = active === opt.value;
+      return (
+        <button
+          key={opt.value}
+          onClick={() => setActive(opt.value)}
+          className={cn(
+            "rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors",
+            isActive
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          {opt.label}
+        </button>
+      );
+    })}
+  </div>
+  <Link href="/new" className={buttonVariants({ variant: "default", size: "sm" })}>
+    <Plus className="mr-2 h-4 w-4" />
+    Nuevo Ticket
+  </Link>
+</div>
 ```
 
-Si la métrica necesita ícono (ej. notification bell), que sea `<Badge>` lateral, no elemento dominante.
+**Tokens**:
+
+| Slot | Clases |
+|---|---|
+| Container | `flex items-center gap-1 rounded-full border border-border bg-muted p-1` |
+| Pill activo | `rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground` |
+| Pill inactivo | `rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground` (sin fondo) |
+
+**Reglas duras**:
+- **NO** `shadow-*` en el pill activo — el `bg-primary` teal provee suficiente contraste visual. El mockup original usa `shadow-sm` pero fue removido por violar DESIGN.md (no shadows en superficies planas).
+- **NO** `bg-{tone}` en pills inactivos — fondo transparente para que se vea el `bg-muted` del container (evita "doble fondo").
+- **NO** usar `text-sm font-medium` — el patrón canónico es `text-[10px] font-bold uppercase tracking-wider`.
+- **NO** `rounded-md` en pills individuales — siempre `rounded-full`.
+
+**Layout del row**: usar 3 children directos en `flex justify-between` con `gap-3`. En desktop: `[título] [filtros] [acción]` donde el filtro queda centrado geométricamente entre título y acción. En mobile (`flex-col`): apila verticalmente en orden título → filtros → acción.
+
+### 9. Row click isolation en tablas (NO `onClick` en `<tr>`)
+
+Regla explícita: las filas de `<DataTable>` **no deben tener `onClick` que navegue**. Solo los botones o links específicos de la columna de acciones navegan al detalle.
+
+**Razón**: previene conflictos con:
+- Selección de texto accidental al arrastrar el mouse sobre una fila.
+- Doble-trigger entre el row click y el action button.
+- Accesibilidad: lectores de pantalla anuncian correctamente el link, no la fila entera.
+- Móvil: tap impreciso puede activar la fila cuando el usuario quería scroll horizontal.
+
+**Patrón canónico**:
+
+```tsx
+<tr
+  key={ticket.id}
+  className="border-b last:border-0 hover:bg-muted/30 transition-colors"
+>
+  {/* celdas sin onClick */}
+  <td className="px-6 py-5 text-right">
+    <Link
+      href={`/support/${ticket.id}`}
+      className="inline-flex p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+      aria-label="Ver ticket"
+    >
+      <Eye className="size-4" />
+    </Link>
+  </td>
+</tr>
+```
+
+**Reglas duras**:
+- **NO** `onClick` en `<tr>`.
+- **NO** `cursor-pointer` en `<tr>`.
+- **NO** `e.stopPropagation()` en el link/botón de acción (no hay handler padre que detener).
+- `hover:bg-muted/30` en `<tr>` es aceptable como feedback visual pasivo, pero sin `cursor-pointer`.
+
+**Excepción documentada**: si una pantalla requiere explícitamente "click anywhere para abrir", debe ser una decisión conscious y documentada con `aria-label` que cubra toda el área. Hoy no hay excepciones activas en `/support`, `/admin/support`, ni en las tablas migradas a `<DataTable>`.
 
 ---
 
@@ -689,15 +792,9 @@ Primitivas y patrones creados durante la Fase 2 que **deben usarse** en futuras 
 | Primitive | Ubicación | Propósito |
 |-----------|-----------|-----------|
 | `<DataTable>` | `data-table.tsx` | Toda tabla del producto (ver sección 1) |
-| `<MetricCard>` | `metric-card.tsx` | KPI con icono, tone semántico y status dot. Usado en `/admin/users/[id]` |
-| `<StitchKpiCard>` | `stitch-kpi-card.tsx` | KPI minimal (label + value + indicator + progress bar). Usado en `/reports` |
+| `<KpiCard>` | `kpi-card.tsx` | Primitive único de KPI del producto (ver sección 7). Usado en `/dashboard`, `/reports`, `/payments`, `/calendar`, `/admin`, `/admin/users/[id]`, `/support` |
 | `<CurrencyInput>` | `currency-input.tsx` | Input numérico formateado CLP con `Intl.NumberFormat`. Usado en property-form |
 | `<ReceiptUpload>` | `receipt-upload.tsx` | Upload de comprobantes de pago (Cloudinary) |
-
-**Cuándo usar cuál:**
-- `MetricCard` — KPIs administrativos o de owner que necesitan jerarquía visual fuerte (icono + status dot + detalle).
-- `StitchKpiCard` — KPIs agrupados en grid (reports, dashboard executive summary) donde prima densidad sobre jerarquía individual.
-- `Badge` — Estados puntuales cortos (pago completado, reserva confirmada). NO usar para KPIs.
 
 ### Patrones de página
 
@@ -759,17 +856,39 @@ const toneClassNames: Record<PillTone, string> = {
 
 **Regla**: usar `ReservationPill` solo dentro de la tabla de reservas. Para otros estados puntuales (pagos, propiedades, etc.) usar `<Badge variant>`. La razón de ser un primitive distinto: el pill admite un `sublabel` (ej. "En 5 días", "3 noches") debajo del label principal, lo que `<Badge>` no soporta nativamente.
 
+#### `/support` (referencia de KPIs + filter pills + row click isolation)
+
+Layout canónico establecido en la sesión `/support` (commit post-Fase 2):
+
+```
+┌─────────────────────────────────────────────────┐
+│ PageHeader: "Ayuda y Soporte" + subtítulo        │
+├─────────────────────────────────────────────────┤
+│ [3 KpiCard vertical] ← KpiCard (sección 7)      │
+├─────────────────────────────────────────────────┤
+│ [título]      [filter pills]      [acción]       │
+│ ← flex justify-between → (sección 8)            │
+├─────────────────────────────────────────────────┤
+│ <DataTable /> ← directo, sin Card                │
+│   filas sin onClick (sección 9)                │
+└─────────────────────────────────────────────────┘
+```
+
+Establece los patrones descritos en las secciones 7, 8 y 9 de este documento. Aplicable a futuras páginas owner-facing con KPIs + filter pills + action list.
+
 ### Reglas para futuros rediseños
 
 1. **Las tablas NO se envuelven en `<Card>`**. El `<DataTable>` primitive ya provee su propio framing con `rounded-md border border-border bg-card` (ver `data-table.tsx:14`). Patrón canónico: `PageHeader` + barra de filtros + `<DataTable>` directo. Para tablas dentro de secciones (ej: tabs en `/admin/users/[id]`, secciones en `/dashboard`, secciones en `/reports`): título/descripción como bloque standalone encima + `<DataTable>` directo. Ver CONTEXT.md sección "Card wrapping en páginas de tabla".
-2. **Toda página de filtros** debe tener filtros colapsables con `Ocultar`/`Mostrar` (ver CONTEXT.md:296-297) cuando hay más de 3 controles.
-3. **Toda KPI** debe usar `<MetricCard>` o `<StitchKpiCard>` según el contexto (admin/dashboard vs. reports).
+2. **Toda página de filtros** debe tener filtros colapsables con `Ocultar`/`Mostrar` (ver CONTEXT.md:296-297) cuando hay más de 3 controles. Para filtros inline de estado (3–7 opciones) en headers de sección, usar el patrón segmented control de la sección 8.
+3. **Toda KPI** debe usar el primitive único `<KpiCard>` (sección 7). NO otros KPI variants.
 4. **Todo estado** debe usar `<Badge variant>` o `ReservationPill` (solo en tabla de reservas). No reinventar pills inline.
 5. **Todo color hex** debe pasar por tokens semánticos. Excepciones documentadas arriba.
+6. **Filas de tabla NO navegan**: el `<tr>` no debe tener `onClick`. Solo el botón/link de la columna de acciones navega. Ver sección 9.
+7. **Filtros pills activos NO usan `shadow-sm`**: el `bg-primary` teal provee contraste suficiente. Ver sección 8.
 
 ### Cuándo SÍ usar `<Card>`
 
-- KPIs (`<MetricCard>` ya lo usa internamente — no envolver de nuevo)
+- KPIs — `<KpiCard>` tiene su propio framing (`rounded-lg border border-border bg-card p-4`). NO envolver en `<Card>`.
 - Settings (secciones de `/settings`)
 - Forms completos (crear propiedad, editar reserva, etc.)
 - Secciones de detalle sin tabla (ej: `Marketplace`, `Propiedades` tab en `/admin/users/[id]` cuando solo es metadata)
@@ -820,5 +939,6 @@ Layout canónico establecido en `8b77651` (commit del rediseño de `/settings`):
 - **ADR-0014**: `docs/adr/0014-theme-architecture.md` — arquitectura de theme
 - **ADR-0016**: `docs/adr/0016-radius-and-control-shape-system.md` — radio y shape system
 - **ADR-0022**: `docs/adr/0022-prisma-migrations-via-supabase-mcp.md` — workflow de migraciones Prisma en Supabase
+- **ADR-0024**: `docs/adr/0024-kpi-consolidation.md` — consolidación a `<KpiCard>` único (supersedes ADR-0023)
 - **Issues cerradas**: #173 (Fase 1), #174 / #175 / #176 (Fase 2, 2026-07-06), #183 (`/settings` rediseño)
 - **Issues derivadas abiertas**: #177, #178, #179, #180, #181 (pagos work post-rediseño), #182 (dashboard UrgentCollectionCard refactor)

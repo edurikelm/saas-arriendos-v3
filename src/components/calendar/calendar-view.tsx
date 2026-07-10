@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { ChevronLeft, ChevronRight, Plus, Globe, AlertTriangle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Globe, AlertTriangle, Building2, CalendarCheck, Wallet } from "lucide-react";
 import { addMonths, format, subMonths } from "date-fns";
 import { es } from "date-fns/locale/es";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { StitchKpiCard } from "@/components/ui/stitch-kpi-card";
+import { KpiCard } from "@/components/ui/kpi-card";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CalendarTimeline } from "@/components/calendar/calendar-timeline";
@@ -287,9 +287,17 @@ export function CalendarView({
 
       {/* 2. KPI Grid (4 cards estilo Stitch) */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StitchKpiCard
+        <KpiCard
           label="Ocupación Media"
           value={`${calendarKpis.occupancyRate}%`}
+          icon={Building2}
+          tone={
+            calendarKpis.occupancyRate >= 85
+              ? "success"
+              : calendarKpis.occupancyRate >= 50
+              ? "default"
+              : "default"
+          }
           indicator={
             calendarKpis.occupancyRate >= 85
               ? { text: "Alta demanda", variant: "positive" }
@@ -299,19 +307,25 @@ export function CalendarView({
           }
           progressBar={{ value: calendarKpis.occupancyRate }}
         />
-        <StitchKpiCard
+        <KpiCard
           label="Llegadas Hoy"
           value={calendarKpis.arrivalsToday}
+          icon={CalendarCheck}
+          tone="info"
           unit="Check-ins"
         />
-        <StitchKpiCard
+        <KpiCard
           label="Salidas Hoy"
           value={calendarKpis.departuresToday}
+          icon={CalendarCheck}
+          tone="default"
           unit="Check-outs"
         />
-        <StitchKpiCard
+        <KpiCard
           label="Revenue Proyectado"
           value={formatCLP(calendarKpis.projectedRevenue)}
+          icon={Wallet}
+          tone="success"
           indicator={{
             text: `${dailyReservations.filter((r) => r.status !== "CANCELLED").length} reservas activas`,
             variant: "neutral",

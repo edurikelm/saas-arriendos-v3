@@ -426,6 +426,53 @@ export async function getUserEntityOptions(entityType: "RESERVATION" | "PAYMENT"
   }
 }
 
+export interface SupportTicketsKpis {
+  openCount: number;
+  resolvedCount: number;
+  avgResponseHours: number | null;
+}
+
+export async function getSupportTicketsKpis(): Promise<SupportTicketsKpis> {
+  const session = await getSession();
+  if (!session) return { openCount: 0, resolvedCount: 0, avgResponseHours: null };
+
+  const where = { userId: session.userId };
+
+  const [openCount, resolvedCount, ticketsWithMessages] = await Promise.all([
+    prisma.supportTicket.count({
+      where: { ...where, status: { in: ["OPEN", "IN_PROGRESS"] } },
+    }),
+    prisma.supportTicket.count({
+      where: { ...where, status: { in: ["RESOLVED", "CLOSED"] } },
+    }),
+    prisma.supportTicket.findMany({
+      where,
+      select: {
+        createdAt: true,
+        messages: {
+          orderBy: { createdAt: "asc" },
+          select: { authorId: true, createdAt: true, author: { select: { role: true } } },
+        },
+      },
+    }),
+  ]);
+
+  const responseDelaysMs: number[] = [];
+  for (const ticket of ticketsWithMessages) {
+    const firstAdminMessage = ticket.messages.find((m) => m.author.role === "SUPER_ADMIN");
+    if (firstAdminMessage) {
+      const delay = firstAdminMessage.createdAt.getTime() - ticket.createdAt.getTime();
+      if (delay >= 0) responseDelaysMs.push(delay);
+    }
+  }
+
+  const avgResponseHours = responseDelaysMs.length === 0
+    ? null
+    : responseDelaysMs.reduce((s, d) => s + d, 0) / responseDelaysMs.length / (1000 * 60 * 60);
+
+  return { openCount, resolvedCount, avgResponseHours };
+}
+
 export async function closeSupportTicket(ticketId: string) {
   const session = await getSession();
   if (!session) return { error: "No autorizado" };

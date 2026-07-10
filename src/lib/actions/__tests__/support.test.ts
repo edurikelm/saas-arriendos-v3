@@ -466,6 +466,133 @@ describe("getSupportTickets", () => {
   });
 });
 
+describe("getSupportTicketsKpis", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("retorna zeros cuando no hay sesion", async () => {
+    const { getSession } = await import("@/lib/actions/auth");
+    vi.mocked(getSession).mockResolvedValue(null);
+
+    const { getSupportTicketsKpis } = await import("../support");
+    const result = await getSupportTicketsKpis();
+
+    expect(result).toEqual({ openCount: 0, resolvedCount: 0, avgResponseHours: null });
+  });
+
+  it("cuenta OPEN + IN_PROGRESS como openCount", async () => {
+    const { getSession } = await import("@/lib/actions/auth");
+    const { prisma } = await import("@/lib/db/prisma");
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    vi.mocked(prisma.supportTicket.count)
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(5);
+    vi.mocked(prisma.supportTicket.findMany).mockResolvedValue([]);
+
+    const { getSupportTicketsKpis } = await import("../support");
+    const result = await getSupportTicketsKpis();
+
+    expect(result.openCount).toBe(3);
+    expect(prisma.supportTicket.count).toHaveBeenCalledWith({
+      where: { userId: "user-1", status: { in: ["OPEN", "IN_PROGRESS"] } },
+    });
+  });
+
+  it("cuenta RESOLVED + CLOSED como resolvedCount", async () => {
+    const { getSession } = await import("@/lib/actions/auth");
+    const { prisma } = await import("@/lib/db/prisma");
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    vi.mocked(prisma.supportTicket.count)
+      .mockResolvedValueOnce(2)
+      .mockResolvedValueOnce(8);
+    vi.mocked(prisma.supportTicket.findMany).mockResolvedValue([]);
+
+    const { getSupportTicketsKpis } = await import("../support");
+    const result = await getSupportTicketsKpis();
+
+    expect(result.resolvedCount).toBe(8);
+    expect(prisma.supportTicket.count).toHaveBeenCalledWith({
+      where: { userId: "user-1", status: { in: ["RESOLVED", "CLOSED"] } },
+    });
+  });
+
+  it("calcula avgResponseHours con 1 decimal cuando hay respuestas de admin", async () => {
+    const { getSession } = await import("@/lib/actions/auth");
+    const { prisma } = await import("@/lib/db/prisma");
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    vi.mocked(prisma.supportTicket.count).mockResolvedValue(0);
+
+    const baseDate = new Date("2026-01-01T10:00:00Z");
+    const ticketWithAdminReply = {
+      id: "ticket-1",
+      userId: "user-1",
+      subject: "Problema",
+      description: "Desc",
+      status: "OPEN" as const,
+      priority: "HIGH" as const,
+      category: "PROPERTIES" as const,
+      createdAt: baseDate,
+      messages: [
+        { id: "msg-1", authorId: "user-1", author: { role: "OWNER" }, createdAt: baseDate },
+        { id: "msg-2", authorId: "admin-1", author: { role: "SUPER_ADMIN" }, createdAt: new Date(baseDate.getTime() + 2 * 60 * 60 * 1000) },
+      ],
+    };
+
+    vi.mocked(prisma.supportTicket.findMany).mockResolvedValue([ticketWithAdminReply as any]);
+
+    const { getSupportTicketsKpis } = await import("../support");
+    const result = await getSupportTicketsKpis();
+
+    expect(result.avgResponseHours).toBeCloseTo(2.0, 1);
+  });
+
+  it("retorna avgResponseHours null cuando no hay respuestas de admin", async () => {
+    const { getSession } = await import("@/lib/actions/auth");
+    const { prisma } = await import("@/lib/db/prisma");
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    vi.mocked(prisma.supportTicket.count).mockResolvedValue(0);
+
+    const ticketWithoutAdminReply = {
+      id: "ticket-1",
+      userId: "user-1",
+      subject: "Problema",
+      description: "Desc",
+      status: "OPEN" as const,
+      priority: "HIGH" as const,
+      category: "PROPERTIES" as const,
+      createdAt: new Date(),
+      messages: [
+        { id: "msg-1", authorId: "user-1", author: { role: "OWNER" }, createdAt: new Date() },
+      ],
+    };
+
+    vi.mocked(prisma.supportTicket.findMany).mockResolvedValue([ticketWithoutAdminReply as any]);
+
+    const { getSupportTicketsKpis } = await import("../support");
+    const result = await getSupportTicketsKpis();
+
+    expect(result.avgResponseHours).toBeNull();
+  });
+
+  it("filtra por userId del session", async () => {
+    const { getSession } = await import("@/lib/actions/auth");
+    const { prisma } = await import("@/lib/db/prisma");
+    vi.mocked(getSession).mockResolvedValue({ ...mockSession, userId: "other-user" });
+    vi.mocked(prisma.supportTicket.count).mockResolvedValue(0);
+    vi.mocked(prisma.supportTicket.findMany).mockResolvedValue([]);
+
+    const { getSupportTicketsKpis } = await import("../support");
+    await getSupportTicketsKpis();
+
+    expect(prisma.supportTicket.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "other-user" },
+      })
+    );
+  });
+});
+
 describe("getSupportTicketDetail", () => {
   const ticketWithMessages = {
     id: "ticket-1",

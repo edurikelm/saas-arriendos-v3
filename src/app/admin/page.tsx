@@ -21,7 +21,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { MetricCard } from "@/components/ui/metric-card";
+import { KpiCard } from "@/components/ui/kpi-card";
 import { getDashboardStats, getRecentOwners } from "@/lib/actions/super-admin";
 import { cn } from "@/lib/utils";
 
@@ -85,7 +85,7 @@ export default async function AdminDashboardPage() {
       value: stats.totalOwners.toString(),
       detail: "propietarios activos",
       icon: Users,
-      tone: "neutral" as const,
+      tone: "default" as const,
     },
     {
       key: "properties",
@@ -156,11 +156,11 @@ export default async function AdminDashboardPage() {
         {primaryKpis.map((kpi) => {
           const Icon = kpi.icon;
           return (
-            <MetricCard
+            <KpiCard
               key={kpi.key}
-              title={kpi.label}
+              label={kpi.label}
               value={kpi.value}
-              detail={kpi.detail}
+              sublabel={kpi.detail}
               icon={Icon}
               tone={kpi.tone}
             />

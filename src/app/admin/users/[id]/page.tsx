@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MetricCard } from "@/components/ui/metric-card";
+import { KpiCard } from "@/components/ui/kpi-card";
 import { DataTable } from "@/components/ui/data-table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -145,7 +145,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
       value: stats.clients.toString(),
       detail: "Huéspedes registrados",
       icon: Users,
-      tone: "neutral" as const,
+      tone: "default" as const,
     },
     {
       key: "reservations",
@@ -266,11 +266,11 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
         {kpiCards.map((kpi) => {
           const Icon = kpi.icon;
           return (
-            <MetricCard
+            <KpiCard
               key={kpi.key}
-              title={kpi.label}
+              label={kpi.label}
               value={kpi.value}
-              detail={kpi.detail}
+              sublabel={kpi.detail}
               icon={Icon}
               tone={kpi.tone}
             />
