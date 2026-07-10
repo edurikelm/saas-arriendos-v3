@@ -366,6 +366,33 @@ export async function createOwner(data: {
   return { success: true, user };
 }
 
+export interface AdminUsersKpis {
+  total: number;
+  pro: number;
+  free: number;
+  newThisMonth: number;
+}
+
+export async function getAdminUsersKpis(): Promise<AdminUsersKpis> {
+  if (!(await isSuperAdmin())) {
+    return { total: 0, pro: 0, free: 0, newThisMonth: 0 };
+  }
+
+  const now = new Date();
+  const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const [total, pro, free, newThisMonth] = await Promise.all([
+    prisma.userProfile.count({ where: { role: "OWNER" } }),
+    prisma.userProfile.count({ where: { role: "OWNER", plan: "PRO" } }),
+    prisma.userProfile.count({ where: { role: "OWNER", plan: "FREE" } }),
+    prisma.userProfile.count({
+      where: { role: "OWNER", createdAt: { gte: startOfThisMonth } },
+    }),
+  ]);
+
+  return { total, pro, free, newThisMonth };
+}
+
 export async function getRecentOwners(limit: number = 5) {
   if (!(await isSuperAdmin())) return [];
 

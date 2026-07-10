@@ -3,9 +3,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
-import { Users, Shield, Trash2, Search, Plus, ChevronDown, ChevronUp, X, Download, Ban, CheckCircle, XCircle } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Users, Trash2, Search, Plus, ChevronDown, ChevronUp, X, Download, Ban, CheckCircle, XCircle, UserPlus, Sparkles, UserRound } from "lucide-react";
 import { DataTable } from "@/components/ui/data-table";
+import { KpiCard } from "@/components/ui/kpi-card";
+import { Pagination } from "@/components/ui/pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { updateUserPlan, updateUserStatus, deleteUser, createOwner } from "@/lib/actions/super-admin";
+import type { AdminUsersKpis } from "@/lib/actions/super-admin";
 
 interface User {
   id: string;
@@ -90,11 +92,12 @@ function getHealthIndicators(user: User): HealthIndicator[] {
 interface AdminUsersClientProps {
   initialUsers: User[];
   initialTotal: number;
+  kpis?: AdminUsersKpis;
 }
 
 import Link from "next/link";
 
-export function AdminUsersClient({ initialUsers, initialTotal }: AdminUsersClientProps) {
+export function AdminUsersClient({ initialUsers, initialTotal, kpis }: AdminUsersClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [users, setUsers] = useState<User[]>(initialUsers);
@@ -300,36 +303,65 @@ export function AdminUsersClient({ initialUsers, initialTotal }: AdminUsersClien
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Shield className="h-8 w-8 text-primary" />
+      {/* Page Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Admin</h1>
-          <p className="text-sm text-muted-foreground">Gestión de usuarios del sistema</p>
+          <h1 className="text-xl font-bold text-foreground">Usuarios</h1>
+          <p className="text-xs text-muted-foreground">
+            Gestión de propietarios del sistema
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" onClick={handleExportCSV}>
+            <Download className="h-4 w-4 mr-2" />
+            Exportar CSV
+          </Button>
+          <Button size="sm" onClick={() => setShowCreateDialog(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Crear Propietario
+          </Button>
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Usuarios
-              </CardTitle>
-              <CardDescription>Total: {total} usuarios registrados</CardDescription>
-            </div>
-            <Button size="sm" onClick={() => setShowCreateDialog(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Crear Propietario
-            </Button>
-            <Button size="sm" variant="outline" onClick={handleExportCSV}>
-              <Download className="h-4 w-4 mr-2" />
-              Exportar CSV
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row gap-2 mb-6">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          label="Total de Propietarios"
+          value={kpis?.total ?? total}
+          icon={Users}
+          tone="default"
+          sublabel="Registrados en el sistema"
+        />
+        <KpiCard
+          label="Plan PRO"
+          value={kpis?.pro ?? 0}
+          icon={Sparkles}
+          tone="success"
+          sublabel={
+            kpis && kpis.total > 0
+              ? `${Math.round((kpis.pro / kpis.total) * 100)}% de conversión`
+              : "Suscripciones activas"
+          }
+        />
+        <KpiCard
+          label="Plan FREE"
+          value={kpis?.free ?? 0}
+          icon={UserRound}
+          tone="default"
+          sublabel="En plan gratuito"
+        />
+        <KpiCard
+          label="Nuevos este Mes"
+          value={kpis?.newThisMonth ?? 0}
+          icon={UserPlus}
+          tone="info"
+          sublabel="Altas recientes"
+        />
+      </div>
+
+      {/* Filters */}
+      <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -361,7 +393,7 @@ export function AdminUsersClient({ initialUsers, initialTotal }: AdminUsersClien
           </div>
 
           {showAdvancedFilters && (
-            <div className="mb-6 p-4 border rounded-lg bg-muted/30">
+            <div className="p-4 border rounded-lg bg-muted/30">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-medium">Filtros avanzados</h3>
                 {hasActiveFilters && (
@@ -528,35 +560,17 @@ export function AdminUsersClient({ initialUsers, initialTotal }: AdminUsersClien
                 ))}
               </DataTable>
 
-              {total > 20 && (
-                <div className="mt-4 flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">
-                    Mostrando {(page - 1) * 20 + 1} - {Math.min(page * 20, total)} de {total}
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                      disabled={page === 1}
-                    >
-                      Anterior
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage((p) => p + 1)}
-                      disabled={page * 20 >= total}
-                    >
-                      Siguiente
-                    </Button>
-                  </div>
-                </div>
-              )}
+              <Pagination
+                page={page}
+                totalPages={Math.ceil(total / 20)}
+                total={total}
+                limit={20}
+                itemLabel="propietarios"
+                onPageChange={setPage}
+              />
             </>
           )}
-        </CardContent>
-      </Card>
+        </div>
 
       {selectedUser && (
         <Dialog open={!!selectedUser} onOpenChange={() => setSelectedUser(null)}>
