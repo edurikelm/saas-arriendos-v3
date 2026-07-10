@@ -782,10 +782,43 @@ const toneClassNames: Record<PillTone, string> = {
 
 ---
 
+#### `/settings` (referencia de página de configuración)
+
+Layout canónico establecido en `8b77651` (commit del rediseño de `/settings`):
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ PageHeader: título + descripción                       │
+├─────────────────────────────────────────────────────────┤
+│ <div max-w-6xl>                                         │
+│   <grid grid-cols-1 md:grid-cols-2 gap-6 items-start>   │
+│     Columna 1: <ProfileForm />                          │
+│       ├─ Card Perfil (avatar + nombre + email + tel)    │
+│       ├─ Card Empresa                                   │
+│       ├─ Card Preferencias                              │
+│       └─ Botón Guardar Cambios (footer derecha)         │
+│     Columna 2:                                          │
+│       ├─ <NotificationSettings /> (Card 2 toggles)      │
+│       └─ <MercadoPagoSettings /> (Card OAuth)           │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Reglas específicas de `/settings`** (cierre `8b77651`):
+
+- **Cards usan `rounded-lg`** (6px per ADR-0016) explícitamente vía `className="rounded-lg"`, no se confía en el default `rounded-xl` del primitive. Desviación local intencional para mantener consistencia con el resto de controles del primitive.
+- **Email es read-only** con texto helper "*Para cambiar tu email, contacta a soporte.*" — no editable desde UI porque requiere flujo de verificación externo.
+- **Idioma/moneda/timezone** se persisten en `UserProfile` pero **no** afectan formatters ni date-fns locales aún. Cuando se activen, revisar ADR-0020 (timezone de negocio en `America/Santiago`).
+- **Notificaciones con guardado instantáneo** (cada toggle es su propio server action). El botón "Guardar Cambios" del form solo persiste Perfil + Empresa + Preferencias.
+- **Avatar upload** vía Cloudinary (`uploadImage` con folder `rentalpro/avatars`, max 5MB, MIME `image/*`). Endpoint `/api/upload` ya existente.
+
+---
+
 ## References
 
 - **Stitch project**: `projects/1529269251022042678` ("RentalPro - Rediseño UI") — fuente visual
 - **PRD**: `docs/agents/prd-ocean-breeze-fase-2.md` — plan de Fase 2 (cerrado)
 - **ADR-0014**: `docs/adr/0014-theme-architecture.md` — arquitectura de theme
-- **Issues cerradas**: #173 (Fase 1), #174 / #175 / #176 (Fase 2, 2026-07-06)
+- **ADR-0016**: `docs/adr/0016-radius-and-control-shape-system.md` — radio y shape system
+- **ADR-0022**: `docs/adr/0022-prisma-migrations-via-supabase-mcp.md` — workflow de migraciones Prisma en Supabase
+- **Issues cerradas**: #173 (Fase 1), #174 / #175 / #176 (Fase 2, 2026-07-06), #183 (`/settings` rediseño)
 - **Issues derivadas abiertas**: #177, #178, #179, #180, #181 (pagos work post-rediseño), #182 (dashboard UrgentCollectionCard refactor)
