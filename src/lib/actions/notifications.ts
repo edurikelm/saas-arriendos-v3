@@ -188,3 +188,38 @@ export async function setNotificationsEmailEnabled(
   revalidatePath("/settings");
   return { success: true };
 }
+
+/**
+ * Returns the current user's SMS notification preference.
+ * Returns false (default safe) if no session.
+ */
+export async function getNotificationsSmsEnabled(): Promise<boolean> {
+  const session = await getSession();
+  if (!session) return false;
+
+  const profile = await prisma.userProfile.findUnique({
+    where: { id: session.userId },
+    select: { notificationsSmsEnabled: true },
+  });
+
+  return profile?.notificationsSmsEnabled ?? false;
+}
+
+/**
+ * Updates the current user's SMS notification preference.
+ * Auth: session required; only own record can be updated.
+ */
+export async function setNotificationsSmsEnabled(
+  enabled: boolean,
+): Promise<{ success: true } | { error: string }> {
+  const session = await getSession();
+  if (!session) return { error: "No autorizado" };
+
+  await prisma.userProfile.update({
+    where: { id: session.userId },
+    data: { notificationsSmsEnabled: enabled },
+  });
+
+  revalidatePath("/settings");
+  return { success: true };
+}

@@ -131,6 +131,15 @@ model UserProfile {
   status                     UserStatus @default(ACTIVE)
   plan                       Plan?      @default(FREE)
   notificationsEmailEnabled  Boolean    @default(true)
+  notificationsSmsEnabled    Boolean    @default(false)
+  avatarUrl                  String?
+  phone                      String?
+  companyName                String?
+  companyRut                 String?
+  companyAddress             String?
+  language                   String     @default("es")
+  currency                   String     @default("CLP")
+  timezone                   String     @default("America/Santiago")
   createdAt                  DateTime   @default(now())
 
   properties      Property[]

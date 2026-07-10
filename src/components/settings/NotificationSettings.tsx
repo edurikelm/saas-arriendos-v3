@@ -1,29 +1,38 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { setNotificationsEmailEnabled } from "@/lib/actions/notifications";
+import {
+  setNotificationsEmailEnabled,
+  setNotificationsSmsEnabled,
+} from "@/lib/actions/notifications";
 import { toast } from "sonner";
 
 type NotificationSettingsProps = {
-  initialEnabled: boolean;
+  initialEmailEnabled: boolean;
+  initialSmsEnabled: boolean;
 };
 
-export function NotificationSettings({ initialEnabled }: NotificationSettingsProps) {
-  const [enabled, setEnabled] = useState(initialEnabled);
-  const [isSaving, setIsSaving] = useState(false);
+export function NotificationSettings({
+  initialEmailEnabled,
+  initialSmsEnabled,
+}: NotificationSettingsProps) {
+  const [emailEnabled, setEmailEnabled] = useState(initialEmailEnabled);
+  const [smsEnabled, setSmsEnabled] = useState(initialSmsEnabled);
+  const [isSavingEmail, setIsSavingEmail] = useState(false);
+  const [isSavingSms, setIsSavingSms] = useState(false);
 
-  async function handleToggle(checked: boolean) {
-    const previousValue = enabled;
-    setEnabled(checked);
-    setIsSaving(true);
+  async function handleEmailToggle(checked: boolean) {
+    const previousValue = emailEnabled;
+    setEmailEnabled(checked);
+    setIsSavingEmail(true);
 
     try {
       const result = await setNotificationsEmailEnabled(checked);
       if ("error" in result) {
-        setEnabled(previousValue);
+        setEmailEnabled(previousValue);
         toast.error(result.error);
       } else {
         toast.success(
@@ -33,30 +42,66 @@ export function NotificationSettings({ initialEnabled }: NotificationSettingsPro
         );
       }
     } catch {
-      setEnabled(previousValue);
+      setEmailEnabled(previousValue);
       toast.error("Error al guardar la preferencia");
     } finally {
-      setIsSaving(false);
+      setIsSavingEmail(false);
+    }
+  }
+
+  async function handleSmsToggle(checked: boolean) {
+    const previousValue = smsEnabled;
+    setSmsEnabled(checked);
+    setIsSavingSms(true);
+
+    try {
+      const result = await setNotificationsSmsEnabled(checked);
+      if ("error" in result) {
+        setSmsEnabled(previousValue);
+        toast.error(result.error);
+      } else {
+        toast.success(
+          checked
+            ? "Notificaciones por SMS activadas"
+            : "Notificaciones por SMS desactivadas",
+        );
+      }
+    } catch {
+      setSmsEnabled(previousValue);
+      toast.error("Error al guardar la preferencia");
+    } finally {
+      setIsSavingSms(false);
     }
   }
 
   return (
-    <Card>
+    <Card className="rounded-lg">
       <CardHeader>
         <CardTitle>Notificaciones</CardTitle>
-        <CardDescription>Gestiona cómo recibes los avisos del sistema</CardDescription>
       </CardHeader>
-      <CardContent className="flex items-center justify-between gap-4">
-        <Label htmlFor="notifications-email" className="flex-1 cursor-pointer">
-          Recibir recordatorios de pago y avisos por email. Las notificaciones en la app
-          siguen activas.
-        </Label>
-        <Switch
-          id="notifications-email"
-          checked={enabled}
-          onCheckedChange={handleToggle}
-          disabled={isSaving}
-        />
+      <CardContent className="space-y-6">
+        <div className="flex items-center justify-between gap-4">
+          <Label htmlFor="notifications-email" className="flex-1 cursor-pointer">
+            Alertas por Email
+          </Label>
+          <Switch
+            id="notifications-email"
+            checked={emailEnabled}
+            onCheckedChange={handleEmailToggle}
+            disabled={isSavingEmail}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <Label htmlFor="notifications-sms" className="flex-1 cursor-pointer">
+            Alertas por SMS
+          </Label>
+          <Switch
+            id="notifications-sms"
+            checked={smsEnabled}
+            onCheckedChange={handleSmsToggle}
+            disabled={isSavingSms}
+          />
+        </div>
       </CardContent>
     </Card>
   );

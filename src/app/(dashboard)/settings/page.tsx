@@ -1,7 +1,11 @@
 import { MercadoPagoSettings } from "@/components/settings/MercadoPagoSettings";
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
-import { getNotificationsEmailEnabled } from "@/lib/actions/notifications";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ProfileForm } from "@/components/settings/profile-form";
+import {
+  getNotificationsEmailEnabled,
+  getNotificationsSmsEnabled,
+} from "@/lib/actions/notifications";
+import { getUserProfileSettings } from "@/lib/actions/profile";
 
 type SettingsPageProps = {
   searchParams: Promise<{
@@ -11,25 +15,37 @@ type SettingsPageProps = {
 
 export default async function SettingsPage({ searchParams }: SettingsPageProps) {
   const params = await searchParams;
-  const emailNotificationsEnabled = await getNotificationsEmailEnabled();
+  const [profile, emailEnabled, smsEnabled] = await Promise.all([
+    getUserProfileSettings(),
+    getNotificationsEmailEnabled(),
+    getNotificationsSmsEnabled(),
+  ]);
+
+  // (dashboard)/layout.tsx already enforces requireOwner(), so session is guaranteed.
+  // If profile is null here, it means the session userId has no UserProfile row (data inconsistency).
+  if (!profile) {
+    throw new Error("Perfil de usuario no encontrado");
+  }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Configuración</h1>
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold">Notificaciones</h2>
-        <NotificationSettings initialEnabled={emailNotificationsEnabled} />
+    <div className="max-w-6xl mx-auto">
+      <div className="space-y-2 mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold">Configuración</h1>
+        <p className="text-sm text-muted-foreground">
+          Administra tu perfil, empresa y preferencias de la plataforma
+        </p>
       </div>
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold">Integraciones</h2>
-        <Card>
-          <CardHeader>
-            <CardTitle>Mercado Pago</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <MercadoPagoSettings oauthStatus={params.mp} />
-          </CardContent>
-        </Card>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+        <ProfileForm initialData={profile} />
+
+        <div className="space-y-6">
+          <NotificationSettings
+            initialEmailEnabled={emailEnabled}
+            initialSmsEnabled={smsEnabled}
+          />
+          <MercadoPagoSettings oauthStatus={params.mp} />
+        </div>
       </div>
     </div>
   );

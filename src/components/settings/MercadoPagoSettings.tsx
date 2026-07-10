@@ -113,7 +113,7 @@ export function MercadoPagoSettings({ oauthStatus }: MercadoPagoSettingsProps) {
 
   if (isLoading) {
     return (
-      <Card>
+      <Card className="rounded-lg">
         <CardContent className="flex items-center justify-center py-8">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-muted-foreground" />
         </CardContent>
@@ -124,7 +124,7 @@ export function MercadoPagoSettings({ oauthStatus }: MercadoPagoSettingsProps) {
   const oauthMessage = getOauthStatusMessage(oauthStatus);
 
   return (
-    <Card>
+    <Card className="rounded-lg">
       <CardHeader>
         <CardTitle>Mercado Pago</CardTitle>
         <CardDescription>Gestiona la conexión con tu cuenta de Mercado Pago</CardDescription>
