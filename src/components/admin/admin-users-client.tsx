@@ -95,6 +95,12 @@ interface AdminUsersClientProps {
   kpis?: AdminUsersKpis;
 }
 
+const planFilterLabels: Record<string, string> = {
+  all: "Todos",
+  FREE: "Free",
+  PRO: "Pro",
+};
+
 import Link from "next/link";
 
 export function AdminUsersClient({ initialUsers, initialTotal, kpis }: AdminUsersClientProps) {
@@ -373,7 +379,9 @@ export function AdminUsersClient({ initialUsers, initialTotal, kpis }: AdminUser
             </div>
             <Select value={planFilter} onValueChange={(v) => setPlanFilter(v || "all")}>
               <SelectTrigger className="w-32">
-                <SelectValue placeholder="Plan" />
+                <SelectValue placeholder="Plan">
+                  {(value: string) => planFilterLabels[value] ?? "Todos"}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
