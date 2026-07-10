@@ -623,12 +623,24 @@ Layout estructural compartido por los dos sidebars:
 
 **Sin shadows**. `border-b` provee la separación.
 
-### Theme Toggle
+### User Footer (sidebar)
 
-- Icon: `Moon` (light mode) / `Sun` (dark mode)
-- Size: `h-5 w-5`
-- Position: Antes del icono de Bell en navbar
-- Implementation: `@/components/providers/theme-provider` con `useTheme()` hook
+Patrón compartido por owner y admin sidebars: avatar + nombre + rol/plan + trigger sutil → dropdown con [Tema] + [Cerrar sesión].
+
+| Slot | Owner | Admin |
+|------|-------|-------|
+| Avatar bg | `bg-primary text-primary-foreground` | `bg-sidebar-accent text-sidebar-accent-foreground` (matchea active state del admin) |
+| Nombre | `text-xs font-bold text-foreground` | mismo |
+| Rol/Plan label | `text-[10px] text-muted-foreground truncate` (slate-500) | mismo |
+| Trigger | `p-1 text-muted-foreground/60 hover:text-foreground transition-colors` (icono ⋮ `h-4 w-4`) | mismo |
+| Dropdown trigger(s) | ⋮ (avatar decorativo) | avatar + ⋮ (avatar es trigger cuando colapsado) |
+| Dropdown items | Tema (Claro / Oscuro / Sistema) + Cerrar sesión | mismo |
+
+**Importante — Colapsado (solo admin)**: cuando el admin colapsa el sidebar (`lg:w-16`), el trigger ⋮ se oculta. El avatar pasa a ser trigger del dropdown con `side="right"` para abrir hacia afuera del sidebar. Esto preserva accesibilidad al logout sin importar el estado.
+
+**Importante — `text-muted-foreground` para texto apagado**: usar `text-muted`/`bg-muted` solo para superficies. Para texto secundario (rol, plan, labels), siempre `text-muted-foreground`. Mezclarlos hace el texto invisible (mismo color que el fondo).
+
+**Theme picker centralizado**: el theme picker (3 opciones: Claro / Oscuro / Sistema) vive exclusivamente en el footer del sidebar. NO en el navbar — esto evita duplicación y mantiene la opción "Sistema" accesible (que un toggle binario no ofrece).
 
 ---
 
