@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Pencil, Trash2, Search, X, MoreHorizontal } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, X, MoreHorizontal, Users, UserCheck, UserPlus, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
+import { KpiCard } from "@/components/ui/kpi-card";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -13,6 +14,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Pagination } from "@/components/ui/pagination";
 import { usePagination } from "@/hooks/use-pagination";
 import type { PaginatedResponse } from "@/types/pagination";
+import type { ClientsKpis } from "@/lib/actions/clients";
 import { toast } from "sonner";
 import { createClient, updateClient, deleteClient } from "@/lib/actions/clients";
 import type { ClientInput } from "@/lib/validations/client";
@@ -31,6 +33,7 @@ interface Client {
 
 interface ClientsTableProps {
   initialData: PaginatedResponse<Client>;
+  kpis?: ClientsKpis;
 }
 
 function getInitials(name: string): string {
@@ -43,7 +46,7 @@ function getInitials(name: string): string {
     .toUpperCase();
 }
 
-export function ClientsTable({ initialData }: ClientsTableProps) {
+export function ClientsTable({ initialData, kpis }: ClientsTableProps) {
   const [clients, setClients] = useState<Client[]>(initialData.data);
   const [total, setTotal] = useState(initialData.total);
   const [totalPages, setTotalPages] = useState(initialData.totalPages);
@@ -159,6 +162,38 @@ export function ClientsTable({ initialData }: ClientsTableProps) {
             <Plus className="h-4 w-4 mr-2" />
             <span>Nuevo Cliente</span>
           </Button>
+        </div>
+
+        {/* KPI Cards */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard
+            label="Total de Clientes"
+            value={kpis?.total ?? 0}
+            icon={Users}
+            tone="default"
+            sublabel="En tu directorio"
+          />
+          <KpiCard
+            label="Clientes Activos"
+            value={kpis?.active ?? 0}
+            icon={UserCheck}
+            tone="success"
+            sublabel="Con reservas registradas"
+          />
+          <KpiCard
+            label="Sin Reservas"
+            value={kpis?.withoutReservations ?? 0}
+            icon={UserX}
+            tone="warning"
+            sublabel="Aún sin actividad"
+          />
+          <KpiCard
+            label="Nuevos este Mes"
+            value={kpis?.newThisMonth ?? 0}
+            icon={UserPlus}
+            tone="info"
+            sublabel="Registrados recientemente"
+          />
         </div>
 
         {/* Search bar full-width */}

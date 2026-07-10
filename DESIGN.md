@@ -804,7 +804,7 @@ Primitivas y patrones creados durante la Fase 2 que **deben usarse** en futuras 
 | Primitive | Ubicación | Propósito |
 |-----------|-----------|-----------|
 | `<DataTable>` | `data-table.tsx` | Toda tabla del producto (ver sección 1) |
-| `<KpiCard>` | `kpi-card.tsx` | Primitive único de KPI del producto (ver sección 7). Usado en `/dashboard`, `/reports`, `/payments`, `/calendar`, `/admin`, `/admin/users/[id]`, `/support` |
+| `<KpiCard>` | `kpi-card.tsx` | Primitive único de KPI del producto (ver sección 7). Usado en `/dashboard`, `/reports`, `/payments`, `/calendar`, `/admin`, `/admin/users/[id]`, `/support`, `/clients` |
 | `<CurrencyInput>` | `currency-input.tsx` | Input numérico formateado CLP con `Intl.NumberFormat`. Usado en property-form |
 | `<ReceiptUpload>` | `receipt-upload.tsx` | Upload de comprobantes de pago (Cloudinary) |
 

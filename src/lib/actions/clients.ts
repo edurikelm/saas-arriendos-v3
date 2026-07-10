@@ -71,6 +71,40 @@ export async function getClients(params?: {
   };
 }
 
+export interface ClientsKpis {
+  total: number;
+  active: number;
+  withoutReservations: number;
+  newThisMonth: number;
+}
+
+export async function getClientsKpis(): Promise<ClientsKpis> {
+  const session = await getSession();
+  if (!session) {
+    return { total: 0, active: 0, withoutReservations: 0, newThisMonth: 0 };
+  }
+
+  const now = new Date();
+  const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const [total, active, newThisMonth] = await Promise.all([
+    prisma.reservationClient.count({ where: { userId: session.userId } }),
+    prisma.reservationClient.count({
+      where: { userId: session.userId, reservations: { some: {} } },
+    }),
+    prisma.reservationClient.count({
+      where: { userId: session.userId, createdAt: { gte: startOfThisMonth } },
+    }),
+  ]);
+
+  return {
+    total,
+    active,
+    withoutReservations: total - active,
+    newThisMonth,
+  };
+}
+
 export async function getClientById(id: string) {
   const session = await getSession();
   if (!session) return null;
