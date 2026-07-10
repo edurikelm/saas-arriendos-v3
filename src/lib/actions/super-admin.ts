@@ -278,6 +278,7 @@ export async function getDashboardStats() {
     ownersLastMonth,
     totalOwnersCount,
     ownersWithPro,
+    pendingSupportTickets,
   ] = await Promise.all([
     prisma.userProfile.count({ where: { role: "OWNER" } }),
     prisma.property.count(),
@@ -300,6 +301,9 @@ export async function getDashboardStats() {
     }),
     prisma.userProfile.count({ where: { role: "OWNER" } }),
     prisma.userProfile.count({ where: { role: "OWNER", plan: "PRO" } }),
+    prisma.supportTicket.count({
+      where: { status: { in: ["OPEN", "IN_PROGRESS"] } },
+    }),
   ]);
 
   const growthPercentage =
@@ -323,6 +327,7 @@ export async function getDashboardStats() {
     ownersThisMonth,
     ownersLastMonth,
     conversionPercentage,
+    pendingSupportTickets,
   };
 }
 
@@ -368,7 +373,9 @@ export async function getRecentOwners(limit: number = 5) {
     where: { role: "OWNER" },
     select: {
       id: true,
+      name: true,
       email: true,
+      companyName: true,
       plan: true,
       createdAt: true,
       _count: {
@@ -383,4 +390,106 @@ export async function getRecentOwners(limit: number = 5) {
   });
 
   return owners;
+}
+
+export type SystemActivityType =
+  | "OWNER_REGISTERED"
+  | "SUPPORT_TICKET"
+  | "PAYMENT_COMPLETED";
+
+export interface SystemActivityItem {
+  id: string;
+  type: SystemActivityType;
+  title: string;
+  description: string;
+  createdAt: string;
+  priority?: "LOW" | "MEDIUM" | "HIGH";
+}
+
+const activityCurrencyFormatter = new Intl.NumberFormat("es-CL", {
+  style: "currency",
+  currency: "CLP",
+  minimumFractionDigits: 0,
+});
+
+/**
+ * Feed unificado de actividad reciente del sistema para la consola de
+ * Super Administrador. Combina registros de propietarios, tickets de soporte
+ * y pagos completados, ordenados por fecha descendente.
+ */
+export async function getSystemActivity(
+  limit: number = 6
+): Promise<SystemActivityItem[]> {
+  if (!(await isSuperAdmin())) return [];
+
+  const [owners, tickets, payments] = await Promise.all([
+    prisma.userProfile.findMany({
+      where: { role: "OWNER" },
+      select: { id: true, name: true, email: true, companyName: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+    }),
+    prisma.supportTicket.findMany({
+      select: {
+        id: true,
+        subject: true,
+        priority: true,
+        createdAt: true,
+        user: { select: { name: true, email: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+    }),
+    prisma.payment.findMany({
+      where: { status: "COMPLETED", paidAt: { not: null }, deletedAt: null },
+      select: {
+        id: true,
+        amount: true,
+        paidAt: true,
+        reservation: { select: { property: { select: { name: true } } } },
+      },
+      orderBy: { paidAt: "desc" },
+      take: limit,
+    }),
+  ]);
+
+  const items: SystemActivityItem[] = [];
+
+  for (const owner of owners) {
+    items.push({
+      id: `owner-${owner.id}`,
+      type: "OWNER_REGISTERED",
+      title: "Nuevo propietario",
+      description: `${owner.companyName || owner.name || owner.email} se unió al sistema.`,
+      createdAt: owner.createdAt.toISOString(),
+    });
+  }
+
+  for (const ticket of tickets) {
+    items.push({
+      id: `ticket-${ticket.id}`,
+      type: "SUPPORT_TICKET",
+      title: "Ticket de soporte",
+      description: `${ticket.user.name || ticket.user.email}: ${ticket.subject}`,
+      createdAt: ticket.createdAt.toISOString(),
+      priority: ticket.priority,
+    });
+  }
+
+  for (const payment of payments) {
+    const propertyName = payment.reservation?.property?.name;
+    items.push({
+      id: `payment-${payment.id}`,
+      type: "PAYMENT_COMPLETED",
+      title: "Pago recibido",
+      description: `${activityCurrencyFormatter.format(Number(payment.amount))} procesado${
+        propertyName ? ` · ${propertyName}` : ""
+      }.`,
+      createdAt: (payment.paidAt as Date).toISOString(),
+    });
+  }
+
+  return items
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, limit);
 }

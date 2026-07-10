@@ -1,28 +1,25 @@
 import Link from "next/link";
 import {
-  Shield,
   Users,
   Building2,
-  DollarSign,
-  Calendar,
-  ArrowRight,
-  Plus,
-  TrendingUp,
-  TrendingDown,
+  Wallet,
+  LifeBuoy,
   UserPlus,
-  Target,
-  Activity,
-  Sparkles,
-  Mail,
-  Clock,
+  AlertCircle,
   ChevronRight,
+  type LucideIcon,
 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { KpiCard } from "@/components/ui/kpi-card";
-import { getDashboardStats, getRecentOwners } from "@/lib/actions/super-admin";
+import { DataTable } from "@/components/ui/data-table";
+import {
+  getDashboardStats,
+  getRecentOwners,
+  getSystemActivity,
+  type SystemActivityItem,
+} from "@/lib/actions/super-admin";
 import { cn } from "@/lib/utils";
 
 const formatCLP = (amount: number) =>
@@ -31,6 +28,12 @@ const formatCLP = (amount: number) =>
     currency: "CLP",
     minimumFractionDigits: 0,
   }).format(amount);
+
+const formatCompactCLP = (amount: number) => {
+  if (amount >= 1_000_000) return `$${(amount / 1_000_000).toFixed(1)}M`;
+  if (amount >= 1_000) return `$${(amount / 1_000).toFixed(0)}K`;
+  return formatCLP(amount);
+};
 
 function timeAgo(date: Date | string): string {
   const now = Date.now();
@@ -51,19 +54,35 @@ function timeAgo(date: Date | string): string {
   });
 }
 
-function getInitials(email: string): string {
-  const local = email.split("@")[0] ?? email;
-  const parts = local.split(/[._-]/).filter(Boolean);
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[1][0]).toUpperCase();
+function formatRegistrationDate(date: Date | string): string {
+  return new Date(date).toLocaleDateString("es-CL", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+const activityVisuals: Record<
+  SystemActivityItem["type"],
+  { icon: LucideIcon; container: string }
+> = {
+  OWNER_REGISTERED: { icon: UserPlus, container: "bg-primary/10 text-primary" },
+  SUPPORT_TICKET: { icon: LifeBuoy, container: "bg-warning/10 text-warning" },
+  PAYMENT_COMPLETED: { icon: Wallet, container: "bg-info/10 text-info" },
+};
+
+function activityVisual(item: SystemActivityItem) {
+  if (item.type === "SUPPORT_TICKET" && item.priority === "HIGH") {
+    return { icon: AlertCircle, container: "bg-destructive/10 text-destructive" };
   }
-  return local.slice(0, 2).toUpperCase();
+  return activityVisuals[item.type];
 }
 
 export default async function AdminDashboardPage() {
-  const [stats, recentOwners] = await Promise.all([
+  const [stats, recentOwners, activity] = await Promise.all([
     getDashboardStats(),
-    getRecentOwners(5),
+    getRecentOwners(6),
+    getSystemActivity(6),
   ]);
 
   if (!stats) {
@@ -75,371 +94,189 @@ export default async function AdminDashboardPage() {
   }
 
   const isGrowthPositive = stats.growthPercentage > 0;
-  const isGrowthNeutral = stats.growthPercentage === 0;
-  const isGrowthDown = stats.growthPercentage < 0;
-
-  const primaryKpis = [
-    {
-      key: "owners",
-      label: "Total Propietarios",
-      value: stats.totalOwners.toString(),
-      detail: "propietarios activos",
-      icon: Users,
-      tone: "default" as const,
-    },
-    {
-      key: "properties",
-      label: "Total Propiedades",
-      value: stats.totalProperties.toString(),
-      detail: "propiedades en el sistema",
-      icon: Building2,
-      tone: "info" as const,
-    },
-    {
-      key: "reservations",
-      label: "Reservas Totales",
-      value: stats.totalReservations.toString(),
-      detail: "reservas realizadas",
-      icon: Calendar,
-      tone: "warning" as const,
-    },
-    {
-      key: "revenue",
-      label: "Ingresos Totales",
-      value: formatCLP(stats.totalRevenue),
-      detail: "pagos completados",
-      icon: DollarSign,
-      tone: "success" as const,
-    },
-  ];
+  const hasPendingTickets = stats.pendingSupportTickets > 0;
 
   return (
     <div className="space-y-6">
-      <Card className="relative overflow-hidden border-border/60 bg-gradient-to-br from-card via-card to-primary/5">
-        <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-primary/10 blur-3xl" />
-        <div className="pointer-events-none absolute -left-16 -bottom-16 h-48 w-48 rounded-full bg-violet-500/5 blur-3xl" />
-        <CardContent className="relative p-6">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-violet-500/20 ring-1 ring-border">
-                <Shield className="size-7 text-primary" />
-              </div>
-              <div className="space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="font-heading text-2xl font-semibold tracking-tight">
-                    Super Admin
-                  </h1>
-                  <span className="inline-flex items-center gap-1 rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                    <Sparkles className="size-3" />
-                    Panel de control
-                  </span>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Panel de gestión del sistema
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Link
-                href="/admin/users"
-                className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-              >
-                <Users className="mr-2 size-4" />
-                Ver usuarios
-              </Link>
-            </div>
+      {/* Header Section */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-xl font-bold text-foreground">Panel de Control Global</h1>
+          <p className="text-xs text-muted-foreground">
+            Métricas clave y supervisión del rendimiento del ecosistema
+          </p>
+        </div>
+        <Link
+          href="/admin/users"
+          className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+        >
+          <Users className="mr-2 size-4" />
+          Ver usuarios
+        </Link>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          label="Total de Propiedades"
+          value={stats.totalProperties.toString()}
+          icon={Building2}
+          tone="default"
+          sublabel="En todo el ecosistema"
+        />
+        <KpiCard
+          label="Propietarios Activos"
+          value={stats.totalOwners.toString()}
+          icon={Users}
+          tone="info"
+          sublabel={`${stats.ownersThisMonth} nuevos este mes`}
+          indicator={
+            isGrowthPositive
+              ? {
+                  text: `+${stats.growthPercentage}% vs mes anterior`,
+                  variant: "positive",
+                }
+              : undefined
+          }
+        />
+        <KpiCard
+          label="Ingresos Globales"
+          value={formatCompactCLP(stats.totalRevenue)}
+          icon={Wallet}
+          tone="success"
+          sublabel="Pagos completados"
+        />
+        <KpiCard
+          label="Tickets de Soporte"
+          value={stats.pendingSupportTickets.toString()}
+          icon={LifeBuoy}
+          tone={hasPendingTickets ? "destructive" : "default"}
+          sublabel="Pendientes de atención"
+        />
+      </div>
+
+      {/* Two-column layout */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* Recent Owners (Left 2/3) */}
+        <div className="space-y-3 lg:col-span-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-foreground">
+              Últimos Propietarios Registrados
+            </h2>
+            <Link
+              href="/admin/users"
+              className="text-[10px] font-bold uppercase tracking-wider text-primary hover:underline"
+            >
+              Ver todas
+            </Link>
           </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {primaryKpis.map((kpi) => {
-          const Icon = kpi.icon;
-          return (
-            <KpiCard
-              key={kpi.key}
-              label={kpi.label}
-              value={kpi.value}
-              sublabel={kpi.detail}
-              icon={Icon}
-              tone={kpi.tone}
-            />
-          );
-        })}
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="relative overflow-hidden border-border/60">
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="flex size-8 items-center justify-center rounded-lg bg-info/10 text-info-foreground">
-                    <Target className="size-4" />
-                  </div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Conversión FREE→PRO
-                  </p>
-                </div>
-                <p className="font-heading text-3xl font-semibold tracking-tight tabular-nums">
-                  {stats.conversionPercentage}
-                  <span className="ml-0.5 text-xl text-muted-foreground">%</span>
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  de propietarios son PRO
-                </p>
-              </div>
-            </div>
-              <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-info transition-all"
-                  style={{ width: `${Math.min(100, stats.conversionPercentage)}%` }}
-                />
-              </div>
-          </CardContent>
-        </Card>
-
-        <Card className="relative overflow-hidden border-border/60">
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <div
-                    className={`flex size-8 items-center justify-center rounded-lg ${
-                      isGrowthDown
-                        ? "bg-destructive/10 text-destructive-foreground"
-                        : isGrowthNeutral
-                          ? "bg-secondary/10 text-secondary-foreground"
-                          : "bg-success/10 text-success-foreground"
-                    }`}
-                  >
-                    {isGrowthDown ? (
-                      <TrendingDown className="size-4" />
-                    ) : (
-                      <TrendingUp className="size-4" />
-                    )}
-                  </div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Crecimiento Mensual
-                  </p>
-                </div>
-                <p
-                  className={`font-heading text-3xl font-semibold tracking-tight tabular-nums ${
-                    isGrowthDown
-                      ? "text-destructive"
-                      : isGrowthPositive
-                        ? "text-success"
-                        : "text-foreground"
-                  }`}
-                >
-                  {isGrowthPositive ? "+" : ""}
-                  {stats.growthPercentage}
-                  <span className="ml-0.5 text-xl text-muted-foreground">%</span>
-                </p>
-                <p className="text-xs text-muted-foreground">vs mes anterior</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="relative overflow-hidden border-border/60 sm:col-span-2 md:col-span-1">
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="flex size-8 items-center justify-center rounded-lg bg-info/10 text-info-foreground">
-                    <UserPlus className="size-4" />
-                  </div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Nuevos Propietarios
-                  </p>
-                </div>
-                <div className="flex items-baseline gap-3">
-                  <p className="font-heading text-3xl font-semibold tracking-tight tabular-nums">
-                    {stats.ownersThisMonth}
-                  </p>
-                  <span className="text-xs text-muted-foreground">
-                    este mes
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Activity className="size-3" />
-                  <span className="tabular-nums">{stats.ownersLastMonth}</span>
-                  <span>el mes anterior</span>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-5">
-        <Card className="lg:col-span-3">
-          <CardHeader>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <UserPlus className="size-4 text-muted-foreground" />
-                  Propietarios Recientes
-                </CardTitle>
-                <CardDescription>
-                  Últimos {recentOwners.length} propietarios registrados
-                </CardDescription>
-              </div>
-              <Link
-                href="/admin/users"
-                className={cn(
-                  buttonVariants({ variant: "ghost", size: "sm" }),
-                  "text-muted-foreground"
-                )}
+          <DataTable
+            headers={[
+              "Propietario",
+              "Empresa",
+              { label: "Propiedades", align: "center" },
+              { label: "Reservas", align: "center" },
+              "Plan",
+              { label: "Fecha Registro", align: "right" },
+            ]}
+            caption="Últimos propietarios registrados"
+            emptyState={
+              <>
+                No hay propietarios registrados. Cuando se registren nuevos
+                propietarios aparecerán aquí.
+              </>
+            }
+          >
+            {recentOwners.map((owner) => (
+              <tr
+                key={owner.id}
+                className="border-b last:border-0 transition-colors hover:bg-muted/30"
               >
-                Ver todos
-                <ChevronRight className="ml-1 size-4" />
-              </Link>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {recentOwners.length === 0 ? (
-              <div className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-muted/20 py-12 text-center">
-                <Users className="mb-2 size-8 text-muted-foreground/50" />
-                <p className="text-sm font-medium">No hay propietarios registrados</p>
-                <p className="text-xs text-muted-foreground">
-                  Cuando se registren nuevos propietarios aparecerán aquí
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-1">
-                {recentOwners.map((owner) => (
-                  <Link
-                    key={owner.id}
-                    href={`/admin/users/${owner.id}`}
-                    className="group flex items-center justify-between gap-3 rounded-lg p-3 transition-colors hover:bg-muted/40"
+                <td className="px-6 py-4">
+                  <div className="flex flex-col">
+                    <span className="font-bold text-foreground">
+                      {owner.name || owner.email}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {owner.email}
+                    </span>
+                  </div>
+                </td>
+                <td className="px-6 py-4 text-foreground">
+                  {owner.companyName || (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </td>
+                <td className="px-6 py-4 text-center font-bold text-primary tabular-nums">
+                  {owner._count.properties}
+                </td>
+                <td className="px-6 py-4 text-center text-muted-foreground tabular-nums">
+                  {owner._count.reservations}
+                </td>
+                <td className="px-6 py-4">
+                  <Badge
+                    variant={
+                      owner.plan === "PRO"
+                        ? "info"
+                        : owner.plan === "FREE"
+                          ? "secondary"
+                          : "warning"
+                    }
+                    className="rounded-md font-medium"
                   >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <Avatar size="default" className="ring-1 ring-border">
-                        <AvatarFallback className="bg-gradient-to-br from-primary/15 to-violet-500/15 text-sm font-semibold text-foreground">
-                          {getInitials(owner.email)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0 space-y-0.5">
-                        <p className="truncate text-sm font-medium">{owner.email}</p>
-                        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <Clock className="size-3 shrink-0" />
-                          {timeAgo(owner.createdAt)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-3">
-                      <div className="hidden text-right sm:block">
-                        <p className="text-sm font-medium tabular-nums">
-                          {owner._count.properties}
-                          <span className="ml-1 text-xs text-muted-foreground">
-                            prop.
-                          </span>
-                        </p>
-                        <p className="text-xs text-muted-foreground tabular-nums">
-                          {owner._count.reservations} reservas
-                        </p>
-                      </div>
-                      <Badge
-                        variant={owner.plan === "PRO" ? "info" : owner.plan === "FREE" ? "secondary" : "warning"}
-                        className="rounded-md font-medium"
+                    {owner.plan || "SIN PLAN"}
+                  </Badge>
+                </td>
+                <td className="px-6 py-4 text-right font-medium text-foreground tabular-nums">
+                  {formatRegistrationDate(owner.createdAt)}
+                </td>
+              </tr>
+            ))}
+          </DataTable>
+        </div>
+
+        {/* Recent Activity (Right 1/3) */}
+        <Card className="flex h-full flex-col lg:col-span-1">
+          <CardHeader>
+            <CardTitle className="text-sm">Actividad Reciente del Sistema</CardTitle>
+          </CardHeader>
+          <CardContent className="flex-1">
+            {activity.length === 0 ? (
+              <p className="py-8 text-center text-xs text-muted-foreground">
+                Sin actividad reciente
+              </p>
+            ) : (
+              <div className="space-y-6">
+                {activity.map((item, idx) => {
+                  const { icon: Icon, container } = activityVisual(item);
+                  const isLast = idx === activity.length - 1;
+                  return (
+                    <div key={item.id} className="relative flex gap-3">
+                      {!isLast && (
+                        <div className="absolute bottom-[-24px] left-4 top-8 w-px bg-border" />
+                      )}
+                      <div
+                        className={cn(
+                          "z-10 flex size-8 shrink-0 items-center justify-center rounded-full",
+                          container
+                        )}
                       >
-                        {owner.plan === "PRO" && <Sparkles className="size-3" />}
-                        {owner.plan || "SIN PLAN"}
-                      </Badge>
-                      <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                        <Icon className="size-4" />
+                      </div>
+                      <div className="pt-0.5">
+                        <p className="text-xs font-bold text-foreground">{item.title}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {item.description}
+                        </p>
+                        <span className="mt-1 block text-[9px] font-bold uppercase tracking-tight text-muted-foreground">
+                          {timeAgo(item.createdAt)}
+                        </span>
+                      </div>
                     </div>
-                  </Link>
-                ))}
+                  );
+                })}
               </div>
             )}
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="size-4 text-muted-foreground" />
-              Acciones Rápidas
-            </CardTitle>
-            <CardDescription>Operaciones comunes del administrador</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2.5">
-            <Link
-              href="/admin/users"
-              className={cn(
-                buttonVariants({ className: "h-auto w-full justify-between p-4" })
-              )}
-            >
-              <span className="flex items-center gap-3">
-                <span className="flex size-9 items-center justify-center rounded-md bg-primary-foreground/15">
-                  <Users className="size-4" />
-                </span>
-                <span className="text-left">
-                  <span className="block text-sm font-medium">Gestionar Usuarios</span>
-                  <span className="block text-xs opacity-80">
-                    Ver y editar todos los propietarios
-                  </span>
-                </span>
-              </span>
-              <ArrowRight className="size-4 opacity-70" />
-            </Link>
-            <Link
-              href="/admin/users"
-              className={cn(
-                buttonVariants({
-                  variant: "outline",
-                  className: "h-auto w-full justify-between p-4",
-                })
-              )}
-            >
-              <span className="flex items-center gap-3">
-                <span className="flex size-9 items-center justify-center rounded-md bg-muted text-foreground">
-                  <Plus className="size-4" />
-                </span>
-                <span className="text-left">
-                  <span className="block text-sm font-medium">Crear Nuevo Propietario</span>
-                  <span className="block text-xs text-muted-foreground">
-                    Registrar un nuevo owner manualmente
-                  </span>
-                </span>
-              </span>
-              <ArrowRight className="size-4 text-muted-foreground" />
-            </Link>
-
-            <div className="mt-4 rounded-lg border bg-gradient-to-br from-muted/40 to-muted/0 p-4">
-              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                <Mail className="size-3.5" />
-                Resumen del sistema
-              </div>
-              <div className="mt-3 grid grid-cols-3 gap-3 text-center">
-                <div>
-                  <p className="font-heading text-lg font-semibold tabular-nums">
-                    {stats.totalOwners}
-                  </p>
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                    Owners
-                  </p>
-                </div>
-                <div>
-                  <p className="font-heading text-lg font-semibold tabular-nums">
-                    {stats.totalProperties}
-                  </p>
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                    Props
-                  </p>
-                </div>
-                <div>
-                  <p className="font-heading text-lg font-semibold tabular-nums">
-                    {stats.totalReservations}
-                  </p>
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                    Reservas
-                  </p>
-                </div>
-              </div>
-            </div>
           </CardContent>
         </Card>
       </div>

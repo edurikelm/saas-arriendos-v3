@@ -16,6 +16,9 @@ vi.mock("@/lib/db/prisma", () => ({
     payment: {
       aggregate: vi.fn(),
     },
+    supportTicket: {
+      count: vi.fn(),
+    },
   },
 }));
 
