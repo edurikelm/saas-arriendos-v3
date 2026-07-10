@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Calendar,
@@ -145,12 +145,15 @@ className={cn(
               </div>
               <div className="overflow-hidden flex-1 min-w-0">
                 <p className="text-xs font-bold text-foreground truncate">{userName ?? "Cuenta"}</p>
-                <p className="text-[10px] text-muted truncate">{planLabel}</p>
+                <p className="text-[10px] text-muted-foreground truncate">{planLabel}</p>
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger
                     render={
-                      <button className="p-1 rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+                      <button
+                        aria-label="Más opciones de usuario"
+                        className="p-1 text-muted-foreground/60 hover:text-foreground transition-colors"
+                      >
                         <MoreVertical className="h-4 w-4" />
                       </button>
                     }

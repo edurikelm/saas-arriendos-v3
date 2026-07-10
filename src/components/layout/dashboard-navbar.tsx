@@ -2,7 +2,6 @@
 
 import { Bell, HelpCircle, Search } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/notification-bell";
-import { ThemeToggle } from "@/components/layout/theme-toggle";
 
 interface DashboardNavbarProps {
   notificationUnreadCount?: number;
@@ -30,7 +29,6 @@ export function DashboardNavbar({ notificationUnreadCount = 0 }: DashboardNavbar
 
         {/* Icon buttons */}
         <div className="flex items-center gap-2">
-          <ThemeToggle />
           <button className="p-2 text-muted-foreground hover:text-foreground transition-colors">
             <Bell className="h-5 w-5" />
           </button>
