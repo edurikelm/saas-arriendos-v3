@@ -101,6 +101,15 @@ const planFilterLabels: Record<string, string> = {
   PRO: "Pro",
 };
 
+function getInitials(name: string | null, email: string): string {
+  const base = name?.trim() || email.split("@")[0] || email;
+  const parts = base.split(/[\s._-]/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return base.slice(0, 2).toUpperCase();
+}
+
 import Link from "next/link";
 
 export function AdminUsersClient({ initialUsers, initialTotal, kpis }: AdminUsersClientProps) {
@@ -497,18 +506,34 @@ export function AdminUsersClient({ initialUsers, initialTotal, kpis }: AdminUser
           ) : (
             <>
               <DataTable
-                headers={["Usuario", "Estado", "Plan", "Salud", "Propiedades", "Clientes", "Reservas", "Acciones"]}
+                headers={[
+                  "Usuario",
+                  "Estado",
+                  "Plan",
+                  "Salud",
+                  { label: "Propiedades", align: "center" },
+                  { label: "Clientes", align: "center" },
+                  { label: "Reservas", align: "center" },
+                  { label: "Acciones", align: "right" },
+                ]}
                 emptyState={<div className="py-8 text-center text-muted-foreground">No se encontraron usuarios</div>}
               >
                 {users.map((user) => (
-                  <tr key={user.id} className="border-b last:border-0 hover:bg-muted/30">
-                    <td className="px-4 py-3">
-                      <div>
-                        <p className="font-medium">{user.name}</p>
-                        <p className="text-sm text-muted-foreground">{user.email}</p>
+                  <tr key={user.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                          {getInitials(user.name, user.email)}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-foreground truncate">{user.name || user.email}</p>
+                          {user.name && (
+                            <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
+                          )}
+                        </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-6 py-4">
                       <Badge
                         variant={
                           user.status === "ACTIVE"
@@ -521,7 +546,7 @@ export function AdminUsersClient({ initialUsers, initialTotal, kpis }: AdminUser
                         {user.status}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-6 py-4">
                       <Badge
                         variant={
                           user.plan === "PRO"
@@ -532,7 +557,7 @@ export function AdminUsersClient({ initialUsers, initialTotal, kpis }: AdminUser
                         {user.plan}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-6 py-4">
                       <div className="flex flex-wrap gap-2">
                         {getHealthIndicators(user).map((indicator) => {
                           const statusMap: Record<HealthSeverity, "healthy" | "attention" | "overdue" | "dormant"> = {
@@ -552,10 +577,10 @@ export function AdminUsersClient({ initialUsers, initialTotal, kpis }: AdminUser
                         })}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm">{user._count.properties}</td>
-                    <td className="px-4 py-3 text-sm">{user._count.clients}</td>
-                    <td className="px-4 py-3 text-sm">{user._count.reservations}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-6 py-4 text-center tabular-nums">{user._count.properties}</td>
+                    <td className="px-6 py-4 text-center tabular-nums">{user._count.clients}</td>
+                    <td className="px-6 py-4 text-center tabular-nums">{user._count.reservations}</td>
+                    <td className="px-6 py-4 text-right">
                       <Button
                         variant="ghost"
                         size="sm"
