@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/db/prisma";
-import { getSession } from "@/lib/actions/auth";
+import { getSession } from "@/lib/auth/session";
 import { computeHasUnread, type UnreadRole } from "@/lib/support/unread";
 
 export async function getUnreadSupportTicketCount(): Promise<number> {

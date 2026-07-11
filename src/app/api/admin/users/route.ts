@@ -1,23 +1,12 @@
 import { NextResponse } from "next/server";
 import { updateUserPlan, updateUserStatus, deleteUser, createOwner, getAllUsers, getUserStats } from "@/lib/actions/super-admin";
 import { logAdminAction } from "@/lib/actions/admin-actions";
-import { getSession } from "@/lib/actions/auth";
+import { getSuperAdminSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
-
-async function isSuperAdmin(): Promise<boolean> {
-  const session = await getSession();
-  if (!session) return false;
-
-  const user = await prisma.userProfile.findUnique({
-    where: { id: session.userId },
-  });
-
-  return user?.role === "SUPER_ADMIN";
-}
 
 export async function GET(request: Request) {
   try {
-    if (!(await isSuperAdmin())) {
+    if (!(await getSuperAdminSession())) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
@@ -53,7 +42,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    if (!(await isSuperAdmin())) {
+    if (!(await getSuperAdminSession())) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
@@ -91,7 +80,7 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    if (!(await isSuperAdmin())) {
+    if (!(await getSuperAdminSession())) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
@@ -151,7 +140,7 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    if (!(await isSuperAdmin())) {
+    if (!(await getSuperAdminSession())) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 

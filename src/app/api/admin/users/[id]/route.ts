@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { isSuperAdmin } from "@/lib/actions/super-admin";
+import { getSuperAdminSession } from "@/lib/auth/session";
 
 interface OwnerStats {
   properties: number;
@@ -20,7 +20,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    if (!(await isSuperAdmin())) {
+    if (!(await getSuperAdminSession())) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 

@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/actions/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
+  getSuperAdminSession: vi.fn(),
   getSession: vi.fn(),
+}));
+
+vi.mock("@/lib/auth/guards", () => ({
   requireSuperAdmin: vi.fn(),
 }));
 
@@ -30,10 +34,12 @@ vi.mock("@/lib/db/prisma", () => ({
   },
 }));
 
-import { getSession, requireSuperAdmin } from "@/lib/actions/auth";
+import { getSuperAdminSession, getSession } from "@/lib/auth/session";
+import { requireSuperAdmin } from "@/lib/auth/guards";
 import { prisma } from "@/lib/db/prisma";
 
-const mockGetSession = getSession as ReturnType<typeof vi.fn>;
+const mockGetSession = getSuperAdminSession as ReturnType<typeof vi.fn>;
+const mockGetSessionFn = getSession as ReturnType<typeof vi.fn>;
 const mockRequireSuperAdmin = requireSuperAdmin as ReturnType<typeof vi.fn>;
 
 const mockPrisma = prisma as unknown as {
@@ -91,7 +97,7 @@ describe("Admin Support Actions", () => {
   // ── Role guard ──────────────────────────────────────
   describe("getAllSupportTickets", () => {
     it("returns empty when user is not SUPER_ADMIN", async () => {
-      mockGetSession.mockResolvedValue(ownerUser);
+      mockGetSession.mockResolvedValue(null);
 
       const { getAllSupportTickets } = await import("@/lib/actions/admin-support");
       const result = await getAllSupportTickets();
@@ -450,7 +456,7 @@ describe("Admin Support Actions", () => {
   // ── Respond ─────────────────────────────────────────
   describe("respondToSupportTicket", () => {
     it("returns error when user is not SUPER_ADMIN", async () => {
-      mockGetSession.mockResolvedValue(ownerUser);
+      mockGetSession.mockResolvedValue(null);
 
       const { respondToSupportTicket } = await import("@/lib/actions/admin-support");
       const result = await respondToSupportTicket("ticket-1", "response content");
@@ -556,7 +562,7 @@ describe("Admin Support Actions", () => {
   // ── Resolve ─────────────────────────────────────────
   describe("resolveSupportTicket", () => {
     it("returns error when user is not SUPER_ADMIN", async () => {
-      mockGetSession.mockResolvedValue(ownerUser);
+      mockGetSession.mockResolvedValue(null);
 
       const { resolveSupportTicket } = await import("@/lib/actions/admin-support");
       const result = await resolveSupportTicket("ticket-1");
@@ -585,7 +591,8 @@ describe("Admin Support Actions", () => {
   // ── Close ──────────────────────────────────────────
   describe("closeSupportTicket", () => {
     it("returns error when user is not SUPER_ADMIN nor ticket owner", async () => {
-      mockGetSession.mockResolvedValue({ userId: "other-owner", role: "OWNER", email: "other@test.com", plan: "FREE" });
+      mockGetSession.mockResolvedValue(null);
+      mockGetSessionFn.mockResolvedValue({ userId: "other-owner", role: "OWNER", email: "other@test.com", plan: "FREE" });
       mockPrisma.supportTicket.findUnique.mockResolvedValue(makeTicket({ userId: "owner-1" }));
 
       const { closeSupportTicket } = await import("@/lib/actions/admin-support");
@@ -595,7 +602,8 @@ describe("Admin Support Actions", () => {
     });
 
     it("allows ticket owner to close", async () => {
-      mockGetSession.mockResolvedValue(ownerUser);
+      mockGetSession.mockResolvedValue(null);
+      mockGetSessionFn.mockResolvedValue(ownerUser);
       mockPrisma.supportTicket.findUnique.mockResolvedValue(makeTicket({ userId: "owner-1" }));
       mockPrisma.supportTicket.update.mockResolvedValue(makeTicket({ status: "CLOSED" }));
 
@@ -607,6 +615,7 @@ describe("Admin Support Actions", () => {
 
     it("allows SUPER_ADMIN to close", async () => {
       mockGetSession.mockResolvedValue(adminUser);
+      mockGetSessionFn.mockResolvedValue(adminUser);
       mockPrisma.supportTicket.findUnique.mockResolvedValue(makeTicket({ userId: "owner-1" }));
       mockPrisma.supportTicket.update.mockResolvedValue(makeTicket({ status: "CLOSED" }));
 
@@ -718,7 +727,7 @@ describe("Admin Support Actions", () => {
     });
 
     it("returns error when user is not SUPER_ADMIN", async () => {
-      mockGetSession.mockResolvedValue(ownerUser);
+      mockGetSession.mockResolvedValue(null);
 
       const { updateSupportTicketPriority } = await import("@/lib/actions/admin-support");
       const result = await updateSupportTicketPriority("ticket-1", "HIGH");
@@ -769,7 +778,7 @@ describe("Admin Support Actions", () => {
     });
 
     it("returns error when user is not SUPER_ADMIN", async () => {
-      mockGetSession.mockResolvedValue(ownerUser);
+      mockGetSession.mockResolvedValue(null);
 
       const { updateSupportTicketCategory } = await import("@/lib/actions/admin-support");
       const result = await updateSupportTicketCategory("ticket-1", "PAYMENTS");

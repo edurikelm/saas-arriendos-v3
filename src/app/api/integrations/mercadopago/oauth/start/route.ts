@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { IntegrationProvider } from "@prisma/client";
-import { getSession } from "@/lib/actions/auth";
+import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 
 const MP_AUTH_BASE = "https://auth.mercadopago.com";

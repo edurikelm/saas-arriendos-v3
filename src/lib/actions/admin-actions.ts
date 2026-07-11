@@ -1,8 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/db/prisma";
-import { isSuperAdmin } from "@/lib/actions/super-admin";
-import { getSession } from "@/lib/actions/auth";
+import { getSession, getSuperAdminSession } from "@/lib/auth/session";
 
 export interface ActionLogDetails {
   before?: string;
@@ -45,7 +44,7 @@ export async function logAdminAction({ targetId, action, details }: LogAdminActi
 }
 
 export async function getAdminActionLogs(targetId: string): Promise<ActionLogEntry[] | null> {
-  if (!(await isSuperAdmin())) return null;
+  if (!(await getSuperAdminSession())) return null;
 
   const logs = await prisma.adminActionLog.findMany({
     where: { targetId },

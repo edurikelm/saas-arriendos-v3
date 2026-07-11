@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/db/prisma";
 import type { Prisma } from "@prisma/client";
-import { getSession } from "@/lib/actions/auth";
+import { getSession } from "@/lib/auth/session";
 import { getMercadoPagoToken } from "@/lib/actions/mercado-pago";
 import { getReservations } from "@/lib/actions/reservations";
 import { paymentSchema, type PaymentInput } from "@/lib/validations/payment";

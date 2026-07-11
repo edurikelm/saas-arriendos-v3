@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/actions/auth";
+import { getSession } from "@/lib/auth/session";
 import { getDefaultPathForRole } from "@/lib/auth/role-routes";
 import { LandingPage } from "@/components/landing/landing-page";
 

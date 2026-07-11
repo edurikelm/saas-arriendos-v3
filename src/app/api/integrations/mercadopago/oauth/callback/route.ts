@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { IntegrationProvider } from "@prisma/client";
-import { getSession } from "@/lib/actions/auth";
+import { getSession } from "@/lib/auth/session";
 import { encrypt } from "@/lib/crypto";
 import { prisma } from "@/lib/db/prisma";
 

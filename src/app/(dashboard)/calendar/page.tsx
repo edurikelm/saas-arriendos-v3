@@ -1,7 +1,7 @@
 import { getProperties } from "@/lib/actions/properties";
 import { getClients } from "@/lib/actions/clients";
 import { getCalendarReservations, getCalendarExternalBlocks } from "@/lib/actions/reservations";
-import { getSession } from "@/lib/actions/auth";
+import { getSession } from "@/lib/auth/session";
 import { CalendarView } from "@/components/calendar/calendar-view";
 
 interface CalendarPageProps {

@@ -2,7 +2,7 @@
 
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
-import { getSession } from "@/lib/actions/auth";
+import { getSession } from "@/lib/auth/session";
 import { supportTicketSchema, supportMessageSchema, type SupportTicketInput, type AttachmentInput } from "@/lib/validations/support";
 import { computeHasUnread, type UnreadRole } from "@/lib/support/unread";
 import { revalidatePath } from "next/cache";

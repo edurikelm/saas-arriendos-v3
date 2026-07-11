@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { isSuperAdmin, getAllUsers } from "@/lib/actions/super-admin";
+import { getAllUsers } from "@/lib/actions/super-admin";
+import { getSuperAdminSession } from "@/lib/auth/session";
 
 export async function GET(request: Request) {
   try {
-    if (!(await isSuperAdmin())) {
+    if (!(await getSuperAdminSession())) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 

@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/db/prisma";
 import type { Prisma } from "@prisma/client";
-import { getSession } from "@/lib/actions/auth";
+import { getSession } from "@/lib/auth/session";
 import { reservationSchema, reservationUpdateSchema, type ReservationInput, type ReservationUpdateInput } from "@/lib/validations/reservation";
 import { revalidatePath } from "next/cache";
 import { addDays, differenceInDays, differenceInMonths, addMonths } from "date-fns";

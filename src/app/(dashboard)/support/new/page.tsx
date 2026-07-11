@@ -1,4 +1,4 @@
-import { requireOwner } from "@/lib/actions/auth";
+import { requireOwner } from "@/lib/auth/guards";
 import { NewTicketForm } from "@/components/support/new-ticket-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 

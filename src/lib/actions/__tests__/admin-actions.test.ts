@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { SessionUser } from "@/lib/actions/auth";
+import type { SessionUser } from "@/lib/auth/session";
 
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
@@ -13,8 +13,9 @@ vi.mock("@/lib/db/prisma", () => ({
   },
 }));
 
-vi.mock("@/lib/actions/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   getSession: vi.fn(),
+  getSuperAdminSession: vi.fn(),
 }));
 
 const superAdminSession: SessionUser = {
@@ -37,7 +38,7 @@ describe("logAdminAction", () => {
   });
 
   it("creates an AdminActionLog entry with targetId, action, and details", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     const { logAdminAction } = await import("@/lib/actions/admin-actions");
 
@@ -72,7 +73,7 @@ describe("logAdminAction", () => {
   });
 
   it("returns early if no session", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     const { logAdminAction } = await import("@/lib/actions/admin-actions");
 
@@ -88,7 +89,7 @@ describe("logAdminAction", () => {
   });
 
   it("handles null details gracefully", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     const { logAdminAction } = await import("@/lib/actions/admin-actions");
 
@@ -134,11 +135,11 @@ describe("getAdminActionLogs", () => {
   });
 
   it("fetches logs for a given targetId", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSuperAdminSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     const { getAdminActionLogs } = await import("@/lib/actions/admin-actions");
 
-    vi.mocked(getSession).mockResolvedValue(superAdminSession);
+    vi.mocked(getSuperAdminSession).mockResolvedValue(superAdminSession);
     vi.mocked(prisma.userProfile.findUnique).mockResolvedValue({
       id: "admin-1",
       role: "SUPER_ADMIN",
@@ -175,17 +176,11 @@ describe("getAdminActionLogs", () => {
   });
 
   it("returns null if not super admin", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSuperAdminSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     const { getAdminActionLogs } = await import("@/lib/actions/admin-actions");
 
-    vi.mocked(getSession).mockResolvedValue({
-      userId: "user-1",
-      role: "OWNER",
-      plan: "FREE",
-      email: "owner@test.com",
-      status: "ACTIVE",
-    });
+    vi.mocked(getSuperAdminSession).mockResolvedValue(null);
     vi.mocked(prisma.userProfile.findUnique).mockResolvedValue({
       id: "user-1",
       role: "OWNER",
@@ -200,11 +195,11 @@ describe("getAdminActionLogs", () => {
 
 describe("AdminActionLog types", () => {
   it("ActionLogEntry has required fields", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSuperAdminSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     const { getAdminActionLogs } = await import("@/lib/actions/admin-actions");
 
-    vi.mocked(getSession).mockResolvedValue(superAdminSession);
+    vi.mocked(getSuperAdminSession).mockResolvedValue(superAdminSession);
     vi.mocked(prisma.userProfile.findUnique).mockResolvedValue({
       id: "admin-1",
       role: "SUPER_ADMIN",

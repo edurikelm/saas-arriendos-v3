@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { SessionUser } from "@/lib/actions/auth";
+import type { SessionUser } from "@/lib/auth/session";
 
 const mockPrisma = vi.hoisted(() => ({
   externalCalendar: {
@@ -15,7 +15,7 @@ const mockPrisma = vi.hoisted(() => ({
 
 vi.mock("@/lib/db/prisma", () => ({ prisma: mockPrisma }));
 
-vi.mock("@/lib/actions/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   getSession: vi.fn(),
 }));
 
@@ -55,7 +55,7 @@ describe("listExternalCalendars", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("retorna error si no hay sesión", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(null);
 
     const { listExternalCalendars } = await import("../external-calendars");
@@ -65,7 +65,7 @@ describe("listExternalCalendars", () => {
   });
 
   it("retorna error si propiedad no es del owner", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     mockPrisma.property.findFirst.mockResolvedValue(null);
 
@@ -76,7 +76,7 @@ describe("listExternalCalendars", () => {
   });
 
   it("retorna calendarios activos por defecto", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     mockPrisma.property.findFirst.mockResolvedValue(mockProperty);
     mockPrisma.externalCalendar.findMany.mockResolvedValue([mockCalendar]);
@@ -95,7 +95,7 @@ describe("createExternalCalendar", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("rechaza plan FREE", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue({ ...mockSession, plan: "FREE" });
 
     const { createExternalCalendar } = await import("../external-calendars");
@@ -110,7 +110,7 @@ describe("createExternalCalendar", () => {
   });
 
   it("crea calendario exitosamente con plan PRO", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     mockPrisma.property.findFirst.mockResolvedValue(mockProperty);
     mockPrisma.externalCalendar.create.mockResolvedValue(mockCalendar);
@@ -128,7 +128,7 @@ describe("createExternalCalendar", () => {
   });
 
   it("rechaza propiedad que no es del owner", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     mockPrisma.property.findFirst.mockResolvedValue(null);
 
@@ -148,7 +148,7 @@ describe("updateExternalCalendar", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("rechaza plan FREE", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue({ ...mockSession, plan: "FREE" });
 
     const { updateExternalCalendar } = await import("../external-calendars");
@@ -158,7 +158,7 @@ describe("updateExternalCalendar", () => {
   });
 
   it("actualiza calendario exitosamente", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     mockPrisma.externalCalendar.findFirst.mockResolvedValue(mockCalendar);
     mockPrisma.externalCalendar.update.mockResolvedValue({ ...mockCalendar, name: "New Name" });
@@ -170,7 +170,7 @@ describe("updateExternalCalendar", () => {
   });
 
   it("rechaza calendario que no es del owner", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     mockPrisma.externalCalendar.findFirst.mockResolvedValue(null);
 
@@ -185,7 +185,7 @@ describe("deleteExternalCalendar (soft delete)", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("rechaza plan FREE", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue({ ...mockSession, plan: "FREE" });
 
     const { deleteExternalCalendar } = await import("../external-calendars");
@@ -195,7 +195,7 @@ describe("deleteExternalCalendar (soft delete)", () => {
   });
 
   it("soft delete via isActive=false", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     mockPrisma.externalCalendar.findFirst.mockResolvedValue(mockCalendar);
     mockPrisma.externalCalendar.update.mockResolvedValue({ ...mockCalendar, isActive: false });
@@ -215,7 +215,7 @@ describe("syncExternalCalendar", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("rechaza plan FREE", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue({ ...mockSession, plan: "FREE" });
 
     const { syncExternalCalendar } = await import("../external-calendars");
@@ -225,7 +225,7 @@ describe("syncExternalCalendar", () => {
   });
 
   it("rechaza calendario que no es del owner", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     mockPrisma.externalCalendar.findFirst.mockResolvedValue(null);
 
@@ -240,7 +240,7 @@ describe("getExternalCalendarStatus", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("retorna error si no hay sesión", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(null);
 
     const { getExternalCalendarStatus } = await import("../external-calendars");
@@ -250,7 +250,7 @@ describe("getExternalCalendarStatus", () => {
   });
 
   it("retorna status del calendario", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     mockPrisma.externalCalendar.findFirst.mockResolvedValue({
       ...mockCalendar,

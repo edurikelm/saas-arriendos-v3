@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { SessionUser } from '@/lib/actions/auth';
+import type { SessionUser } from '@/lib/auth/session';
 import { Decimal } from '@prisma/client/runtime/client';
 
 const mockPrisma = vi.hoisted(() => ({
@@ -40,7 +40,7 @@ vi.mock('@/lib/db/prisma', () => ({
   prisma: mockPrisma,
 }));
 
-vi.mock('@/lib/actions/auth', () => ({
+vi.mock('@/lib/auth/session', () => ({
   getSession: vi.fn(),
 }));
 
@@ -68,7 +68,7 @@ describe('createReservation - action owns validation', () => {
   });
 
   it('rejects missing propertyId', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
     const result = await createReservation({
@@ -84,7 +84,7 @@ describe('createReservation - action owns validation', () => {
   });
 
   it('rejects invalid date format', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
     const result = await createReservation({
@@ -100,7 +100,7 @@ describe('createReservation - action owns validation', () => {
   });
 
   it('rejects unitsBooked less than 1', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
     const result = await createReservation({
@@ -116,7 +116,7 @@ describe('createReservation - action owns validation', () => {
   });
 
   it('accepts valid data when property exists and has availability', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(mockPrisma.property.findUnique).mockResolvedValue({
       id: 'prop-1',
@@ -178,7 +178,7 @@ describe('createReservation MONTHLY', () => {
   });
 
   it('crea reserva mensual con N payments en la misma transacción', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(mockPrisma.property.findUnique).mockResolvedValue({
       id: 'prop-1',
@@ -241,7 +241,7 @@ describe('createReservation MONTHLY', () => {
   });
 
   it('crea 3 payments para reserva de 3 meses', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(mockPrisma.property.findUnique).mockResolvedValue({
       id: 'prop-1',
@@ -302,7 +302,7 @@ describe('createReservation MONTHLY', () => {
   });
 
   it('el payment tiene installmentIndex, dueDate, amount correctos', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(mockPrisma.property.findUnique).mockResolvedValue({
       id: 'prop-1',
@@ -370,7 +370,7 @@ describe('createReservation MONTHLY', () => {
   });
 
   it('retorna error si billingType MONTHLY pero property no tiene monthlyPrice', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(mockPrisma.property.findUnique).mockResolvedValue({
       id: 'prop-1',
@@ -408,7 +408,7 @@ describe('cancelReservation PENDING payments', () => {
   });
 
   it('elimina pagos PENDING al cancelar reserva', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(mockPrisma.reservation.findFirst).mockResolvedValue({
       id: 'res-1',
@@ -439,7 +439,7 @@ describe('createReservation emits RESERVATION_CREATED domain event', () => {
   });
 
   it('calls recordDomainEvent once with correct args after successful reservation', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(mockPrisma.property.findUnique).mockResolvedValue({
       id: 'prop-1',
@@ -504,7 +504,7 @@ describe('createReservation emits RESERVATION_CREATED domain event', () => {
   });
 
   it('does not call recordDomainEvent when reservation creation fails', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(mockPrisma.property.findUnique).mockResolvedValue(null);
 
@@ -533,7 +533,7 @@ describe('deleteReservation - soft-delete payments + block on COMPLETED', () => 
   });
 
   it('returns "No autorizado" when no session', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(null);
 
     const result = await deleteReservation('res-1');
@@ -545,7 +545,7 @@ describe('deleteReservation - soft-delete payments + block on COMPLETED', () => 
   });
 
   it('returns "Reserva no encontrada" when reservation does not belong to session user', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(mockPrisma.reservation.findFirst).mockResolvedValue(null);
 
@@ -556,7 +556,7 @@ describe('deleteReservation - soft-delete payments + block on COMPLETED', () => 
   });
 
   it('blocks deletion when reservation has ≥1 COMPLETED payment (suggests cancelReservation)', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(mockPrisma.payment.count).mockResolvedValue(1);
 
@@ -573,7 +573,7 @@ describe('deleteReservation - soft-delete payments + block on COMPLETED', () => 
   });
 
   it('soft-deletes payments + hard-deletes reservation when no COMPLETED payments', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(mockPrisma.payment.count).mockResolvedValue(0);
 
@@ -599,7 +599,7 @@ describe('deleteReservation - soft-delete payments + block on COMPLETED', () => 
   });
 
   it('counts only non-soft-deleted COMPLETED payments for the block decision', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(mockPrisma.payment.count).mockResolvedValue(0);
 
@@ -617,7 +617,7 @@ describe('deleteReservation - soft-delete payments + block on COMPLETED', () => 
   it('does not block when COMPLETED payments exist but are already soft-deleted', async () => {
     // Escenario edge: el admin ya marcó pagos como deletedAt en otra operación.
     // El count filtra deletedAt: null, así que no debe bloquear.
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(mockPrisma.payment.count).mockResolvedValue(0);
 

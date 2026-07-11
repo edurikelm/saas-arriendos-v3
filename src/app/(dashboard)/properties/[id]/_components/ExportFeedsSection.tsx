@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { requireOwner } from "@/lib/actions/auth";
+import { requireOwner } from "@/lib/auth/guards";
 import { listPropertyExportFeeds } from "@/lib/actions/property-export-feeds";
 import { ExportFeedsClient } from "./ExportFeedsClient";
 

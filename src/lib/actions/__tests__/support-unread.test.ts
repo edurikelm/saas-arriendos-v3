@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { SessionUser } from "@/lib/actions/auth";
+import type { SessionUser } from "@/lib/auth/session";
 
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
@@ -18,7 +18,7 @@ vi.mock("@/lib/db/prisma", () => ({
   },
 }));
 
-vi.mock("@/lib/actions/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   getSession: vi.fn(),
 }));
 
@@ -46,7 +46,7 @@ describe("getUnreadSupportTicketCount", () => {
   });
 
   it("returns 0 when user has no tickets", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(ownerSession);
     vi.mocked(prisma.supportTicket.findMany).mockResolvedValue([]);
@@ -58,7 +58,7 @@ describe("getUnreadSupportTicketCount", () => {
   });
 
   it("returns 0 when user has no session", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(null);
 
     const { getUnreadSupportTicketCount } = await import("../support-unread");
@@ -68,7 +68,7 @@ describe("getUnreadSupportTicketCount", () => {
   });
 
   it("counts tickets with messages from other participant after last read", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(ownerSession);
 
@@ -124,7 +124,7 @@ describe("getUnreadSupportTicketCount", () => {
   });
 
   it("does not count tickets where last read is after all messages", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(ownerSession);
 
@@ -161,7 +161,7 @@ describe("getUnreadSupportTicketCount", () => {
   });
 
   it("does not count tickets where only self-authored messages exist after last read", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(ownerSession);
 
@@ -198,7 +198,7 @@ describe("getUnreadSupportTicketCount", () => {
   });
 
   it("returns 0 when user never read any ticket but no messages exist", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(ownerSession);
 
@@ -231,7 +231,7 @@ describe("getUnreadSupportTicketCount", () => {
   });
 
   it("does not count admin-to-admin messages as unread for admin", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(adminSession);
 
@@ -266,7 +266,7 @@ describe("getUnreadSupportTicketCount", () => {
   });
 
   it("counts ticket as unread when last message is self-authored (owner) but earlier admin message is unread", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(ownerSession);
 
@@ -304,7 +304,7 @@ describe("getUnreadSupportTicketCount", () => {
   });
 
   it("counts ticket as unread when last message is self-authored (admin) but earlier owner message is unread", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(adminSession);
 
@@ -342,7 +342,7 @@ describe("getUnreadSupportTicketCount", () => {
   });
 
   it("counts all tickets with unread messages for admin role", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(adminSession);
 
@@ -385,7 +385,7 @@ describe("markSupportTicketAsRead", () => {
   });
 
   it("upserts a read record when user opens a ticket", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(ownerSession);
     vi.mocked(prisma.supportTicket.findUnique).mockResolvedValue({
@@ -409,7 +409,7 @@ describe("markSupportTicketAsRead", () => {
   });
 
   it("returns error when not authorized", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(null);
 
     const { markSupportTicketAsRead } = await import("../support-unread");
@@ -419,7 +419,7 @@ describe("markSupportTicketAsRead", () => {
   });
 
   it("returns error when ticket does not exist", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(ownerSession);
     vi.mocked(prisma.supportTicket.findUnique).mockResolvedValue(null);
@@ -432,7 +432,7 @@ describe("markSupportTicketAsRead", () => {
   });
 
   it("returns error when user is not the ticket owner and not admin", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     const otherSession = { ...ownerSession, userId: "other-user" };
     vi.mocked(getSession).mockResolvedValue(otherSession);
@@ -448,7 +448,7 @@ describe("markSupportTicketAsRead", () => {
   });
 
   it("allows ticket owner to mark as read", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(ownerSession);
     vi.mocked(prisma.supportTicket.findUnique).mockResolvedValue({
@@ -466,7 +466,7 @@ describe("markSupportTicketAsRead", () => {
   });
 
   it("allows SUPER_ADMIN to mark any ticket as read", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(adminSession);
     vi.mocked(prisma.supportTicket.findUnique).mockResolvedValue({

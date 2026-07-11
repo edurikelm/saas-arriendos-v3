@@ -1,40 +1,11 @@
 "use server";
 
-import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import type { Prisma } from "@prisma/client";
-import { getSession } from "@/lib/actions/auth";
+import { getSession, getSuperAdminSession } from "@/lib/auth/session";
 import { updateUserPlanSchema, createOwnerSchema } from "@/lib/validations/super-admin";
 import { hash } from "bcryptjs";
 import { revalidatePath } from "next/cache";
-
-export async function requireSuperAdmin(): Promise<NextResponse | null> {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
-
-  const user = await prisma.userProfile.findUnique({
-    where: { id: session.userId },
-  });
-
-  if (user?.role !== "SUPER_ADMIN") {
-    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-  }
-
-  return null;
-}
-
-export async function isSuperAdmin(): Promise<boolean> {
-  const session = await getSession();
-  if (!session) return false;
-
-  const user = await prisma.userProfile.findUnique({
-    where: { id: session.userId },
-  });
-
-  return user?.role === "SUPER_ADMIN";
-}
 
 export async function getAllUsers(options?: {
   search?: string;
@@ -49,7 +20,7 @@ export async function getAllUsers(options?: {
   createdFrom?: string;
   createdTo?: string;
 }) {
-  if (!(await isSuperAdmin())) return { users: [], total: 0 };
+  if (!(await getSuperAdminSession())) return { users: [], total: 0 };
 
   const page = options?.page || 1;
   const limit = options?.limit || 20;
@@ -124,7 +95,7 @@ export async function getAllUsers(options?: {
 }
 
 export async function getUserStats(userId: string) {
-  if (!(await isSuperAdmin())) return null;
+  if (!(await getSuperAdminSession())) return null;
 
   const [properties, clients, reservations, payments] = await Promise.all([
     prisma.property.count({ where: { userId } }),
@@ -150,7 +121,7 @@ export async function getUserStats(userId: string) {
 }
 
 export async function updateUserPlan(data: { userId: string; plan: "FREE" | "PRO" }) {
-  if (!(await isSuperAdmin())) return { error: "No autorizado" };
+  if (!(await getSuperAdminSession())) return { error: "No autorizado" };
 
   const validated = updateUserPlanSchema.parse(data);
 
@@ -165,7 +136,7 @@ export async function updateUserPlan(data: { userId: string; plan: "FREE" | "PRO
 }
 
 export async function updateUserStatus(data: { userId: string; status: "ACTIVE" | "SUSPENDED" | "CANCELLED" }) {
-  if (!(await isSuperAdmin())) return { error: "No autorizado" };
+  if (!(await getSuperAdminSession())) return { error: "No autorizado" };
 
   const session = await getSession();
 
@@ -189,7 +160,7 @@ export async function updateUserStatus(data: { userId: string; status: "ACTIVE" 
 }
 
 export async function deleteUser(userId: string, confirmEmail?: string) {
-  if (!(await isSuperAdmin())) return { error: "No autorizado" };
+  if (!(await getSuperAdminSession())) return { error: "No autorizado" };
 
   if (userId === (await getSession())?.userId) {
     return { error: "No puedes eliminarte a ti mismo" };
@@ -234,8 +205,7 @@ export async function deleteUser(userId: string, confirmEmail?: string) {
 }
 
 export async function getSystemStats() {
-  const authError = await requireSuperAdmin();
-  if (authError) return null;
+  if (!(await getSuperAdminSession())) return null;
 
   const [
     totalUsers,
@@ -261,8 +231,7 @@ export async function getSystemStats() {
 }
 
 export async function getDashboardStats() {
-  const authError = await requireSuperAdmin();
-  if (authError) return null;
+  if (!(await getSuperAdminSession())) return null;
 
   const now = new Date();
   const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -337,7 +306,7 @@ export async function createOwner(data: {
   name: string;
   plan?: "FREE" | "PRO";
 }) {
-  if (!(await isSuperAdmin())) return { error: "No autorizado" };
+  if (!(await getSuperAdminSession())) return { error: "No autorizado" };
 
   const validated = createOwnerSchema.parse(data);
 
@@ -374,7 +343,7 @@ export interface AdminUsersKpis {
 }
 
 export async function getAdminUsersKpis(): Promise<AdminUsersKpis> {
-  if (!(await isSuperAdmin())) {
+  if (!(await getSuperAdminSession())) {
     return { total: 0, pro: 0, free: 0, newThisMonth: 0 };
   }
 
@@ -394,7 +363,7 @@ export async function getAdminUsersKpis(): Promise<AdminUsersKpis> {
 }
 
 export async function getRecentOwners(limit: number = 5) {
-  if (!(await isSuperAdmin())) return [];
+  if (!(await getSuperAdminSession())) return [];
 
   const owners = await prisma.userProfile.findMany({
     where: { role: "OWNER" },
@@ -447,7 +416,7 @@ const activityCurrencyFormatter = new Intl.NumberFormat("es-CL", {
 export async function getSystemActivity(
   limit: number = 6
 ): Promise<SystemActivityItem[]> {
-  if (!(await isSuperAdmin())) return [];
+  if (!(await getSuperAdminSession())) return [];
 
   const [owners, tickets, payments] = await Promise.all([
     prisma.userProfile.findMany({

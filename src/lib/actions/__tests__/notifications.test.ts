@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { SessionUser } from "@/lib/actions/auth";
+import type { SessionUser } from "@/lib/auth/session";
 
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
@@ -20,7 +20,7 @@ vi.mock("@/lib/db/prisma", () => ({
   },
 }));
 
-vi.mock("@/lib/actions/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   getSession: vi.fn(),
 }));
 
@@ -80,7 +80,7 @@ describe("markNotificationAsRead", () => {
   });
 
   it("upserts a NotificationRead record for the notification owner (userId from session)", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(ownerSession);
     vi.mocked(prisma.notification.findUnique).mockResolvedValue({
@@ -105,7 +105,7 @@ describe("markNotificationAsRead", () => {
   });
 
   it("allows SUPER_ADMIN to mark any notification as read", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(adminSession);
     vi.mocked(prisma.notification.findUnique).mockResolvedValue({
@@ -126,7 +126,7 @@ describe("markNotificationAsRead", () => {
   });
 
   it("returns error when notification does not exist", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(ownerSession);
     vi.mocked(prisma.notification.findUnique).mockResolvedValue(null);
@@ -139,7 +139,7 @@ describe("markNotificationAsRead", () => {
   });
 
   it("returns error when user does not own notification and is not admin", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(ownerSession);
     vi.mocked(prisma.notification.findUnique).mockResolvedValue({
@@ -154,7 +154,7 @@ describe("markNotificationAsRead", () => {
   });
 
   it("returns error when no session", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(null);
 
     const { markNotificationAsRead } = await import("../notifications");
@@ -164,7 +164,7 @@ describe("markNotificationAsRead", () => {
   });
 
   it("calls revalidatePath after success", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     const { revalidatePath } = await import("next/cache");
     vi.mocked(getSession).mockResolvedValue(ownerSession);
@@ -191,7 +191,7 @@ describe("markAllNotificationsAsRead", () => {
   });
 
   it("uses createMany with skipDuplicates for bulk mark-as-read", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(ownerSession);
     vi.mocked(prisma.notification.findMany).mockResolvedValue([
@@ -218,7 +218,7 @@ describe("markAllNotificationsAsRead", () => {
   });
 
   it("returns count 0 and revalidates when no unread notifications", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     const { revalidatePath } = await import("next/cache");
     vi.mocked(getSession).mockResolvedValue(ownerSession);
@@ -233,7 +233,7 @@ describe("markAllNotificationsAsRead", () => {
   });
 
   it("returns error when no session", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(null);
 
     const { markAllNotificationsAsRead } = await import("../notifications");
@@ -243,7 +243,7 @@ describe("markAllNotificationsAsRead", () => {
   });
 
   it("calls revalidatePath after success", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     const { revalidatePath } = await import("next/cache");
     vi.mocked(getSession).mockResolvedValue(ownerSession);
@@ -263,7 +263,7 @@ describe("getRecentNotifications", () => {
   });
 
   it("returns empty array when no session", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(null);
 
     const { getRecentNotifications } = await import("../notifications");
@@ -273,7 +273,7 @@ describe("getRecentNotifications", () => {
   });
 
   it("returns recent notifications with isRead computed from reads relation", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(ownerSession);
 
@@ -316,7 +316,7 @@ describe("getRecentNotifications", () => {
   });
 
   it("respects the limit parameter", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(ownerSession);
     vi.mocked(prisma.notification.findMany).mockResolvedValue([]);
@@ -330,7 +330,7 @@ describe("getRecentNotifications", () => {
   });
 
   it("maps createdAt to ISO string", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(ownerSession);
 
@@ -360,7 +360,7 @@ describe("createTestNotification", () => {
   });
 
   it("creates a test notification for SUPER_ADMIN", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(adminSession);
     vi.mocked(prisma.notification.create).mockResolvedValue({
@@ -392,7 +392,7 @@ describe("createTestNotification", () => {
   });
 
   it("returns error when user is not SUPER_ADMIN", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(ownerSession);
 
     const { createTestNotification } = await import("../notifications");
@@ -402,7 +402,7 @@ describe("createTestNotification", () => {
   });
 
   it("returns error when user has no session", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(null);
 
     const { createTestNotification } = await import("../notifications");
@@ -418,7 +418,7 @@ describe("getNotificationsEmailEnabled", () => {
   });
 
   it("returns true when no session (default safe)", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(null);
 
     const { getNotificationsEmailEnabled } = await import("../notifications");
@@ -428,7 +428,7 @@ describe("getNotificationsEmailEnabled", () => {
   });
 
   it("returns the persisted value from userProfile", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(ownerSession);
     vi.mocked(prisma.userProfile.findUnique).mockResolvedValue({
@@ -446,7 +446,7 @@ describe("getNotificationsEmailEnabled", () => {
   });
 
   it("returns true when profile not found", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(ownerSession);
     vi.mocked(prisma.userProfile.findUnique).mockResolvedValue(null);
@@ -464,7 +464,7 @@ describe("setNotificationsEmailEnabled", () => {
   });
 
   it("returns error when no session", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(null);
 
     const { setNotificationsEmailEnabled } = await import("../notifications");
@@ -474,7 +474,7 @@ describe("setNotificationsEmailEnabled", () => {
   });
 
   it("updates only the current user's record", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     const { revalidatePath } = await import("next/cache");
     vi.mocked(getSession).mockResolvedValue(ownerSession);
@@ -492,7 +492,7 @@ describe("setNotificationsEmailEnabled", () => {
   });
 
   it("can set the preference back to true", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     const { revalidatePath } = await import("next/cache");
     vi.mocked(getSession).mockResolvedValue(ownerSession);

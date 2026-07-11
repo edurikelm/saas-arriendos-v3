@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { SessionUser } from "@/lib/actions/auth";
+import type { SessionUser } from "@/lib/auth/session";
 
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
@@ -22,7 +22,8 @@ vi.mock("@/lib/db/prisma", () => ({
   },
 }));
 
-vi.mock("@/lib/actions/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
+  getSuperAdminSession: vi.fn(),
   getSession: vi.fn(),
 }));
 
@@ -43,8 +44,8 @@ describe("getDashboardStats", () => {
   });
 
   it("retorna null si no hay sesión", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
-    vi.mocked(getSession).mockResolvedValue(null);
+    const { getSuperAdminSession } = await import("@/lib/auth/session");
+    vi.mocked(getSuperAdminSession).mockResolvedValue(null);
 
     const { getDashboardStats } = await import("@/lib/actions/super-admin");
     const result = await getDashboardStats();
@@ -53,19 +54,9 @@ describe("getDashboardStats", () => {
   });
 
   it("retorna null si el usuario no es SUPER_ADMIN", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
-    const { prisma } = await import("@/lib/db/prisma");
+    const { getSuperAdminSession } = await import("@/lib/auth/session");
 
-    vi.mocked(getSession).mockResolvedValue({
-      userId: "user-1",
-      role: "OWNER",
-      plan: "FREE",
-      email: "owner@test.com",
-    });
-    vi.mocked(prisma.userProfile.findUnique).mockResolvedValue({
-      id: "user-1",
-      role: "OWNER",
-    } as any);
+    vi.mocked(getSuperAdminSession).mockResolvedValue(null);
 
     const { getDashboardStats } = await import("@/lib/actions/super-admin");
     const result = await getDashboardStats();
@@ -74,14 +65,10 @@ describe("getDashboardStats", () => {
   });
 
   it("retorna métricas excluyendo SUPER_ADMIN (solo OWNER)", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSuperAdminSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
 
-    vi.mocked(getSession).mockResolvedValue(superAdminSession);
-    vi.mocked(prisma.userProfile.findUnique).mockResolvedValue({
-      id: "admin-1",
-      role: "SUPER_ADMIN",
-    } as any);
+    vi.mocked(getSuperAdminSession).mockResolvedValue(superAdminSession);
 
     vi.mocked(prisma.userProfile.count).mockImplementation((async ({ where }: any) => {
       if (!where) return 10;
@@ -108,14 +95,10 @@ describe("getDashboardStats", () => {
   });
 
   it("calcula conversión FREE→PRO correctamente", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSuperAdminSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
 
-    vi.mocked(getSession).mockResolvedValue(superAdminSession);
-    vi.mocked(prisma.userProfile.findUnique).mockResolvedValue({
-      id: "admin-1",
-      role: "SUPER_ADMIN",
-    } as any);
+    vi.mocked(getSuperAdminSession).mockResolvedValue(superAdminSession);
 
     vi.mocked(prisma.userProfile.count).mockImplementation((async ({ where }: any) => {
       if (where.role === "OWNER" && where.plan === "PRO") return 3;
@@ -135,14 +118,10 @@ describe("getDashboardStats", () => {
   });
 
   it("calcula crecimiento mensual correctamente", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSuperAdminSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
 
-    vi.mocked(getSession).mockResolvedValue(superAdminSession);
-    vi.mocked(prisma.userProfile.findUnique).mockResolvedValue({
-      id: "admin-1",
-      role: "SUPER_ADMIN",
-    } as any);
+    vi.mocked(getSuperAdminSession).mockResolvedValue(superAdminSession);
 
     vi.mocked(prisma.userProfile.count).mockImplementation((async ({ where }: any) => {
       if (where.role === "OWNER" && where.plan === "PRO") return 2;
@@ -164,14 +143,10 @@ describe("getDashboardStats", () => {
   });
 
   it("retorna 0% conversión cuando no hay owners", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSuperAdminSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
 
-    vi.mocked(getSession).mockResolvedValue(superAdminSession);
-    vi.mocked(prisma.userProfile.findUnique).mockResolvedValue({
-      id: "admin-1",
-      role: "SUPER_ADMIN",
-    } as any);
+    vi.mocked(getSuperAdminSession).mockResolvedValue(superAdminSession);
 
     vi.mocked(prisma.userProfile.count).mockResolvedValue(0);
     vi.mocked(prisma.property.count).mockResolvedValue(0);

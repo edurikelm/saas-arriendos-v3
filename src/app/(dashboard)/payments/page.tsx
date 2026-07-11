@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getSession } from "@/lib/actions/auth";
+import { getSession } from "@/lib/auth/session";
 import { getPayments, getPaymentsKpis } from "@/lib/actions/payments";
 import { getProperties } from "@/lib/actions/properties";
 import { PaymentsKpis } from "@/components/payments/payments-kpis";

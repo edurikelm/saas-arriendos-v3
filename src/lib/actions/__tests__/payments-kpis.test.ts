@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { SessionUser } from '@/lib/actions/auth';
+import type { SessionUser } from '@/lib/auth/session';
 
 /**
  * Cast helper para mocks de Prisma con campos extra (ej. `reservation` via include)
@@ -20,7 +20,7 @@ vi.mock('@/lib/db/prisma', () => ({
   },
 }));
 
-vi.mock('@/lib/actions/auth', () => ({
+vi.mock('@/lib/auth/session', () => ({
   getSession: vi.fn(),
 }));
 
@@ -50,7 +50,7 @@ describe('getPaymentsKpis', () => {
   });
 
   it('retorna ceros cuando no hay sesión', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(null);
 
     const { getPaymentsKpis } = await import('../payments');
@@ -60,7 +60,7 @@ describe('getPaymentsKpis', () => {
   });
 
   it('retorna cobradoMes solo con pagos COMPLETED del mes actual', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     const { getReservations } = await import('@/lib/actions/reservations');
     const { classifyCollectionAlerts } = await import('@/lib/alerts/collection-alerts');
@@ -88,7 +88,7 @@ describe('getPaymentsKpis', () => {
   });
 
   it('excluye EXTRA del cálculo de KPIs', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     const { getReservations } = await import('@/lib/actions/reservations');
     const { classifyCollectionAlerts } = await import('@/lib/alerts/collection-alerts');
@@ -123,7 +123,7 @@ describe('getPaymentsKpis', () => {
   });
 
   it('excluye pagos soft-deleted', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     const { getReservations } = await import('@/lib/actions/reservations');
     const { classifyCollectionAlerts } = await import('@/lib/alerts/collection-alerts');
@@ -158,7 +158,7 @@ describe('getPaymentsKpis', () => {
   });
 
   it('scope por owner (no retorna pagos de otros owners)', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     const { getReservations } = await import('@/lib/actions/reservations');
     const { classifyCollectionAlerts } = await import('@/lib/alerts/collection-alerts');
@@ -194,7 +194,7 @@ describe('getPaymentsKpis', () => {
   });
 
   it('proximos7DiasCount viene de getCollectionAlerts', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     const { getReservations } = await import('@/lib/actions/reservations');
     const { classifyCollectionAlerts } = await import('@/lib/alerts/collection-alerts');
@@ -243,7 +243,7 @@ describe('getPaymentsKpis', () => {
   });
 
   it('NO cuenta pagos COMPLETED fuera del mes actual en cobradoMes', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     const { getReservations } = await import('@/lib/actions/reservations');
     const { classifyCollectionAlerts } = await import('@/lib/alerts/collection-alerts');

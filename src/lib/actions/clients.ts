@@ -2,7 +2,7 @@
 
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
-import { getSession } from "@/lib/actions/auth";
+import { getSession } from "@/lib/auth/session";
 import { clientSchema, type ClientInput } from "@/lib/validations/client";
 import { revalidatePath } from "next/cache";
 import type { PaginatedResponse } from "@/types/pagination";

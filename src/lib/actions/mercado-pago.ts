@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/db/prisma";
 import { encrypt, decrypt } from "@/lib/crypto";
-import { getSession } from "./auth";
+import { getSession } from "@/lib/auth/session";
 import { IntegrationProvider, Prisma } from "@prisma/client";
 
 const MP_API_BASE = "https://api.mercadopago.com";

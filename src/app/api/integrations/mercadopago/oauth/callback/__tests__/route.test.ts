@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const decryptMock = vi.fn();
 const encryptMock = vi.fn();
 
-vi.mock("@/lib/actions/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   getSession: vi.fn(),
 }));
 
@@ -41,7 +41,7 @@ describe("GET /api/integrations/mercadopago/oauth/callback", () => {
   });
 
   it("persists encrypted tokens and redirects to settings on success", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
 
     vi.mocked(getSession).mockResolvedValue({
@@ -105,7 +105,7 @@ describe("GET /api/integrations/mercadopago/oauth/callback", () => {
   });
 
   it("rejects callback when state does not match", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
 
     vi.mocked(getSession).mockResolvedValue({
@@ -134,7 +134,7 @@ describe("GET /api/integrations/mercadopago/oauth/callback", () => {
   });
 
   it("redirects to config_error when client id is missing", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
 
     process.env.MERCADOPAGO_OAUTH_CLIENT_ID = "";

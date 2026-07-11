@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/db/prisma";
 import type { Prisma } from "@prisma/client";
-import { getSession } from "@/lib/actions/auth";
+import { getSession } from "@/lib/auth/session";
 import { startOfMonth, endOfMonth, subMonths, format, startOfYear, endOfYear } from "date-fns";
 import {
   buildCollectionReportRows,

@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/db/prisma";
-import { getSession } from "@/lib/actions/auth";
+import { getSession } from "@/lib/auth/session";
 import { revalidatePath } from "next/cache";
 import { uploadImage } from "@/lib/actions/cloudinary";
 import { profileSchema, type ProfileInput } from "@/lib/validations/profile";

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { SessionUser } from "@/lib/actions/auth";
+import type { SessionUser } from "@/lib/auth/session";
 
 const mockPrisma = vi.hoisted(() => ({
   property: {
@@ -15,7 +15,7 @@ const mockPrisma = vi.hoisted(() => ({
 
 vi.mock("@/lib/db/prisma", () => ({ prisma: mockPrisma }));
 
-vi.mock("@/lib/actions/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   getSession: vi.fn(),
 }));
 
@@ -52,7 +52,7 @@ describe("listPropertyExportFeeds", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("retorna error si no hay sesión", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(null);
 
     const { listPropertyExportFeeds } = await import("../property-export-feeds");
@@ -62,7 +62,7 @@ describe("listPropertyExportFeeds", () => {
   });
 
   it("retorna error si propiedad no existe o no es del owner", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     mockPrisma.property.findFirst.mockResolvedValue(null);
 
@@ -73,7 +73,7 @@ describe("listPropertyExportFeeds", () => {
   });
 
   it("retorna feeds sin raw token", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     mockPrisma.property.findFirst.mockResolvedValue(mockProperty);
     mockPrisma.propertyExportFeed.findMany.mockResolvedValue([mockFeed]);
@@ -94,7 +94,7 @@ describe("createPropertyExportFeed", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("rechaza plan FREE", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue({ ...mockSession, plan: "FREE" });
 
     const { createPropertyExportFeed } = await import("../property-export-feeds");
@@ -104,7 +104,7 @@ describe("createPropertyExportFeed", () => {
   });
 
   it("crea feed exitosamente con plan PRO", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     mockPrisma.property.findFirst.mockResolvedValue(mockProperty);
     mockPrisma.propertyExportFeed.findUnique.mockResolvedValue(null);
@@ -120,7 +120,7 @@ describe("createPropertyExportFeed", () => {
   });
 
   it("rechaza si ya existe feed para ese canal", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     mockPrisma.property.findFirst.mockResolvedValue(mockProperty);
     mockPrisma.propertyExportFeed.findUnique.mockResolvedValue(mockFeed);
@@ -132,7 +132,7 @@ describe("createPropertyExportFeed", () => {
   });
 
   it("rechaza propiedad que no es del owner", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     mockPrisma.property.findFirst.mockResolvedValue(null);
 
@@ -147,7 +147,7 @@ describe("regeneratePropertyExportFeed", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("rechaza plan FREE", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue({ ...mockSession, plan: "FREE" });
 
     const { regeneratePropertyExportFeed } = await import("../property-export-feeds");
@@ -157,7 +157,7 @@ describe("regeneratePropertyExportFeed", () => {
   });
 
   it("regenera feed exitosamente", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     mockPrisma.property.findFirst.mockResolvedValue(mockProperty);
     mockPrisma.propertyExportFeed.findUnique.mockResolvedValue(mockFeed);
@@ -179,7 +179,7 @@ describe("regeneratePropertyExportFeed", () => {
   });
 
   it("retorna error si no existe feed", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     mockPrisma.property.findFirst.mockResolvedValue(mockProperty);
     mockPrisma.propertyExportFeed.findUnique.mockResolvedValue(null);
@@ -191,7 +191,7 @@ describe("regeneratePropertyExportFeed", () => {
   });
 
   it("old token es inmediatamente invido después de rotación", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     mockPrisma.property.findFirst.mockResolvedValue(mockProperty);
     mockPrisma.propertyExportFeed.findUnique.mockResolvedValue(mockFeed);
@@ -220,7 +220,7 @@ describe("revokePropertyExportFeed", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("rechaza plan FREE", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue({ ...mockSession, plan: "FREE" });
 
     const { revokePropertyExportFeed } = await import("../property-export-feeds");
@@ -230,7 +230,7 @@ describe("revokePropertyExportFeed", () => {
   });
 
   it("revoca feed exitosamente", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     mockPrisma.property.findFirst.mockResolvedValue(mockProperty);
     mockPrisma.propertyExportFeed.findUnique.mockResolvedValue(mockFeed);
@@ -249,7 +249,7 @@ describe("revokePropertyExportFeed", () => {
   });
 
   it("retorna error si no existe feed", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     mockPrisma.property.findFirst.mockResolvedValue(mockProperty);
     mockPrisma.propertyExportFeed.findUnique.mockResolvedValue(null);

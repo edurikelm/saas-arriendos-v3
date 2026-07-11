@@ -1,6 +1,6 @@
 import { getSupportTickets, getSupportTicketsKpis } from "@/lib/actions/support";
 import { SupportList } from "@/components/support/support-list";
-import { requireOwner } from "@/lib/actions/auth";
+import { requireOwner } from "@/lib/auth/guards";
 
 export const dynamic = "force-dynamic";
 

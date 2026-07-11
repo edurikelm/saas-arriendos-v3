@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { redirect } from "next/navigation";
-import type { SessionUser } from "@/lib/actions/auth";
+import type { SessionUser } from "@/lib/auth/session";
 
 const prismaMocks = vi.hoisted(() => ({
   supportTicketCreate: vi.fn(),
@@ -55,7 +55,7 @@ vi.mock("@/lib/db/prisma", () => ({
   },
 }));
 
-vi.mock("@/lib/actions/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   getSession: vi.fn(),
 }));
 
@@ -100,7 +100,7 @@ describe("createSupportTicket", () => {
   });
 
   it("retorna error para sesión no autorizada", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(null);
 
     const { createSupportTicket } = await import("../support");
@@ -110,7 +110,7 @@ describe("createSupportTicket", () => {
   });
 
   it("retorna error cuando el rol no es OWNER", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue({ ...mockSession, role: "SUPER_ADMIN" });
 
     const { prisma } = await import("@/lib/db/prisma");
@@ -122,7 +122,7 @@ describe("createSupportTicket", () => {
   });
 
   it("crea ticket exitosamente con datos válidos", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.supportTicket.create).mockResolvedValue(mockTicket);
@@ -151,7 +151,7 @@ describe("createSupportTicket", () => {
   });
 
   it("retorna error para datos inválidos (ZodError)", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
     const { createSupportTicket } = await import("../support");
@@ -168,7 +168,7 @@ describe("createSupportTicket", () => {
   });
 
   it("crea ticket con status OPEN (default en esquema)", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.supportTicket.create).mockResolvedValue(mockTicket);
@@ -181,7 +181,7 @@ describe("createSupportTicket", () => {
   });
 
   it("crea ticket con imágenes adjuntas", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.supportTicket.create).mockResolvedValue(mockTicket);
@@ -209,7 +209,7 @@ describe("createSupportTicket", () => {
   });
 
   it("rechaza ticket con más de 3 imágenes", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
     const { createSupportTicket } = await import("../support");
@@ -222,7 +222,7 @@ describe("createSupportTicket", () => {
   });
 
   it("crea ticket con affectedReservationId válida", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.reservation.findUnique).mockResolvedValue({
@@ -252,7 +252,7 @@ describe("createSupportTicket", () => {
   });
 
   it("crea ticket con affectedPaymentId válida", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.payment.findUnique).mockResolvedValue({
@@ -278,7 +278,7 @@ describe("createSupportTicket", () => {
   });
 
   it("crea ticket con affectedPropertyId válida", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.property.findUnique).mockResolvedValue({
@@ -304,7 +304,7 @@ describe("createSupportTicket", () => {
   });
 
   it("rechaza entidad afectada que no pertenece al owner", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.property.findUnique).mockResolvedValue({
@@ -323,7 +323,7 @@ describe("createSupportTicket", () => {
   });
 
   it("rechaza entidad afectada que no existe", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.reservation.findUnique).mockResolvedValue(null);
@@ -346,7 +346,7 @@ describe("getSupportTickets", () => {
   });
 
   it("retorna [] cuando no hay sesión", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(null);
 
     const { getSupportTickets } = await import("../support");
@@ -356,7 +356,7 @@ describe("getSupportTickets", () => {
   });
 
   it("filtra por userId del owner actual", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.supportTicket.findMany).mockResolvedValue([mockTicket]);
@@ -373,7 +373,7 @@ describe("getSupportTickets", () => {
   });
 
   it("ordena por lastActivityAt descendente", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.supportTicket.findMany).mockResolvedValue([mockTicket]);
@@ -390,7 +390,7 @@ describe("getSupportTickets", () => {
   });
 
   it("devuelve PaginatedResponse con data, total, page, totalPages", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.supportTicket.findMany).mockResolvedValue([mockTicket]);
@@ -407,7 +407,7 @@ describe("getSupportTickets", () => {
   });
 
   it("filtra por status cuando se pasa el parámetro", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.supportTicket.findMany).mockResolvedValue([mockTicket]);
@@ -424,7 +424,7 @@ describe("getSupportTickets", () => {
   });
 
   it("no filtra por status cuando no se pasa el parámetro", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.supportTicket.findMany).mockResolvedValue([mockTicket]);
@@ -439,7 +439,7 @@ describe("getSupportTickets", () => {
   });
 
   it("marks hasUnread=true when last message is self-authored but earlier admin message is unread", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -472,7 +472,7 @@ describe("getSupportTicketsKpis", () => {
   });
 
   it("retorna zeros cuando no hay sesion", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(null);
 
     const { getSupportTicketsKpis } = await import("../support");
@@ -482,7 +482,7 @@ describe("getSupportTicketsKpis", () => {
   });
 
   it("cuenta OPEN + IN_PROGRESS como openCount", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.supportTicket.count)
@@ -500,7 +500,7 @@ describe("getSupportTicketsKpis", () => {
   });
 
   it("cuenta RESOLVED + CLOSED como resolvedCount", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.supportTicket.count)
@@ -518,7 +518,7 @@ describe("getSupportTicketsKpis", () => {
   });
 
   it("calcula avgResponseHours con 1 decimal cuando hay respuestas de admin", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.supportTicket.count).mockResolvedValue(0);
@@ -548,7 +548,7 @@ describe("getSupportTicketsKpis", () => {
   });
 
   it("retorna avgResponseHours null cuando no hay respuestas de admin", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.supportTicket.count).mockResolvedValue(0);
@@ -576,7 +576,7 @@ describe("getSupportTicketsKpis", () => {
   });
 
   it("filtra por userId del session", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue({ ...mockSession, userId: "other-user" });
     vi.mocked(prisma.supportTicket.count).mockResolvedValue(0);
@@ -625,7 +625,7 @@ describe("getSupportTicketDetail", () => {
   });
 
   it("retorna null cuando no hay sesión", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(null);
 
     const { getSupportTicketDetail } = await import("../support");
@@ -635,7 +635,7 @@ describe("getSupportTicketDetail", () => {
   });
 
   it("retorna null cuando el ticket pertenece a otro owner", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.supportTicket.findUnique).mockResolvedValue(null);
@@ -652,7 +652,7 @@ describe("getSupportTicketDetail", () => {
   });
 
   it("retorna ticket con mensajes ordenados cronológicamente ascendente", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.supportTicket.findUnique).mockResolvedValue(ticketWithMessages);
@@ -667,7 +667,7 @@ describe("getSupportTicketDetail", () => {
   });
 
   it("retorna attachments en los mensajes", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.supportTicket.findUnique).mockResolvedValue(ticketWithMessages);
@@ -682,7 +682,7 @@ describe("getSupportTicketDetail", () => {
   });
 
   it("retorna affectedEntity en el detalle cuando existe", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -709,7 +709,7 @@ describe("getSupportTicketDetail", () => {
   });
 
   it("retorna affectedEntity null cuando no existe", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -765,7 +765,7 @@ describe("addSupportTicketMessage", () => {
   });
 
   it("retorna error cuando no hay sesión", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(null);
 
     const { addSupportTicketMessage } = await import("../support");
@@ -775,7 +775,7 @@ describe("addSupportTicketMessage", () => {
   });
 
   it("retorna error cuando el mensaje está vacío", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
     const { addSupportTicketMessage } = await import("../support");
@@ -785,7 +785,7 @@ describe("addSupportTicketMessage", () => {
   });
 
   it("retorna error cuando el mensaje excede 2000 caracteres", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
     const { addSupportTicketMessage } = await import("../support");
@@ -795,7 +795,7 @@ describe("addSupportTicketMessage", () => {
   });
 
   it("retorna error cuando el ticket no existe o no pertenece al owner", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.supportTicket.findUnique).mockResolvedValue(null);
@@ -807,7 +807,7 @@ describe("addSupportTicketMessage", () => {
   });
 
   it("agrega mensaje a ticket OPEN", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.supportTicket.findUnique).mockResolvedValue(mockOpenTicket);
@@ -827,7 +827,7 @@ describe("addSupportTicketMessage", () => {
   });
 
   it("agrega mensaje a ticket IN_PROGRESS", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.supportTicket.findUnique).mockResolvedValue(mockInProgressTicket);
@@ -840,7 +840,7 @@ describe("addSupportTicketMessage", () => {
   });
 
   it("reabre ticket CLOSED al agregar mensaje", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.supportTicket.findUnique).mockResolvedValue(mockClosedTicket);
@@ -860,7 +860,7 @@ describe("addSupportTicketMessage", () => {
   });
 
   it("actualiza lastActivityAt al agregar mensaje", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.supportTicket.findUnique).mockResolvedValue(mockOpenTicket);
@@ -878,7 +878,7 @@ describe("addSupportTicketMessage", () => {
   });
 
   it("agrega mensaje con imágenes adjuntas", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.supportTicket.findUnique).mockResolvedValue(mockOpenTicket);
@@ -909,7 +909,7 @@ describe("addSupportTicketMessage", () => {
   });
 
   it("rechaza mensaje con más de 3 imágenes", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
     const { addSupportTicketMessage } = await import("../support");
@@ -925,7 +925,7 @@ describe("getUserEntityOptions", () => {
   });
 
   it("retorna [] cuando no hay sesión", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(null);
 
     const { getUserEntityOptions } = await import("../support");
@@ -935,7 +935,7 @@ describe("getUserEntityOptions", () => {
   });
 
   it("retorna propiedades del usuario", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.property.findMany).mockResolvedValue([
@@ -953,7 +953,7 @@ describe("getUserEntityOptions", () => {
   });
 
   it("retorna reservas del usuario", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.reservation.findMany).mockResolvedValue([
@@ -977,7 +977,7 @@ describe("getUserEntityOptions", () => {
   });
 
   it("retorna pagos del usuario", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.payment.findMany).mockResolvedValue([
@@ -1023,7 +1023,7 @@ describe("closeSupportTicket", () => {
   });
 
   it("retorna error cuando no hay sesión", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(null);
 
     const { closeSupportTicket } = await import("../support");
@@ -1033,7 +1033,7 @@ describe("closeSupportTicket", () => {
   });
 
   it("cierra ticket correctamente", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.supportTicket.findUnique).mockResolvedValue(mockOpenTicket);
@@ -1050,7 +1050,7 @@ describe("closeSupportTicket", () => {
   });
 
   it("retorna error cuando el ticket no existe o no pertenece al owner", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.supportTicket.findUnique).mockResolvedValue(null);

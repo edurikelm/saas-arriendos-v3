@@ -49,7 +49,7 @@ describe("getSession", () => {
       status: "SUSPENDED",
     } as any);
 
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     await expect(getSession()).resolves.toBeNull();
   });
 
@@ -63,7 +63,7 @@ describe("getSession", () => {
       status: "CANCELLED",
     } as any);
 
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     await expect(getSession()).resolves.toBeNull();
   });
 
@@ -77,7 +77,7 @@ describe("getSession", () => {
       status: "ACTIVE",
     } as any);
 
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const session = await getSession();
 
     expect(session).toEqual({
@@ -111,7 +111,7 @@ describe("requireOwner", () => {
       status: "ACTIVE",
     } as any);
 
-    const { requireOwner } = await import("@/lib/actions/auth");
+    const { requireOwner } = await import("@/lib/auth/guards");
     const session = await requireOwner();
 
     expect(session.role).toBe("OWNER");
@@ -128,7 +128,7 @@ describe("requireOwner", () => {
       status: "ACTIVE",
     } as any);
 
-    const { requireOwner } = await import("@/lib/actions/auth");
+    const { requireOwner } = await import("@/lib/auth/guards");
     const { redirect } = await import("next/navigation");
 
     await expect(requireOwner()).rejects.toThrow("REDIRECT:/admin");

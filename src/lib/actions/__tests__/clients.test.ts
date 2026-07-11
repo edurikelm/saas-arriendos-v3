@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Prisma } from "@prisma/client";
-import type { SessionUser } from "@/lib/actions/auth";
+import type { SessionUser } from "@/lib/auth/session";
 
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
@@ -12,7 +12,7 @@ vi.mock("@/lib/db/prisma", () => ({
   },
 }));
 
-vi.mock("@/lib/actions/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   getSession: vi.fn(),
 }));
 
@@ -44,7 +44,7 @@ describe("createClient", () => {
   });
 
   it("retorna error amigable para email duplicado (P2002)", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.reservationClient.count).mockResolvedValue(0);
@@ -65,7 +65,7 @@ describe("createClient", () => {
   });
 
   it("crea cliente exitosamente con datos válidos", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.reservationClient.count).mockResolvedValue(0);
@@ -81,7 +81,7 @@ describe("createClient", () => {
   });
 
   it("retorna error para sesión no autorizada", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(null);
 
     const { createClient } = await import("../clients");
@@ -94,7 +94,7 @@ describe("createClient", () => {
   });
 
   it("atrapa otros errores inesperados y retorna mensaje genérico", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.reservationClient.count).mockResolvedValue(0);
@@ -130,7 +130,7 @@ describe("getClients pagination", () => {
   };
 
   it("devuelve forma PaginatedResponse con data, total, page, totalPages", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.reservationClient.findMany).mockResolvedValue([]);
@@ -147,7 +147,7 @@ describe("getClients pagination", () => {
   });
 
   it("calcula totalPages correctamente: 45 elementos con limit 20 = 3 páginas", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.reservationClient.findMany).mockResolvedValue([]);
@@ -161,7 +161,7 @@ describe("getClients pagination", () => {
   });
 
   it("calcula skip correctamente para page=2, limit=20", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.reservationClient.findMany).mockResolvedValue([]);
@@ -176,7 +176,7 @@ describe("getClients pagination", () => {
   });
 
   it("construye filtro OR cuando se pasa search", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.reservationClient.findMany).mockResolvedValue([]);
@@ -198,7 +198,7 @@ describe("getClients pagination", () => {
   });
 
   it("mapea las propiedades del cliente al formato esperado", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.reservationClient.findMany).mockResolvedValue([
@@ -225,7 +225,7 @@ describe("getClients pagination", () => {
   });
 
   it("retorna [] cuando no hay sesión", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(null);
 
     const { getClients } = await import("../clients");

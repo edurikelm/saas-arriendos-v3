@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireSuperAdmin } from "@/lib/actions/auth";
+import { requireSuperAdmin } from "@/lib/auth/guards";
 import { getUnreadSupportTicketCount } from "@/lib/actions/support-unread";
 import { AdminLayoutClient } from "@/components/layout/admin-layout-client";
 

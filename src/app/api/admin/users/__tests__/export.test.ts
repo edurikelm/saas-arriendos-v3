@@ -1,17 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextResponse } from "next/server";
 
-const mockIsSuperAdmin = vi.fn();
+const mockGetSuperAdminSession = vi.fn();
 const mockGetAllUsers = vi.fn();
 const mockGetUserStats = vi.fn();
 
 vi.mock("@/lib/actions/super-admin", () => ({
-  isSuperAdmin: mockIsSuperAdmin,
   getAllUsers: mockGetAllUsers,
   getUserStats: mockGetUserStats,
 }));
 
-vi.mock("@/lib/actions/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
+  getSuperAdminSession: mockGetSuperAdminSession,
   getSession: vi.fn(),
 }));
 
@@ -29,11 +29,15 @@ vi.mock("@/lib/db/prisma", () => ({
 describe("GET /api/admin/users/export", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockIsSuperAdmin.mockResolvedValue(true);
+    mockGetSuperAdminSession.mockResolvedValue({
+      userId: "admin-1",
+      role: "SUPER_ADMIN",
+      email: "admin@test.com",
+    });
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockIsSuperAdmin.mockResolvedValue(false);
+    mockGetSuperAdminSession.mockResolvedValue(null);
 
     const { GET } = await import("../export/route");
     const request = new Request("http://localhost/api/admin/users/export");

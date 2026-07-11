@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { SessionUser } from "@/lib/actions/auth";
+import type { SessionUser } from "@/lib/auth/session";
 
 const mocks = vi.hoisted(() => ({
   cookies: vi.fn(),
@@ -27,7 +27,8 @@ vi.mock("@/lib/db/prisma", () => ({
   },
 }));
 
-vi.mock("@/lib/actions/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
+  getSuperAdminSession: vi.fn(),
   getSession: vi.fn(),
 }));
 
@@ -61,7 +62,7 @@ describe("UserStatus", () => {
       status: "ACTIVE",
     } as any);
 
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(superAdminSession);
 
     const user = await prisma.userProfile.findUnique({ where: { id: "user-1" } });
@@ -76,13 +77,10 @@ describe("updateUserStatus", () => {
 
   it("allows SUPER_ADMIN to change user status to SUSPENDED", async () => {
     const { prisma } = await import("@/lib/db/prisma");
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSuperAdminSession, getSession } = await import("@/lib/auth/session");
 
+    vi.mocked(getSuperAdminSession).mockResolvedValue(superAdminSession);
     vi.mocked(getSession).mockResolvedValue(superAdminSession);
-    vi.mocked(prisma.userProfile.findUnique).mockResolvedValue({
-      id: "admin-1",
-      role: "SUPER_ADMIN",
-    } as any);
     vi.mocked(prisma.userProfile.update).mockResolvedValue({
       id: "user-1",
       status: "SUSPENDED",
@@ -100,13 +98,10 @@ describe("updateUserStatus", () => {
 
   it("allows SUPER_ADMIN to change user status to ACTIVE (reactivate)", async () => {
     const { prisma } = await import("@/lib/db/prisma");
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSuperAdminSession, getSession } = await import("@/lib/auth/session");
 
+    vi.mocked(getSuperAdminSession).mockResolvedValue(superAdminSession);
     vi.mocked(getSession).mockResolvedValue(superAdminSession);
-    vi.mocked(prisma.userProfile.findUnique).mockResolvedValue({
-      id: "admin-1",
-      role: "SUPER_ADMIN",
-    } as any);
     vi.mocked(prisma.userProfile.update).mockResolvedValue({
       id: "user-1",
       status: "ACTIVE",
@@ -120,13 +115,10 @@ describe("updateUserStatus", () => {
 
   it("logs status change to AdminActionLog", async () => {
     const { prisma } = await import("@/lib/db/prisma");
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSuperAdminSession, getSession } = await import("@/lib/auth/session");
 
+    vi.mocked(getSuperAdminSession).mockResolvedValue(superAdminSession);
     vi.mocked(getSession).mockResolvedValue(superAdminSession);
-    vi.mocked(prisma.userProfile.findUnique).mockResolvedValue({
-      id: "admin-1",
-      role: "SUPER_ADMIN",
-    } as any);
     vi.mocked(prisma.userProfile.update).mockResolvedValue({
       id: "user-1",
       status: "SUSPENDED",
@@ -146,19 +138,9 @@ describe("updateUserStatus", () => {
   });
 
   it("returns error if not SUPER_ADMIN", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
-    const { prisma } = await import("@/lib/db/prisma");
+    const { getSuperAdminSession } = await import("@/lib/auth/session");
 
-    vi.mocked(getSession).mockResolvedValue({
-      userId: "user-1",
-      role: "OWNER",
-      plan: "FREE",
-      email: "owner@test.com",
-    });
-    vi.mocked(prisma.userProfile.findUnique).mockResolvedValue({
-      id: "user-1",
-      role: "OWNER",
-    } as any);
+    vi.mocked(getSuperAdminSession).mockResolvedValue(null);
 
     const { updateUserStatus } = await import("@/lib/actions/super-admin");
     const result = await updateUserStatus({ userId: "user-2", status: "SUSPENDED" });
@@ -173,14 +155,10 @@ describe("deleteUser with email confirmation", () => {
   });
 
   it("requires email confirmation for hard delete", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSuperAdminSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
 
-    vi.mocked(getSession).mockResolvedValue(superAdminSession);
-    vi.mocked(prisma.userProfile.findUnique).mockResolvedValue({
-      id: "admin-1",
-      role: "SUPER_ADMIN",
-    } as any);
+    vi.mocked(getSuperAdminSession).mockResolvedValue(superAdminSession);
 
     const { deleteUser } = await import("@/lib/actions/super-admin");
     const result = await deleteUser("user-1", "wrongemail@test.com");
@@ -190,12 +168,11 @@ describe("deleteUser with email confirmation", () => {
   });
 
   it("deletes user when email matches", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSuperAdminSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
 
-    vi.mocked(getSession).mockResolvedValue(superAdminSession);
+    vi.mocked(getSuperAdminSession).mockResolvedValue(superAdminSession);
     vi.mocked(prisma.userProfile.findUnique).mockImplementation((async ({ where }: any) => {
-      if (where?.id === "admin-1") return { id: "admin-1", role: "SUPER_ADMIN" };
       if (where?.id === "user-1") return { id: "user-1", email: "user@test.com", role: "OWNER" };
       return null;
     }) as any);

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { SessionUser } from '@/lib/actions/auth';
+import type { SessionUser } from '@/lib/auth/session';
 
 const mockPrisma = vi.hoisted(() => ({
   reservation: {
@@ -12,7 +12,7 @@ vi.mock('@/lib/db/prisma', () => ({
   prisma: mockPrisma,
 }));
 
-vi.mock('@/lib/actions/auth', () => ({
+vi.mock('@/lib/auth/session', () => ({
   getSession: vi.fn(),
 }));
 
@@ -70,7 +70,7 @@ describe('getReservations pagination', () => {
   });
 
   it('returns paginated response with defaults page=1, limit=10', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
     vi.mocked(mockPrisma.reservation.findMany).mockResolvedValue([]);
@@ -84,7 +84,7 @@ describe('getReservations pagination', () => {
   });
 
   it('calculates skip correctly for page 2 with limit 20', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
     vi.mocked(mockPrisma.reservation.findMany).mockResolvedValue([]);
@@ -97,7 +97,7 @@ describe('getReservations pagination', () => {
   });
 
   it('calculates skip for page 3 with limit 10', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
     vi.mocked(mockPrisma.reservation.findMany).mockResolvedValue([]);
@@ -110,7 +110,7 @@ describe('getReservations pagination', () => {
   });
 
   it('computes totalPages correctly for 50 items with limit 20', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
     vi.mocked(mockPrisma.reservation.findMany).mockResolvedValue([makeReservation('1')]);
@@ -123,7 +123,7 @@ describe('getReservations pagination', () => {
   });
 
   it('computes totalPages for exact division', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
     vi.mocked(mockPrisma.reservation.findMany).mockResolvedValue([]);
@@ -134,7 +134,7 @@ describe('getReservations pagination', () => {
   });
 
   it('computes totalPages for less than one page', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
     vi.mocked(mockPrisma.reservation.findMany).mockResolvedValue([]);
@@ -145,7 +145,7 @@ describe('getReservations pagination', () => {
   });
 
   it('adds search OR conditions to where clause', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
     vi.mocked(mockPrisma.reservation.findMany).mockResolvedValue([]);
@@ -165,7 +165,7 @@ describe('getReservations pagination', () => {
   });
 
   it('merges search OR with other filters via AND', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
     vi.mocked(mockPrisma.reservation.findMany).mockResolvedValue([]);
@@ -192,7 +192,7 @@ describe('getReservations pagination', () => {
   });
 
   it('passes billingType filter to where clause', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
     vi.mocked(mockPrisma.reservation.findMany).mockResolvedValue([]);
@@ -207,7 +207,7 @@ describe('getReservations pagination', () => {
   });
 
   it('runs findMany and count in parallel', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
     let findManyCalled = false;
@@ -229,7 +229,7 @@ describe('getReservations pagination', () => {
   });
 
   it('returns empty paginated result when session is null', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(null);
 
     const result = await getReservations();

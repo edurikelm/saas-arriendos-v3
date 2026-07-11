@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireOwner } from "@/lib/actions/auth";
+import { requireOwner } from "@/lib/auth/guards";
 import { getUnreadSupportTicketCount } from "@/lib/actions/support-unread";
 import { getUnreadNotificationCount } from "@/lib/actions/notifications";
 import { DashboardLayoutClient } from "@/components/layout/dashboard-layout-client";

@@ -8,7 +8,7 @@ vi.mock("@/lib/db/prisma", () => ({
   },
 }));
 
-vi.mock("@/lib/actions/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   getSession: vi.fn(),
 }));
 
@@ -25,7 +25,7 @@ describe("getCalendarExternalBlocks", () => {
     propertyId?: string;
   }) {
     const { prisma } = await import("@/lib/db/prisma");
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
 
     const session = await getSession();
     if (!session) return [];
@@ -73,7 +73,7 @@ describe("getCalendarExternalBlocks", () => {
   }
 
   it("sin sesión → []", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(null);
 
     const result = await getCalendarExternalBlocks({ year: 2025, month: 6 });
@@ -81,7 +81,7 @@ describe("getCalendarExternalBlocks", () => {
   });
 
   it("plan FREE → [] (gating)", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue({ userId: "user-1", role: "OWNER", plan: "FREE", email: "test@test.com" });
 
     const result = await getCalendarExternalBlocks({ year: 2025, month: 6 });
@@ -89,7 +89,7 @@ describe("getCalendarExternalBlocks", () => {
   });
 
   it("plan PRO sin propertyId → trae todos del mes", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
 
     vi.mocked(getSession).mockResolvedValue({ userId: "user-1", role: "OWNER", plan: "PRO", email: "test@test.com" });
@@ -127,7 +127,7 @@ describe("getCalendarExternalBlocks", () => {
   });
 
   it("plan PRO con propertyId → filtra por propiedad", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
 
     vi.mocked(getSession).mockResolvedValue({ userId: "user-1", role: "OWNER", plan: "PRO", email: "test@test.com" });
@@ -155,7 +155,7 @@ describe("getCalendarExternalBlocks", () => {
   });
 
   it("plan PRO con propertyId ajeno → vacío (mock retorna vacío)", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
 
     vi.mocked(getSession).mockResolvedValue({ userId: "user-1", role: "OWNER", plan: "PRO", email: "test@test.com" });
@@ -174,7 +174,7 @@ describe("getCalendarExternalBlocks", () => {
   });
 
   it("bloques INACTIVE excluidos (verifica status: ACTIVE en where)", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
 
     vi.mocked(getSession).mockResolvedValue({ userId: "user-1", role: "OWNER", plan: "PRO", email: "test@test.com" });

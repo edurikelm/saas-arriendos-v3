@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { SessionUser } from '@/lib/actions/auth';
+import type { SessionUser } from '@/lib/auth/session';
 
 /**
  * Cast helper para mocks de Prisma con campos extra (ej. `reservation` via include)
@@ -28,7 +28,7 @@ vi.mock('@/lib/db/prisma', () => ({
   },
 }));
 
-vi.mock('@/lib/actions/auth', () => ({
+vi.mock('@/lib/auth/session', () => ({
   getSession: vi.fn(),
 }));
 
@@ -77,7 +77,7 @@ describe('deletePayment - soft delete', () => {
   });
 
   it('sets deletedAt instead of hard deleting', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -108,7 +108,7 @@ describe('deletePayment - soft delete', () => {
   });
 
   it('rejects payment from another user', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue({
       ...mockSession,
@@ -142,7 +142,7 @@ describe('restorePayment - undoes soft delete', () => {
   });
 
   it('clears deletedAt so payment reappears in listing', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -173,7 +173,7 @@ describe('restorePayment - undoes soft delete', () => {
   });
 
   it('rejects restore from another user', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue({
       ...mockSession,
@@ -207,7 +207,7 @@ describe('getPaymentsByReservation - filters soft deleted', () => {
   });
 
   it('only returns payments where deletedAt is null', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -248,7 +248,7 @@ describe('markPaymentAsPaid', () => {
   });
 
   it('actualiza payment a COMPLETED con paidAt y method', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -296,7 +296,7 @@ describe('markPaymentAsPaid', () => {
   });
 
   it('retorna error si el payment no existe', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.payment.findFirst).mockResolvedValue(null);
@@ -308,7 +308,7 @@ describe('markPaymentAsPaid', () => {
   });
 
   it('retorna error si el payment ya está COMPLETED', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -334,7 +334,7 @@ describe('markPaymentAsPaid', () => {
   });
 
   it('validar que paidAt es la fecha correcta', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -371,7 +371,7 @@ describe('generatePaymentLink', () => {
   });
 
   it('returns error if payment not found', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
     vi.mocked(prisma.payment.findFirst).mockResolvedValue(null);
@@ -383,7 +383,7 @@ describe('generatePaymentLink', () => {
   });
 
   it('returns error if payment is not PENDING', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -408,7 +408,7 @@ describe('generatePaymentLink', () => {
   });
 
   it('returns error if payment method is not MERCADO_PAGO', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -433,7 +433,7 @@ describe('generatePaymentLink', () => {
   });
 
   it('generates initPoint for PENDING payment without initPoint', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     const { getMercadoPagoToken } = await import('@/lib/actions/mercado-pago');
 
@@ -481,7 +481,7 @@ describe('generatePaymentLink', () => {
   });
 
   it('updates expiresAt to 7 days from now', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     const { getMercadoPagoToken } = await import('@/lib/actions/mercado-pago');
 
@@ -526,7 +526,7 @@ describe('generatePaymentLink', () => {
   });
 
   it('sends notification hint and redirect back_urls in preference payload', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     const { getMercadoPagoToken } = await import('@/lib/actions/mercado-pago');
 
@@ -987,7 +987,7 @@ describe('createPayment - paymentType EXTRA', () => {
   });
 
   it('skips maxAmount validation when paymentType is EXTRA', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -1043,7 +1043,7 @@ describe('createPayment - paymentType EXTRA', () => {
   });
 
   it('returns error when paymentType is EXTRA without title', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -1061,7 +1061,7 @@ describe('createPayment - paymentType EXTRA', () => {
   });
 
   it('still enforces maxAmount validation for RESERVATION payments', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -1103,7 +1103,7 @@ describe('regeneratePaymentLink', () => {
   });
 
   it('returns error when link has not expired yet', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -1128,7 +1128,7 @@ describe('regeneratePaymentLink', () => {
   });
 
   it('returns error when payment method is not MERCADO_PAGO', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -1153,7 +1153,7 @@ describe('regeneratePaymentLink', () => {
   });
 
   it('generates new link when expired', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     const { getMercadoPagoToken } = await import('@/lib/actions/mercado-pago');
 
@@ -1297,7 +1297,7 @@ describe('generateMercadoPagoLink - per-user token only', () => {
   });
 
   it('returns error when user has no Mercado Pago token configured', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     const { getMercadoPagoToken } = await import('@/lib/actions/mercado-pago');
 
@@ -1316,7 +1316,7 @@ describe('generateMercadoPagoLink - per-user token only', () => {
   });
 
   it('does NOT fall back to global env token', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { getMercadoPagoToken } = await import('@/lib/actions/mercado-pago');
 
     vi.mocked(getSession).mockResolvedValue(mockSession);
@@ -1333,7 +1333,7 @@ describe('generateMercadoPagoLink - per-user token only', () => {
   });
 
   it('includes paymentId hint and back_urls in preference payload', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     const { getMercadoPagoToken } = await import('@/lib/actions/mercado-pago');
 
@@ -1393,7 +1393,7 @@ describe('generatePaymentLink - per-user token only', () => {
   });
 
   it('returns error when user has no token (no global fallback)', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     const { getMercadoPagoToken } = await import('@/lib/actions/mercado-pago');
 
@@ -1427,7 +1427,7 @@ describe('createPayment - RESERVATION balance excludes PENDING and EXTRAs (issue
   });
 
   it('acepta RESERVATION cuando hay un PENDING preexistente que no bloquea (PENDING no cuenta)', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -1485,7 +1485,7 @@ describe('createPayment - RESERVATION balance excludes PENDING and EXTRAs (issue
   });
 
   it('acepta RESERVATION cuando hay un EXTRA COMPLETED preexistente (EXTRAs no cuentan)', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -1551,7 +1551,7 @@ describe('createPayment - CONFIRMED transition only counts RESERVATION COMPLETED
   });
 
   it('NO transiciona a CONFIRMED si PENDING preexistente + nuevo COMPLETED no alcanzan totalPrice', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -1628,7 +1628,7 @@ describe('createPayment - CONFIRMED transition only counts RESERVATION COMPLETED
   });
 
   it('NO transiciona a CONFIRMED si hay un EXTRA COMPLETED que iguala totalPrice + RESERVATION COMPLETED menor', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -1709,7 +1709,7 @@ describe('createPayment - CONFIRMED transition only counts RESERVATION COMPLETED
   });
 
   it('SÍ transiciona a CONFIRMED cuando RESERVATION COMPLETED existente + nuevo COMPLETED alcanzan totalPrice', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -1809,7 +1809,7 @@ describe('generateMercadoPagoLink - pendingAmount excludes PENDING and EXTRAs (i
   });
 
   it('calcula pendingAmount sin descontar PENDING preexistente', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     const { getMercadoPagoToken } = await import('@/lib/actions/mercado-pago');
 
@@ -1881,7 +1881,7 @@ describe('generateMercadoPagoLink - pendingAmount excludes PENDING and EXTRAs (i
   });
 
   it('no afecta pendingAmount con EXTRAs COMPLETED', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     const { getMercadoPagoToken } = await import('@/lib/actions/mercado-pago');
 
@@ -1961,7 +1961,7 @@ describe('markPaymentAsPaid - CONFIRMED transition only counts RESERVATION COMPL
   });
 
   it('NO transiciona a CONFIRMED si solo hay un RESERVATION PENDING que cubre totalPrice', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -2024,7 +2024,7 @@ describe('markPaymentAsPaid - CONFIRMED transition only counts RESERVATION COMPL
   });
 
   it('SÍ transiciona a CONFIRMED cuando RESERVATION COMPLETED alcanza totalPrice', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -2094,7 +2094,7 @@ describe('checkMercadoPagoPaymentStatus - uses payment owner token', () => {
   });
 
   it('uses payment owner userId for token lookup (payment.reservation.userId)', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     const { getMercadoPagoToken } = await import('@/lib/actions/mercado-pago');
 
@@ -2129,7 +2129,7 @@ describe('checkMercadoPagoPaymentStatus - uses payment owner token', () => {
   });
 
   it('returns error when payment owner has no token', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     const { getMercadoPagoToken } = await import('@/lib/actions/mercado-pago');
 
@@ -2165,7 +2165,7 @@ describe('markPaymentAsPaid - PAYMENT_RECEIVED notification hook', () => {
   });
 
   it('calls recordDomainEvent with PAYMENT_RECEIVED after marking as paid', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -2212,7 +2212,7 @@ describe('markPaymentAsPaid - PAYMENT_RECEIVED notification hook', () => {
   });
 
   it('does not throw and logs error when recordDomainEvent fails', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.mocked(getSession).mockResolvedValue(mockSession);
@@ -2369,7 +2369,7 @@ describe('revertPayment - PAYMENT_REVERTED notification hook', () => {
   });
 
   it('calls recordDomainEvent with PAYMENT_REVERTED after reverting payment', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -2417,7 +2417,7 @@ describe('revertPayment - PAYMENT_REVERTED notification hook', () => {
   });
 
   it('returns error when payment not found', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -2431,7 +2431,7 @@ describe('revertPayment - PAYMENT_REVERTED notification hook', () => {
   });
 
   it('returns error when user does not own the payment', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -2456,7 +2456,7 @@ describe('revertPayment - PAYMENT_REVERTED notification hook', () => {
   });
 
   it('does not throw when recordDomainEvent fails', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.mocked(getSession).mockResolvedValue(mockSession);
@@ -2501,7 +2501,7 @@ describe('getPayments - derived fields (overdueDays + installmentLabel)', () => 
   });
 
   it('returns overdueDays = null for COMPLETED payment', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -2539,7 +2539,7 @@ describe('getPayments - derived fields (overdueDays + installmentLabel)', () => 
   });
 
   it('returns overdueDays = null for PENDING without dueDate', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -2582,7 +2582,7 @@ describe('getPayments - derived fields (overdueDays + installmentLabel)', () => 
     vi.useFakeTimers();
     vi.setSystemTime(mockNow);
 
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -2623,7 +2623,7 @@ describe('getPayments - derived fields (overdueDays + installmentLabel)', () => 
   });
 
   it('returns installmentLabel = "1 / 3" for MONTHLY payment with installmentIndex', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -2662,7 +2662,7 @@ describe('getPayments - derived fields (overdueDays + installmentLabel)', () => 
   });
 
   it('returns installmentLabel = null for DAILY reservation even with installmentIndex', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -2701,7 +2701,7 @@ describe('getPayments - derived fields (overdueDays + installmentLabel)', () => 
   });
 
   it('calls prisma.payment.groupBy exactly once per getPayments call (no N+1)', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -2761,7 +2761,7 @@ describe('getPayments - derived fields (overdueDays + installmentLabel)', () => 
   });
 
   it('groups by reservationId respecting deletedAt and installmentIndex filters', async () => {
-    const { getSession } = await import('@/lib/actions/auth');
+    const { getSession } = await import('@/lib/auth/session');
     const { prisma } = await import('@/lib/db/prisma');
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -2795,7 +2795,7 @@ describe('getPayments - derived fields (overdueDays + installmentLabel)', () => 
   // with a mockReturnValue on daysFromNowInBusinessTz (approach B).
   describe.skip('overdueDays = 0 (not null) for PENDING with dueDate exactly today', () => {
     it('returns overdueDays === 0 when dueDate equals today (wall-time Santiago)', async () => {
-      const { getSession } = await import('@/lib/actions/auth');
+      const { getSession } = await import('@/lib/auth/session');
       const { prisma } = await import('@/lib/db/prisma');
       vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -2834,7 +2834,7 @@ describe('getPayments - derived fields (overdueDays + installmentLabel)', () => 
 
   describe('overdueDays = null for FAILED with past dueDate', () => {
     it('returns overdueDays === null for FAILED payment even with past dueDate', async () => {
-      const { getSession } = await import('@/lib/actions/auth');
+      const { getSession } = await import('@/lib/auth/session');
       const { prisma } = await import('@/lib/db/prisma');
       vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -2874,7 +2874,7 @@ describe('getPayments - derived fields (overdueDays + installmentLabel)', () => 
 
   describe('installmentLabel = null when all installment payments are soft-deleted (Bug #1 fix)', () => {
     it('returns installmentLabel === null when groupBy returns empty (all installments deleted)', async () => {
-      const { getSession } = await import('@/lib/actions/auth');
+      const { getSession } = await import('@/lib/auth/session');
       const { prisma } = await import('@/lib/db/prisma');
       vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -2918,7 +2918,7 @@ describe('getPayments - derived fields (overdueDays + installmentLabel)', () => 
   // parameter into getPayments, or mocking Intl.DateTimeFormat directly.
   describe.skip('Wall-time America/Santiago at midnight boundary', () => {
     it('calculates overdueDays in Santiago wall-time near midnight UTC', async () => {
-      const { getSession } = await import('@/lib/actions/auth');
+      const { getSession } = await import('@/lib/auth/session');
       const { prisma } = await import('@/lib/db/prisma');
       vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -2957,7 +2957,7 @@ describe('getPayments - derived fields (overdueDays + installmentLabel)', () => 
 
   describe('installmentLabel = null when installmentIndex is null (even for MONTHLY)', () => {
     it('returns installmentLabel === null when installmentIndex is null even if billingType is MONTHLY', async () => {
-      const { getSession } = await import('@/lib/actions/auth');
+      const { getSession } = await import('@/lib/auth/session');
       const { prisma } = await import('@/lib/db/prisma');
       vi.mocked(getSession).mockResolvedValue(mockSession);
 
@@ -3000,7 +3000,7 @@ describe('getPayments - derived fields (overdueDays + installmentLabel)', () => 
 
   describe('totalMap populated for multiple reservationIds', () => {
     it('totalMap has correct keys for all reservationIds when paginating', async () => {
-      const { getSession } = await import('@/lib/actions/auth');
+      const { getSession } = await import('@/lib/auth/session');
       const { prisma } = await import('@/lib/db/prisma');
       vi.mocked(getSession).mockResolvedValue(mockSession);
 

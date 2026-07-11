@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/db/prisma";
-import { getSession } from "@/lib/actions/auth";
+import { getSession, getSuperAdminSession } from "@/lib/auth/session";
 import { revalidatePath } from "next/cache";
 import { ticketPriorityEnum, ticketCategoryEnum, supportAttachmentSchema } from "@/lib/validations/support";
 import { computeHasUnread, type UnreadRole } from "@/lib/support/unread";
@@ -79,19 +79,11 @@ export interface TicketFilters {
   category?: string;
 }
 
-async function assertSuperAdmin() {
-  const session = await getSession();
-  if (!session || session.role !== "SUPER_ADMIN") {
-    return null;
-  }
-  return session;
-}
-
 export async function getAllSupportTickets(
   statusFilter?: StatusFilter,
   filters?: TicketFilters
 ): Promise<PaginatedResponse<AdminSupportTicketRow>> {
-  const session = await assertSuperAdmin();
+  const session = await getSuperAdminSession();
   if (!session) {
     return { data: [], total: 0, page: 1, totalPages: 0 };
   }
@@ -176,7 +168,7 @@ export async function getAllSupportTickets(
 }
 
 export async function getAdminSupportTicketDetail(ticketId: string): Promise<AdminTicketDetail | null> {
-  const session = await assertSuperAdmin();
+  const session = await getSuperAdminSession();
   if (!session) return null;
 
   const ticket = await prisma.supportTicket.findUnique({
@@ -264,7 +256,7 @@ export async function respondToSupportTicket(
   content: string,
   images?: Array<{ url: string; fileName: string; fileSize: number }>
 ): Promise<{ success?: boolean; error?: string }> {
-  const session = await assertSuperAdmin();
+  const session = await getSuperAdminSession();
   if (!session) return { error: "No autorizado" };
 
   if (!content || content.length < 1 || content.length > 2000) {
@@ -332,7 +324,7 @@ export async function respondToSupportTicket(
 export async function resolveSupportTicket(
   ticketId: string
 ): Promise<{ success?: boolean; error?: string }> {
-  const session = await assertSuperAdmin();
+  const session = await getSuperAdminSession();
   if (!session) return { error: "No autorizado" };
 
   const ticket = await prisma.supportTicket.findUnique({
@@ -388,7 +380,7 @@ export async function updateSupportTicketPriority(
   ticketId: string,
   priority: string
 ): Promise<{ success?: boolean; error?: string }> {
-  const session = await assertSuperAdmin();
+  const session = await getSuperAdminSession();
   if (!session) return { error: "No autorizado" };
 
   const parsed = ticketPriorityEnum.safeParse(priority);
@@ -416,7 +408,7 @@ export async function updateSupportTicketCategory(
   ticketId: string,
   category: string
 ): Promise<{ success?: boolean; error?: string }> {
-  const session = await assertSuperAdmin();
+  const session = await getSuperAdminSession();
   if (!session) return { error: "No autorizado" };
 
   const parsed = ticketCategoryEnum.safeParse(category);

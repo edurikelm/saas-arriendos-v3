@@ -87,7 +87,7 @@ export default function ReportsPage() {
     const loadInitial = async () => {
       const [props, sessionData] = await Promise.all([
         getProperties(),
-        (await import("@/lib/actions/auth")).getSession(),
+        (await import("@/lib/auth/session")).getSession(),
       ]);
       setProperties(props);
       setSession(sessionData);

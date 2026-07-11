@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionUser } from "@/lib/actions/auth";
+import type { SessionUser } from "@/lib/auth/session";
 
 const mockStorage = vi.hoisted(() => ({
   upload: vi.fn(),
@@ -26,7 +26,7 @@ const mockPrisma = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/db/prisma", () => ({ prisma: mockPrisma }));
-vi.mock("@/lib/actions/auth", () => ({ getSession: vi.fn() }));
+vi.mock("@/lib/auth/session", () => ({ getSession: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn(() => mockSupabase) }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
@@ -45,7 +45,7 @@ const mockSession: SessionUser = {
 describe("reservation-documents actions", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue(mockSession);
 
     vi.mocked(mockPrisma.reservation.findFirst).mockResolvedValue({
@@ -59,7 +59,7 @@ describe("reservation-documents actions", () => {
   });
 
   it("rejects owner FREE plan", async () => {
-    const { getSession } = await import("@/lib/actions/auth");
+    const { getSession } = await import("@/lib/auth/session");
     vi.mocked(getSession).mockResolvedValue({ ...mockSession, plan: "FREE" });
 
     const file = new File(["data"], "contrato.pdf", { type: "application/pdf" });

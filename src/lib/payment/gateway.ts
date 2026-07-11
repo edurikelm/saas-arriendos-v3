@@ -223,7 +223,7 @@ export class MercadoPagoGateway implements PaymentGateway {
 const gatewayCache = new Map<string, MercadoPagoGateway>();
 
 export async function getGateway(provider: "mercadopago" | "stripe" = "mercadopago"): Promise<PaymentGateway> {
-  const session = await import("@/lib/actions/auth").then((m) => m.getSession());
+  const session = await import("@/lib/auth/session").then((m) => m.getSession());
   if (!session) {
     throw new Error("Not authenticated");
   }

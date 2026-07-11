@@ -1,4 +1,4 @@
-import { requireOwner } from "@/lib/actions/auth";
+import { requireOwner } from "@/lib/auth/guards";
 import { prisma } from "@/lib/db/prisma";
 import { notFound } from "next/navigation";
 import { ExportFeedsSection } from "./_components/ExportFeedsSection";

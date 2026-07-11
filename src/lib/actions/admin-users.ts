@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/db/prisma";
-import { isSuperAdmin } from "@/lib/actions/super-admin";
+import { getSuperAdminSession } from "@/lib/auth/session";
 import { Plan, UserStatus } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 
@@ -74,7 +74,7 @@ export interface OwnerDetailResult {
 }
 
 export async function getOwnerDetail(ownerId: string): Promise<OwnerDetailResult | null> {
-  if (!(await isSuperAdmin())) return null;
+  if (!(await getSuperAdminSession())) return null;
 
   const owner = await prisma.userProfile.findUnique({
     where: { id: ownerId, role: "OWNER" },

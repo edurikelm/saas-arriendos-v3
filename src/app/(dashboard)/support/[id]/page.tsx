@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { requireOwner } from "@/lib/actions/auth";
+import { requireOwner } from "@/lib/auth/guards";
 import { getSupportTicketDetail } from "@/lib/actions/support";
 import { markSupportTicketAsRead } from "@/lib/actions/support-unread";
 import { SupportDetail } from "@/components/support/support-detail";
