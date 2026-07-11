@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/db/prisma";
 import { getSuperAdminSession } from "@/lib/auth/session";
+import { isOverdueInBusinessTz, nowKeyInBusinessTz } from "@/lib/domain/timezone";
 import { Plan, UserStatus } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 
@@ -98,7 +99,11 @@ export async function getOwnerDetail(ownerId: string): Promise<OwnerDetailResult
 
   if (!owner) return null;
 
-  const now = new Date();
+  // "Hoy" en wall-time America/Santiago (ADR-0020). Usado para detectar
+  // pagos vencidos: comparar `payment.dueDate < now` directo es frágil cuando
+  // el servidor corre en UTC (Vercel). `isOverdueInBusinessTz` interpreta
+  // `dueDate` como día-calendario en zona y lo compara contra `nowKey`.
+  const nowKey = nowKeyInBusinessTz();
 
   const [payments, mpIntegration, properties, reservations] = await Promise.all([
     prisma.payment.findMany({
@@ -153,7 +158,9 @@ export async function getOwnerDetail(ownerId: string): Promise<OwnerDetailResult
   const pendingPayments = payments.filter((p) => p.status === "PENDING");
   const pendingAmount = pendingPayments.reduce((sum, p) => sum + Number(p.amount), 0);
 
-  const overduePayments = pendingPayments.filter((p) => p.dueDate && p.dueDate < now);
+  const overduePayments = pendingPayments.filter((p) =>
+    isOverdueInBusinessTz(p.dueDate, nowKey)
+  );
   const overdueAmount = overduePayments.reduce((sum, p) => sum + Number(p.amount), 0);
 
   const totalRevenue = payments
@@ -189,7 +196,7 @@ export async function getOwnerDetail(ownerId: string): Promise<OwnerDetailResult
     reservations: reservationsWithPaid,
     payments: payments.map((p) => ({
       ...p,
-      isOverdue: p.status === "PENDING" && p.dueDate !== null && p.dueDate < now,
+      isOverdue: p.status === "PENDING" && isOverdueInBusinessTz(p.dueDate, nowKey),
     })),
   };
 }

@@ -1,4 +1,4 @@
-import { BUSINESS_TIME_ZONE, daysFromNowInBusinessTz, getDateKeyInTz } from "@/lib/domain/timezone";
+import { BUSINESS_TIME_ZONE, daysFromNowInBusinessTz, getDateKeyInTz, isOverdueInBusinessTz, nowKeyInBusinessTz } from "@/lib/domain/timezone";
 
 export type CollectionBillingFilter = "GENERAL" | "DAILY" | "MONTHLY";
 export type CollectionDebtStatusFilter = "ACTIVE" | "ALL" | "OVERDUE" | "UPCOMING" | "PAID";
@@ -169,6 +169,12 @@ export function buildCollectionReportRows(
   options?: BuildCollectionOptions
 ): CollectionReportRow[] {
   const now = options?.now ?? new Date();
+  // Cache del "hoy" en zona de negocio (ADR-0020) para usar en
+  // comparaciones day-level. Evita recalcular `nowKeyInBusinessTz()` por
+  // cada pago/reserva en el loop.
+  const nowKey = options?.now
+    ? getDateKeyInTz(options.now, BUSINESS_TIME_ZONE)
+    : nowKeyInBusinessTz();
   const debtStatus = options?.debtStatus ?? "ACTIVE";
 
   const rows = reservations
@@ -202,7 +208,10 @@ export function buildCollectionReportRows(
 
       if (reservation.billingType === "MONTHLY") {
         const unpaidInstallments = reservationPayments.filter((payment) => payment.status !== "COMPLETED");
-        overdue = sumAmounts(unpaidInstallments, (payment) => !!payment.dueDate && payment.dueDate < now);
+        overdue = sumAmounts(
+          unpaidInstallments,
+          (payment) => isOverdueInBusinessTz(payment.dueDate, nowKey)
+        );
 
         const dueDates = unpaidInstallments
           .map((payment) => payment.dueDate)
@@ -224,7 +233,7 @@ export function buildCollectionReportRows(
         // "la próxima" (un solo pago contra `startDate`).
         nextInstallmentAmount = pending;
         nextDueDate = reservation.startDate;
-        overdue = reservation.startDate < now ? pending : 0;
+        overdue = isOverdueInBusinessTz(reservation.startDate, nowKey) ? pending : 0;
       }
 
       return {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   BUSINESS_TIME_ZONE,
   daysFromNowInBusinessTz,
@@ -6,6 +6,9 @@ import {
   getDateKeyInTz,
   dateKeyToDayIndex,
   startOfMonthInSantiago,
+  nowKeyInBusinessTz,
+  isBeforeTodayInBusinessTz,
+  isOverdueInBusinessTz,
 } from "@/lib/domain/timezone";
 
 describe("BUSINESS_TIME_ZONE", () => {
@@ -114,5 +117,98 @@ describe("startOfMonthInSantiago", () => {
     expect(month).toBeGreaterThanOrEqual(1);
     expect(month).toBeLessThanOrEqual(12);
     expect(year).toBeGreaterThan(2020);
+  });
+});
+
+describe("nowKeyInBusinessTz", () => {
+  it("returns YYYY-MM-DD format", () => {
+    const key = nowKeyInBusinessTz();
+    expect(key).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("compares equal to getDateKeyInTz(new Date()) in America/Santiago", () => {
+    // Propiedad clave: ambos helpers deben dar la misma fecha-calendario
+    // para el mismo instante. Si divergen, hay bug en la implementación.
+    const direct = getDateKeyInTz(new Date(), BUSINESS_TIME_ZONE);
+    expect(nowKeyInBusinessTz()).toBe(direct);
+  });
+
+  it("interprets UTC midnight as the prior Santiago day in winter (UTC-4)", () => {
+    // Julio = invierno Chile, UTC-4.
+    // 2026-07-15 02:00 UTC = 2026-07-14 22:00 SCL → debería ser 2026-07-14.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-15T02:00:00.000Z"));
+    expect(nowKeyInBusinessTz()).toBe("2026-07-14");
+    vi.useRealTimers();
+  });
+
+  it("interprets UTC midnight as the next Santiago day in summer (UTC-3)", () => {
+    // Enero = verano Chile, UTC-3.
+    // 2026-01-15 03:00 UTC = 2026-01-15 00:00 SCL → debería ser 2026-01-15.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-15T03:00:00.000Z"));
+    expect(nowKeyInBusinessTz()).toBe("2026-01-15");
+    vi.useRealTimers();
+  });
+});
+
+describe("isBeforeTodayInBusinessTz", () => {
+  it("returns false for null/undefined dates", () => {
+    expect(isBeforeTodayInBusinessTz(null)).toBe(false);
+    expect(isBeforeTodayInBusinessTz(undefined)).toBe(false);
+  });
+
+  it("returns false for today", () => {
+    const today = "2026-05-20";
+    expect(isBeforeTodayInBusinessTz(`${today}T12:00:00.000Z`, today)).toBe(false);
+  });
+
+  it("returns true for yesterday", () => {
+    const today = "2026-05-20";
+    expect(isBeforeTodayInBusinessTz("2026-05-19T18:00:00.000Z", today)).toBe(true);
+  });
+
+  it("returns true for dates long ago", () => {
+    const today = "2026-05-20";
+    expect(isBeforeTodayInBusinessTz("2020-01-01T00:00:00.000Z", today)).toBe(true);
+  });
+
+  it("returns false for future dates", () => {
+    const today = "2026-05-20";
+    expect(isBeforeTodayInBusinessTz("2026-05-21T12:00:00.000Z", today)).toBe(false);
+    expect(isBeforeTodayInBusinessTz("2027-01-01T00:00:00.000Z", today)).toBe(false);
+  });
+
+  it("uses wall-time zone — late UTC time on day N-1 can be 'today' in Santiago", () => {
+    // 23:30 UTC del 2026-02-28 = 20:30 SCL del 2026-02-28 (mismo día).
+    // Si today=2026-02-28, este timestamp NO es "before today".
+    const today = "2026-02-28";
+    expect(isBeforeTodayInBusinessTz("2026-02-28T23:30:00.000Z", today)).toBe(false);
+  });
+
+  it("respects the nowKey override for batch callsites", () => {
+    const today = "2026-05-20";
+    // Sin override, depends del system time — con override es determinístico.
+    expect(isBeforeTodayInBusinessTz("2026-05-19T00:00:00.000Z", today)).toBe(true);
+    expect(isBeforeTodayInBusinessTz("2026-05-21T00:00:00.000Z", today)).toBe(false);
+  });
+});
+
+describe("isOverdueInBusinessTz", () => {
+  it("is a semantic alias of isBeforeTodayInBusinessTz", () => {
+    const today = "2026-05-20";
+    const yesterday = "2026-05-19T15:00:00.000Z";
+    const tomorrow = "2026-05-21T15:00:00.000Z";
+
+    expect(isOverdueInBusinessTz(yesterday, today)).toBe(
+      isBeforeTodayInBusinessTz(yesterday, today)
+    );
+    expect(isOverdueInBusinessTz(tomorrow, today)).toBe(
+      isBeforeTodayInBusinessTz(tomorrow, today)
+    );
+  });
+
+  it("returns false for null dueDate", () => {
+    expect(isOverdueInBusinessTz(null, "2026-05-20")).toBe(false);
   });
 });
