@@ -9,6 +9,7 @@ import { addDays, differenceInDays, differenceInMonths, addMonths } from "date-f
 import { generateMonthlyPayments } from "@/lib/payments/monthly";
 import { ZodError } from "zod";
 import { recordDomainEvent } from "@/lib/notifications/record-event";
+import { canTransition } from "@/lib/reservations/state-machine";
 
 export type CalendarReservation = {
   id: string;
@@ -631,6 +632,38 @@ export async function updateReservation(id: string, data: unknown) {
   }
 
   if (validated.status !== undefined && validated.status !== existing.status) {
+    // Bloqueo específico: CANCELLED debe pasar por cancelReservation()
+    // para que se ejecuten los side effects (borrar pagos PENDING, log de cambio).
+    if (validated.status === "CANCELLED") {
+      return {
+        error:
+          "Para cancelar una reserva use la acción cancelReservation — esta limpia los pagos pendientes.",
+      };
+    }
+
+    // Solo necesitamos contar pagos si vamos a COMPLETED (única transición con precondición)
+    let completedReservationPayments = 0;
+    if (validated.status === "COMPLETED") {
+      completedReservationPayments = await prisma.payment.count({
+        where: {
+          reservationId: id,
+          paymentType: "RESERVATION",
+          status: "COMPLETED",
+          deletedAt: null,
+        },
+      });
+    }
+
+    const guard = canTransition({
+      from: existing.status as "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED",
+      to: validated.status,
+      completedReservationPayments,
+    });
+
+    if (!guard.ok) {
+      return { error: guard.reason };
+    }
+
     updateData.status = validated.status;
     changes.push({
       field: "status",
