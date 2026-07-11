@@ -14,6 +14,7 @@ import { revalidatePath } from "next/cache";
 import { addDays } from "date-fns";
 import { ZodError } from "zod";
 import { getReservationPaidAmount, getReservationPendingAmount, type PaymentLike } from "@/lib/payments/calculations";
+import { confirmReservationIfPaid } from "@/lib/reservations/confirmation";
 import { recordDomainEvent } from "@/lib/notifications/record-event";
 import { daysFromNowInBusinessTz, startOfMonthInSantiago } from "@/lib/domain/timezone";
 
@@ -300,22 +301,7 @@ export async function createPayment(data: unknown) {
   });
 
   if (validated.status === "COMPLETED" && validated.paymentType !== "EXTRA") {
-    const allPayments = await prisma.payment.findMany({
-      where: {
-        reservationId: validated.reservationId,
-        status: { in: ["COMPLETED", "PENDING"] },
-        deletedAt: null,
-      },
-    });
-
-    const totalPaid = getReservationPaidAmount(allPayments as unknown as PaymentLike[]);
-
-    if (totalPaid >= Number(reservation.totalPrice)) {
-      await prisma.reservation.update({
-        where: { id: validated.reservationId },
-        data: { status: "CONFIRMED" },
-      });
-    }
+    await confirmReservationIfPaid(validated.reservationId);
   }
 
   revalidatePath("/reservations");
@@ -552,23 +538,7 @@ export async function processMercadoPagoWebhook(payload: {
       },
     });
 
-    const allPayments = await prisma.payment.findMany({
-      where: {
-        reservationId: payment.reservationId,
-        status: { in: ["COMPLETED", "PENDING"] },
-        deletedAt: null,
-      },
-    });
-
-    const totalPaid = getReservationPaidAmount(allPayments as unknown as PaymentLike[]);
-    const reservation = payment.reservation;
-
-    if (totalPaid >= Number(reservation.totalPrice)) {
-      await prisma.reservation.update({
-        where: { id: payment.reservationId },
-        data: { status: "CONFIRMED" },
-      });
-    }
+    await confirmReservationIfPaid(payment.reservationId);
 
     // Emit PAYMENT_RECEIVED notification post-commit
     try {
@@ -867,22 +837,7 @@ export async function updatePayment(id: string, data: { status: "COMPLETED" | "P
   });
 
   if (data.status === "COMPLETED") {
-    const allPayments = await prisma.payment.findMany({
-      where: {
-        reservationId: payment.reservationId,
-        status: { in: ["COMPLETED", "PENDING"] },
-        deletedAt: null,
-      },
-    });
-
-    const totalPaid = getReservationPaidAmount(allPayments as unknown as PaymentLike[]);
-
-    if (totalPaid >= Number(payment.reservation.totalPrice)) {
-      await prisma.reservation.update({
-        where: { id: payment.reservationId },
-        data: { status: "CONFIRMED" },
-      });
-    }
+    await confirmReservationIfPaid(payment.reservationId);
   }
 
   revalidatePath("/reservations");
@@ -976,22 +931,7 @@ export async function markPaymentAsPaid(
     },
   });
 
-  const allPayments = await prisma.payment.findMany({
-    where: {
-      reservationId: payment.reservationId,
-      status: { in: ["COMPLETED", "PENDING"] },
-      deletedAt: null,
-    },
-  });
-
-  const totalPaid = getReservationPaidAmount(allPayments as unknown as PaymentLike[]);
-
-  if (totalPaid >= Number(payment.reservation.totalPrice)) {
-    await prisma.reservation.update({
-      where: { id: payment.reservationId },
-      data: { status: "CONFIRMED" },
-    });
-  }
+  await confirmReservationIfPaid(payment.reservationId);
 
   // Emit PAYMENT_RECEIVED notification post-commit
   try {
@@ -1133,22 +1073,7 @@ export async function checkMercadoPagoPaymentStatus(paymentId: string) {
       });
 
       if (newStatus === "COMPLETED") {
-        const allPayments = await prisma.payment.findMany({
-          where: {
-            reservationId: payment.reservationId,
-            status: { in: ["COMPLETED", "PENDING"] },
-            deletedAt: null,
-          },
-        });
-
-        const totalPaid = getReservationPaidAmount(allPayments as unknown as PaymentLike[]);
-
-        if (totalPaid >= Number(payment.reservation.totalPrice)) {
-          await prisma.reservation.update({
-            where: { id: payment.reservationId },
-            data: { status: "CONFIRMED" },
-          });
-        }
+        await confirmReservationIfPaid(payment.reservationId);
       }
 
       revalidatePath("/reservations");
