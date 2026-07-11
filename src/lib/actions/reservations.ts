@@ -983,11 +983,37 @@ export async function deleteReservation(id: string) {
 
   if (!existing) return { error: "Reserva no encontrada" };
 
-  await prisma.reservationChange.deleteMany({
-    where: { reservationId: id },
+  // Bloqueo: si hay pagos COMPLETED no soft-deleted, no se puede borrar
+  // físicamente la reserva sin perder evidencia financiera. Sugerir
+  // cancelReservation() que es semánticamente "soft delete con KEEP pagos".
+  const completedPaymentsCount = await prisma.payment.count({
+    where: {
+      reservationId: id,
+      status: "COMPLETED",
+      deletedAt: null,
+    },
   });
 
-  await prisma.payment.deleteMany({
+  if (completedPaymentsCount > 0) {
+    return {
+      error:
+        "No se puede borrar una reserva con pagos COMPLETED. Use cancelReservation para cancelarla preservando el historial financiero.",
+    };
+  }
+
+  // Soft-delete de pagos restantes (PENDING/FAILED). Preserva el audit trail
+  // financiero en caso de borrado accidental — un admin podría recuperarlos.
+  // Payment.deletedAt ya existe en el schema (CONTEXT.md: deleted_at para auditoría).
+  await prisma.payment.updateMany({
+    where: {
+      reservationId: id,
+      deletedAt: null,
+    },
+    data: { deletedAt: new Date() },
+  });
+
+  // Hard-delete del audit log de cambios (sigue a la reserva)
+  await prisma.reservationChange.deleteMany({
     where: { reservationId: id },
   });
 

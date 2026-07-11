@@ -27,6 +27,8 @@ const mockPrisma = vi.hoisted(() => ({
   payment: {
     deleteMany: vi.fn(),
     create: vi.fn(),
+    count: vi.fn(),
+    updateMany: vi.fn(),
   },
   externalChannelBlock: {
     findMany: vi.fn().mockResolvedValue([]),
@@ -51,7 +53,7 @@ vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
 }));
 
-import { createReservation, cancelReservation } from '../reservations';
+import { createReservation, cancelReservation, deleteReservation } from '../reservations';
 
 const mockSession: SessionUser = {
   userId: 'user-1',
@@ -517,5 +519,111 @@ describe('createReservation emits RESERVATION_CREATED domain event', () => {
 
     expect(result).toHaveProperty('error', 'Propiedad no encontrada');
     expect(mockRecordDomainEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe('deleteReservation - soft-delete payments + block on COMPLETED', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Default: reservation exists and belongs to mockSession
+    vi.mocked(mockPrisma.reservation.findFirst).mockResolvedValue({
+      id: 'res-1',
+      userId: mockSession.userId,
+    } as any);
+  });
+
+  it('returns "No autorizado" when no session', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    vi.mocked(getSession).mockResolvedValue(null);
+
+    const result = await deleteReservation('res-1');
+
+    expect(result).toEqual({ error: 'No autorizado' });
+    expect(mockPrisma.reservation.delete).not.toHaveBeenCalled();
+    expect(mockPrisma.payment.updateMany).not.toHaveBeenCalled();
+    expect(mockPrisma.payment.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('returns "Reserva no encontrada" when reservation does not belong to session user', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    vi.mocked(mockPrisma.reservation.findFirst).mockResolvedValue(null);
+
+    const result = await deleteReservation('res-1');
+
+    expect(result).toEqual({ error: 'Reserva no encontrada' });
+    expect(mockPrisma.reservation.delete).not.toHaveBeenCalled();
+  });
+
+  it('blocks deletion when reservation has ≥1 COMPLETED payment (suggests cancelReservation)', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    vi.mocked(mockPrisma.payment.count).mockResolvedValue(1);
+
+    const result = await deleteReservation('res-1');
+
+    expect(result).toHaveProperty('error');
+    expect(result.error).toMatch(/pagos COMPLETED/);
+    expect(result.error).toMatch(/cancelReservation/);
+    // No debe ejecutar ninguna mutación cuando bloquea
+    expect(mockPrisma.payment.updateMany).not.toHaveBeenCalled();
+    expect(mockPrisma.payment.deleteMany).not.toHaveBeenCalled();
+    expect(mockPrisma.reservationChange.deleteMany).not.toHaveBeenCalled();
+    expect(mockPrisma.reservation.delete).not.toHaveBeenCalled();
+  });
+
+  it('soft-deletes payments + hard-deletes reservation when no COMPLETED payments', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    vi.mocked(mockPrisma.payment.count).mockResolvedValue(0);
+
+    const result = await deleteReservation('res-1');
+
+    expect(result).toEqual({ success: true });
+    // Soft-delete de pagos restantes (PENDING/FAILED), no hard-delete
+    expect(mockPrisma.payment.updateMany).toHaveBeenCalledWith({
+      where: {
+        reservationId: 'res-1',
+        deletedAt: null,
+      },
+      data: { deletedAt: expect.any(Date) },
+    });
+    expect(mockPrisma.payment.deleteMany).not.toHaveBeenCalled();
+    // Audit log + reserva: hard-delete (siguen a la reserva)
+    expect(mockPrisma.reservationChange.deleteMany).toHaveBeenCalledWith({
+      where: { reservationId: 'res-1' },
+    });
+    expect(mockPrisma.reservation.delete).toHaveBeenCalledWith({
+      where: { id: 'res-1' },
+    });
+  });
+
+  it('counts only non-soft-deleted COMPLETED payments for the block decision', async () => {
+    const { getSession } = await import('@/lib/actions/auth');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    vi.mocked(mockPrisma.payment.count).mockResolvedValue(0);
+
+    await deleteReservation('res-1');
+
+    expect(mockPrisma.payment.count).toHaveBeenCalledWith({
+      where: {
+        reservationId: 'res-1',
+        status: 'COMPLETED',
+        deletedAt: null,
+      },
+    });
+  });
+
+  it('does not block when COMPLETED payments exist but are already soft-deleted', async () => {
+    // Escenario edge: el admin ya marcó pagos como deletedAt en otra operación.
+    // El count filtra deletedAt: null, así que no debe bloquear.
+    const { getSession } = await import('@/lib/actions/auth');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    vi.mocked(mockPrisma.payment.count).mockResolvedValue(0);
+
+    const result = await deleteReservation('res-1');
+
+    expect(result).toEqual({ success: true });
+    expect(mockPrisma.reservation.delete).toHaveBeenCalled();
   });
 });
