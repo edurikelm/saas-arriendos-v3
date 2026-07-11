@@ -328,3 +328,4 @@ Grid de 7 columnas en todas las resoluciones. Celdas: `min-h-12 sm:min-h-20 lg:m
 - ADR-0018: `docs/adr/0018-external-calendar-sync.md` — iCal import + semántica de fuente no financiera
 - ADR-0019: `docs/adr/0019-ical-export-feed.md` — iCal export por canal con anti-eco
 - ADR-0020: `docs/adr/0020-business-dates-timezone.md` — fechas de negocio en `America/Santiago`
+- ADR-0025: `docs/adr/0025-reservations-domain-seam.md` — `src/lib/reservations/` como seam canónico de lógica de dominio de Reservation (transiciones de estado, confirmación, validaciones)
