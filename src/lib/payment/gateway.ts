@@ -2,6 +2,7 @@ import { getMercadoPagoToken } from "@/lib/actions/mercado-pago";
 import { processMercadoPagoWebhook } from "@/lib/actions/payments";
 import { prisma } from "@/lib/db/prisma";
 import { addDays } from "date-fns";
+import { getActivePaymentsForReservation } from "@/lib/payments/queries";
 
 function buildMercadoPagoNotificationUrl(paymentId: string) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -89,13 +90,7 @@ export class MercadoPagoGateway implements PaymentGateway {
       throw new Error("Reservation not found");
     }
 
-    const existingPayments = await prisma.payment.findMany({
-      where: {
-        reservationId,
-        status: { in: ["COMPLETED", "PENDING"] },
-        deletedAt: null,
-      },
-    });
+    const existingPayments = await getActivePaymentsForReservation(reservationId);
 
     const totalPaid = existingPayments.reduce(
       (sum, p) => sum + Number(p.amount),
