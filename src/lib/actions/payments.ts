@@ -18,6 +18,11 @@ import {
   sumCompletedPaymentsForOwner,
   sumPendingPaymentsForOwner,
   countPendingPaymentsForOwner,
+  markPaymentCompleted,
+  markPaymentStatus,
+  revertPaymentToPending,
+  getPaymentById,
+  getPaymentByMercadoPagoId,
 } from "@/lib/payments/queries";
 import { confirmReservationIfPaid } from "@/lib/reservations/confirmation";
 import { recordDomainEvent } from "@/lib/notifications/record-event";
@@ -461,17 +466,11 @@ export async function processMercadoPagoWebhook(payload: {
   const hasValidPaymentIdInRef = Boolean(paymentIdFromRef && /^[a-z0-9]{20,}$/i.test(paymentIdFromRef));
 
   if (hintedPaymentId) {
-    payment = await prisma.payment.findFirst({
-      where: { id: hintedPaymentId, deletedAt: null },
-      include: { reservation: { include: { client: true } } },
-    });
+    payment = await getPaymentById(hintedPaymentId);
   }
 
   if (!payment && hasValidPaymentIdInRef) {
-    payment = await prisma.payment.findFirst({
-      where: { id: paymentIdFromRef!, deletedAt: null },
-      include: { reservation: { include: { client: true } } },
-    });
+    payment = await getPaymentById(paymentIdFromRef!);
 
     if (payment && reservationIdFromRef && payment.reservationId !== reservationIdFromRef) {
       payment = null;
@@ -479,10 +478,7 @@ export async function processMercadoPagoWebhook(payload: {
   }
 
   if (!payment && preference_id) {
-    payment = await prisma.payment.findFirst({
-      where: { mercadoPagoId: preference_id, deletedAt: null },
-      include: { reservation: { include: { client: true } } },
-    });
+    payment = await getPaymentByMercadoPagoId(preference_id, { includeClient: true });
 
     if (payment && reservationIdFromRef && payment.reservationId !== reservationIdFromRef) {
       payment = null;
@@ -490,10 +486,7 @@ export async function processMercadoPagoWebhook(payload: {
   }
 
   if (!payment) {
-    payment = await prisma.payment.findFirst({
-      where: { mercadoPagoId: id, deletedAt: null },
-      include: { reservation: { include: { client: true } } },
-    });
+    payment = await getPaymentByMercadoPagoId(id);
 
     if (payment && reservationIdFromRef && payment.reservationId !== reservationIdFromRef) {
       payment = null;
@@ -581,10 +574,7 @@ export async function generatePaymentLink(paymentId: string) {
   const session = await getSession();
   if (!session) return { error: "No autorizado" };
 
-  const payment = await prisma.payment.findFirst({
-    where: { id: paymentId, deletedAt: null },
-    include: { reservation: { include: { client: true, property: true } } },
-  });
+  const payment = await getPaymentById(paymentId, { includeProperty: true });
 
   if (!payment) return { error: "Pago no encontrado" };
 
@@ -673,10 +663,7 @@ export async function regeneratePaymentLink(id: string) {
   const session = await getSession();
   if (!session) return { error: "No autorizado" };
 
-  const payment = await prisma.payment.findFirst({
-    where: { id, deletedAt: null },
-    include: { reservation: { include: { client: true, property: true } } },
-  });
+  const payment = await getPaymentById(id, { includeProperty: true });
 
   if (!payment) return { error: "Pago no encontrado" };
 
@@ -759,12 +746,7 @@ export async function deletePayment(id: string) {
   const session = await getSession();
   if (!session) return { error: "No autorizado" };
 
-  const payment = await prisma.payment.findFirst({
-    where: { id, deletedAt: null },
-    include: {
-      reservation: true,
-    },
-  });
+  const payment = await getPaymentById(id, { includeClient: false });
 
   if (!payment) return { error: "Pago no encontrado" };
 
@@ -817,10 +799,7 @@ export async function updatePayment(id: string, data: { status: "COMPLETED" | "P
   const session = await getSession();
   if (!session) return { error: "No autorizado" };
 
-  const payment = await prisma.payment.findFirst({
-    where: { id, deletedAt: null },
-    include: { reservation: { include: { client: true } } },
-  });
+  const payment = await getPaymentById(id);
 
   if (!payment) return { error: "Pago no encontrado" };
 
@@ -857,14 +836,7 @@ export async function revertPayment(id: string): Promise<
   const session = await getSession();
   if (!session) return { error: "No autorizado" };
 
-  const existing = await prisma.payment.findFirst({
-    where: { id, deletedAt: null },
-    include: {
-      reservation: {
-        include: { client: { select: { name: true } } },
-      },
-    },
-  });
+  const existing = await getPaymentById(id);
 
   if (!existing) return { error: "Pago no encontrado" };
   if (existing.reservation.userId !== session.userId) {
@@ -911,10 +883,7 @@ export async function markPaymentAsPaid(
   const session = await getSession();
   if (!session) return { error: "No autorizado" };
 
-  const payment = await prisma.payment.findFirst({
-    where: { id: paymentId, deletedAt: null },
-    include: { reservation: { include: { client: true } } },
-  });
+  const payment = await getPaymentById(paymentId);
 
   if (!payment) return { error: "Pago no encontrado" };
 
@@ -972,10 +941,7 @@ export async function attachReceipt(paymentId: string, receiptUrl: string) {
   const session = await getSession();
   if (!session) return { error: "No autorizado" };
 
-  const payment = await prisma.payment.findFirst({
-    where: { id: paymentId, deletedAt: null },
-    include: { reservation: { include: { client: true } } },
-  });
+  const payment = await getPaymentById(paymentId);
 
   if (!payment) return { error: "Pago no encontrado" };
   if (payment.reservation.userId !== session.userId) return { error: "No autorizado" };
@@ -1017,10 +983,7 @@ export async function checkMercadoPagoPaymentStatus(paymentId: string) {
   const session = await getSession();
   if (!session) return { error: "No autorizado" };
 
-  const payment = await prisma.payment.findFirst({
-    where: { id: paymentId, deletedAt: null },
-    include: { reservation: { include: { client: true } } },
-  });
+  const payment = await getPaymentById(paymentId);
 
   if (!payment) return { error: "Pago no encontrado" };
 
