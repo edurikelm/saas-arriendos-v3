@@ -48,6 +48,11 @@
 
 import { prisma } from "@/lib/db/prisma";
 import type { Prisma, TicketStatus, UserRole } from "@prisma/client";
+import type { StatusFilter, AdminTicketFilters, AffectedEntityRef } from "./types";
+
+// Re-exports de tipos para que los callers del seam los tengan disponibles
+// sin tener que importar de `./types` directamente.
+export type { StatusFilter, AdminTicketFilters, AffectedEntityRef };
 
 export type QueryAdapter = Prisma.TransactionClient | typeof prisma;
 
@@ -139,15 +144,6 @@ export type AdminSupportTicketDetail = Prisma.SupportTicketGetPayload<{
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers puros (sin DB)
 // ────────────────────────────────────────────────────────────────────────────
-
-/**
- * Ref tipado a la entidad afectada por un ticket.
- * Un ticket solo puede referenciar UNA de {RESERVATION, PAYMENT, PROPERTY}.
- */
-export interface AffectedEntityRef {
-  type: "RESERVATION" | "PAYMENT" | "PROPERTY";
-  id: string;
-}
 
 /**
  * Resuelve la `AffectedEntityRef` a partir de las 3 relations opcionales
@@ -323,14 +319,6 @@ export async function getOwnerSupportTicketDetail(
 // ────────────────────────────────────────────────────────────────────────────
 // Queries — Admin (scope: todos los tickets)
 // ────────────────────────────────────────────────────────────────────────────
-
-export type StatusFilter = "ALL" | TicketStatus;
-
-export interface AdminTicketFilters {
-  ownerId?: string;
-  priority?: string;
-  category?: string;
-}
 
 /**
  * Lista de tickets para el panel admin.

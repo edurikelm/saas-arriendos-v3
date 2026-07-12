@@ -16,8 +16,6 @@ import {
 import type { PaginatedResponse } from "@/types/pagination";
 import type { Prisma, TicketCategory, TicketPriority } from "@prisma/client";
 
-export type { StatusFilter, AdminTicketFilters };
-
 export interface AdminSupportTicketRow {
   id: string;
   userId: string;

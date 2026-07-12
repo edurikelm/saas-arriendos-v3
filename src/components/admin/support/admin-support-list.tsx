@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable } from "@/components/ui/data-table";
 import { cn } from "@/lib/utils";
-import type { AdminSupportTicketRow, StatusFilter } from "@/lib/actions/admin-support";
+import type { AdminSupportTicketRow } from "@/lib/actions/admin-support";
+import type { StatusFilter } from "@/lib/support/types";
 
 interface AdminSupportListProps {
   tickets: AdminSupportTicketRow[];

@@ -1,7 +1,8 @@
 import { Suspense } from "react";
 import { LifeBuoy } from "lucide-react";
 import { AdminSupportList } from "@/components/admin/support/admin-support-list";
-import { getAllSupportTickets, type StatusFilter } from "@/lib/actions/admin-support";
+import { getAllSupportTickets } from "@/lib/actions/admin-support";
+import type { StatusFilter } from "@/lib/support/types";
 
 interface PageProps {
   searchParams: Promise<{ status?: string; ownerId?: string; priority?: string; category?: string }>;
