@@ -11,6 +11,10 @@ import {
   type CollectionReportRow,
 } from "@/lib/reports/collection";
 import type { PaginatedResponse } from "@/types/pagination";
+import {
+  sumCompletedPaymentsForOwner,
+  sumPendingPaymentsForOwner,
+} from "@/lib/payments/queries";
 
 export interface RevenueReport {
   month: string;
@@ -56,7 +60,7 @@ export async function getDashboardStats() {
   const monthStart = startOfMonth(now);
   const monthEnd = endOfMonth(now);
 
-  const [properties, clients, activeReservations, monthlyPayments, pendingPayments] = await Promise.all([
+  const [properties, clients, activeReservations, monthlyRevenue, pendingPayments] = await Promise.all([
     prisma.property.count({ where: { userId: session.userId } }),
     prisma.reservationClient.count({ where: { userId: session.userId } }),
     prisma.reservation.count({
@@ -66,29 +70,16 @@ export async function getDashboardStats() {
         endDate: { gte: now },
       },
     }),
-    prisma.payment.aggregate({
-      where: {
-        reservation: { userId: session.userId },
-        status: "COMPLETED",
-        createdAt: { gte: monthStart, lte: monthEnd },
-      },
-      _sum: { amount: true },
-    }),
-    prisma.payment.aggregate({
-      where: {
-        reservation: { userId: session.userId },
-        status: "PENDING",
-      },
-      _sum: { amount: true },
-    }),
+    sumCompletedPaymentsForOwner(session.userId, { from: monthStart, to: monthEnd }),
+    sumPendingPaymentsForOwner(session.userId),
   ]);
 
   return {
     totalProperties: properties,
     totalClients: clients,
     activeReservations,
-    monthlyRevenue: Number(monthlyPayments._sum.amount) || 0,
-    pendingPayments: Number(pendingPayments._sum.amount) || 0,
+    monthlyRevenue,
+    pendingPayments,
   };
 }
 
@@ -246,24 +237,26 @@ export async function getYearlySummary(year?: number) {
   const yearStart = startOfYear(new Date(targetYear, 0, 1));
   const yearEnd = endOfYear(new Date(targetYear, 11, 31));
 
+  // NOTE: migrated to paidAt (cash basis) from createdAt — aligns with sumCompletedPaymentsForOwner
+  const totalRevenue = await sumCompletedPaymentsForOwner(session.userId, { from: yearStart, to: yearEnd });
+
+  // byMonth and byMethod require per-payment detail (grouping), kept inline using paidAt
   const payments = await prisma.payment.findMany({
     where: {
       reservation: { userId: session.userId },
       status: "COMPLETED",
-      createdAt: { gte: yearStart, lte: yearEnd },
+      paidAt: { gte: yearStart, lte: yearEnd },
     },
     select: {
       amount: true,
       method: true,
-      createdAt: true,
+      paidAt: true,
     },
   });
 
-  const totalRevenue = payments.reduce((sum, p) => sum + Number(p.amount), 0);
-
   const byMonth: number[] = Array(12).fill(0);
   payments.forEach((p) => {
-    const month = new Date(p.createdAt).getMonth();
+    const month = new Date(p.paidAt!).getMonth();
     byMonth[month] += Number(p.amount);
   });
 

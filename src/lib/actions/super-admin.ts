@@ -6,6 +6,7 @@ import { getSession, getSuperAdminSession } from "@/lib/auth/session";
 import { updateUserPlanSchema, createOwnerSchema } from "@/lib/validations/super-admin";
 import { hash } from "bcryptjs";
 import { revalidatePath } from "next/cache";
+import { sumCompletedPaymentsAll } from "@/lib/payments/queries";
 
 export async function getAllUsers(options?: {
   search?: string;
@@ -207,26 +208,18 @@ export async function deleteUser(userId: string, confirmEmail?: string) {
 export async function getSystemStats() {
   if (!(await getSuperAdminSession())) return null;
 
-  const [
-    totalUsers,
-    totalProperties,
-    totalReservations,
-    totalPayments,
-  ] = await Promise.all([
+  const [totalUsers, totalProperties, totalReservations, totalRevenue] = await Promise.all([
     prisma.userProfile.count(),
     prisma.property.count(),
     prisma.reservation.count(),
-    prisma.payment.aggregate({
-      where: { status: "COMPLETED" },
-      _sum: { amount: true },
-    }),
+    sumCompletedPaymentsAll(),
   ]);
 
   return {
     totalUsers,
     totalProperties,
     totalReservations,
-    totalRevenue: Number(totalPayments._sum.amount) || 0,
+    totalRevenue,
   };
 }
 
@@ -242,7 +235,7 @@ export async function getDashboardStats() {
     totalOwners,
     totalProperties,
     totalReservations,
-    completedPayments,
+    totalRevenue,
     ownersThisMonth,
     ownersLastMonth,
     totalOwnersCount,
@@ -252,10 +245,7 @@ export async function getDashboardStats() {
     prisma.userProfile.count({ where: { role: "OWNER" } }),
     prisma.property.count(),
     prisma.reservation.count(),
-    prisma.payment.aggregate({
-      where: { status: "COMPLETED" },
-      _sum: { amount: true },
-    }),
+    sumCompletedPaymentsAll(),
     prisma.userProfile.count({
       where: {
         role: "OWNER",
@@ -291,7 +281,7 @@ export async function getDashboardStats() {
     totalOwners,
     totalProperties,
     totalReservations,
-    totalRevenue: Number(completedPayments._sum.amount) || 0,
+    totalRevenue,
     growthPercentage,
     ownersThisMonth,
     ownersLastMonth,
