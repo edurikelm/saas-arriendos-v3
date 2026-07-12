@@ -66,31 +66,52 @@ export async function getAllUsers(options?: {
     prisma.userProfile.count({ where }),
   ]);
 
+  if (users.length === 0) {
+    return { users, total, page, totalPages: Math.ceil(total / limit) };
+  }
+
+  const userIds = users.map((u) => u.id);
   const now = new Date();
-  const usersWithHealth = await Promise.all(
-    users.map(async (user) => {
-      const [mpIntegration, overduePayments] = await Promise.all([
-        prisma.userIntegration.findUnique({
-          where: { userId_provider: { userId: user.id, provider: "MERCADO_PAGO" } },
-          select: { isActive: true },
-        }),
-        prisma.payment.count({
-          where: {
-            reservation: { userId: user.id },
+
+  // Batched health lookups: 2 queries instead of 2N (was: 2 queries × N users
+  // inside Promise.all). MP integrations come from `UserIntegration`; overdue
+  // detection joins Payment via the Reservation relation (`Payment.userId` does
+  // not exist — Payment belongs to a Reservation).
+  const [mpIntegrations, overdueOwners] = await Promise.all([
+    prisma.userIntegration.findMany({
+      where: {
+        userId: { in: userIds },
+        provider: "MERCADO_PAGO",
+      },
+      select: { userId: true, isActive: true },
+    }),
+    prisma.reservation.findMany({
+      where: {
+        userId: { in: userIds },
+        payments: {
+          some: {
             status: "PENDING",
             dueDate: { lt: now },
+            deletedAt: null,
           },
-        }),
-      ]);
+        },
+      },
+      select: { userId: true },
+      distinct: ["userId"],
+    }),
+  ]);
 
-      return {
-        ...user,
-        status: user.status as string,
-        isMpConnected: mpIntegration?.isActive ?? false,
-        hasOverduePayments: overduePayments > 0,
-      };
-    })
+  const mpActiveUserIds = new Set(
+    mpIntegrations.filter((i) => i.isActive).map((i) => i.userId),
   );
+  const overdueUserIds = new Set(overdueOwners.map((r) => r.userId));
+
+  const usersWithHealth = users.map((user) => ({
+    ...user,
+    status: user.status as string,
+    isMpConnected: mpActiveUserIds.has(user.id),
+    hasOverduePayments: overdueUserIds.has(user.id),
+  }));
 
   return { users: usersWithHealth, total, page, totalPages: Math.ceil(total / limit) };
 }

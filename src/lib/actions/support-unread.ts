@@ -20,14 +20,22 @@ export async function getUnreadSupportTicketCount(): Promise<number> {
     },
   });
 
+  if (tickets.length === 0) return 0;
+
+  // Batched read lookup — one query instead of N.
+  const reads = await prisma.supportTicketRead.findMany({
+    where: {
+      userId: session.userId,
+      ticketId: { in: tickets.map((t) => t.id) },
+    },
+    select: { ticketId: true, lastReadAt: true },
+  });
+  const readMap = new Map(reads.map((r) => [r.ticketId, r.lastReadAt]));
+
   let count = 0;
 
   for (const ticket of tickets) {
-    const read = await prisma.supportTicketRead.findUnique({
-      where: {
-        ticketId_userId: { ticketId: ticket.id, userId: session.userId },
-      },
-    });
+    const lastReadAt = readMap.get(ticket.id);
 
     const hasUnreadFromOther = computeHasUnread(
       ticket.messages.map((msg) => ({
@@ -36,7 +44,7 @@ export async function getUnreadSupportTicketCount(): Promise<number> {
         createdAt: msg.createdAt,
       })),
       { role: viewerRole },
-      read?.lastReadAt,
+      lastReadAt,
     );
 
     if (hasUnreadFromOther) {

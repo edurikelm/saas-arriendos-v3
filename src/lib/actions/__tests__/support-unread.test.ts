@@ -14,6 +14,7 @@ vi.mock("@/lib/db/prisma", () => ({
     supportTicketRead: {
       upsert: vi.fn(),
       findUnique: vi.fn(),
+      findMany: vi.fn(),
     },
   },
 }));
@@ -110,11 +111,12 @@ describe("getUnreadSupportTicketCount", () => {
     ];
 
     vi.mocked(prisma.supportTicket.findMany).mockResolvedValue(tickets as any);
-    vi.mocked(prisma.supportTicketRead.findUnique).mockImplementation((async ({ where }: any) => {
-      if (where.ticketId_userId?.ticketId === "ticket-1") {
-        return { id: "read-1", ticketId: "ticket-1", userId: "owner-1", lastReadAt: new Date(Date.now() - 100000) };
-      }
-      return null;
+    vi.mocked(prisma.supportTicketRead.findMany).mockImplementation((async ({ where }: any) => {
+      const ticketIds: string[] = where?.ticketId?.in ?? [];
+      if (!ticketIds.includes("ticket-1")) return [];
+      return [
+        { ticketId: "ticket-1", lastReadAt: new Date(Date.now() - 100000) },
+      ];
     }) as any);
 
     const { getUnreadSupportTicketCount } = await import("../support-unread");
@@ -150,9 +152,9 @@ describe("getUnreadSupportTicketCount", () => {
     ];
 
     vi.mocked(prisma.supportTicket.findMany).mockResolvedValue(tickets as any);
-    vi.mocked(prisma.supportTicketRead.findUnique).mockResolvedValue({
-      id: "read-1", ticketId: "ticket-1", userId: "owner-1", lastReadAt: new Date(Date.now() - 50000),
-    } as any);
+    vi.mocked(prisma.supportTicketRead.findMany).mockResolvedValue([
+      { id: "read-1", userId: "owner-1", ticketId: "ticket-1", lastReadAt: new Date(Date.now() - 50000) } as any,
+    ]);
 
     const { getUnreadSupportTicketCount } = await import("../support-unread");
     const result = await getUnreadSupportTicketCount();
@@ -187,9 +189,9 @@ describe("getUnreadSupportTicketCount", () => {
     ];
 
     vi.mocked(prisma.supportTicket.findMany).mockResolvedValue(tickets as any);
-    vi.mocked(prisma.supportTicketRead.findUnique).mockResolvedValue({
-      id: "read-1", ticketId: "ticket-1", userId: "owner-1", lastReadAt: new Date(Date.now() - 100000),
-    } as any);
+    vi.mocked(prisma.supportTicketRead.findMany).mockResolvedValue([
+      { id: "read-1", userId: "owner-1", ticketId: "ticket-1", lastReadAt: new Date(Date.now() - 100000) } as any,
+    ]);
 
     const { getUnreadSupportTicketCount } = await import("../support-unread");
     const result = await getUnreadSupportTicketCount();
@@ -222,7 +224,7 @@ describe("getUnreadSupportTicketCount", () => {
     ];
 
     vi.mocked(prisma.supportTicket.findMany).mockResolvedValue(tickets as any);
-    vi.mocked(prisma.supportTicketRead.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.supportTicketRead.findMany).mockResolvedValue([]);
 
     const { getUnreadSupportTicketCount } = await import("../support-unread");
     const result = await getUnreadSupportTicketCount();
@@ -257,7 +259,7 @@ describe("getUnreadSupportTicketCount", () => {
     ];
 
     vi.mocked(prisma.supportTicket.findMany).mockResolvedValue(tickets as any);
-    vi.mocked(prisma.supportTicketRead.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.supportTicketRead.findMany).mockResolvedValue([]);
 
     const { getUnreadSupportTicketCount } = await import("../support-unread");
     const result = await getUnreadSupportTicketCount();
@@ -293,9 +295,9 @@ describe("getUnreadSupportTicketCount", () => {
     ];
 
     vi.mocked(prisma.supportTicket.findMany).mockResolvedValue(tickets as any);
-    vi.mocked(prisma.supportTicketRead.findUnique).mockResolvedValue({
-      id: "read-1", ticketId: "ticket-1", userId: "owner-1", lastReadAt: new Date(Date.now() - 50000),
-    } as any);
+    vi.mocked(prisma.supportTicketRead.findMany).mockResolvedValue([
+      { id: "read-1", userId: "owner-1", ticketId: "ticket-1", lastReadAt: new Date(Date.now() - 50000) } as any,
+    ]);
 
     const { getUnreadSupportTicketCount } = await import("../support-unread");
     const result = await getUnreadSupportTicketCount();
@@ -331,9 +333,9 @@ describe("getUnreadSupportTicketCount", () => {
     ];
 
     vi.mocked(prisma.supportTicket.findMany).mockResolvedValue(tickets as any);
-    vi.mocked(prisma.supportTicketRead.findUnique).mockResolvedValue({
-      id: "read-1", ticketId: "ticket-1", userId: "admin-1", lastReadAt: new Date(Date.now() - 50000),
-    } as any);
+    vi.mocked(prisma.supportTicketRead.findMany).mockResolvedValue([
+      { id: "read-1", userId: "admin-1", ticketId: "ticket-1", lastReadAt: new Date(Date.now() - 50000) } as any,
+    ]);
 
     const { getUnreadSupportTicketCount } = await import("../support-unread");
     const result = await getUnreadSupportTicketCount();
@@ -368,14 +370,55 @@ describe("getUnreadSupportTicketCount", () => {
     ];
 
     vi.mocked(prisma.supportTicket.findMany).mockResolvedValue(tickets as any);
-    vi.mocked(prisma.supportTicketRead.findUnique).mockResolvedValue({
-      id: "read-1", ticketId: "ticket-1", userId: "admin-1", lastReadAt: new Date(Date.now() - 100000),
-    } as any);
+    vi.mocked(prisma.supportTicketRead.findMany).mockResolvedValue([
+      { id: "read-1", userId: "admin-1", ticketId: "ticket-1", lastReadAt: new Date(Date.now() - 100000) } as any,
+    ]);
 
     const { getUnreadSupportTicketCount } = await import("../support-unread");
     const result = await getUnreadSupportTicketCount();
 
     expect(result).toBe(1);
+  });
+
+  it("batches reads lookup in a single query (avoids N+1)", async () => {
+    const { getSession } = await import("@/lib/auth/session");
+    const { prisma } = await import("@/lib/db/prisma");
+    vi.mocked(getSession).mockResolvedValue(ownerSession);
+
+    // 10 tickets, none with unread messages
+    const tickets: any[] = Array.from({ length: 10 }, (_, i) => ({
+      id: `ticket-${i + 1}`,
+      userId: "owner-1",
+      subject: `T${i + 1}`,
+      description: "desc",
+      status: "OPEN",
+      priority: "LOW",
+      category: "OTHER",
+      affectedReservationId: null,
+      affectedPaymentId: null,
+      affectedPropertyId: null,
+      lastActivityAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      messages: [],
+    }));
+
+    vi.mocked(prisma.supportTicket.findMany).mockResolvedValue(tickets as any);
+    vi.mocked(prisma.supportTicketRead.findMany).mockResolvedValue([]);
+
+    const { getUnreadSupportTicketCount } = await import("../support-unread");
+    await getUnreadSupportTicketCount();
+
+    // CRITICAL: single batched query for ALL tickets, not N individual queries
+    expect(prisma.supportTicketRead.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.supportTicketRead.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          userId: "owner-1",
+          ticketId: { in: tickets.map((t) => t.id) },
+        }),
+      }),
+    );
   });
 });
 
