@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { format } from "date-fns";
+import { useForm, useWatch, type FieldErrors } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Controller } from "react-hook-form";
 import { toast } from "sonner";
 import { Plus, CreditCard, Loader2 } from "lucide-react";
 import { ReceiptUpload } from "@/components/ui/receipt-upload";
@@ -63,6 +67,55 @@ function parseCurrencyInput(value: string): number {
   return Number(value.replace(/\./g, ""));
 }
 
+// Schema factory — defined OUTSIDE the component (valid-resolver-caching)
+function createAddPaymentSchema(maxAmount: number) {
+  return z
+    .object({
+      paymentType: z.enum(["RESERVATION", "EXTRA"]),
+      method: z.enum(["MERCADO_PAGO", "CASH", "TRANSFER"]),
+      amount: z
+        .string()
+        .min(1, "Ingresa un monto válido")
+        .refine((s) => parseCurrencyInput(s) > 0, "Ingresa un monto válido"),
+      title: z.string(),
+      description: z.string().optional(),
+      paidAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida"),
+    })
+    .refine(
+      (data) => {
+        // EXTRA requires title
+        if (data.paymentType === "EXTRA" && !data.title.trim()) {
+          return false;
+        }
+        return true;
+      },
+      {
+        message: "El título es requerido para pagos extra",
+        path: ["title"],
+      }
+    )
+    .refine(
+      (data) => {
+        // RESERVATION non-MP: amount <= maxAmount
+        if (
+          data.paymentType === "RESERVATION" &&
+          data.method !== "MERCADO_PAGO"
+        ) {
+          if (parseCurrencyInput(data.amount) > maxAmount) {
+            return false;
+          }
+        }
+        return true;
+      },
+      {
+        message: `El monto no puede exceder el pendiente: ${formatAmount(maxAmount)}`,
+        path: ["amount"],
+      }
+    );
+}
+
+type AddPaymentFormValues = z.infer<ReturnType<typeof createAddPaymentSchema>>;
+
 export function AddPaymentDialog({
   reservationId,
   totalPrice,
@@ -71,68 +124,63 @@ export function AddPaymentDialog({
   onOpenChange,
   onSuccess,
 }: AddPaymentDialogProps) {
-  const [paymentType, setPaymentType] = useState<PaymentType>("RESERVATION");
-  const [method, setMethod] = useState<PaymentMethod>("MERCADO_PAGO");
-  const [amount, setAmount] = useState("");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [paidAt, setPaidAt] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [receiptFile, setReceiptFile] = useState<File | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
   const pendingAmount = Number(totalPrice) - paidAmount;
-  const maxAmount = pendingAmount;
+
+  const schema = useMemo(
+    () => createAddPaymentSchema(pendingAmount),
+    [pendingAmount]
+  );
+
+  const {
+    register,
+    handleSubmit,
+    control,
+    reset,
+    watch,
+    formState: { isSubmitting },
+  } = useForm<AddPaymentFormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      paymentType: "RESERVATION",
+      method: "MERCADO_PAGO",
+      amount: "",
+      title: "",
+      description: "",
+      paidAt: format(new Date(), "yyyy-MM-dd"),
+    },
+    mode: "onSubmit",
+    reValidateMode: "onBlur",
+  });
+
+  // Local (non-serializable) state for file upload
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+
+  // Isolated subscriptions for conditional UI (sub-usewatch-over-watch)
+  const paymentType = useWatch({ control, name: "paymentType" });
+  const method = useWatch({ control, name: "method" });
+
   const isExtra = paymentType === "EXTRA";
+  const showPaidAtAndReceipt = method !== "MERCADO_PAGO";
+  const watchedAmount = watch("amount");
 
-  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawValue = e.target.value;
-    // If user is backspacing and removes a separator, handle gracefully
-    if (rawValue.length < amount.length && !rawValue.endsWith(".")) {
-      // Let the raw value through, then reformat
-      const cleaned = rawValue.replace(/\D/g, "");
-      setAmount(cleaned ? formatCurrencyInput(cleaned) : "");
-      return;
-    }
-    setAmount(formatCurrencyInput(rawValue));
+  const handleMaxClick = (onChange: (val: string) => void) => {
+    onChange(formatCurrencyInput(String(pendingAmount)));
   };
 
-  const handleMaxClick = () => {
-    setAmount(formatCurrencyInput(String(maxAmount)));
-  };
-
-  const handleSubmit = async () => {
-    const numAmount = parseCurrencyInput(amount);
-
-    if (!numAmount || numAmount <= 0) {
-      toast.error("Ingresa un monto válido");
-      return;
-    }
-
-    if (isExtra) {
-      if (!title.trim()) {
-        toast.error("El título es requerido para pagos extra");
-        return;
-      }
-    } else {
-      if (numAmount > maxAmount) {
-        toast.error(`El monto no puede exceder el pendiente: ${formatAmount(maxAmount)}`);
-        return;
-      }
-    }
-
-    setIsSubmitting(true);
+  const onSubmit = async (values: AddPaymentFormValues) => {
+    const numAmount = parseCurrencyInput(values.amount);
 
     try {
-      if (method === "MERCADO_PAGO") {
+      if (values.method === "MERCADO_PAGO") {
         const res = await fetch("/api/payments/generate-link", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             reservationId,
             amount: numAmount,
-            paymentType,
-            title: title || undefined,
-            description: description || undefined,
+            paymentType: values.paymentType,
+            title: values.title || undefined,
+            description: values.description || undefined,
           }),
         });
         const result = await res.json();
@@ -140,18 +188,21 @@ export function AddPaymentDialog({
           toast.error(result.error);
           return;
         }
-        toast.success("Link de pago generado - Cópialo desde el listado de pagos");
+        toast.success(
+          "Link de pago generado - Cópialo desde el listado de pagos"
+        );
       } else {
         const formData = new FormData();
         formData.append("reservationId", reservationId);
         formData.append("amount", String(numAmount));
-        formData.append("method", method);
-        formData.append("paymentType", paymentType);
-        if (title) formData.append("title", title);
-        if (description) formData.append("description", description);
+        formData.append("method", values.method);
+        formData.append("paymentType", values.paymentType);
+        if (values.title) formData.append("title", values.title);
+        if (values.description)
+          formData.append("description", values.description);
         formData.append("status", "COMPLETED");
         formData.append("paidAt", (() => {
-          const [y, m, d] = paidAt.split('-').map(Number);
+          const [y, m, d] = values.paidAt.split("-").map(Number);
           return new Date(y, m - 1, d, 12, 0, 0).toISOString();
         })());
         if (receiptFile) {
@@ -170,18 +221,22 @@ export function AddPaymentDialog({
         toast.success("Pago registrado exitosamente");
       }
 
-      setAmount("");
-      setTitle("");
-      setDescription("");
-      setPaymentType("RESERVATION");
-      setMethod("MERCADO_PAGO");
+      reset();
       setReceiptFile(null);
       onOpenChange(false);
       onSuccess?.();
     } catch {
       toast.error("Error al registrar el pago");
-    } finally {
-      setIsSubmitting(false);
+    }
+  };
+
+  // onInvalid fires when schema validation fails (onSubmit mode)
+  const onInvalid = (errors: FieldErrors<AddPaymentFormValues>) => {
+    const messages = Object.values(errors)
+      .filter((e): e is NonNullable<typeof e> => !!e)
+      .map((e) => e.message);
+    if (messages[0]) {
+      toast.error(messages[0]);
     }
   };
 
@@ -196,106 +251,145 @@ export function AddPaymentDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2 relative">
-          <div className="flex gap-1 p-1 rounded-lg bg-muted/50 border border-border">
-            <button
-              type="button"
-              onClick={() => setPaymentType("RESERVATION")}
-              className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
-                !isExtra
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Pago de Reserva
-            </button>
-            <button
-              type="button"
-              onClick={() => setPaymentType("EXTRA")}
-              className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
-                isExtra
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Pago Extra
-            </button>
-          </div>
+          {/* paymentType toggle — Controller for re-render isolation */}
+          <Controller
+            control={control}
+            name="paymentType"
+            render={({ field }) => (
+              <div className="flex gap-1 p-1 rounded-lg bg-muted/50 border border-border">
+                <button
+                  type="button"
+                  onClick={() => field.onChange("RESERVATION")}
+                  className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                    field.value === "RESERVATION"
+                      ? "bg-background text-foreground ring-1 ring-border"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Pago de Reserva
+                </button>
+                <button
+                  type="button"
+                  onClick={() => field.onChange("EXTRA")}
+                  className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                    field.value === "EXTRA"
+                      ? "bg-background text-foreground ring-1 ring-border"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Pago Extra
+                </button>
+              </div>
+            )}
+          />
 
           <div className="p-3 rounded-md bg-muted/50 border border-border text-sm">
             <div className="flex justify-between mb-1">
               <span className="text-muted-foreground">Total reserva:</span>
-              <span className="font-medium">{formatAmount(Number(totalPrice))}</span>
+              <span className="font-medium">
+                {formatAmount(Number(totalPrice))}
+              </span>
             </div>
             <div className="flex justify-between mb-1">
               <span className="text-muted-foreground">Ya pagado:</span>
-              <span className="font-medium text-success">{formatAmount(paidAmount)}</span>
+              <span className="font-medium text-success">
+                {formatAmount(paidAmount)}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Pendiente:</span>
-              <span className="font-medium text-warning">{formatAmount(pendingAmount)}</span>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-xs">Método de Pago</Label>
-            <Select
-              value={method}
-              onValueChange={(v) => setMethod(v as PaymentMethod)}
-            >
-              <SelectTrigger className="h-9">
-                <SelectValue>
-                  {method === "MERCADO_PAGO" ? (
-                    <div className="flex items-center gap-2">
-                      <CreditCard className="h-3 w-3" />
-                      Mercado Pago
-                    </div>
-                  ) : method === "CASH" ? (
-                    "Efectivo"
-                  ) : (
-                    "Transferencia"
-                  )}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="MERCADO_PAGO">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="h-3 w-3" />
-                    Mercado Pago
-                  </div>
-                </SelectItem>
-                <SelectItem value="CASH">Efectivo</SelectItem>
-                <SelectItem value="TRANSFER">Transferencia</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs">Monto</Label>
-              {!isExtra && (
-                <button
-                  type="button"
-                  onClick={handleMaxClick}
-                  className="text-xs px-2 py-0.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer font-medium"
-                >
-                  Máximo: {formatAmount(maxAmount)}
-                </button>
-              )}
-            </div>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
-                $
+              <span className="font-medium text-warning">
+                {formatAmount(pendingAmount)}
               </span>
-              <Input
-                type="text"
-                inputMode="numeric"
-                placeholder="0"
-                value={amount}
-                onChange={handleAmountChange}
-                className="h-9 pl-7"
-              />
             </div>
           </div>
+
+          {/* method Select — wired with onValueChange (integ-shadcn-select-wiring) */}
+          <Controller
+            control={control}
+            name="method"
+            render={({ field }) => (
+              <div className="space-y-2">
+                <Label className="text-xs">Método de Pago</Label>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue>
+                      {field.value === "MERCADO_PAGO" ? (
+                        <div className="flex items-center gap-2">
+                          <CreditCard className="h-3 w-3" />
+                          Mercado Pago
+                        </div>
+                      ) : field.value === "CASH" ? (
+                        "Efectivo"
+                      ) : (
+                        "Transferencia"
+                      )}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MERCADO_PAGO">
+                      <div className="flex items-center gap-2">
+                        <CreditCard className="h-3 w-3" />
+                        Mercado Pago
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="CASH">Efectivo</SelectItem>
+                    <SelectItem value="TRANSFER">Transferencia</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          />
+
+          {/* amount — Controller storing formatted string (preserve UX) */}
+          <Controller
+            control={control}
+            name="amount"
+            render={({ field }) => (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Monto</Label>
+                  {!isExtra && (
+                    <button
+                      type="button"
+                      onClick={() => handleMaxClick(field.onChange)}
+                      className="text-xs px-2 py-0.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer font-medium"
+                    >
+                      Máximo: {formatAmount(pendingAmount)}
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                    $
+                  </span>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={field.value}
+                    onChange={(e) => {
+                      const rawValue = e.target.value;
+                      // Preserve backspace behavior (handle shorter value + no trailing dot)
+                      if (
+                        rawValue.length < field.value.length &&
+                        !rawValue.endsWith(".")
+                      ) {
+                        const cleaned = rawValue.replace(/\D/g, "");
+                        field.onChange(cleaned ? formatCurrencyInput(cleaned) : "");
+                        return;
+                      }
+                      field.onChange(formatCurrencyInput(rawValue));
+                    }}
+                    className="h-9 pl-7"
+                  />
+                </div>
+              </div>
+            )}
+          />
 
           {isExtra && (
             <>
@@ -306,8 +400,7 @@ export function AddPaymentDialog({
                 <Input
                   type="text"
                   placeholder="Ej: Limpieza extra, Daños menores"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  {...register("title")}
                   className="h-9"
                 />
               </div>
@@ -316,27 +409,25 @@ export function AddPaymentDialog({
                 <Label className="text-xs">Descripción (opcional)</Label>
                 <Textarea
                   placeholder="Descripción opcional"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  {...register("description")}
                   className="min-h-[60px]"
                 />
               </div>
             </>
           )}
 
-          {method !== "MERCADO_PAGO" && (
+          {showPaidAtAndReceipt && (
             <div className="space-y-2">
               <Label className="text-xs">Fecha de Pago</Label>
               <Input
                 type="date"
-                value={paidAt}
-                onChange={(e) => setPaidAt(e.target.value)}
+                {...register("paidAt")}
                 className="h-9"
               />
             </div>
           )}
 
-          {method !== "MERCADO_PAGO" && (
+          {showPaidAtAndReceipt && (
             <div className="space-y-2">
               <Label className="text-xs">Comprobante (opcional)</Label>
               <ReceiptUpload onFileSelect={setReceiptFile} />
@@ -365,10 +456,14 @@ export function AddPaymentDialog({
           </Button>
           <Button
             size="sm"
-            onClick={handleSubmit}
-            disabled={isSubmitting || !amount}
+            onClick={handleSubmit(onSubmit, onInvalid)}
+            disabled={isSubmitting || !watchedAmount}
           >
-            {isSubmitting ? "Guardando..." : method === "MERCADO_PAGO" ? "Generar Link" : "Registrar Pago"}
+            {isSubmitting
+              ? "Guardando..."
+              : method === "MERCADO_PAGO"
+                ? "Generar Link"
+                : "Registrar Pago"}
           </Button>
         </div>
       </DialogContent>
