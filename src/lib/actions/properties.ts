@@ -20,6 +20,21 @@ export async function getProperties(type?: string) {
   const properties = await prisma.property.findMany({
     where,
     orderBy: { createdAt: "desc" },
+    // Select mínimo — excluye `images` y `amenities` (arrays grandes) del listado.
+    // Esos campos solo se necesitan en `getPropertyById` (edit form).
+    select: {
+      id: true,
+      userId: true,
+      name: true,
+      type: true,
+      unitsAvailable: true,
+      dailyPrice: true,
+      monthlyPrice: true,
+      currency: true,
+      color: true,
+      mainImage: true,
+      createdAt: true,
+    },
   });
 
   return properties.map((p) => ({
@@ -31,10 +46,8 @@ export async function getProperties(type?: string) {
     dailyPrice: String(p.dailyPrice),
     monthlyPrice: p.monthlyPrice ? String(p.monthlyPrice) : null,
     currency: p.currency,
-    amenities: p.amenities,
     color: p.color,
     mainImage: p.mainImage,
-    images: p.images,
     createdAt: p.createdAt.toISOString(),
   }));
 }

@@ -205,6 +205,7 @@ export async function respondToSupportTicket(
 
   const ticket = await prisma.supportTicket.findUnique({
     where: { id: ticketId },
+    select: { status: true },
   });
 
   if (!ticket) return { error: "Ticket no encontrado" };
