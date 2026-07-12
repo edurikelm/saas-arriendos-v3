@@ -39,11 +39,13 @@ export type QueryAdapter = Prisma.TransactionClient | typeof prisma;
  * @param includeProperty si true, agrega `reservation.property` (necesario en
  *        el webhook de MP). Default false.
  */
-export async function getPaymentById(
+// Tipo inferido (sin anotación explícita) — Prisma devuelve el tipo correcto
+// con relations gracias a `include`.
+export function getPaymentById(
   paymentId: string,
   options: { includeClient?: boolean; includeProperty?: boolean } = {},
   adapter: QueryAdapter = prisma,
-): Promise<Payment | null> {
+) {
   const { includeClient = true, includeProperty = false } = options;
   return adapter.payment.findFirst({
     where: { id: paymentId, deletedAt: null },
@@ -59,15 +61,19 @@ export async function getPaymentById(
 }
 
 /**
- * Busca un Payment por `mercadoPagoId` (preference_id) con reservation + client.
- * Excluye soft-deleted. Usado en el webhook de MP cuando no hay paymentId hint.
+ * Busca un Payment por `mercadoPagoId` (preference_id) con reservation
+ * preload. Excluye soft-deleted. Usado en el webhook de MP cuando no hay
+ * paymentId hint.
+ *
+ * Por defecto NO incluye `client` (los callers del webhook solo necesitan
+ * `reservation.userId`). Pasa `includeClient: true` si necesitas client.
  */
-export async function getPaymentByMercadoPagoId(
+export function getPaymentByMercadoPagoId(
   mercadoPagoId: string,
   options: { includeClient?: boolean } = {},
   adapter: QueryAdapter = prisma,
-): Promise<Payment | null> {
-  const { includeClient = true } = options;
+) {
+  const { includeClient = false } = options;
   return adapter.payment.findFirst({
     where: { mercadoPagoId, deletedAt: null },
     include: {
@@ -276,17 +282,26 @@ export async function revertPaymentToPending(
 /**
  * Cuenta pagos COMPLETED (no soft-deleted) de una reserva.
  *
- * Usado por `deleteReservation` para bloquear borrado si hay ≥1 pago
- * completado (preservación de auditoría financiera).
+ * Usado por:
+ * - `deleteReservation` para bloquear borrado si hay ≥1 pago
+ *   completado (preservación de auditoría financiera).
+ * - `canTransition` (state machine) cuando la transición es a COMPLETED,
+ *   para verificar que los pagos del arriendo están liquidados. En este
+ *   caso se pasa `paymentType: "RESERVATION"` para excluir EXTRAs.
+ *
+ * Por defecto cuenta TODOS los pagos completados (RESERVATION + EXTRA).
+ * Si pasas `paymentType`, filtra por ese tipo.
  */
 export async function countCompletedPaymentsForReservation(
   reservationId: string,
+  options: { paymentType?: "RESERVATION" | "EXTRA" } = {},
   adapter: QueryAdapter = prisma,
 ): Promise<number> {
   return adapter.payment.count({
     where: {
       reservationId,
       status: "COMPLETED",
+      ...(options.paymentType ? { paymentType: options.paymentType } : {}),
       deletedAt: null,
     },
   });

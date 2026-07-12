@@ -189,24 +189,19 @@ export async function POST(request: Request) {
     const { action, paymentId, source } = event;
     console.log(`Mercado Pago webhook via ${source}: action=${action}, paymentId=${paymentId}`);
 
-    if (action === "payment" || action.startsWith("payment.")) {
+      if (action === "payment" || action.startsWith("payment.")) {
       const { prisma } = await import("@/lib/db/prisma");
       const { getMercadoPagoToken } = await import("@/lib/actions/mercado-pago");
+      const { getPaymentById, getPaymentByMercadoPagoId } = await import("@/lib/payments/queries");
 
       let payment = null;
 
       if (hintedPaymentId) {
-        payment = await prisma.payment.findFirst({
-          where: { id: hintedPaymentId, deletedAt: null },
-          include: { reservation: true },
-        });
+        payment = await getPaymentById(hintedPaymentId, { includeClient: false });
       }
 
       if (!payment) {
-        payment = await prisma.payment.findFirst({
-          where: { mercadoPagoId: paymentId, deletedAt: null },
-          include: { reservation: true },
-        });
+        payment = await getPaymentByMercadoPagoId(paymentId);
       }
 
       let accessToken: string | null = null;
@@ -252,15 +247,14 @@ export async function POST(request: Request) {
     }
 
     if (action === "merchant_order" || action.startsWith("merchant_order.")) {
-      const { prisma } = await import("@/lib/db/prisma");
       const { getMercadoPagoToken } = await import("@/lib/actions/mercado-pago");
+      const { getPaymentByMercadoPagoId, getPaymentById } = await import("@/lib/payments/queries");
 
       let tokenResult: { accessToken: string; userId: string } | null = null;
 
       if (hintedPaymentId) {
-        const hintedPayment = await prisma.payment.findFirst({
-          where: { id: hintedPaymentId, deletedAt: null },
-          include: { reservation: true },
+        const hintedPayment = await getPaymentById(hintedPaymentId, {
+          includeClient: false,
         });
 
         if (hintedPayment) {
@@ -300,10 +294,7 @@ export async function POST(request: Request) {
         if (payment.status === "approved") {
           let paymentAccessToken = tokenResult.accessToken;
 
-          const dbPayment = await prisma.payment.findFirst({
-            where: { mercadoPagoId: String(payment.id), deletedAt: null },
-            include: { reservation: true },
-          });
+          const dbPayment = await getPaymentByMercadoPagoId(String(payment.id));
 
           if (dbPayment) {
             const ownerToken = await getMercadoPagoToken(dbPayment.reservation.userId);

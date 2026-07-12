@@ -100,7 +100,7 @@ describe("getPaymentById", () => {
 });
 
 describe("getPaymentByMercadoPagoId", () => {
-  it("busca por mercadoPagoId, excluye soft-deleted, incluye client", async () => {
+  it("busca por mercadoPagoId, excluye soft-deleted, omite client por default", async () => {
     const fakePayment = { id: "pay-1", mercadoPagoId: "mp-123" };
     mocks.findFirst.mockResolvedValue(fakePayment);
 
@@ -109,6 +109,19 @@ describe("getPaymentByMercadoPagoId", () => {
     expect(result).toBe(fakePayment);
     expect(mocks.findFirst).toHaveBeenCalledWith({
       where: { mercadoPagoId: "mp-123", deletedAt: null },
+      include: {
+        reservation: { include: { client: false } },
+      },
+    });
+  });
+
+  it("includeClient=true agrega client al include", async () => {
+    mocks.findFirst.mockResolvedValue(null);
+
+    await getPaymentByMercadoPagoId("mp-456", { includeClient: true });
+
+    expect(mocks.findFirst).toHaveBeenCalledWith({
+      where: { mercadoPagoId: "mp-456", deletedAt: null },
       include: {
         reservation: { include: { client: true } },
       },
@@ -364,7 +377,7 @@ describe("revertPaymentToPending", () => {
 // ────────────────────────────────────────────────────────────────────────────
 
 describe("countCompletedPaymentsForReservation", () => {
-  it("cuenta COMPLETED+deletedAt=null para una reserva", async () => {
+  it("cuenta TODOS los COMPLETED+deletedAt=null para una reserva (default)", async () => {
     mocks.count.mockResolvedValue(2);
 
     const result = await countCompletedPaymentsForReservation("res-1");
@@ -374,6 +387,40 @@ describe("countCompletedPaymentsForReservation", () => {
       where: {
         reservationId: "res-1",
         status: "COMPLETED",
+        deletedAt: null,
+      },
+    });
+  });
+
+  it("paymentType option filtra solo RESERVATION", async () => {
+    mocks.count.mockResolvedValue(1);
+
+    await countCompletedPaymentsForReservation("res-1", {
+      paymentType: "RESERVATION",
+    });
+
+    expect(mocks.count).toHaveBeenCalledWith({
+      where: {
+        reservationId: "res-1",
+        status: "COMPLETED",
+        paymentType: "RESERVATION",
+        deletedAt: null,
+      },
+    });
+  });
+
+  it("paymentType EXTRA filtra solo EXTRA", async () => {
+    mocks.count.mockResolvedValue(0);
+
+    await countCompletedPaymentsForReservation("res-1", {
+      paymentType: "EXTRA",
+    });
+
+    expect(mocks.count).toHaveBeenCalledWith({
+      where: {
+        reservationId: "res-1",
+        status: "COMPLETED",
+        paymentType: "EXTRA",
         deletedAt: null,
       },
     });
@@ -394,7 +441,7 @@ describe("adapter pattern", () => {
         count: vi.fn(),
         update: vi.fn(),
       },
-    };
+    } as any;
 
     const result = await getPaymentById("pay-1", {}, txAdapter);
 

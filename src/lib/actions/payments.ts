@@ -14,6 +14,11 @@ import { revalidatePath } from "next/cache";
 import { addDays } from "date-fns";
 import { ZodError } from "zod";
 import { getReservationPaidAmount, getReservationPendingAmount, type PaymentLike } from "@/lib/payments/calculations";
+import {
+  sumCompletedPaymentsForOwner,
+  sumPendingPaymentsForOwner,
+  countPendingPaymentsForOwner,
+} from "@/lib/payments/queries";
 import { confirmReservationIfPaid } from "@/lib/reservations/confirmation";
 import { recordDomainEvent } from "@/lib/notifications/record-event";
 import { daysFromNowInBusinessTz, startOfMonthInSantiago } from "@/lib/domain/timezone";
@@ -1137,40 +1142,18 @@ export async function getPaymentsKpis(): Promise<PaymentsKpis> {
 
   const startOfMonth = startOfMonthInSantiago();
 
-  const [cobradoMesAgg, pendienteAgg, pendienteCount, alerts] = await Promise.all([
-    prisma.payment.aggregate({
-      where: {
-        status: "COMPLETED",
-        paymentType: "RESERVATION",
-        paidAt: { gte: new Date(startOfMonth) },
-        deletedAt: null,
-        reservation: { userId: session.userId },
-      },
-      _sum: { amount: true },
+  const [cobradoMes, pendiente, pendienteCount, alerts] = await Promise.all([
+    sumCompletedPaymentsForOwner(session.userId, {
+      from: new Date(startOfMonth),
     }),
-    prisma.payment.aggregate({
-      where: {
-        status: "PENDING",
-        paymentType: "RESERVATION",
-        deletedAt: null,
-        reservation: { userId: session.userId },
-      },
-      _sum: { amount: true },
-    }),
-    prisma.payment.count({
-      where: {
-        status: "PENDING",
-        paymentType: "RESERVATION",
-        deletedAt: null,
-        reservation: { userId: session.userId },
-      },
-    }),
+    sumPendingPaymentsForOwner(session.userId),
+    countPendingPaymentsForOwner(session.userId),
     getCollectionAlerts(),
   ]);
 
   return {
-    cobradoMes: Number(cobradoMesAgg._sum.amount ?? 0),
-    pendiente: Number(pendienteAgg._sum.amount ?? 0),
+    cobradoMes,
+    pendiente,
     pendienteCount,
     proximos7DiasCount: alerts.proximos7Dias.length,
   };

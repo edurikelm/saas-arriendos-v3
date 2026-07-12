@@ -7,6 +7,7 @@ import { reservationSchema, reservationUpdateSchema, type ReservationInput, type
 import { revalidatePath } from "next/cache";
 import { addDays, differenceInDays, differenceInMonths, addMonths } from "date-fns";
 import { generateMonthlyPayments } from "@/lib/payments/monthly";
+import { countCompletedPaymentsForReservation } from "@/lib/payments/queries";
 import { ZodError } from "zod";
 import { recordDomainEvent } from "@/lib/notifications/record-event";
 import { canTransition } from "@/lib/reservations/state-machine";
@@ -644,14 +645,10 @@ export async function updateReservation(id: string, data: unknown) {
     // Solo necesitamos contar pagos si vamos a COMPLETED (única transición con precondición)
     let completedReservationPayments = 0;
     if (validated.status === "COMPLETED") {
-      completedReservationPayments = await prisma.payment.count({
-        where: {
-          reservationId: id,
-          paymentType: "RESERVATION",
-          status: "COMPLETED",
-          deletedAt: null,
-        },
-      });
+      completedReservationPayments = await countCompletedPaymentsForReservation(
+        id,
+        { paymentType: "RESERVATION" },
+      );
     }
 
     const guard = canTransition({
@@ -986,13 +983,9 @@ export async function deleteReservation(id: string) {
   // Bloqueo: si hay pagos COMPLETED no soft-deleted, no se puede borrar
   // físicamente la reserva sin perder evidencia financiera. Sugerir
   // cancelReservation() que es semánticamente "soft delete con KEEP pagos".
-  const completedPaymentsCount = await prisma.payment.count({
-    where: {
-      reservationId: id,
-      status: "COMPLETED",
-      deletedAt: null,
-    },
-  });
+  const completedPaymentsCount = await countCompletedPaymentsForReservation(
+    id,
+  );
 
   if (completedPaymentsCount > 0) {
     return {
