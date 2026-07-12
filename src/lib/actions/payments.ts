@@ -21,6 +21,8 @@ import {
   markPaymentCompleted,
   markPaymentStatus,
   revertPaymentToPending,
+  getAllPaymentsForReservation,
+  getActivePaymentsForReservation,
   getPaymentById,
   getPaymentByMercadoPagoId,
 } from "@/lib/payments/queries";
@@ -58,8 +60,7 @@ export async function getPaymentsByReservation(reservationId: string) {
 
   if (!reservation) return [];
 
-  const payments = await prisma.payment.findMany({
-    where: { reservationId, deletedAt: null },
+  const payments = await getAllPaymentsForReservation(reservationId, {
     orderBy: { createdAt: "desc" },
   });
 
@@ -276,13 +277,9 @@ export async function createPayment(data: unknown) {
   }
 
   if (validated.paymentType !== "EXTRA") {
-    const existingPayments = await prisma.payment.findMany({
-      where: {
-        reservationId: validated.reservationId,
-        status: { in: ["COMPLETED", "PENDING"] },
-        deletedAt: null,
-      },
-    });
+    const existingPayments = await getActivePaymentsForReservation(
+      validated.reservationId,
+    );
 
     const totalPaid = getReservationPaidAmount(existingPayments as unknown as PaymentLike[]);
     const newTotal = totalPaid + validated.amount;
@@ -342,13 +339,7 @@ export async function generateMercadoPagoLink(reservationId: string, amount?: nu
 
   console.log(`[MP GenerateLink] Generating MP link for reservation ${reservationId} - using user token`);
 
-  const existingPayments = await prisma.payment.findMany({
-    where: {
-      reservationId,
-      status: { in: ["COMPLETED", "PENDING"] },
-      deletedAt: null,
-    },
-  });
+  const existingPayments = await getActivePaymentsForReservation(reservationId);
 
   const pendingAmount = getReservationPendingAmount(existingPayments as unknown as PaymentLike[], Number(reservation.totalPrice));
   const paymentAmount = amount ?? pendingAmount;

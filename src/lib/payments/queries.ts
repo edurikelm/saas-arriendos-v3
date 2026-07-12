@@ -93,13 +93,17 @@ export function getPaymentByMercadoPagoId(
 /**
  * Todos los pagos activos (no soft-deleted) de una reserva, sin filtro de status.
  * Usado como input a `getReservationPaidAmount` y similares.
+ *
+ * @param options.orderBy opcional — ej: `{ createdAt: 'desc' }`.
  */
 export async function getAllPaymentsForReservation(
   reservationId: string,
+  options: { orderBy?: Prisma.PaymentOrderByWithRelationInput } = {},
   adapter: QueryAdapter = prisma,
 ): Promise<Payment[]> {
   return adapter.payment.findMany({
     where: { reservationId, deletedAt: null },
+    ...(options.orderBy ? { orderBy: options.orderBy } : {}),
   });
 }
 
