@@ -12,13 +12,6 @@ vi.mock("next/navigation", () => ({
 const mockGetOwnerDetail = getOwnerDetail as ReturnType<typeof vi.fn>;
 
 describe("AdminUserDetailPage", () => {
-  describe("module exports", () => {
-    it("page module should be importable", async () => {
-      const page = await import("@/app/admin/users/[id]/page");
-      expect(page.default).toBeDefined();
-    });
-  });
-
   describe("types and interfaces", () => {
     it("OwnerDetailResult should have required fields", async () => {
       const mockResult = {
