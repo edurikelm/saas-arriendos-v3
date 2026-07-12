@@ -5,6 +5,14 @@ import { prisma } from "@/lib/db/prisma";
 import { getSession } from "@/lib/auth/session";
 import { supportTicketSchema, supportMessageSchema, type SupportTicketInput, type AttachmentInput } from "@/lib/validations/support";
 import { computeHasUnread, type UnreadRole } from "@/lib/support/unread";
+import {
+  getOwnerSupportTickets,
+  getOwnerSupportTicketDetail,
+  buildUnreadMap,
+  resolveAffectedEntityOwner,
+  countTicketsByStatusForOwner,
+  getOwnerTicketsForResponseTime,
+} from "@/lib/support/queries";
 import { revalidatePath } from "next/cache";
 import { ZodError } from "zod";
 import type { PaginatedResponse } from "@/types/pagination";
@@ -106,7 +114,7 @@ export async function createSupportTicket(data: unknown) {
     }
   }
 
-  const createData: Record<string, unknown> = {
+  const createData: Prisma.SupportTicketUncheckedCreateInput = {
     userId: session.userId,
     subject: validated.subject,
     description: validated.description,
@@ -124,7 +132,7 @@ export async function createSupportTicket(data: unknown) {
 
   const ticket = await prisma.$transaction(async (tx) => {
     const createdTicket = await tx.supportTicket.create({
-      data: createData as never,
+      data: createData,
     });
 
     await tx.supportMessage.create({
@@ -163,33 +171,20 @@ export async function getSupportTickets(params?: {
 
   const page = params?.page || 1;
   const limit = params?.limit || 10;
-  const skip = (page - 1) * limit;
 
-  const where: Prisma.SupportTicketWhereInput = { userId: session.userId };
-  if (params?.status && params.status !== "ALL") {
-    where.status = params.status as never;
-  }
+  const status = params?.status && params.status !== "ALL"
+    ? (params.status as Prisma.SupportTicketWhereInput["status"])
+    : undefined;
 
-  const [tickets, total] = await Promise.all([
-    prisma.supportTicket.findMany({
-      where,
-      orderBy: { lastActivityAt: "desc" },
-      skip,
-      take: limit,
-      include: {
-        messages: {
-          select: { id: true, authorId: true, createdAt: true, author: { select: { role: true } } },
-          orderBy: { createdAt: "desc" },
-        },
-      },
-    }),
-    prisma.supportTicket.count({ where }),
-  ]);
+  const { tickets, total } = await getOwnerSupportTickets(
+    session.userId,
+    { page, limit, status: status as never },
+  );
 
-  const reads = await prisma.supportTicketRead.findMany({
-    where: { userId: session.userId, ticketId: { in: tickets.map((t) => t.id) } },
-  });
-  const readMap = new Map(reads.map((r) => [r.ticketId, r.lastReadAt]));
+  const readMap = await buildUnreadMap(
+    session.userId,
+    tickets.map((t) => t.id),
+  );
 
   return {
     data: tickets.map((ticket) => {
@@ -227,56 +222,11 @@ export async function getSupportTicketDetail(ticketId: string) {
   const session = await getSession();
   if (!session) return null;
 
-  const ticket = await prisma.supportTicket.findUnique({
-    where: { id: ticketId, userId: session.userId },
-    include: {
-      messages: {
-        orderBy: { createdAt: "asc" },
-        select: {
-          id: true,
-          authorId: true,
-          content: true,
-          createdAt: true,
-          author: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-          attachments: {
-            select: {
-              id: true,
-              url: true,
-              fileName: true,
-              fileSize: true,
-              createdAt: true,
-            },
-          },
-        },
-      },
-      affectedReservation: {
-        select: { id: true },
-      },
-      affectedPayment: {
-        select: { id: true },
-      },
-      affectedProperty: {
-        select: { id: true },
-      },
-    },
-  });
+  const ticket = await getOwnerSupportTicketDetail(session.userId, ticketId);
 
   if (!ticket) return null;
 
-  let affectedEntity: AffectedEntityRef | null = null;
-  if (ticket.affectedReservationId && ticket.affectedReservation) {
-    affectedEntity = { type: "RESERVATION", id: ticket.affectedReservation.id };
-  } else if (ticket.affectedPaymentId && ticket.affectedPayment) {
-    affectedEntity = { type: "PAYMENT", id: ticket.affectedPayment.id };
-  } else if (ticket.affectedPropertyId && ticket.affectedProperty) {
-    affectedEntity = { type: "PROPERTY", id: ticket.affectedProperty.id };
-  }
+  const affectedEntity = resolveAffectedEntityOwner(ticket);
 
   return {
     id: ticket.id,
@@ -436,25 +386,9 @@ export async function getSupportTicketsKpis(): Promise<SupportTicketsKpis> {
   const session = await getSession();
   if (!session) return { openCount: 0, resolvedCount: 0, avgResponseHours: null };
 
-  const where = { userId: session.userId };
-
-  const [openCount, resolvedCount, ticketsWithMessages] = await Promise.all([
-    prisma.supportTicket.count({
-      where: { ...where, status: { in: ["OPEN", "IN_PROGRESS"] } },
-    }),
-    prisma.supportTicket.count({
-      where: { ...where, status: { in: ["RESOLVED", "CLOSED"] } },
-    }),
-    prisma.supportTicket.findMany({
-      where,
-      select: {
-        createdAt: true,
-        messages: {
-          orderBy: { createdAt: "asc" },
-          select: { authorId: true, createdAt: true, author: { select: { role: true } } },
-        },
-      },
-    }),
+  const [{ openCount, resolvedCount }, ticketsWithMessages] = await Promise.all([
+    countTicketsByStatusForOwner(session.userId),
+    getOwnerTicketsForResponseTime(session.userId),
   ]);
 
   const responseDelaysMs: number[] = [];

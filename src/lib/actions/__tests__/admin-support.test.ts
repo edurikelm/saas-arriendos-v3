@@ -13,8 +13,8 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-vi.mock("@/lib/db/prisma", () => ({
-  prisma: {
+vi.mock("@/lib/db/prisma", () => {
+  const prismaMock = {
     supportTicket: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
@@ -31,8 +31,14 @@ vi.mock("@/lib/db/prisma", () => ({
     userProfile: {
       findUnique: vi.fn(),
     },
-  },
-}));
+  };
+  return {
+    prisma: {
+      ...prismaMock,
+      $transaction: vi.fn((cb) => cb(prismaMock)),
+    },
+  };
+});
 
 import { getSuperAdminSession, getSession } from "@/lib/auth/session";
 import { requireSuperAdmin } from "@/lib/auth/guards";

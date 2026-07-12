@@ -365,5 +365,15 @@ Además de las acciones en `src/lib/actions/`, los siguientes módulos puros enc
   - Counters: `countCompletedPaymentsForReservation`
   - Patrón adapter: cada helper acepta un tercer argumento `adapter: QueryAdapter = prisma` para participar en `$transaction`. Mismo patrón que `lib/reservations/confirmation.ts`.
   - **Decisión de dominio** KPI revenue: usa `paidAt` (cash basis: cuándo entró el dinero), NO `createdAt`. Alineado con `getPaymentsKpis` en `payments.ts` (más reciente, financieramente correcto). Migrado en commits `2029f90` y `8d1e23d`.
+- **`lib/support/queries.ts`** (Bloque 5 T6) — Seam canónico de queries Prisma para `SupportTicket`. Consolida la query duplicada entre `lib/actions/support.ts` y `lib/actions/admin-support.ts` (~12 líneas de `findMany` con `include: { user, messages }` repetidas). 9 helpers:
+  - Helpers puros (sin DB): `resolveAffectedEntityAdmin` (orden PROPERTY → RESERVATION → PAYMENT), `resolveAffectedEntityOwner` (orden RESERVATION → PAYMENT → PROPERTY). Solo chequean las **relations** populadas, no los FKs.
+  - Builds: `buildUnreadMap(userId, ticketIds)` retorna `Map<ticketId, lastReadAt>`. Batched: una sola `findMany({ ticketId: { in: [...] } })`. Si `ticketIds` está vacío, retorna `Map` sin tocar la DB.
+  - Owner list: `getOwnerSupportTickets(userId, { page, limit, status })` — paginado, `orderBy: { lastActivityAt: "desc" }`, filtra por `userId` en `where`.
+  - Owner detail: `getOwnerSupportTicketDetail(userId, ticketId)` — `findUnique` con `userId` en el `where` (defense in depth contra acceso cross-owner). Retorna `null` si no pertenece.
+  - Admin list: `getAdminSupportTickets({ statusFilter, filters })` — sin paginación (limit 20 fijo), `orderBy: [{ priority: "desc" }, { status: "asc" }, { lastActivityAt: "desc" }]`. Default `statusFilter` oculta CLOSED.
+  - Admin detail: `getAdminSupportTicketDetail(ticketId)` — `findUnique` sin filtro de `userId` (admin ve todos).
+  - Aggregates KPI: `countTicketsByStatusForOwner(userId)`, `getOwnerTicketsForResponseTime(userId)`.
+  - Patrón adapter: cada helper acepta un tercer argumento `adapter: QueryAdapter = prisma` para participar en `$transaction`. Mismo patrón que `lib/payments/queries.ts`.
+  - Tipos exportados: `SupportTicketWithUnreadMessages`, `AdminSupportTicketWithRelations`, `OwnerSupportTicketDetail`, `AdminSupportTicketDetail`, `StatusFilter`, `AdminTicketFilters`.
 
 Los callsites que NO encajan en estos helpers (select+groupby custom, where+include complejo) quedan inline. Si un patrón repetido aparece, agregar helper.
