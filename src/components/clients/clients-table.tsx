@@ -273,8 +273,11 @@ export function ClientsTable({ initialData, kpis }: ClientsTableProps) {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <DropdownMenu>
-                      <DropdownMenuTrigger className="cursor-pointer rounded-md p-1.5 hover:bg-muted transition-colors">
-                        <MoreHorizontal className="h-4 w-4" />
+                      <DropdownMenuTrigger
+                        className="cursor-pointer rounded-md p-1.5 hover:bg-muted transition-colors"
+                        aria-label={`Más acciones para ${client.name}`}
+                      >
+                        <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => setEditingClient(client)}>

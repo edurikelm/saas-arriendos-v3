@@ -3,9 +3,10 @@
 import { prisma } from "@/lib/db/prisma";
 import { getSession, getSuperAdminSession } from "@/lib/auth/session";
 import { revalidatePath } from "next/cache";
-import { ticketPriorityEnum, ticketCategoryEnum, supportAttachmentSchema } from "@/lib/validations/support";
+import { ticketPriorityEnum, ticketCategoryEnum, supportAttachmentSchema, supportMessageSchema } from "@/lib/validations/support";
 import { computeHasUnread, type UnreadRole } from "@/lib/support/unread";
 import type { PaginatedResponse } from "@/types/pagination";
+import type { Prisma, TicketCategory, TicketPriority } from "@prisma/client";
 
 export interface AdminSupportTicketRow {
   id: string;
@@ -88,7 +89,7 @@ export async function getAllSupportTickets(
     return { data: [], total: 0, page: 1, totalPages: 0 };
   }
 
-  const where: Record<string, unknown> = {};
+  const where: Prisma.SupportTicketWhereInput = {};
 
   // Status filter
   if (!statusFilter) {
@@ -102,15 +103,15 @@ export async function getAllSupportTickets(
     where.userId = filters.ownerId;
   }
   if (filters?.priority) {
-    where.priority = filters.priority;
+    where.priority = filters.priority as TicketPriority;
   }
   if (filters?.category) {
-    where.category = filters.category;
+    where.category = filters.category as TicketCategory;
   }
 
   const [tickets, total] = await Promise.all([
     prisma.supportTicket.findMany({
-      where: where as never,
+      where,
       orderBy: [{ priority: "desc" }, { status: "asc" }, { lastActivityAt: "desc" }],
       include: {
         user: {
@@ -123,7 +124,7 @@ export async function getAllSupportTickets(
         },
       },
     }),
-    prisma.supportTicket.count({ where: where as never }),
+    prisma.supportTicket.count({ where }),
   ]);
 
   const reads = await prisma.supportTicketRead.findMany({
@@ -259,20 +260,13 @@ export async function respondToSupportTicket(
   const session = await getSuperAdminSession();
   if (!session) return { error: "No autorizado" };
 
-  if (!content || content.length < 1 || content.length > 2000) {
-    return { error: "El contenido debe tener entre 1 y 2000 caracteres" };
-  }
-
-  if (images) {
-    if (images.length > 3) {
-      return { error: "Máximo 3 imágenes por mensaje" };
-    }
-    for (const img of images) {
-      const parsed = supportAttachmentSchema.safeParse(img);
-      if (!parsed.success) {
-        return { error: `Imagen inválida: ${parsed.error.errors[0].message}` };
-      }
-    }
+  const messageParsed = supportMessageSchema.safeParse({
+    content,
+    images: images ?? undefined,
+  });
+  if (!messageParsed.success) {
+    const firstIssue = messageParsed.error.errors[0];
+    return { error: `${firstIssue.path.join(".") || "datos"}: ${firstIssue.message}` };
   }
 
   const ticket = await prisma.supportTicket.findUnique({
@@ -304,7 +298,7 @@ export async function respondToSupportTicket(
     },
   });
 
-  const updateData: Record<string, unknown> = {
+  const updateData: Prisma.SupportTicketUpdateInput = {
     lastActivityAt: new Date(),
   };
 
@@ -314,7 +308,7 @@ export async function respondToSupportTicket(
 
   await prisma.supportTicket.update({
     where: { id: ticketId },
-    data: updateData as never,
+    data: updateData,
   });
 
   revalidatePath("/admin/support");
@@ -396,7 +390,7 @@ export async function updateSupportTicketPriority(
 
   await prisma.supportTicket.update({
     where: { id: ticketId },
-    data: { priority: parsed.data as never },
+    data: { priority: parsed.data as TicketPriority },
   });
 
   revalidatePath("/admin/support");
@@ -424,7 +418,7 @@ export async function updateSupportTicketCategory(
 
   await prisma.supportTicket.update({
     where: { id: ticketId },
-    data: { category: parsed.data as never },
+    data: { category: parsed.data as TicketCategory },
   });
 
   revalidatePath("/admin/support");

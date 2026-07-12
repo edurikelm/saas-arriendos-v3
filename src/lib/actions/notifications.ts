@@ -7,13 +7,18 @@ import { revalidatePath } from "next/cache";
 /**
  * Returns the count of unread notifications for the current user.
  * A notification is unread if there is no NotificationRead row for it.
+ * User identity is derived from the session — no `userId` parameter to prevent
+ * a caller from probing another user's notification count.
  */
-export async function getUnreadNotificationCount(userId: string): Promise<number> {
+export async function getUnreadNotificationCount(): Promise<number> {
+  const session = await getSession();
+  if (!session) return 0;
+
   const count = await prisma.notification.count({
     where: {
-      userId,
+      userId: session.userId,
       reads: {
-        none: { userId },
+        none: { userId: session.userId },
       },
     },
   });

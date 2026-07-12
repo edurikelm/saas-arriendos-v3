@@ -546,7 +546,7 @@ describe("Admin Support Actions", () => {
       const { respondToSupportTicket } = await import("@/lib/actions/admin-support");
       const result = await respondToSupportTicket("ticket-1", "");
 
-      expect(result).toEqual({ error: "El contenido debe tener entre 1 y 2000 caracteres" });
+      expect(result).toEqual({ error: "content: El mensaje no puede estar vacío" });
     });
 
     it("returns error for content exceeding 2000 chars", async () => {
@@ -555,7 +555,7 @@ describe("Admin Support Actions", () => {
       const { respondToSupportTicket } = await import("@/lib/actions/admin-support");
       const result = await respondToSupportTicket("ticket-1", "x".repeat(2001));
 
-      expect(result).toEqual({ error: "El contenido debe tener entre 1 y 2000 caracteres" });
+      expect(result).toEqual({ error: "content: El mensaje no puede exceder 2000 caracteres" });
     });
   });
 

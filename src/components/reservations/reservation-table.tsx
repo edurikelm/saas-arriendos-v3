@@ -178,23 +178,23 @@ function ReservationMobileCard({ reservation, onEdit, onView, onCancel, onDelete
 
       <div className="mt-3 flex items-center justify-end gap-1 pl-1.5">
         {onView && (
-          <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:text-foreground" onClick={() => onView(reservation.id)} title="Ver">
-            <Eye className="h-4 w-4" />
+          <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:text-foreground" onClick={() => onView(reservation.id)} aria-label="Ver reserva">
+            <Eye className="h-4 w-4" aria-hidden="true" />
           </Button>
         )}
         {onEdit && (
-          <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:text-foreground" onClick={() => onEdit(reservation.id)} title="Editar">
-            <Pencil className="h-4 w-4" />
+          <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:text-foreground" onClick={() => onEdit(reservation.id)} aria-label="Editar reserva">
+            <Pencil className="h-4 w-4" aria-hidden="true" />
           </Button>
         )}
         {(reservation.status === "PENDING" || reservation.status === "CONFIRMED") && onCancel && (
-          <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => onCancel(reservation.id)} title="Cancelar">
-            <Ban className="h-4 w-4" />
+          <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => onCancel(reservation.id)} aria-label="Cancelar reserva">
+            <Ban className="h-4 w-4" aria-hidden="true" />
           </Button>
         )}
         {(reservation.status === "CANCELLED" || reservation.status === "COMPLETED") && onDelete && (
-          <Button size="icon" variant="ghost" className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => onDelete(reservation.id)} title="Eliminar">
-            <Trash2 className="h-4 w-4" />
+          <Button size="icon" variant="ghost" className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => onDelete(reservation.id)} aria-label="Eliminar reserva">
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
           </Button>
         )}
       </div>

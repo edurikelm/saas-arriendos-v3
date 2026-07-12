@@ -47,12 +47,14 @@ describe("getUnreadNotificationCount", () => {
     vi.clearAllMocks();
   });
 
-  it("returns the count of unread notifications for the given user", async () => {
+  it("returns the count of unread notifications for the current session user", async () => {
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
+    vi.mocked(getSession).mockResolvedValue(ownerSession);
     vi.mocked(prisma.notification.count).mockResolvedValue(3);
 
     const { getUnreadNotificationCount } = await import("../notifications");
-    const result = await getUnreadNotificationCount("owner-1");
+    const result = await getUnreadNotificationCount();
 
     expect(result).toBe(3);
     expect(prisma.notification.count).toHaveBeenCalledWith({
@@ -64,13 +66,27 @@ describe("getUnreadNotificationCount", () => {
   });
 
   it("returns 0 when user has no unread notifications", async () => {
+    const { getSession } = await import("@/lib/auth/session");
     const { prisma } = await import("@/lib/db/prisma");
+    vi.mocked(getSession).mockResolvedValue(ownerSession);
     vi.mocked(prisma.notification.count).mockResolvedValue(0);
 
     const { getUnreadNotificationCount } = await import("../notifications");
-    const result = await getUnreadNotificationCount("owner-1");
+    const result = await getUnreadNotificationCount();
 
     expect(result).toBe(0);
+  });
+
+  it("returns 0 when no session (avoids leaking count to unauthenticated callers)", async () => {
+    const { getSession } = await import("@/lib/auth/session");
+    const { prisma } = await import("@/lib/db/prisma");
+    vi.mocked(getSession).mockResolvedValue(null);
+
+    const { getUnreadNotificationCount } = await import("../notifications");
+    const result = await getUnreadNotificationCount();
+
+    expect(result).toBe(0);
+    expect(prisma.notification.count).not.toHaveBeenCalled();
   });
 });
 

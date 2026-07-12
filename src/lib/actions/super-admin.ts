@@ -137,9 +137,8 @@ export async function updateUserPlan(data: { userId: string; plan: "FREE" | "PRO
 }
 
 export async function updateUserStatus(data: { userId: string; status: "ACTIVE" | "SUSPENDED" | "CANCELLED" }) {
-  if (!(await getSuperAdminSession())) return { error: "No autorizado" };
-
-  const session = await getSession();
+  const session = await getSuperAdminSession();
+  if (!session) return { error: "No autorizado" };
 
   const user = await prisma.userProfile.update({
     where: { id: data.userId },
@@ -148,7 +147,7 @@ export async function updateUserStatus(data: { userId: string; status: "ACTIVE" 
 
   await prisma.adminActionLog.create({
     data: {
-      adminId: session!.userId,
+      adminId: session.userId,
       targetId: data.userId,
       action: "STATUS_CHANGED",
       details: JSON.stringify({ status: data.status }),

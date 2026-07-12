@@ -17,7 +17,7 @@ export default async function DashboardLayout({
   const session = await requireOwner();
   const [supportUnreadCount, notificationUnreadCount] = await Promise.all([
     getUnreadSupportTicketCount(),
-    getUnreadNotificationCount(session.userId),
+    getUnreadNotificationCount(),
   ]);
 
   return (
