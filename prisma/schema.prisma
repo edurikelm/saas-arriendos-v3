@@ -327,6 +327,8 @@ model Reservation {
   @@index([userId])
   @@index([propertyId])
   @@index([clientId])
+  @@index([startDate])
+  @@index([endDate])
 }
 
 model Payment {
@@ -358,6 +360,7 @@ model Payment {
   @@index([paidAt])
   @@index([deletedAt])
   @@index([reservationId, status])
+  @@unique([mercadoPagoId])
 }
 
 model ReservationChange {
@@ -457,6 +460,7 @@ model ExternalCalendar {
   @@index([propertyId])
   @@index([userId, isActive])
   @@index([propertyId, isActive])
+  @@unique([userId, channel, propertyId, feedUrl])
 }
 
 model ExternalChannelBlock {
