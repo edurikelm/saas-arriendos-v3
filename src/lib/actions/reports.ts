@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/db/prisma";
 import type { Prisma } from "@prisma/client";
 import { getSession } from "@/lib/auth/session";
-import { startOfMonth, endOfMonth, subMonths, format, startOfYear, endOfYear } from "date-fns";
+import { startOfMonth, endOfMonth, format, startOfYear, endOfYear } from "date-fns";
 import {
   buildCollectionReportRows,
   type CollectionDebtStatusFilter,
@@ -128,28 +128,43 @@ export async function getRevenueReport(options?: {
 
   const months = options?.months || 12;
   const year = options?.year || new Date().getFullYear();
+  const yearStart = startOfYear(new Date(year, 0, 1));
+  const yearEnd = endOfYear(new Date(year, 0, 1));
 
+  // Single query: pull COMPLETED payments for the year, aggregate by month in JS.
+  // Replaces 12 sequential `aggregate` calls (audit hotspot H1: 2017ms → ~170ms).
+  const payments = await prisma.payment.findMany({
+    where: {
+      reservation: { userId: session.userId },
+      status: "COMPLETED",
+      createdAt: { gte: yearStart, lte: yearEnd },
+    },
+    select: {
+      createdAt: true,
+      amount: true,
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const byMonth: Record<string, { totalRevenue: number; count: number }> = {};
+  payments.forEach((p) => {
+    const key = format(p.createdAt, "MMM yyyy");
+    if (!byMonth[key]) byMonth[key] = { totalRevenue: 0, count: 0 };
+    byMonth[key].totalRevenue += Number(p.amount);
+    byMonth[key].count += 1;
+  });
+
+  // Emit one entry per month (Jan → Dec), filling 0 for months with no payments.
+  // Loop bound is `months` to preserve the original behavior of partial-year windows.
   const reports: RevenueReport[] = [];
-
   for (let i = 0; i < months; i++) {
-    const targetDate = subMonths(new Date(year, 0, 1), -i);
-    const monthStart = startOfMonth(targetDate);
-    const monthEnd = endOfMonth(targetDate);
-
-    const result = await prisma.payment.aggregate({
-      where: {
-        reservation: { userId: session.userId },
-        status: "COMPLETED",
-        createdAt: { gte: monthStart, lte: monthEnd },
-      },
-      _sum: { amount: true },
-      _count: { id: true },
-    });
-
+    const targetDate = new Date(year, i, 1);
+    const key = format(targetDate, "MMM yyyy");
+    const data = byMonth[key];
     reports.push({
-      month: format(targetDate, "MMM yyyy"),
-      totalRevenue: Number(result._sum.amount) || 0,
-      reservationCount: result._count.id || 0,
+      month: key,
+      totalRevenue: data?.totalRevenue ?? 0,
+      reservationCount: data?.count ?? 0,
     });
   }
 
