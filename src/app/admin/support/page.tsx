@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { LifeBuoy } from "lucide-react";
 import { AdminSupportList } from "@/components/admin/support/admin-support-list";
 import { getAllSupportTickets, type StatusFilter } from "@/lib/actions/admin-support";
 
@@ -15,16 +15,29 @@ export default async function AdminSupportPage({ searchParams }: PageProps) {
   const result = await getAllSupportTickets(filter, { ownerId, priority, category });
 
   return (
-    <Suspense
-      fallback={
-        <Card>
-          <CardContent className="py-8 text-center text-muted-foreground">
+    <div className="space-y-6">
+      {/* Header (PageHeader pattern per admin/page.tsx) */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <h1 className="flex items-center gap-2 text-xl font-bold text-foreground">
+            <LifeBuoy className="size-5 text-muted-foreground" />
+            Soporte
+          </h1>
+          <p className="text-xs text-muted-foreground">
+            Bandeja de entrada de tickets de soporte ({result.total} tickets)
+          </p>
+        </div>
+      </div>
+
+      <Suspense
+        fallback={
+          <div className="py-8 text-center text-sm text-muted-foreground">
             Cargando tickets...
-          </CardContent>
-        </Card>
-      }
-    >
-      <AdminSupportList tickets={result.data} total={result.total} />
-    </Suspense>
+          </div>
+        }
+      >
+        <AdminSupportList tickets={result.data} total={result.total} />
+      </Suspense>
+    </div>
   );
 }
