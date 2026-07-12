@@ -237,6 +237,25 @@ export function DashboardLayoutClient({ children, userName }) {
 }
 ```
 
+**Patrón** `*PageClient` (similar a `*LayoutClient` pero para páginas pesadas con datos pre-computados): cuando una página combina mucho data fetching server-side (server actions sobre Promise.all) con mucha interactividad client-side (filtros, paginación, exports), se divide en `page.tsx` Server Component async + `_<recurso>/_components/<recurso>-client.tsx` Client Component. Solo pasan datos serializables.
+
+```tsx
+// page.tsx (Server Component, async)
+export const dynamic = "force-dynamic"; // si usa cookies() o headers()
+export default async function ReportsPage() {
+  const [stats, revenueData, /*...*/] = await Promise.all([...]);
+  return <ReportsClient initialStats={stats} initialRevenueData={revenueData} /*...*/ />;
+}
+
+// _components/reports-client.tsx (Client Component)
+"use client";
+export function ReportsClient({ initialStats, /*...*/ }) {
+  // filtros + paginación + re-fetch desde client (llamadas directas a server actions)
+}
+```
+
+Requiere `export const dynamic = "force-dynamic"` en el page.tsx si las server actions usan `cookies()`. Ejemplo canónico: `src/app/(dashboard)/reports/page.tsx` + `_components/reports-client.tsx` (commit `bdc48e9`).
+
 ### Error Handling
 
 Cada route group debe tener `error.tsx` y `not-found.tsx`.
@@ -329,3 +348,22 @@ Grid de 7 columnas en todas las resoluciones. Celdas: `min-h-12 sm:min-h-20 lg:m
 - ADR-0019: `docs/adr/0019-ical-export-feed.md` — iCal export por canal con anti-eco
 - ADR-0020: `docs/adr/0020-business-dates-timezone.md` — fechas de negocio en `America/Santiago`
 - ADR-0025: `docs/adr/0025-reservations-domain-seam.md` — `src/lib/reservations/` como seam canónico de lógica de dominio de Reservation (transiciones de estado, confirmación, validaciones)
+
+## Seams de dominio en `src/lib/`
+
+Además de las acciones en `src/lib/actions/`, los siguientes módulos puros encapsulan lógica de dominio y deben consultarse antes de duplicarla en código nuevo:
+
+- **`lib/reservations/confirmation.ts`** — `confirmReservationIfPaid(reservationId, adapter?)` (ver ADR-0025). Acepta `Prisma.TransactionClient` o `prisma` global como adapter opcional para `$transaction`.
+- **`lib/reservations/state-machine.ts`** — `canTransition({from, to, completedReservationPayments})`. Tabla de transiciones de `Reservation.status` codificada (4×4); fuente autoritativa para validar updates.
+- **`lib/payments/calculations.ts`** — `getReservationPaidAmount(payments)`, `getReservationPendingAmount(payments, totalPrice)`. Lógica pura sobre `Payment[]` (sin DB), opera sobre shape `PaymentLike`.
+- **`lib/payments/monthly.ts`** — `generateMonthlyPayments(startDate, months, monthlyPrice, unitsBooked)`. Genera inputs `Payment` para reservas `MONTHLY`. **Decisión de dominio** (per ADR-0012): `dueDate` = día 1 del **mismo mes** que `startDate`, no del mes siguiente. Ejemplo canónico: `Sep 1 → Sep 1, Oct 1, Nov 1`.
+- **`lib/payments/queries.ts`** (Tier 2 #7) — Seam canónico de queries Prisma para `Payment`. 11 helpers:
+  - Lookup: `getPaymentById`, `getPaymentByMercadoPagoId`
+  - Por reserva: `getAllPaymentsForReservation`, `getActivePaymentsForReservation`
+  - Aggregates: `sumCompletedPaymentsForOwner`, `sumPendingPaymentsForOwner`, `countPendingPaymentsForOwner`, `sumCompletedPaymentsAll`
+  - Updates: `markPaymentCompleted`, `markPaymentStatus`, `revertPaymentToPending`
+  - Counters: `countCompletedPaymentsForReservation`
+  - Patrón adapter: cada helper acepta un tercer argumento `adapter: QueryAdapter = prisma` para participar en `$transaction`. Mismo patrón que `lib/reservations/confirmation.ts`.
+  - **Decisión de dominio** KPI revenue: usa `paidAt` (cash basis: cuándo entró el dinero), NO `createdAt`. Alineado con `getPaymentsKpis` en `payments.ts` (más reciente, financieramente correcto). Migrado en commits `2029f90` y `8d1e23d`.
+
+Los callsites que NO encajan en estos helpers (select+groupby custom, where+include complejo) quedan inline. Si un patrón repetido aparece, agregar helper.
