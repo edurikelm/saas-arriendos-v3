@@ -75,7 +75,7 @@ export function PropertyCardGrid({ property, onEdit, onDelete }: PropertyCardBas
 
         <Badge
           variant="default"
-          className="absolute top-3 right-3 rounded-full text-[10px] font-bold uppercase shadow-sm"
+          className="absolute top-3 right-3 rounded-full text-[10px] font-bold uppercase"
         >
           Activa
         </Badge>
@@ -89,7 +89,7 @@ export function PropertyCardGrid({ property, onEdit, onDelete }: PropertyCardBas
         >
           <Button
             variant="secondary"
-            className="size-10 rounded-full p-0 shadow-md"
+            className="size-10 rounded-full p-0 ring-1 ring-foreground/10"
             onClick={onEdit}
             aria-label="Editar propiedad"
           >
@@ -97,7 +97,7 @@ export function PropertyCardGrid({ property, onEdit, onDelete }: PropertyCardBas
           </Button>
           <Button
             variant="secondary"
-            className="size-10 rounded-full p-0 shadow-md"
+            className="size-10 rounded-full p-0 ring-1 ring-foreground/10"
             onClick={onDelete}
             aria-label="Eliminar propiedad"
           >

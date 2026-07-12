@@ -193,18 +193,20 @@ export function AdminSupportList({ tickets, total }: AdminSupportListProps) {
               <tr
                 key={ticket.id}
                 className={cn(
-                  "border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors",
+                  "border-b last:border-0 hover:bg-muted/30 transition-colors",
                   ticket.hasUnread && "bg-primary/5"
                 )}
-                onClick={() => router.push(`/admin/support/${ticket.id}`)}
               >
                 <td className="px-4 py-3 font-medium">
-                  <div className="flex items-center gap-2">
+                  <Link
+                    href={`/admin/support/${ticket.id}`}
+                    className="flex items-center gap-2 hover:text-primary transition-colors"
+                  >
                     {ticket.hasUnread && (
                       <span className="size-2 shrink-0 rounded-full bg-destructive" />
                     )}
                     <span className={cn(ticket.hasUnread && "font-semibold")}>{ticket.subject}</span>
-                  </div>
+                  </Link>
                 </td>
                 <td className="px-4 py-3 text-sm text-muted-foreground">
                   <div className="flex items-center gap-2">

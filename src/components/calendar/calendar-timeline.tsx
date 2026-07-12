@@ -576,7 +576,7 @@ export function CalendarList({ reservations, currentMonth, onSelectReservation }
           <button
             key={res.id}
             onClick={() => onSelectReservation(res.id)}
-            className="w-full text-left group flex items-center gap-4 rounded-xl border border-border/50 bg-card p-4 transition-all duration-200 hover:border-border/80 hover:shadow-lg hover:shadow-black/5"
+            className="w-full text-left group flex items-center gap-4 rounded-xl border border-border/50 bg-card p-4 transition-all duration-200 hover:border-foreground/20"
           >
             <div
               className="h-12 w-12 shrink-0 rounded-xl flex items-center justify-center text-white font-semibold text-lg"

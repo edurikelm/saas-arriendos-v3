@@ -48,7 +48,7 @@ export default async function PaymentResultPage({ searchParams }: PageProps) {
 
   return (
     <main className="mx-auto flex min-h-[70vh] w-full max-w-2xl items-center px-4 py-10">
-      <section className="w-full rounded-xl border border-foreground/10 bg-background p-6 shadow-sm">
+      <section className="w-full rounded-xl border border-foreground/10 bg-background p-6 ring-1 ring-foreground/10">
         <h1 className="text-2xl font-semibold">{titleByState[uiState]}</h1>
         <p className="mt-2 text-sm text-muted-foreground">{messageByState[uiState]}</p>
 
