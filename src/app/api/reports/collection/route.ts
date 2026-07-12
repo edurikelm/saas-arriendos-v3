@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCollectionReport } from "@/lib/actions/reports";
-import type { CollectionBillingFilter, CollectionDebtStatusFilter } from "@/lib/actions/reports-collection";
+import type { CollectionBillingFilter, CollectionDebtStatusFilter } from "@/lib/reports/collection";
 
 export async function GET(request: Request) {
   try {

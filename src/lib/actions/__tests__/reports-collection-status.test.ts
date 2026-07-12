@@ -6,7 +6,7 @@ import {
   getCollectionStatus,
   type CollectionReportRow,
   type CollectionReservationInput,
-} from "../reports-collection";
+} from "@/lib/reports/collection";
 
 // Fijamos `now` al mediodía UTC del 15 de enero de 2026 para tener resultados
 // deterministas independientemente de la zona horaria del runner.

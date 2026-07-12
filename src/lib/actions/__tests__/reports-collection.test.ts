@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildCollectionReportRows, type CollectionReservationInput } from "../reports-collection";
+import { buildCollectionReportRows, type CollectionReservationInput } from "@/lib/reports/collection";
 
 const now = new Date("2026-01-15T12:00:00.000Z");
 

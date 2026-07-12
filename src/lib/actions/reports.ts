@@ -9,7 +9,7 @@ import {
   type CollectionDebtStatusFilter,
   type CollectionBillingFilter,
   type CollectionReportRow,
-} from "@/lib/actions/reports-collection";
+} from "@/lib/reports/collection";
 import type { PaginatedResponse } from "@/types/pagination";
 
 export interface RevenueReport {
