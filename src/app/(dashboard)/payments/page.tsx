@@ -102,12 +102,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
           )}
         </div>
       ) : (
-        <PaymentsTableClient
-          payments={payments}
-          showInstallmentColumns={true}
-          showConceptColumn={true}
-          showContextColumns={true}
-        />
+        <PaymentsTableClient payments={payments} />
       )}
 
       {/* Pagination condicional */}

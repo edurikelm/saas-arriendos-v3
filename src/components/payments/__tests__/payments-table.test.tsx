@@ -27,159 +27,183 @@ const createMockPayment = (overrides: Partial<Payment> = {}): Payment => ({
   ...overrides,
 });
 
+// ────────────────────────────────────────────────────────────────────────────
+// receiptUrl display (variant="reservation" sin installment data)
+// ────────────────────────────────────────────────────────────────────────────
+
 describe('PaymentsTable - receiptUrl display', () => {
   it('shows receipt button when payment has receiptUrl', () => {
     const payment = createMockPayment({
       receiptUrl: 'https://www.mercadopago.com.ar/receipts/abc123',
     });
 
-    render(
-      <PaymentsTable
-        payments={[payment]}
-        showInstallmentColumns={false}
-      />
-    );
+    render(<PaymentsTable payments={[payment]} variant="reservation" />);
 
     expect(screen.getByText('Monto')).toBeTruthy();
   });
 
   it('does not show receipt button when payment has no receiptUrl', () => {
-    const payment = createMockPayment({
-      receiptUrl: null,
-    });
+    const payment = createMockPayment({ receiptUrl: null });
 
-    render(
-      <PaymentsTable
-        payments={[payment]}
-        showInstallmentColumns={false}
-      />
-    );
+    render(<PaymentsTable payments={[payment]} variant="reservation" />);
 
     expect(screen.getByText('Monto')).toBeTruthy();
   });
+});
 
-  it('renders installment columns when showInstallmentColumns is true', () => {
+// ────────────────────────────────────────────────────────────────────────────
+// variant="reservation" — auto-detect installment columns
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('PaymentsTable - variant="reservation"', () => {
+  it('muestra columnas de installment si algún pago tiene installmentIndex', () => {
     const payment = createMockPayment({ installmentIndex: 1, dueDate: '2025-02-01' });
 
-    render(
-      <PaymentsTable
-        payments={[payment]}
-        showInstallmentColumns={true}
-      />
-    );
+    render(<PaymentsTable payments={[payment]} variant="reservation" />);
 
     expect(screen.getByText('Cuota')).toBeTruthy();
     expect(screen.getByText('Vencimiento')).toBeTruthy();
   });
 
-  it('hides installment columns when showInstallmentColumns is false', () => {
-    const payment = createMockPayment({ installmentIndex: 1, dueDate: '2025-02-01' });
+  it('oculta columnas de installment si ningún pago tiene installment data', () => {
+    const payment = createMockPayment({ installmentIndex: null, installmentLabel: null });
 
-    render(
-      <PaymentsTable
-        payments={[payment]}
-        showInstallmentColumns={false}
-      />
-    );
+    render(<PaymentsTable payments={[payment]} variant="reservation" />);
 
     expect(screen.queryByText('Cuota')).toBeNull();
     expect(screen.queryByText('Vencimiento')).toBeNull();
   });
 
-  it('muestra columnas Fecha, Cliente, Propiedad cuando showContextColumns=true', () => {
+  it('auto-detecta installment también desde installmentLabel', () => {
     const payment = createMockPayment({
-      createdAt: '2025-07-15T10:00:00Z',
-      clientName: 'Carlos Rodríguez',
-      propertyName: 'Cabaña del Bosque',
+      installmentIndex: undefined,
+      installmentLabel: '1 / 3',
+      dueDate: '2025-02-01',
     });
 
-    render(
-      <PaymentsTable
-        payments={[payment]}
-        showInstallmentColumns={false}
-        showConceptColumn={false}
-        showContextColumns={true}
-      />
-    );
+    render(<PaymentsTable payments={[payment]} variant="reservation" />);
+
+    expect(screen.getByText('Cuota')).toBeTruthy();
+  });
+
+  it('NO muestra columnas de contexto ni de concepto', () => {
+    const payment = createMockPayment({ installmentIndex: 1 });
+
+    render(<PaymentsTable payments={[payment]} variant="reservation" />);
+
+    expect(screen.queryByText('Cliente')).toBeNull();
+    expect(screen.queryByText('Propiedad')).toBeNull();
+    expect(screen.queryByText('Concepto')).toBeNull();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// variant="extra" — concept column, sin installment, sin context
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('PaymentsTable - variant="extra"', () => {
+  it('muestra columna Concepto', () => {
+    const payment = createMockPayment({ paymentType: 'EXTRA', title: 'Limpieza profunda' });
+
+    render(<PaymentsTable payments={[payment]} variant="extra" />);
+
+    expect(screen.getByText('Concepto')).toBeTruthy();
+  });
+
+  it('NO muestra columnas de installment ni de contexto', () => {
+    const payment = createMockPayment({
+      paymentType: 'EXTRA',
+      title: 'Limpieza profunda',
+      installmentIndex: 1,
+    });
+
+    render(<PaymentsTable payments={[payment]} variant="extra" />);
+
+    expect(screen.queryByText('Cuota')).toBeNull();
+    expect(screen.queryByText('Cliente')).toBeNull();
+    expect(screen.queryByText('Propiedad')).toBeNull();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// variant="full" — todas las columnas
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('PaymentsTable - variant="full"', () => {
+  it('muestra columnas de contexto (Fecha creación, Cliente, Propiedad)', () => {
+    const payment = createMockPayment();
+
+    render(<PaymentsTable payments={[payment]} variant="full" />);
+
+    expect(screen.getByText('Fecha creación')).toBeTruthy();
+    expect(screen.getByText('Cliente')).toBeTruthy();
+    expect(screen.getByText('Propiedad')).toBeTruthy();
+  });
+
+  it('muestra columnas de installment siempre (independiente de los datos)', () => {
+    const payment = createMockPayment({ installmentIndex: null, installmentLabel: null });
+
+    render(<PaymentsTable payments={[payment]} variant="full" />);
+
+    expect(screen.getByText('Cuota')).toBeTruthy();
+    expect(screen.getByText('Vencimiento')).toBeTruthy();
+  });
+
+  it('muestra columna Concepto', () => {
+    const payment = createMockPayment();
+
+    render(<PaymentsTable payments={[payment]} variant="full" />);
+
+    expect(screen.getByText('Concepto')).toBeTruthy();
+  });
+
+  it('renderiza fecha de creación formateada', () => {
+    const payment = createMockPayment({ createdAt: '2025-07-15T10:00:00Z' });
+
+    render(<PaymentsTable payments={[payment]} variant="full" />);
 
     expect(screen.getByText('15 jul 2025')).toBeTruthy();
-    expect(screen.getByText('Carlos Rodríguez')).toBeTruthy();
-    expect(screen.getByText('Cabaña del Bosque')).toBeTruthy();
   });
+});
 
-  it('no muestra columnas de contexto cuando showContextColumns=false', () => {
-    const payment = createMockPayment({
-      createdAt: '2025-07-15T10:00:00Z',
-      clientName: 'Carlos Rodríguez',
-      propertyName: 'Cabaña del Bosque',
-    });
+// ────────────────────────────────────────────────────────────────────────────
+// Concept labels y badge variants (transversal a las variants)
+// ────────────────────────────────────────────────────────────────────────────
 
-    render(
-      <PaymentsTable
-        payments={[payment]}
-        showInstallmentColumns={false}
-        showConceptColumn={false}
-        showContextColumns={false}
-      />
-    );
-
-    expect(screen.queryByText('Carlos Rodríguez')).toBeNull();
-    expect(screen.queryByText('Cabaña del Bosque')).toBeNull();
-  });
-
-  it('muestra "Arriendo" para RESERVATION diario sin installmentIndex', () => {
+describe('PaymentsTable - concept label', () => {
+  it('muestra "Arriendo" para RESERVATION diario sin installmentIndex (variant="extra")', () => {
     const payment = createMockPayment({
       paymentType: 'RESERVATION',
       installmentIndex: null,
+      installmentLabel: null,
       title: null,
     });
 
-    render(
-      <PaymentsTable
-        payments={[payment]}
-        showInstallmentColumns={false}
-        showConceptColumn={true}
-        showContextColumns={false}
-      />
-    );
+    render(<PaymentsTable payments={[payment]} variant="extra" />);
 
     expect(screen.getByText('Arriendo')).toBeTruthy();
   });
 
-  it('muestra "Mensualidad" para RESERVATION mensual con installmentIndex', () => {
+  it('muestra "Mensualidad" para RESERVATION con installmentIndex (variant="full")', () => {
     const payment = createMockPayment({
       paymentType: 'RESERVATION',
       installmentIndex: 3,
       title: null,
     });
 
-    render(
-      <PaymentsTable
-        payments={[payment]}
-        showInstallmentColumns={true}
-        showConceptColumn={true}
-        showContextColumns={false}
-      />
-    );
+    render(<PaymentsTable payments={[payment]} variant="full" />);
 
     expect(screen.getByText('Mensualidad')).toBeTruthy();
     expect(screen.queryByText('Cobro extra')).toBeNull();
   });
 
-  it('muestra el title del pago EXTRA', () => {
+  it('muestra el title del pago EXTRA (variant="extra")', () => {
     const payment = createMockPayment({
       paymentType: 'EXTRA',
       title: 'Limpieza profunda',
     });
 
-    render(
-      <PaymentsTable
-        payments={[payment]}
-        showInstallmentColumns={false}
-        showConceptColumn={true}
-        showContextColumns={false}
-      />
-    );
+    render(<PaymentsTable payments={[payment]} variant="extra" />);
 
     expect(screen.getByText('Limpieza profunda')).toBeTruthy();
   });
@@ -190,91 +214,48 @@ describe('PaymentsTable - receiptUrl display', () => {
       title: null,
     });
 
-    render(
-      <PaymentsTable
-        payments={[payment]}
-        showInstallmentColumns={false}
-        showConceptColumn={true}
-        showContextColumns={false}
-      />
-    );
+    render(<PaymentsTable payments={[payment]} variant="extra" />);
 
     expect(screen.getByText('Cobro extra')).toBeTruthy();
   });
+});
 
-  it('muestra "Fecha creación" como header de la columna de fecha', () => {
-    const payment = createMockPayment({
-      createdAt: '2025-07-15T10:00:00Z',
-    });
-
-    render(
-      <PaymentsTable
-        payments={[payment]}
-        showInstallmentColumns={false}
-        showConceptColumn={false}
-        showContextColumns={true}
-      />
-    );
-
-    expect(screen.getByText('Fecha creación')).toBeTruthy();
-  });
-
-  it('renderiza Concepto con badge variant=info para RESERVATION diario', () => {
+describe('PaymentsTable - concept badge variant', () => {
+  it('badge variant=info para RESERVATION diario (variant="extra")', () => {
     const payment = createMockPayment({
       paymentType: 'RESERVATION',
       installmentIndex: null,
       title: null,
     });
 
-    render(
-      <PaymentsTable
-        payments={[payment]}
-        showInstallmentColumns={false}
-        showConceptColumn={true}
-        showContextColumns={false}
-      />
-    );
+    render(<PaymentsTable payments={[payment]} variant="extra" />);
 
     expect(screen.getByText('Arriendo')).toBeTruthy();
     const badge = screen.getByText('Arriendo').closest('[class*="bg-info"]');
     expect(badge).toBeTruthy();
   });
 
-  it('renderiza Concepto con badge variant=info para RESERVATION mensual', () => {
+  it('badge variant=info para RESERVATION mensual (variant="full")', () => {
     const payment = createMockPayment({
       paymentType: 'RESERVATION',
       installmentIndex: 3,
       title: null,
     });
 
-    render(
-      <PaymentsTable
-        payments={[payment]}
-        showInstallmentColumns={true}
-        showConceptColumn={true}
-        showContextColumns={false}
-      />
-    );
+    render(<PaymentsTable payments={[payment]} variant="full" />);
 
     expect(screen.getByText('Mensualidad')).toBeTruthy();
     const badge = screen.getByText('Mensualidad').closest('[class*="bg-info"]');
     expect(badge).toBeTruthy();
   });
 
-  it('renderiza Concepto con badge variant=warning para EXTRA', () => {
+  it('badge variant=warning para EXTRA (variant="extra")', () => {
     const payment = createMockPayment({
       paymentType: 'EXTRA',
       title: 'Limpieza profunda',
     });
 
-    render(
-      <PaymentsTable
-        payments={[payment]}
-        showInstallmentColumns={false}
-        showConceptColumn={true}
-        showContextColumns={false}
-      />
-    );
+    render(<PaymentsTable payments={[payment]} variant="extra" />);
 
     expect(screen.getByText('Limpieza profunda')).toBeTruthy();
     const badge = screen.getByText('Limpieza profunda').closest('[class*="bg-warning"]');

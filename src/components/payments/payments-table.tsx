@@ -21,6 +21,28 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 
+/**
+ * Variantes explícitas de la tabla de pagos.
+ *
+ * Antes: 3 boolean props (`showInstallmentColumns`, `showConceptColumn`,
+ * `showContextColumns`) que el caller combinaba en 8 formas posibles,
+ * pero solo 3 combinaciones se usaban en producción. Eso es "boolean prop
+ * proliferation" — el caller piensa "¿qué columnas enciendo?" en vez de
+ * "¿qué vista quiero?".
+ *
+ * Ahora: 3 variants que mapean a los 3 casos de uso reales:
+ * - `"reservation"`: pagos de arriendo dentro de una reserva (sin context,
+ *   sin concept). Las columnas de installment se auto-detectan desde los
+ *   datos: si algún pago tiene `installmentIndex` o `installmentLabel`,
+ *   se muestran; si no, se ocultan. Esto cubre tanto reservas DAILY
+ *   (sin installments) como MONTHLY (con installments) sin que el
+ *   caller tenga que pasar el `billingType`.
+ * - `"extra"`: cobros extra dentro de una reserva (con concept, sin
+ *   installment, sin context).
+ * - `"full"`: listado completo /payments (todas las columnas).
+ */
+export type PaymentsTableVariant = "reservation" | "extra" | "full";
+
 export interface Payment {
   id: string;
   installmentIndex?: number | null;
@@ -107,9 +129,7 @@ export function PaymentsTable({
   onDeletePayment,
   onAttachReceipt,
   onSendLink,
-  showInstallmentColumns,
-  showConceptColumn = false,
-  showContextColumns = false,
+  variant,
   generatingLinkId,
   attachingReceiptId,
 }: {
@@ -119,13 +139,24 @@ export function PaymentsTable({
   onDeletePayment?: (paymentId: string) => void;
   onAttachReceipt?: (paymentId: string) => void;
   onSendLink?: (payment: Payment) => void;
-  showInstallmentColumns: boolean;
-  showConceptColumn?: boolean;
-  showContextColumns?: boolean;
+  variant: PaymentsTableVariant;
   generatingLinkId?: string | null;
   attachingReceiptId?: string | null;
 }) {
-  // Build headers array based on toggles
+  // Auto-detect installment column visibility for the "reservation" variant:
+  // if any payment has installment data, show the columns; otherwise hide them.
+  // This eliminates the need for the caller to know the billingType.
+  const hasInstallmentData = payments.some(
+    (p) => p.installmentIndex != null || p.installmentLabel != null,
+  );
+
+  // Map variant → column visibility booleans (used only internally now)
+  const showContextColumns = variant === "full";
+  const showConceptColumn = variant === "extra" || variant === "full";
+  const showInstallmentColumns =
+    variant === "full" || (variant === "reservation" && hasInstallmentData);
+
+  // Build headers array based on resolved column visibility
   const headers: DataTableHeader[] = [
     ...(showContextColumns ? ["Fecha creación", "Cliente", "Propiedad"] : []),
     ...(showInstallmentColumns ? ["Cuota"] : []),

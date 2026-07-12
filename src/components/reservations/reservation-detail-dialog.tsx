@@ -555,7 +555,7 @@ onRefresh?.(reservation.id);
                   onDeletePayment={setPaymentToDelete}
                   onAttachReceipt={handleAttachReceiptClick}
                   onSendLink={setSendLinkPayment}
-                  showInstallmentColumns={reservation.billingType === "MONTHLY"}
+                  variant="reservation"
                   generatingLinkId={generatingLinkId}
                 />
               </div>
@@ -573,8 +573,7 @@ onRefresh?.(reservation.id);
                   onDeletePayment={setPaymentToDelete}
                   onAttachReceipt={handleAttachReceiptClick}
                   onSendLink={setSendLinkPayment}
-                  showInstallmentColumns={false}
-                  showConceptColumn
+                  variant="extra"
                   generatingLinkId={generatingLinkId}
                 />
               </div>

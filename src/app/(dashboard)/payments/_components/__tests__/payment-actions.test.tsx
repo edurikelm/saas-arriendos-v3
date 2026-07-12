@@ -38,6 +38,9 @@ const createMockPayment = (): Payment => ({
   description: null,
   overdueDays: 0,
   installmentLabel: "1 / 3",
+  clientName: "Carlos Rodríguez",
+  propertyName: "Cabaña del Bosque",
+  createdAt: "2025-01-15T10:00:00Z",
 });
 
 beforeEach(() => {
@@ -46,28 +49,14 @@ beforeEach(() => {
 
 describe("PaymentsTableClient", () => {
   it("renderiza la tabla con datos mock", () => {
-    render(
-      <PaymentsTableClient
-        payments={[createMockPayment()]}
-        showInstallmentColumns={true}
-        showConceptColumn={true}
-        showContextColumns={false}
-      />
-    );
+    render(<PaymentsTableClient payments={[createMockPayment()]} />);
 
     expect(screen.getByText("Cuota")).toBeTruthy();
     expect(screen.getByText("Monto")).toBeTruthy();
   });
 
   it("abre MarkPaidDialog al click en Marcar pagado", async () => {
-    render(
-      <PaymentsTableClient
-        payments={[createMockPayment()]}
-        showInstallmentColumns={true}
-        showConceptColumn={true}
-        showContextColumns={false}
-      />
-    );
+    render(<PaymentsTableClient payments={[createMockPayment()]} />);
 
     const markPaidBtn = screen.getByRole("button", { name: /marcar pagado/i });
     await userEvent.click(markPaidBtn);
@@ -76,14 +65,7 @@ describe("PaymentsTableClient", () => {
   });
 
   it("muestra mensaje cuando no hay pagos", () => {
-    render(
-      <PaymentsTableClient
-        payments={[]}
-        showInstallmentColumns={true}
-        showConceptColumn={true}
-        showContextColumns={false}
-      />
-    );
+    render(<PaymentsTableClient payments={[]} />);
 
     // Table renders empty state
     expect(screen.getByText("Cuota")).toBeTruthy();
@@ -94,9 +76,6 @@ describe("PaymentsTableClient", () => {
     render(
       <PaymentsTableClient
         payments={[{ ...createMockPayment(), method: "MERCADO_PAGO", initPoint: null }]}
-        showInstallmentColumns={true}
-        showConceptColumn={true}
-        showContextColumns={false}
       />
     );
 
@@ -114,9 +93,6 @@ describe("PaymentsTableClient", () => {
     render(
       <PaymentsTableClient
         payments={[{ ...createMockPayment(), method: "MERCADO_PAGO", initPoint: null }]}
-        showInstallmentColumns={true}
-        showConceptColumn={true}
-        showContextColumns={false}
       />
     );
 
@@ -129,17 +105,10 @@ describe("PaymentsTableClient", () => {
     expect(mockRefresh).not.toHaveBeenCalled();
   });
 
-  it("pasa showContextColumns al PaymentsTable", () => {
-    render(
-      <PaymentsTableClient
-        payments={[createMockPayment()]}
-        showInstallmentColumns={true}
-        showConceptColumn={true}
-        showContextColumns={true}
-      />
-    );
+  it("variant=full muestra columnas de contexto (Cliente, Propiedad)", () => {
+    render(<PaymentsTableClient payments={[createMockPayment()]} />);
 
-    // Column headers when context columns are shown
+    // Column headers when full variant (with context columns)
     expect(screen.getByText("Cliente")).toBeTruthy();
     expect(screen.getByText("Propiedad")).toBeTruthy();
   });

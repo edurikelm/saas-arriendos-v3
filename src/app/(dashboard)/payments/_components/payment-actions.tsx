@@ -11,19 +11,7 @@ import {
   attachReceipt,
 } from "@/lib/actions/payments";
 
-interface PaymentActionsProps {
-  payments: Payment[];
-  showInstallmentColumns: boolean;
-  showConceptColumn: boolean;
-  showContextColumns: boolean;
-}
-
-export function PaymentsTableClient({
-  payments,
-  showInstallmentColumns,
-  showConceptColumn,
-  showContextColumns,
-}: PaymentActionsProps) {
+export function PaymentsTableClient({ payments }: { payments: Payment[] }) {
   const router = useRouter();
   const [markPaidId, setMarkPaidId] = useState<string | null>(null);
   const [generatingLinkId, setGeneratingLinkId] = useState<string | null>(null);
@@ -137,9 +125,7 @@ export function PaymentsTableClient({
     <>
       <PaymentsTable
         payments={payments}
-        showInstallmentColumns={showInstallmentColumns}
-        showConceptColumn={showConceptColumn}
-        showContextColumns={showContextColumns}
+        variant="full"
         generatingLinkId={generatingLinkId}
         onGenerateLink={handleGenerateLink}
         onMarkPaid={setMarkPaidId}
