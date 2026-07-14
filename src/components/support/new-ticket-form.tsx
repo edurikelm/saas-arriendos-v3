@@ -82,14 +82,24 @@ const entityCategoryMap: Record<string, "RESERVATION" | "PAYMENT" | "PROPERTY" |
   OTHER: null,
 };
 
+// Entity types for which we can fetch user-specific options.
+type EntityKey = "RESERVATION" | "PAYMENT" | "PROPERTY";
+
 export function NewTicketForm() {
   const router = useRouter();
 
   // Local (non-serializable) state — kept outside form state per plan decision
   const [images, setImages] = useState<AttachmentInput[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [entityOptions, setEntityOptions] = useState<EntityOption[]>([]);
-  const [isLoadingEntities, setIsLoadingEntities] = useState(false);
+  // Cache entity options per-type so switching back to a previously loaded
+  // type is instant. Derived `entityOptions` is computed from this map.
+  const [loadedByType, setLoadedByType] = useState<
+    Partial<Record<EntityKey, EntityOption[]>>
+  >({});
+  // Tracks the type currently being fetched (null when idle). Must be a
+  // separate state from `entityOptions` to drive `disabled`+placeholder on
+  // the Select during the in-flight request.
+  const [loadingType, setLoadingType] = useState<EntityKey | null>(null);
 
   const {
     register,
@@ -114,30 +124,44 @@ export function NewTicketForm() {
   const category = useWatch({ control, name: "category" });
   const affectedEntityType = entityCategoryMap[category ?? ""] || null;
 
-  // Async load entity options when affectedEntityType changes
+  // Async load entity options when affectedEntityType changes.
+  // `entityOptions` is derived from `loadedByType` (no sync reset needed).
+  // The loading flag must be set synchronously to disable the Select during
+  // the in-flight fetch and to cover the cancel-then-switch-type race where
+  // a stale `.then` could leave the UI stuck in the loading state. This is
+  // the canonical "fetch on dependency change" pattern.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!affectedEntityType) {
-      setEntityOptions([]);
-      setIsLoadingEntities(false);
+      setLoadingType(null);
       return;
     }
     let cancelled = false;
-    setIsLoadingEntities(true);
+    setLoadingType(affectedEntityType);
     getUserEntityOptions(affectedEntityType).then((options) => {
       if (cancelled) return;
-      setEntityOptions(options);
-      setIsLoadingEntities(false);
+      setLoadedByType((prev) => ({ ...prev, [affectedEntityType]: options }));
+      setLoadingType(null);
     });
     return () => {
       cancelled = true;
     };
   }, [affectedEntityType]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Derived: empty when no entity type; cached value or [] while loading
+  // the current type.
+  const entityOptions: EntityOption[] = affectedEntityType
+    ? loadedByType[affectedEntityType] ?? []
+    : [];
+  const isLoadingEntities =
+    affectedEntityType !== null && loadingType === affectedEntityType;
 
   const handleCategoryChange = (value: string) => {
     setValue("category", value as (typeof ticketCategoryEnum._type), { shouldValidate: true });
     // Always clear affectedEntityId when category changes
     setValue("affectedEntityId", undefined, { shouldValidate: false });
-    setEntityOptions([]);
+    // entityOptions is derived from loadedByType — no explicit reset needed.
   };
 
   const onSubmit = async (values: NewTicketFormValues) => {

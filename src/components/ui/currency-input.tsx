@@ -36,7 +36,13 @@ export function CurrencyInput({
 }: CurrencyInputProps) {
   const [display, setDisplay] = useState<string>("");
 
-  // Sync display from external value changes (e.g., form reset)
+  // Sync display buffer from external `value` changes (e.g., form reset).
+  // This is the controlled-input-with-formatted-display-buffer pattern:
+  // the buffer can't be derived because users can type partial values
+  // (e.g. "12" before it parses to 12000). `value` from props is the
+  // canonical numeric state; `display` only mirrors it when an external
+  // change happens. Suppress the lint rule for this canonical sync effect.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (value === null || value === 0) {
       setDisplay("");
@@ -44,6 +50,7 @@ export function CurrencyInput({
       setDisplay(formatCLP(value));
     }
   }, [value]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.replace(/\D/g, "");
