@@ -1,3 +1,15 @@
+> **STATUS: ARCHIVADO (2026-07-14).** Este handoff describía 214 errores / 85 warnings detectados tras la migración a Next 16 (sesión previa).
+>
+> **Estado real al archivar:** 0 errores, 476 warnings (en 350 archivos, mayoritariamente `@typescript-eslint/no-explicit-any` y `@typescript-eslint/no-unused-vars`).
+>
+> **Cierre de errores:** todos los errores P0–P3 (incluyendo `react-hooks/rules-of-hooks`, `react-hooks/immutability`, `react/no-children-prop`, `@typescript-eslint/ban-ts-comment`, `prefer-const`, `react-hooks/set-state-in-effect`) fueron resueltos en commits del **perf audit 2026-07-12** y del commit de cierre `58407a9 fix(lint): cierra 3 errores restantes del perf audit`.
+>
+> **Warnings restantes:** decisión de backlog. El usuario prefirió primero cerrar perf audit y limpiar ruido documental antes de tacklearlos. Ver `CONTEXT.md` → sección "Estado del proyecto / Backlog activo" para el plan propuesto.
+>
+> **No usar como guía de implementación:** los conteos, distribución por regla y top 10 archivos de este documento son del estado de captura original y NO reflejan el código actual.
+
+---
+
 # Handoff: Resolver la deuda de lint detectada por la migración a Next 16
 
 ## Goal

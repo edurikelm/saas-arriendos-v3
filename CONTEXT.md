@@ -377,3 +377,33 @@ Además de las acciones en `src/lib/actions/`, los siguientes módulos puros enc
   - Tipos exportados: `SupportTicketWithUnreadMessages`, `AdminSupportTicketWithRelations`, `OwnerSupportTicketDetail`, `AdminSupportTicketDetail`, `StatusFilter`, `AdminTicketFilters`.
 
 Los callsites que NO encajan en estos helpers (select+groupby custom, where+include complejo) quedan inline. Si un patrón repetido aparece, agregar helper.
+
+## Estado del proyecto / Backlog activo
+
+**Última verificación de baseline** (commit `58407a9` en `origin/master`, 2026-07-14):
+- `npm run typecheck` → 0 errores
+- `npm run lint --quiet` → 0 errores (476 warnings de `no-explicit-any` y `no-unused-vars` en 350 archivos, ver decisión abajo)
+- `npm run test:run` → 1140/1140 verde (77s)
+- **Perf audit 2026-07-12**: cerrado al 100% (4/4 HIGH + 3/3 MED + 3 errores de lint restantes)
+
+### Backlog activo (en orden sugerido)
+
+1. **PRD-0002 — Copiar/Eliminar links Mercado Pago** (`docs/prd/PRD-0002-payments-copy-delete.md`)
+   Tamaño: S. Bloqueable. Independiente. Recomendado como próximo: aporta UX directa al owner y no toca modelo de datos.
+
+2. **PRD-0003 — Sistema de Notificaciones in-app + email** (`docs/prd/PRD-0003-notifications.md`)
+   Épica grande. Arquitectura ya decidida en ADR-0021. Implementar por slices tracer-bullet (issue tracker).
+
+3. **PRD-0001 — Arquitectura: profundización de módulos** (`docs/prd/PRD-0001-arquitectura-deepening.md`)
+   Refactor técnico (ChangeRecorder, PaymentGateway, seam calendar, etc.). Usar skill `improve-codebase-architecture` antes de tacklearlo.
+
+4. **Admin user management** (`docs/prd/admin-user-management-roadmap.md` + `docs/prd/super-admin-panel.md`)
+   Roadmap y PRD se solapan (roadmap es sucesor del PRD inicial). Decidir si se actualiza `super-admin-panel.md` con referencia al roadmap, o se elimina el PRD absorbed.
+
+5. **PLAN.md — Rediseño UI Ocean Breeze** (`PLAN.md`)
+   4 fases (Fase 0 auditoría → Fase 1 design system en Stitch → Fase 2 pantallas piloto → Fase 3 migración por lotes → Fase 4 implementación). **Bloqueado hasta responder las 4 preguntas abiertas** del §Preguntas abiertas: color de acento, top 3-5 pantallas prioritarias, screenshots, estado del proyecto.
+
+### Decisiones pendientes
+
+- **Lint warnings (476)**: bajo impacto real, alto ruido en CI. Opciones: (a) override `no-explicit-any` a `warn` en `eslint.config.mjs` (3 líneas, cero código tocado); (b) refactor archivo por archivo; (c) ignorar. Decisión del usuario cuando quiera tacklearlo.
+- **Handoffs en `docs/handoffs/_archive/`**: documentos históricos de sesiones cerradas. No usar como guía de implementación (sus conteos y distribuciones no reflejan el código actual).
