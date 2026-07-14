@@ -188,9 +188,16 @@ export async function getReservationById(id: string) {
     include: {
       property: true,
       client: true,
-      payments: true,
+      // H6: filtra deletedAt en DB (antes se hacía en JS con .filter)
+      payments: {
+        where: { deletedAt: null },
+      },
+      // H6: limita historial de cambios a últimos 50 (ordenados por createdAt desc).
+      // No hay consumer UI que muestre > 50; si en el futuro se necesita, exponer
+      // `getReservationChanges(id, { take, skip })` separado.
       changes: {
         orderBy: { createdAt: "desc" },
+        take: 50,
       },
     },
   });
@@ -236,7 +243,6 @@ export async function getReservationById(id: string) {
       createdAt: reservation.client.createdAt.toISOString(),
     },
     payments: reservation.payments
-      .filter((p) => !p.deletedAt)
       .map((p) => ({
         id: p.id,
         reservationId: p.reservationId,
