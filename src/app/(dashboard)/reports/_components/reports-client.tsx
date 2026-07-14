@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
-import { getDashboardStats, getRevenueReport, getOccupancyReport, getYearlySummary, getReservationsReport, getCollectionReport } from "@/lib/actions/reports";
+import { getDashboardStats, getRevenueReport, getOccupancyReport, getYearlySummary, getReservationsReportForExport, getCollectionReport } from "@/lib/actions/reports";
 import type { DashboardStats, RevenueReport, OccupancyReport, ReservationReport } from "@/lib/actions/reports";
 import type { CollectionReportRow } from "@/lib/reports/collection";
 import { getCollectionDueLabel, getCollectionStatus } from "@/lib/reports/collection";
@@ -152,7 +152,7 @@ export function ReportsClient({
           endDate: effectiveDateRange.to || undefined,
         }),
         getYearlySummary(effectiveDateRange.from ? undefined : parseInt(selectedYear)),
-        getReservationsReport({
+        getReservationsReportForExport({
           propertyId: selectedProperty !== "all" ? selectedProperty : undefined,
           status: selectedStatus !== "all" ? selectedStatus : undefined,
           startDate: effectiveDateRange.from || undefined,

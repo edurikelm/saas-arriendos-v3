@@ -1,5 +1,5 @@
 import { startOfMonth, endOfMonth } from "date-fns";
-import { getDashboardStats, getRevenueReport, getOccupancyReport, getYearlySummary, getReservationsReport, getCollectionReport } from "@/lib/actions/reports";
+import { getDashboardStats, getRevenueReport, getOccupancyReport, getYearlySummary, getReservationsReportForExport, getCollectionReport } from "@/lib/actions/reports";
 import type { DashboardStats, RevenueReport, OccupancyReport, ReservationReport } from "@/lib/actions/reports";
 import type { CollectionReportRow } from "@/lib/reports/collection";
 import { getProperties } from "@/lib/actions/properties";
@@ -44,7 +44,7 @@ export default async function ReportsPage() {
       endDate: defaultEndDate,
     }),
     getYearlySummary(defaultYear),
-    getReservationsReport({
+    getReservationsReportForExport({
       propertyId: undefined,
       status: undefined,
       startDate: defaultStartDate,

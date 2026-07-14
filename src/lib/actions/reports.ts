@@ -308,12 +308,12 @@ export async function getYearlySummary(year?: number) {
   };
 }
 
-export async function getReservationsReport(options?: {
+export async function getReservationsReportForExport(options?: {
   propertyId?: string;
   status?: string;
   startDate?: Date;
   endDate?: Date;
-}) {
+}): Promise<ReservationReport[]> {
   const session = await getSession();
   if (!session) return [];
 
@@ -377,6 +377,93 @@ export async function getReservationsReport(options?: {
       createdAt: r.createdAt,
     };
   });
+}
+
+export interface ReservationsReportFilters {
+  propertyId?: string;
+  status?: string;
+  startDate?: Date;
+  endDate?: Date;
+}
+
+export async function getReservationsReport(
+  filters?: ReservationsReportFilters,
+  pagination?: { page?: number; limit?: number }
+): Promise<PaginatedResponse<ReservationReport> | []> {
+  const session = await getSession();
+  if (!session) return [];
+
+  const where: Prisma.ReservationWhereInput = {
+    userId: session.userId,
+  };
+
+  if (filters?.propertyId) {
+    where.propertyId = filters.propertyId;
+  }
+
+  if (filters?.status && (filters.status === "PENDING" || filters.status === "CONFIRMED" || filters.status === "CANCELLED" || filters.status === "COMPLETED")) {
+    where.status = filters.status;
+  }
+
+  if (filters?.startDate) {
+    where.startDate = { gte: filters.startDate };
+  }
+
+  if (filters?.endDate) {
+    where.endDate = { lte: filters.endDate };
+  }
+
+  const page = pagination?.page || 1;
+  const limit = pagination?.limit || 50;
+  const skip = (page - 1) * limit;
+
+  const [total, reservations] = await Promise.all([
+    prisma.reservation.count({ where }),
+    prisma.reservation.findMany({
+      where,
+      select: {
+        id: true,
+        totalPrice: true,
+        status: true,
+        startDate: true,
+        endDate: true,
+        createdAt: true,
+        billingType: true,
+        property: { select: { name: true } },
+        client: { select: { name: true, email: true } },
+        payments: {
+          select: { status: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+    }),
+  ]);
+
+  const data = reservations.map((r) => {
+    const paymentStatus = r.payments.some((p) => p.status === "COMPLETED")
+      ? "COMPLETED"
+      : r.payments.some((p) => p.status === "PENDING")
+      ? "PENDING"
+      : "NONE";
+
+    return {
+      id: r.id,
+      propertyName: r.property.name,
+      clientName: r.client.name,
+      clientEmail: r.client.email,
+      startDate: r.startDate,
+      endDate: r.endDate,
+      totalPrice: Number(r.totalPrice),
+      status: r.status,
+      paymentStatus,
+      billingType: r.billingType,
+      createdAt: r.createdAt,
+    };
+  });
+
+  return { data, total, page, totalPages: Math.ceil(total / limit) };
 }
 
 export interface CollectionReportFilters {
