@@ -293,90 +293,85 @@ function calculateTotalPrice(
   return Number(property.dailyPrice) * nights * unitsBooked;
 }
 
-async function checkAvailability(
+export async function checkAvailability(
   propertyId: string,
   startDate: Date,
   endDate: Date,
   unitsBooked: number,
   excludeReservationId?: string
 ): Promise<{ available: boolean; reason?: string }> {
-  const property = await prisma.property.findUnique({
-    where: { id: propertyId },
-  });
+  // M2: paralelizar las 3 queries independientes
+  const [property, conflictingReservations, conflictingExternalBlocks] = await Promise.all([
+    prisma.property.findUnique({
+      where: { id: propertyId },
+    }),
+    prisma.reservation.findMany({
+      where: {
+        propertyId,
+        status: { in: ["PENDING", "CONFIRMED"] },
+        id: excludeReservationId ? { not: excludeReservationId } : undefined,
+        OR: [
+          { startDate: { lte: startDate }, endDate: { gte: startDate } },
+          { startDate: { lte: endDate }, endDate: { gte: endDate } },
+          { startDate: { gte: startDate }, endDate: { lte: endDate } },
+        ],
+      },
+    }),
+    prisma.externalChannelBlock.findMany({
+      where: {
+        propertyId,
+        status: "ACTIVE",
+        OR: [
+          { startDate: { lte: startDate }, endDate: { gte: startDate } },
+          { startDate: { lte: endDate }, endDate: { gte: endDate } },
+          { startDate: { gte: startDate }, endDate: { lte: endDate } },
+        ],
+      },
+    }),
+  ]);
 
   if (!property) {
     return { available: false, reason: "Propiedad no encontrada" };
   }
 
-  const conflictingReservations = await prisma.reservation.findMany({
-    where: {
-      propertyId,
-      status: { in: ["PENDING", "CONFIRMED"] },
-      id: excludeReservationId ? { not: excludeReservationId } : undefined,
-      OR: [
-        {
-          startDate: { lte: startDate },
-          endDate: { gte: startDate },
-        },
-        {
-          startDate: { lte: endDate },
-          endDate: { gte: endDate },
-        },
-        {
-          startDate: { gte: startDate },
-          endDate: { lte: endDate },
-        },
-      ],
-    },
-  });
+  // M3: precompute booked units per day (O(M+K) en lugar de O(N*(M+K)))
+  const bookedByDay = new Map<string, number>();
+  const dayKey = (d: Date): string => d.toISOString().slice(0, 10); // YYYY-MM-DD
 
-  // Query active external blocks that overlap with the date range
-  const conflictingExternalBlocks = await prisma.externalChannelBlock.findMany({
-    where: {
-      propertyId,
-      status: "ACTIVE",
-      OR: [
-        {
-          startDate: { lte: startDate },
-          endDate: { gte: startDate },
-        },
-        {
-          startDate: { lte: endDate },
-          endDate: { gte: endDate },
-        },
-        {
-          startDate: { gte: startDate },
-          endDate: { lte: endDate },
-        },
-      ],
-    },
-  });
+  const rangeStart = startDate.getTime();
+  const rangeEnd = endDate.getTime();
 
-  for (const day = new Date(startDate); day <= endDate; day.setDate(day.getDate() + 1)) {
-    let bookedUnits = 0;
-
-    for (const reservation of conflictingReservations) {
-      const resStart = new Date(reservation.startDate);
-      const resEnd = new Date(reservation.endDate);
-
-      if (day >= resStart && day <= resEnd) {
-        bookedUnits += reservation.unitsBooked;
-      }
+  for (const r of conflictingReservations) {
+    const resStart = new Date(r.startDate);
+    const resEnd = new Date(r.endDate);
+    // Iterate each day of this reservation; only count days in query range
+    for (let d = new Date(resStart); d <= resEnd; d.setDate(d.getDate() + 1)) {
+      const t = d.getTime();
+      if (t < rangeStart || t > rangeEnd) continue;
+      const key = dayKey(d);
+      bookedByDay.set(key, (bookedByDay.get(key) ?? 0) + r.unitsBooked);
     }
+  }
 
-    // Each active external block consumes 1 unit
-    for (const block of conflictingExternalBlocks) {
-      const blockStart = new Date(block.startDate);
-      const blockEnd = new Date(block.endDate);
-      if (day >= blockStart && day <= blockEnd) {
-        bookedUnits += 1;
-      }
+  for (const b of conflictingExternalBlocks) {
+    const blockStart = new Date(b.startDate);
+    const blockEnd = new Date(b.endDate);
+    for (let d = new Date(blockStart); d <= blockEnd; d.setDate(d.getDate() + 1)) {
+      const t = d.getTime();
+      if (t < rangeStart || t > rangeEnd) continue;
+      const key = dayKey(d);
+      bookedByDay.set(key, (bookedByDay.get(key) ?? 0) + 1);
     }
+  }
 
-    if (bookedUnits + unitsBooked > property.unitsAvailable) {
+  // Single pass: check capacity per day
+  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+    const key = dayKey(d);
+    const booked = bookedByDay.get(key) ?? 0;
+    if (booked + unitsBooked > property.unitsAvailable) {
       return {
         available: false,
-        reason: `No hay disponibilidad para el ${day.toLocaleDateString("es-CL")}. Solo quedan ${property.unitsAvailable - bookedUnits} unidades.`,
+        reason: `No hay disponibilidad para el ${d.toLocaleDateString("es-CL")}. Solo quedan ${property.unitsAvailable - booked} unidades.`,
       };
     }
   }
