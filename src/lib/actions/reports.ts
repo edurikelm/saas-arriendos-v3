@@ -99,21 +99,21 @@ export async function getRevenueReport(options?: {
       where: {
         reservation: { userId: session.userId },
         status: "COMPLETED",
-        createdAt: { gte: startDate, lte: endDate },
+        paidAt: { gte: startDate, lte: endDate },
       },
       select: {
-        createdAt: true,
+        paidAt: true,
         amount: true,
         reservation: {
           select: { id: true },
         },
       },
-      orderBy: { createdAt: "asc" },
+      orderBy: { paidAt: "asc" },
     });
 
     const byMonth: Record<string, { totalRevenue: number; count: number }> = {};
     payments.forEach((p) => {
-      const key = format(p.createdAt, "MMM yyyy");
+      const key = format(p.paidAt!, "MMM yyyy");
       if (!byMonth[key]) byMonth[key] = { totalRevenue: 0, count: 0 };
       byMonth[key].totalRevenue += Number(p.amount);
       byMonth[key].count += 1;
@@ -131,24 +131,24 @@ export async function getRevenueReport(options?: {
   const yearStart = startOfYear(new Date(year, 0, 1));
   const yearEnd = endOfYear(new Date(year, 0, 1));
 
-  // Single query: pull COMPLETED payments for the year, aggregate by month in JS.
-  // Replaces 12 sequential `aggregate` calls (audit hotspot H1: 2017ms → ~170ms).
+  // H1 perf fix: single query, aggregated by month in JS.
+  // Migrated to paidAt (cash basis) from createdAt — aligns with getYearlySummary and sumCompletedPaymentsForOwner.
   const payments = await prisma.payment.findMany({
     where: {
       reservation: { userId: session.userId },
       status: "COMPLETED",
-      createdAt: { gte: yearStart, lte: yearEnd },
+      paidAt: { gte: yearStart, lte: yearEnd },
     },
     select: {
-      createdAt: true,
+      paidAt: true,
       amount: true,
     },
-    orderBy: { createdAt: "asc" },
+    orderBy: { paidAt: "asc" },
   });
 
   const byMonth: Record<string, { totalRevenue: number; count: number }> = {};
   payments.forEach((p) => {
-    const key = format(p.createdAt, "MMM yyyy");
+    const key = format(p.paidAt!, "MMM yyyy");
     if (!byMonth[key]) byMonth[key] = { totalRevenue: 0, count: 0 };
     byMonth[key].totalRevenue += Number(p.amount);
     byMonth[key].count += 1;
@@ -252,38 +252,57 @@ export async function getYearlySummary(year?: number) {
   const yearStart = startOfYear(new Date(targetYear, 0, 1));
   const yearEnd = endOfYear(new Date(targetYear, 11, 31));
 
+  // H4 perf fix: replaced findMany + JS aggregation with parallel DB queries.
   // NOTE: migrated to paidAt (cash basis) from createdAt — aligns with sumCompletedPaymentsForOwner
-  const totalRevenue = await sumCompletedPaymentsForOwner(session.userId, { from: yearStart, to: yearEnd });
+  const [totalRevenue, byMethodRows, byMonthRows] = await Promise.all([
+    sumCompletedPaymentsForOwner(session.userId, { from: yearStart, to: yearEnd }),
+    // byMethod: groupBy with _sum.amount (4 rows max: MERCADO_PAGO, CASH, TRANSFER, future methods)
+    prisma.payment.groupBy({
+      by: ["method"],
+      where: {
+        reservation: { userId: session.userId },
+        status: "COMPLETED",
+        paidAt: { gte: yearStart, lte: yearEnd },
+      },
+      _sum: { amount: true },
+      _count: { _all: true },
+    }),
+    // byMonth: raw SQL with EXTRACT(MONTH) — max 12 rows
+    prisma.$queryRaw<Array<{ month: number | string; total: string | number; count: bigint | number }>>`
+      SELECT
+        EXTRACT(MONTH FROM "paidAt")::int AS month,
+        SUM("amount") AS total,
+        COUNT(*)::int AS count
+      FROM "Payment"
+      WHERE "status" = 'COMPLETED'
+        AND "paidAt" >= ${yearStart}
+        AND "paidAt" <= ${yearEnd}
+        AND "reservationId" IN (
+          SELECT "id" FROM "Reservation" WHERE "userId" = ${session.userId}
+        )
+      GROUP BY EXTRACT(MONTH FROM "paidAt")
+    `,
+  ]);
 
-  // byMonth and byMethod require per-payment detail (grouping), kept inline using paidAt
-  const payments = await prisma.payment.findMany({
-    where: {
-      reservation: { userId: session.userId },
-      status: "COMPLETED",
-      paidAt: { gte: yearStart, lte: yearEnd },
-    },
-    select: {
-      amount: true,
-      method: true,
-      paidAt: true,
-    },
-  });
-
-  const byMonth: number[] = Array(12).fill(0);
-  payments.forEach((p) => {
-    const month = new Date(p.paidAt!).getMonth();
-    byMonth[month] += Number(p.amount);
-  });
-
+  // Combine byMethod rows into Record<string, number>
   const byMethod: Record<string, number> = {};
-  payments.forEach((p) => {
-    byMethod[p.method] = (byMethod[p.method] || 0) + Number(p.amount);
-  });
+  let totalPayments = 0;
+  for (const row of byMethodRows) {
+    byMethod[row.method] = Number(row._sum.amount);
+    totalPayments += row._count._all;
+  }
+
+  // Combine byMonth rows into 12-element array (zero-fill for months without data)
+  const byMonth: number[] = Array(12).fill(0);
+  for (const row of byMonthRows) {
+    const monthIndex = Number(row.month) - 1; // EXTRACT returns 1-12
+    byMonth[monthIndex] = Number(row.total);
+  }
 
   return {
     year: targetYear,
     totalRevenue,
-    totalPayments: payments.length,
+    totalPayments,
     byMonth,
     byMethod,
   };
