@@ -774,6 +774,10 @@ export async function restorePayment(id: string) {
     return { error: "No autorizado" };
   }
 
+  // Distinguimos el caso "ya estaba restaurado" del "recién restaurado" para
+  // que el caller (UI undo toast) pueda mostrar un mensaje honesto.
+  const wasDeleted = payment.deletedAt !== null;
+
   await prisma.payment.update({
     where: { id },
     data: { deletedAt: null },
@@ -783,7 +787,7 @@ export async function restorePayment(id: string) {
   revalidatePath(`/reservations/${payment.reservationId}`);
   revalidatePath("/payments");
 
-  return { success: true };
+  return { success: true, restored: wasDeleted };
 }
 
 export async function updatePayment(id: string, data: { status: "COMPLETED" | "PENDING" }) {

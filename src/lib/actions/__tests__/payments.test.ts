@@ -199,6 +199,64 @@ describe('restorePayment - undoes soft delete', () => {
 
     expect(result).toHaveProperty('error', 'No autorizado');
   });
+
+  it('returns restored: true when payment was deleted (deletedAt non-null)', async () => {
+    const { getSession } = await import('@/lib/auth/session');
+    const { prisma } = await import('@/lib/db/prisma');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      method: 'MERCADO_PAGO',
+      status: 'PENDING',
+      initPoint: 'https://mercadopago.com/tx',
+      expiresAt: new Date('2025-12-01'),
+      deletedAt: new Date(), // recién eliminado
+      mercadoPagoId: 'mp-123',
+      createdAt: new Date(),
+      reservation: mockReservation,
+    }));
+
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+
+    const { restorePayment } = await import('../payments');
+    const result = await restorePayment('pay-1');
+
+    expect(result).toEqual({ success: true, restored: true });
+  });
+
+  it('returns restored: false when payment was already not deleted (no-op undo tardío)', async () => {
+    // Caso del undo toast clickeado después de los 5s, o cuando otro tab ya
+    // restauró el pago. La operación UPDATE de Prisma es no-op (deletedAt ya
+    // era null), pero el flag restored: false permite al caller mostrar un
+    // mensaje honesto en vez de "Pago restaurado" para una acción sin cambio.
+    const { getSession } = await import('@/lib/auth/session');
+    const { prisma } = await import('@/lib/db/prisma');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      method: 'MERCADO_PAGO',
+      status: 'PENDING',
+      initPoint: 'https://mercadopago.com/tx',
+      expiresAt: new Date('2025-12-01'),
+      deletedAt: null, // ya estaba restaurado
+      mercadoPagoId: 'mp-123',
+      createdAt: new Date(),
+      reservation: mockReservation,
+    }));
+
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+
+    const { restorePayment } = await import('../payments');
+    const result = await restorePayment('pay-1');
+
+    expect(result).toEqual({ success: true, restored: false });
+  });
 });
 
 describe('getPaymentsByReservation - filters soft deleted', () => {

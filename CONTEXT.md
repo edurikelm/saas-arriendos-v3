@@ -380,27 +380,28 @@ Los callsites que NO encajan en estos helpers (select+groupby custom, where+incl
 
 ## Estado del proyecto / Backlog activo
 
-**Última verificación de baseline** (commit `58407a9` en `origin/master`, 2026-07-14):
+**Última verificación de baseline** (post cierre PRD-0002 + fixes MED, 2026-07-14):
 - `npm run typecheck` → 0 errores
 - `npm run lint --quiet` → 0 errores (476 warnings de `no-explicit-any` y `no-unused-vars` en 350 archivos, ver decisión abajo)
-- `npm run test:run` → 1140/1140 verde (77s)
+- `npm run test:run` → 1155/1155 verde (~80s; flaky tests conocidos pueden aparecer en primera corrida, NO aplicar fix destructivo, re-correr para confirmar)
 - **Perf audit 2026-07-12**: cerrado al 100% (4/4 HIGH + 3/3 MED + 3 errores de lint restantes)
+- **PRD-0002 (UI gaps) + fixes MED**: cerrados en commit `a4cb41d` + próximo commit
+
+### Cerrados en commits recientes
+
+- **PRD-0002 — Copiar/Eliminar links Mercado Pago** (`docs/prd/PRD-0002-payments-copy-delete.md`) — commit `a4cb41d`. Cerró 3 gaps UI: badge "Expirado", botón "Regenerar" (con guard de `initPoint`), delete con `confirm()` + undo toast 5s (con flag `restored` para evitar false positive). Tests +12 (1152/1152).
+
+- **PRD-0003 — Sistema de Notificaciones in-app + email** (`docs/prd/PRD-0003-notifications.md`) — cerrado en commits previos al perf audit. Cubre: schema `Notification`/`NotificationRead`/`NotificationType` con `@unique(notificationKey)`; pure functions `selectRemindersForDispatch`/`renderNotification`/`computeHasUnread`; `timezone.ts` (ADR-0020); channels `InAppChannel` + `EmailChannel` (Resend); `recordDomainEvent` con post-commit dispatch; hooks en `payments.ts` (3 callsites) + `reservations.ts`; `NotificationBell` + `NotificationList`; `getUnreadNotificationCount` en layout; cron `/api/cron/payment-reminders/dispatch` (schedule `0 13 * * *`); toggle `notificationsEmailEnabled` en `/dashboard/settings`.
 
 ### Backlog activo (en orden sugerido)
 
-1. **PRD-0002 — Copiar/Eliminar links Mercado Pago** (`docs/prd/PRD-0002-payments-copy-delete.md`)
-   Tamaño: S. Bloqueable. Independiente. Recomendado como próximo: aporta UX directa al owner y no toca modelo de datos.
-
-2. **PRD-0003 — Sistema de Notificaciones in-app + email** (`docs/prd/PRD-0003-notifications.md`)
-   Épica grande. Arquitectura ya decidida en ADR-0021. Implementar por slices tracer-bullet (issue tracker).
-
-3. **PRD-0001 — Arquitectura: profundización de módulos** (`docs/prd/PRD-0001-arquitectura-deepening.md`)
+1. **PRD-0001 — Arquitectura: profundización de módulos** (`docs/prd/PRD-0001-arquitectura-deepening.md`)
    Refactor técnico (ChangeRecorder, PaymentGateway, seam calendar, etc.). Usar skill `improve-codebase-architecture` antes de tacklearlo.
 
-4. **Admin user management** (`docs/prd/admin-user-management-roadmap.md` + `docs/prd/super-admin-panel.md`)
+2. **Admin user management** (`docs/prd/admin-user-management-roadmap.md` + `docs/prd/super-admin-panel.md`)
    Roadmap y PRD se solapan (roadmap es sucesor del PRD inicial). Decidir si se actualiza `super-admin-panel.md` con referencia al roadmap, o se elimina el PRD absorbed.
 
-5. **PLAN.md — Rediseño UI Ocean Breeze** (`PLAN.md`)
+3. **PLAN.md — Rediseño UI Ocean Breeze** (`PLAN.md`)
    4 fases (Fase 0 auditoría → Fase 1 design system en Stitch → Fase 2 pantallas piloto → Fase 3 migración por lotes → Fase 4 implementación). **Bloqueado hasta responder las 4 preguntas abiertas** del §Preguntas abiertas: color de acento, top 3-5 pantallas prioritarias, screenshots, estado del proyecto.
 
 ### Decisiones pendientes

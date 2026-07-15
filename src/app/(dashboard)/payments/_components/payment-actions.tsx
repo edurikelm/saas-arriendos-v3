@@ -60,10 +60,14 @@ export function PaymentsTableClient({ payments }: { payments: Payment[] }) {
             onClick: async () => {
               try {
                 const restoreResult = await restorePayment(paymentId);
-                if (restoreResult.error) {
+                if ("error" in restoreResult) {
                   toast.error(restoreResult.error);
-                } else {
+                } else if (restoreResult.restored) {
                   toast.success("Pago restaurado");
+                  router.refresh();
+                } else {
+                  // Pago ya estaba restaurado por otro medio (otro tab, otro admin).
+                  // No-op: solo refrescamos la UI por si quedó desincronizada.
                   router.refresh();
                 }
               } catch {

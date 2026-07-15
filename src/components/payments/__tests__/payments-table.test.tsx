@@ -141,6 +141,26 @@ describe('PaymentsTable - Regenerar link button', () => {
 
     expect(screen.queryByRole('button', { name: /regenerar link/i })).toBeNull();
   });
+
+  it('NO muestra botón "Regenerar link" cuando PENDING + MP + expirado pero SIN initPoint', () => {
+    // Edge case: estado artificial (initPoint null pero expiresAt en pasado)
+    // — posible solo por escritura directa a DB. El badge "Expirado" SÍ debe
+    // mostrarse (el badge no requiere initPoint), pero el botón Regenerar NO
+    // porque regeneratePaymentLink requiere un initPoint previo.
+    const pastDate = new Date();
+    pastDate.setDate(pastDate.getDate() - 1);
+    const payment = createMockPayment({
+      status: 'PENDING',
+      method: 'MERCADO_PAGO',
+      initPoint: null,
+      expiresAt: pastDate.toISOString(),
+    });
+
+    render(<PaymentsTable payments={[payment]} variant="full" onRegenerateLink={vi.fn()} />);
+
+    expect(screen.getByText('Expirado')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /regenerar link/i })).toBeNull();
+  });
 });
 
 // ────────────────────────────────────────────────────────────────────────────

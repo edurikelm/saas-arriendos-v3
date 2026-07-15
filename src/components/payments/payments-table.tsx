@@ -193,7 +193,8 @@ export function PaymentsTable({
         const isExpired = isPaymentExpired(payment);
         const canGenerateLink = isPending && isMercadoPago && !payment.initPoint && onGenerateLink;
         const canCopyLink = isPending && isMercadoPago && payment.initPoint && !isExpired;
-        const canRegenerateLink = isPending && isMercadoPago && isExpired && onRegenerateLink;
+        const canRegenerateLink =
+          isPending && isMercadoPago && isExpired && payment.initPoint && onRegenerateLink;
         const canMarkPaid = isPending && onMarkPaid;
         const canDelete = isPending && !isMercadoPago && onDeletePayment;
         const canViewReceipt = Boolean(payment.receiptUrl);
