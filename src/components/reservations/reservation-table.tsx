@@ -14,42 +14,14 @@ import { getInclusiveMonths } from "@/lib/reservation-dates";
 import { getReservationPaidAmount } from "@/lib/payments/calculations";
 import type { Reservation } from "./types";
 import { formatDate, formatPrice } from "./reservations-utils";
-
-type PillTone = "success" | "info" | "info-strong" | "warning" | "destructive" | "neutral";
-
-const toneClassNames: Record<PillTone, string> = {
-  success: "border-success/20 bg-success/10 text-success",
-  info: "border-info/20 bg-info/10 text-info",
-  "info-strong": "border-info/30 bg-info/25 text-info",
-  warning: "border-warning/25 bg-warning/10 text-warning",
-  destructive: "border-destructive/25 bg-destructive/10 text-destructive",
-  neutral: "border-muted bg-muted text-muted-foreground",
-};
-
-const dotClassNames: Record<PillTone, string> = {
-  success: "bg-success",
-  info: "bg-info",
-  "info-strong": "bg-info",
-  warning: "bg-warning",
-  destructive: "bg-destructive",
-  neutral: "bg-muted-foreground",
-};
-
-const verticalBarClassNames: Record<PillTone, string> = {
-  success: "bg-success",
-  info: "bg-info",
-  "info-strong": "bg-info",
-  warning: "bg-warning",
-  destructive: "bg-destructive",
-  neutral: "bg-muted-foreground",
-};
+import { ReservationPill, reservationPillDotClass, type PillTone } from "./reservation-pill";
 
 function getInitials(name: string): string {
   return name
     .split(" ")
     .filter(Boolean)
     .slice(0, 2)
-    .map((part) => part[0])
+    .map((part) => part[part.length - 1] || part[0])
     .join("")
     .toUpperCase();
 }
@@ -105,15 +77,6 @@ function getPaymentTone(paidAmount: number, totalPrice: number): PillTone {
   return "destructive";
 }
 
-function ReservationPill({ tone, label }: { tone: PillTone; label: string }) {
-  return (
-    <span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[9px] font-bold uppercase tracking-tight ${toneClassNames[tone]}`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${dotClassNames[tone]}`} />
-      {label}
-    </span>
-  );
-}
-
 function ReservationMobileCard({ reservation, onEdit, onView, onCancel, onDelete }: {
   reservation: Reservation;
   onEdit?: (id: string) => void;
@@ -143,7 +106,7 @@ function ReservationMobileCard({ reservation, onEdit, onView, onCancel, onDelete
 
   return (
     <article className="group relative overflow-hidden rounded-xl border border-border bg-card p-3.5 transition-all duration-300 hover:bg-accent">
-      <div className={`absolute inset-y-0 left-0 w-1 ${dotClassNames[stateTone]}`} />
+      <div className={`absolute inset-y-0 left-0 w-1 ${reservationPillDotClass[stateTone]}`} />
       <div className="flex items-start gap-3 pl-1.5">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
           {getInitials(reservation.client.name)}
@@ -169,7 +132,7 @@ function ReservationMobileCard({ reservation, onEdit, onView, onCancel, onDelete
       </div>
 
       <div className="mt-3 flex items-stretch gap-2 pl-1.5">
-        <div className={`w-0.5 rounded-full ${verticalBarClassNames[paymentTone]}`} />
+        <div className={`w-0.5 rounded-full ${reservationPillDotClass[paymentTone]}`} />
         <div className="flex flex-col">
           <p className={`text-xs font-bold ${paymentTone === "success" ? "text-success" : paymentTone === "warning" ? "text-foreground" : "text-destructive"}`}>{finLabel}</p>
           <p className="text-[10px] text-muted-foreground">{finSubtext}</p>
@@ -301,7 +264,7 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                 {/* Finanzas */}
                 <td className="px-6 py-5">
                   <div className="flex items-stretch gap-3">
-                    <div className={`w-0.5 rounded-full ${verticalBarClassNames[paymentTone]}`} />
+<div className={`w-0.5 rounded-full ${reservationPillDotClass[paymentTone]}`} />
                     <div className="flex flex-col">
                       <p className={`text-xs font-bold ${paymentTone === "success" ? "text-success" : paymentTone === "warning" ? "text-foreground" : "text-destructive"}`}>
                         {finLabel}
