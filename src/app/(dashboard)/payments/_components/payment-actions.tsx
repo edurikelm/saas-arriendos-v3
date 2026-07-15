@@ -9,12 +9,15 @@ import {
   generatePaymentLink,
   deletePayment,
   attachReceipt,
+  regeneratePaymentLink,
+  restorePayment,
 } from "@/lib/actions/payments";
 
 export function PaymentsTableClient({ payments }: { payments: Payment[] }) {
   const router = useRouter();
   const [markPaidId, setMarkPaidId] = useState<string | null>(null);
   const [generatingLinkId, setGeneratingLinkId] = useState<string | null>(null);
+  const [regeneratingLinkId, setRegeneratingLinkId] = useState<string | null>(null);
   const [attachingReceiptId, setAttachingReceiptId] = useState<string | null>(null);
 
   const paymentForMarkPaid = payments.find((p) => p.id === markPaidId) ?? null;
@@ -42,16 +45,54 @@ export function PaymentsTableClient({ payments }: { payments: Payment[] }) {
   }
 
   async function handleDeletePayment(paymentId: string) {
+    const confirmed = window.confirm("¿Eliminar este pago? El cliente aún no verá este cobro.");
+    if (!confirmed) return;
+
     try {
       const result = await deletePayment(paymentId);
       if (result.error) {
         toast.error(result.error);
       } else {
-        toast.success("Pago eliminado");
+        toast.success("Pago eliminado", {
+          duration: 5000,
+          action: {
+            label: "Deshacer",
+            onClick: async () => {
+              try {
+                const restoreResult = await restorePayment(paymentId);
+                if (restoreResult.error) {
+                  toast.error(restoreResult.error);
+                } else {
+                  toast.success("Pago restaurado");
+                  router.refresh();
+                }
+              } catch {
+                toast.error("Error al restaurar pago");
+              }
+            },
+          },
+        });
         router.refresh();
       }
     } catch {
       toast.error("Error al eliminar pago");
+    }
+  }
+
+  async function handleRegenerateLink(paymentId: string) {
+    setRegeneratingLinkId(paymentId);
+    try {
+      const result = await regeneratePaymentLink(paymentId);
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        toast.success("Link regenerado");
+        router.refresh();
+      }
+    } catch {
+      toast.error("Error al regenerar link");
+    } finally {
+      setRegeneratingLinkId(null);
     }
   }
 
@@ -127,7 +168,9 @@ export function PaymentsTableClient({ payments }: { payments: Payment[] }) {
         payments={payments}
         variant="full"
         generatingLinkId={generatingLinkId}
+        regeneratingLinkId={regeneratingLinkId}
         onGenerateLink={handleGenerateLink}
+        onRegenerateLink={handleRegenerateLink}
         onMarkPaid={setMarkPaidId}
         onDeletePayment={handleDeletePayment}
         onAttachReceipt={handleAttachReceipt}

@@ -16,10 +16,12 @@ vi.mock("@/lib/actions/payments", () => ({
   generatePaymentLink: vi.fn(),
   deletePayment: vi.fn(),
   attachReceipt: vi.fn(),
+  regeneratePaymentLink: vi.fn(),
+  restorePayment: vi.fn(),
 }));
 
 import { PaymentsTableClient } from "../payment-actions";
-import { generatePaymentLink, attachReceipt } from "@/lib/actions/payments";
+import { generatePaymentLink, attachReceipt, deletePayment, restorePayment } from "@/lib/actions/payments";
 
 const createMockPayment = (): Payment => ({
   id: "payment-1",
@@ -111,5 +113,125 @@ describe("PaymentsTableClient", () => {
     // Column headers when full variant (with context columns)
     expect(screen.getByText("Cliente")).toBeTruthy();
     expect(screen.getByText("Propiedad")).toBeTruthy();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// handleDeletePayment — confirm + undo toast
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("PaymentsTableClient - handleDeletePayment", () => {
+  beforeEach(() => {
+    mockRefresh.mockClear();
+    vi.clearAllMocks();
+  });
+
+  it("NO llama a deletePayment si window.confirm retorna false", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    render(
+      <PaymentsTableClient
+        payments={[{ ...createMockPayment(), method: "CASH" }]}
+      />
+    );
+
+    // Open dropdown and click delete
+    const moreBtn = screen.getAllByRole("button").find(
+      (b) => b.getAttribute("aria-label") === "Más acciones"
+    );
+    expect(moreBtn).toBeTruthy();
+    await userEvent.click(moreBtn!);
+
+    const deleteItem = await screen.findByText("Eliminar pago");
+    await userEvent.click(deleteItem);
+
+    expect(confirmSpy).toHaveBeenCalledWith(
+      "¿Eliminar este pago? El cliente aún no verá este cobro."
+    );
+    expect(deletePayment).not.toHaveBeenCalled();
+
+    confirmSpy.mockRestore();
+  });
+
+  it("llama deletePayment y muestra toast con 'Deshacer' tras delete exitoso", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.mocked(deletePayment).mockResolvedValueOnce({ success: true } as any);
+
+    render(
+      <PaymentsTableClient
+        payments={[{ ...createMockPayment(), method: "CASH" }]}
+      />
+    );
+
+    // Open dropdown and click delete
+    const moreBtn = screen.getAllByRole("button").find(
+      (b) => b.getAttribute("aria-label") === "Más acciones"
+    );
+    expect(moreBtn).toBeTruthy();
+    await userEvent.click(moreBtn!);
+
+    const deleteItem = await screen.findByText("Eliminar pago");
+    await userEvent.click(deleteItem);
+
+    await waitFor(() => {
+      expect(deletePayment).toHaveBeenCalledWith("payment-1");
+    });
+
+    const { toast } = await import("sonner");
+    expect(toast.success).toHaveBeenCalledWith(
+      "Pago eliminado",
+      expect.objectContaining({
+        duration: 5000,
+        action: expect.objectContaining({ label: "Deshacer" }),
+      })
+    );
+
+    confirmSpy.mockRestore();
+  });
+
+  it("llama a restorePayment al hacer click en 'Deshacer'", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.mocked(deletePayment).mockResolvedValueOnce({ success: true } as any);
+    vi.mocked(restorePayment).mockResolvedValueOnce({ success: true } as any);
+
+    render(
+      <PaymentsTableClient
+        payments={[{ ...createMockPayment(), method: "CASH" }]}
+      />
+    );
+
+    const moreBtn = screen.getAllByRole("button").find(
+      (b) => b.getAttribute("aria-label") === "Más acciones"
+    );
+    expect(moreBtn).toBeTruthy();
+    await userEvent.click(moreBtn!);
+
+    const deleteItem = await screen.findByText("Eliminar pago");
+    await userEvent.click(deleteItem);
+
+    await waitFor(() => {
+      expect(deletePayment).toHaveBeenCalled();
+    });
+
+    // Find the toast success call with undo action
+    const { toast } = await import("sonner");
+    const successCalls = vi.mocked(toast.success).mock.calls;
+    const undoCall = successCalls.find(
+      (call) =>
+        call[0] === "Pago eliminado" &&
+        call[1] &&
+        (call[1] as any).action?.label === "Deshacer"
+    );
+    expect(undoCall).toBeTruthy();
+
+    // Simulate clicking Undo by calling the onClick
+    const toastOptions = undoCall?.[1] as any;
+    await toastOptions.action.onClick();
+
+    await waitFor(() => {
+      expect(restorePayment).toHaveBeenCalledWith("payment-1");
+    });
+
+    confirmSpy.mockRestore();
   });
 });

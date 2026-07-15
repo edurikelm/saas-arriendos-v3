@@ -9,6 +9,7 @@ import {
   FileText,
   Loader2,
   MoreHorizontal,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -113,6 +114,11 @@ function getConceptLabel(payment: Payment): { primary: string } {
 
 type ConceptVariant = "info" | "warning";
 
+function isPaymentExpired(payment: Payment): boolean {
+  if (!payment.expiresAt) return false;
+  return new Date(payment.expiresAt) < new Date();
+}
+
 function getConceptBadgeVariant(payment: Payment): ConceptVariant {
   // EXTRA → warning (atención: cobro adicional al arriendo)
   if (payment.paymentType === "EXTRA") {
@@ -125,22 +131,26 @@ function getConceptBadgeVariant(payment: Payment): ConceptVariant {
 export function PaymentsTable({
   payments,
   onGenerateLink,
+  onRegenerateLink,
   onMarkPaid,
   onDeletePayment,
   onAttachReceipt,
   onSendLink,
   variant,
   generatingLinkId,
+  regeneratingLinkId,
   attachingReceiptId,
 }: {
   payments: Payment[];
   onGenerateLink?: (paymentId: string) => void;
+  onRegenerateLink?: (paymentId: string) => void;
   onMarkPaid?: (paymentId: string) => void;
   onDeletePayment?: (paymentId: string) => void;
   onAttachReceipt?: (paymentId: string) => void;
   onSendLink?: (payment: Payment) => void;
   variant: PaymentsTableVariant;
   generatingLinkId?: string | null;
+  regeneratingLinkId?: string | null;
   attachingReceiptId?: string | null;
 }) {
   // Auto-detect installment column visibility for the "reservation" variant:
@@ -180,8 +190,10 @@ export function PaymentsTable({
         const isPending = payment.status === "PENDING";
         const isCompleted = payment.status === "COMPLETED";
         const isMercadoPago = payment.method === "MERCADO_PAGO";
+        const isExpired = isPaymentExpired(payment);
         const canGenerateLink = isPending && isMercadoPago && !payment.initPoint && onGenerateLink;
-        const canCopyLink = isPending && isMercadoPago && payment.initPoint;
+        const canCopyLink = isPending && isMercadoPago && payment.initPoint && !isExpired;
+        const canRegenerateLink = isPending && isMercadoPago && isExpired && onRegenerateLink;
         const canMarkPaid = isPending && onMarkPaid;
         const canDelete = isPending && !isMercadoPago && onDeletePayment;
         const canViewReceipt = Boolean(payment.receiptUrl);
@@ -189,13 +201,15 @@ export function PaymentsTable({
         const canSendLink = isPending && isMercadoPago && payment.initPoint && onSendLink;
         const primaryAction = canGenerateLink
           ? "generate"
-          : canCopyLink
-            ? "copy"
-            : canMarkPaid
-              ? "markPaid"
-              : canViewReceipt
-                ? "viewReceipt"
-                : null;
+          : canRegenerateLink
+            ? "regenerate"
+            : canCopyLink
+              ? "copy"
+              : canMarkPaid
+                ? "markPaid"
+                : canViewReceipt
+                  ? "viewReceipt"
+                  : null;
         const secondaryActions = [
           canMarkPaid && primaryAction !== "markPaid" ? "markPaid" : null,
           canDelete ? "delete" : null,
@@ -239,6 +253,25 @@ export function PaymentsTable({
               >
                 <Copy className="mr-1 size-3" />
                 Copiar link
+              </Button>
+            );
+          }
+
+          if (action === "regenerate") {
+            return (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-xs"
+                disabled={regeneratingLinkId === payment.id}
+                onClick={() => onRegenerateLink?.(payment.id)}
+              >
+                {regeneratingLinkId === payment.id ? (
+                  <Loader2 className="mr-1 size-3 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-1 size-3" />
+                )}
+                Regenerar link
               </Button>
             );
           }
@@ -371,6 +404,11 @@ export function PaymentsTable({
                   <p className="text-[10px] text-destructive">
                     Vencido hace {payment.overdueDays} {payment.overdueDays === 1 ? "día" : "días"}
                   </p>
+                )}
+                {isPending && isMercadoPago && isExpired && (
+                  <Badge variant="destructive" className="h-5 text-[11px] font-medium w-fit">
+                    Expirado
+                  </Badge>
                 )}
               </div>
             </td>

@@ -28,6 +28,159 @@ const createMockPayment = (overrides: Partial<Payment> = {}): Payment => ({
 });
 
 // ────────────────────────────────────────────────────────────────────────────
+// isExpired badge — Mercado Pago PENDING links
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('PaymentsTable - isExpired badge', () => {
+  it('muestra badge "Expirado" cuando PENDING + MP + expiresAt en pasado', () => {
+    const pastDate = new Date();
+    pastDate.setDate(pastDate.getDate() - 1);
+    const payment = createMockPayment({
+      status: 'PENDING',
+      method: 'MERCADO_PAGO',
+      initPoint: 'https://www.mercadopago.com.ar/checkout/test',
+      expiresAt: pastDate.toISOString(),
+    });
+
+    render(<PaymentsTable payments={[payment]} variant="full" onRegenerateLink={vi.fn()} />);
+
+    expect(screen.getByText('Expirado')).toBeTruthy();
+  });
+
+  it('NO muestra badge "Expirado" cuando expiresAt en futuro', () => {
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + 7);
+    const payment = createMockPayment({
+      status: 'PENDING',
+      method: 'MERCADO_PAGO',
+      initPoint: 'https://www.mercadopago.com.ar/checkout/test',
+      expiresAt: futureDate.toISOString(),
+    });
+
+    render(<PaymentsTable payments={[payment]} variant="full" onRegenerateLink={vi.fn()} />);
+
+    expect(screen.queryByText('Expirado')).toBeNull();
+  });
+
+  it('NO muestra badge "Expirado" cuando COMPLETED aunque expiresAt en pasado', () => {
+    const pastDate = new Date();
+    pastDate.setDate(pastDate.getDate() - 1);
+    const payment = createMockPayment({
+      status: 'COMPLETED',
+      method: 'MERCADO_PAGO',
+      initPoint: 'https://www.mercadopago.com.ar/checkout/test',
+      expiresAt: pastDate.toISOString(),
+    });
+
+    render(<PaymentsTable payments={[payment]} variant="full" onRegenerateLink={vi.fn()} />);
+
+    expect(screen.queryByText('Expirado')).toBeNull();
+  });
+
+  it('NO muestra badge "Expirado" para método CASH (no MP)', () => {
+    const pastDate = new Date();
+    pastDate.setDate(pastDate.getDate() - 1);
+    const payment = createMockPayment({
+      status: 'PENDING',
+      method: 'CASH',
+      expiresAt: pastDate.toISOString(),
+    });
+
+    render(<PaymentsTable payments={[payment]} variant="full" onRegenerateLink={vi.fn()} />);
+
+    expect(screen.queryByText('Expirado')).toBeNull();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Regenerar link button
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('PaymentsTable - Regenerar link button', () => {
+  it('muestra botón "Regenerar link" cuando PENDING + MP + expirado + onRegenerateLink provisto', () => {
+    const pastDate = new Date();
+    pastDate.setDate(pastDate.getDate() - 1);
+    const payment = createMockPayment({
+      status: 'PENDING',
+      method: 'MERCADO_PAGO',
+      initPoint: 'https://www.mercadopago.com.ar/checkout/test',
+      expiresAt: pastDate.toISOString(),
+    });
+
+    render(<PaymentsTable payments={[payment]} variant="full" onRegenerateLink={vi.fn()} />);
+
+    expect(screen.getByRole('button', { name: /regenerar link/i })).toBeTruthy();
+  });
+
+  it('NO muestra botón "Regenerar link" cuando PENDING + MP + NO expirado', () => {
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + 7);
+    const payment = createMockPayment({
+      status: 'PENDING',
+      method: 'MERCADO_PAGO',
+      initPoint: 'https://www.mercadopago.com.ar/checkout/test',
+      expiresAt: futureDate.toISOString(),
+    });
+
+    render(<PaymentsTable payments={[payment]} variant="full" onRegenerateLink={vi.fn()} />);
+
+    expect(screen.queryByRole('button', { name: /regenerar link/i })).toBeNull();
+  });
+
+  it('NO muestra botón "Regenerar link" cuando COMPLETED + expirado', () => {
+    const pastDate = new Date();
+    pastDate.setDate(pastDate.getDate() - 1);
+    const payment = createMockPayment({
+      status: 'COMPLETED',
+      method: 'MERCADO_PAGO',
+      initPoint: 'https://www.mercadopago.com.ar/checkout/test',
+      expiresAt: pastDate.toISOString(),
+    });
+
+    render(<PaymentsTable payments={[payment]} variant="full" onRegenerateLink={vi.fn()} />);
+
+    expect(screen.queryByRole('button', { name: /regenerar link/i })).toBeNull();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Copiar link vs Regenerar — mutually exclusive
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('PaymentsTable - Copiar link vs Regenerar', () => {
+  it('muestra "Copiar link" cuando PENDING + MP + initPoint + NO expirado', () => {
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + 7);
+    const payment = createMockPayment({
+      status: 'PENDING',
+      method: 'MERCADO_PAGO',
+      initPoint: 'https://www.mercadopago.com.ar/checkout/test',
+      expiresAt: futureDate.toISOString(),
+    });
+
+    render(<PaymentsTable payments={[payment]} variant="full" />);
+
+    expect(screen.getByRole('button', { name: /copiar link/i })).toBeTruthy();
+  });
+
+  it('NO muestra "Copiar link" cuando PENDING + MP + initPoint + expirado (debe mostrar Regenerar)', () => {
+    const pastDate = new Date();
+    pastDate.setDate(pastDate.getDate() - 1);
+    const payment = createMockPayment({
+      status: 'PENDING',
+      method: 'MERCADO_PAGO',
+      initPoint: 'https://www.mercadopago.com.ar/checkout/test',
+      expiresAt: pastDate.toISOString(),
+    });
+
+    render(<PaymentsTable payments={[payment]} variant="full" onRegenerateLink={vi.fn()} />);
+
+    expect(screen.queryByRole('button', { name: /copiar link/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /regenerar link/i })).toBeTruthy();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
 // receiptUrl display (variant="reservation" sin installment data)
 // ────────────────────────────────────────────────────────────────────────────
 
