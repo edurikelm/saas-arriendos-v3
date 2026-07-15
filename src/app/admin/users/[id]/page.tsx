@@ -179,7 +179,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
 
       <Card className="relative overflow-hidden border-border/60 bg-gradient-to-br from-card via-card to-muted/30">
         <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-primary/5 blur-3xl" />
-        <div className="pointer-events-none absolute -left-12 -bottom-12 h-40 w-40 rounded-full bg-violet-500/5 blur-3xl" />
+        <div className="pointer-events-none absolute -left-12 -bottom-12 h-40 w-40 rounded-full bg-info/5 blur-3xl" />
         <CardContent className="relative p-6">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex items-start gap-4">

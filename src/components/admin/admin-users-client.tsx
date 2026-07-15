@@ -607,7 +607,7 @@ export function AdminUsersClient({ initialUsers, initialTotal, kpis }: AdminUser
 
       {selectedUser && (
         <Dialog open={!!selectedUser} onOpenChange={() => setSelectedUser(null)}>
-          <DialogContent>
+          <DialogContent className="w-[95vw] max-w-lg">
             <DialogHeader>
               <DialogTitle>{selectedUser.name}</DialogTitle>
               <DialogDescription>{selectedUser.email}</DialogDescription>
@@ -717,7 +717,7 @@ export function AdminUsersClient({ initialUsers, initialTotal, kpis }: AdminUser
       )}
 
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent>
+        <DialogContent className="w-[95vw] max-w-md">
           <DialogHeader>
             <DialogTitle>¿Eliminar usuario?</DialogTitle>
             <DialogDescription>
@@ -752,7 +752,7 @@ export function AdminUsersClient({ initialUsers, initialTotal, kpis }: AdminUser
       </Dialog>
 
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent>
+        <DialogContent className="w-[95vw] max-w-md">
           <DialogHeader>
             <DialogTitle>Crear Nuevo Propietario</DialogTitle>
             <DialogDescription>
