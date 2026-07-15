@@ -7,11 +7,12 @@ import { Users, Trash2, Search, Plus, ChevronDown, ChevronUp, X, Download, Ban, 
 import { DataTable } from "@/components/ui/data-table";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { Pagination } from "@/components/ui/pagination";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { HealthBadge } from "@/components/admin/health-badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -581,13 +582,12 @@ export function AdminUsersClient({ initialUsers, initialTotal, kpis }: AdminUser
                     <td className="px-6 py-4 text-center tabular-nums">{user._count.clients}</td>
                     <td className="px-6 py-4 text-center tabular-nums">{user._count.reservations}</td>
                     <td className="px-6 py-4 text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        render={<Link href={`/admin/users/${user.id}`} />}
+                      <Link
+                        href={`/admin/users/${user.id}`}
+                        className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
                       >
                         Ver
-                      </Button>
+                      </Link>
                     </td>
                   </tr>
                 ))}
