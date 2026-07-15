@@ -31,8 +31,9 @@ import { Badge } from "@/components/ui/badge";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { DataTable } from "@/components/ui/data-table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
 import { getOwnerDetail } from "@/lib/actions/admin-users";
 import { AdminOwnerNotes } from "@/components/admin/admin-owner-notes";
 import { ActionHistory } from "@/components/admin/action-history";
@@ -168,10 +169,13 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
-        <Button variant="ghost" size="sm" render={<Link href="/admin/users" />}>
+        <Link
+          href="/admin/users"
+          className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
+        >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Volver
-        </Button>
+        </Link>
         <div className="hidden text-xs text-muted-foreground sm:block">
           ID: <span className="font-mono text-foreground/70">{owner.id.slice(0, 8)}</span>
         </div>
@@ -465,6 +469,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
           <TabsTrigger value="reservas">Reservas</TabsTrigger>
           <TabsTrigger value="financiero">Financiero</TabsTrigger>
           <TabsTrigger value="notas">Notas internas</TabsTrigger>
+          <TabsTrigger value="historial">Historial</TabsTrigger>
           <TabsTrigger value="onboarding">Progreso</TabsTrigger>
         </TabsList>
 
