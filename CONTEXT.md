@@ -380,11 +380,16 @@ Los callsites que NO encajan en estos helpers (select+groupby custom, where+incl
 
 ## Estado del proyecto / Backlog activo
 
-**Última verificación de baseline** (post cierre PRD-0002 + fixes MED, 2026-07-14):
+**Última verificación de baseline** (post cierre PRD-0001 + tests closing, 2026-07-15):
 - `npm run typecheck` → 0 errores
-- `npm run lint --quiet` → 0 errores (476 warnings de `no-explicit-any` y `no-unused-vars` en 350 archivos, ver decisión abajo)
-- `npm run test:run` → 1155/1155 verde (~80s; flaky tests conocidos pueden aparecer en primera corrida, NO aplicar fix destructivo, re-correr para confirmar)
-- **Perf audit 2026-07-12**: cerrado al 100% (4/4 HIGH + 3/3 MED + 3 errores de lint restantes)
+- `npm run lint --quiet` → 0 errores (498 warnings de `no-explicit-any` y `no-unused-vars` en 350 archivos, ver decisión abajo)
+- `npm run test:run` → 1204/1204 verde (~72s; 2 skipped). **Flaky tests conocidos** pueden aparecer en primera corrida (timeouts de 5000ms o assertions de "called N times") en estos 3 archivos — verificados aislados: 7/7, 13/13, 12/12 verde:
+  - `src/lib/actions/__tests__/payments-kpis.test.ts`
+  - `src/lib/actions/__tests__/reports-revenue.test.ts`
+  - `src/lib/actions/__tests__/reports-reservations-paginated.test.ts`
+
+  **Causa:** race condition / shared state entre archivos con `vi.hoisted` + `vi.mock` cuando vitest corre en workers compartidos. **NO es bug de implementación ni de test mockeado.** Si aparece el fallo, re-correr la suite antes de investigar.
+- **Perf audit 2026-07-12**: cerrado al 100% (4/4 HIGH + 3/3 MED + 3 errores de lint restantes). Las 3 "regresiones" reportadas originalmente eran los flaky tests de arriba, no bugs reales.
 - **PRD-0002 (UI gaps) + fixes MED**: cerrados en commit `a4cb41d` + próximo commit
 
 ### Cerrados en commits recientes
@@ -393,18 +398,17 @@ Los callsites que NO encajan en estos helpers (select+groupby custom, where+incl
 
 - **PRD-0003 — Sistema de Notificaciones in-app + email** (`docs/prd/PRD-0003-notifications.md`) — cerrado en commits previos al perf audit. Cubre: schema `Notification`/`NotificationRead`/`NotificationType` con `@unique(notificationKey)`; pure functions `selectRemindersForDispatch`/`renderNotification`/`computeHasUnread`; `timezone.ts` (ADR-0020); channels `InAppChannel` + `EmailChannel` (Resend); `recordDomainEvent` con post-commit dispatch; hooks en `payments.ts` (3 callsites) + `reservations.ts`; `NotificationBell` + `NotificationList`; `getUnreadNotificationCount` en layout; cron `/api/cron/payment-reminders/dispatch` (schedule `0 13 * * *`); toggle `notificationsEmailEnabled` en `/dashboard/settings`.
 
+- **PRD-0001 — Arquitectura: profundización de módulos** (`docs/prd/PRD-0001-arquitectura-deepening.md`) — cerrado en commit `c215e3c` (sesión 2026-07-15). 5/5 candidatos completos: Double Validation, ChangeRecorder (`src/lib/audit/`), PaymentGateway interface + MercadoPago adapter, Admin Routes unificados, `calendar.ts` eliminado. Módulo de tests agregado: 21 tests nuevos en `reservations.test.ts` (5 gaps: disponibilidad, pricing DAILY, bloqueos externos, audit logging), `gateway.test.ts` (8: mapeo status MP→interno + error propagation), `guards.test.ts` (8: `requireAuth`/`requireOwner`/`requireSuperAdmin`). Tests totales: 1155 → 1204.
+
 ### Backlog activo (en orden sugerido)
 
-1. **PRD-0001 — Arquitectura: profundización de módulos** (`docs/prd/PRD-0001-arquitectura-deepening.md`)
-   Refactor técnico (ChangeRecorder, PaymentGateway, seam calendar, etc.). Usar skill `improve-codebase-architecture` antes de tacklearlo.
+1. **Admin user management** (`docs/prd/admin-user-management-roadmap.md` + `docs/prd/super-admin-panel.md`)
+   Roadmap y PRD se solapan (roadmap es sucesor del PRD inicial). Decidir si se actualiza `super-admin-panel.md` con referencia al roadmap, o se elimina el PRD absorbed. Brechas detectadas: UI no expone `AdminNote`/`AdminActionLog`, detalle de owner básico, eliminación hard-delete (riesgo auditoría), sin estado de cuenta (activo/suspendido/cancelado), `ENTERPRISE` aparece en UI pero no existe en schema.
 
-2. **Admin user management** (`docs/prd/admin-user-management-roadmap.md` + `docs/prd/super-admin-panel.md`)
-   Roadmap y PRD se solapan (roadmap es sucesor del PRD inicial). Decidir si se actualiza `super-admin-panel.md` con referencia al roadmap, o se elimina el PRD absorbed.
-
-3. **PLAN.md — Rediseño UI Ocean Breeze** (`PLAN.md`)
+2. **PLAN.md — Rediseño UI Ocean Breeze** (`PLAN.md`)
    4 fases (Fase 0 auditoría → Fase 1 design system en Stitch → Fase 2 pantallas piloto → Fase 3 migración por lotes → Fase 4 implementación). **Bloqueado hasta responder las 4 preguntas abiertas** del §Preguntas abiertas: color de acento, top 3-5 pantallas prioritarias, screenshots, estado del proyecto.
 
 ### Decisiones pendientes
 
-- **Lint warnings (476)**: bajo impacto real, alto ruido en CI. Opciones: (a) override `no-explicit-any` a `warn` en `eslint.config.mjs` (3 líneas, cero código tocado); (b) refactor archivo por archivo; (c) ignorar. Decisión del usuario cuando quiera tacklearlo.
+- **Lint warnings (498)**: bajo impacto real, alto ruido en CI. Opciones: (a) override `no-explicit-any` a `warn` en `eslint.config.mjs` (3 líneas, cero código tocado); (b) refactor archivo por archivo; (c) ignorar. Decisión del usuario cuando quiera tacklearlo.
 - **Handoffs en `docs/handoffs/_archive/`**: documentos históricos de sesiones cerradas. No usar como guía de implementación (sus conteos y distribuciones no reflejan el código actual).
