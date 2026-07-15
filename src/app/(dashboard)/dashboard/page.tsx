@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { Plus, Wallet, Clock, CalendarCheck, TrendingUp } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { DataTable } from "@/components/ui/data-table";
@@ -8,6 +7,8 @@ import { classifyCollectionAlerts } from "@/lib/alerts/collection-alerts";
 import { getProperties } from "@/lib/actions/properties";
 import { getReservations } from "@/lib/actions/reservations";
 import { getReservationPaidAmount } from "@/lib/payments/calculations";
+import { ReservationPill } from "@/components/reservations/reservation-pill";
+import { DashboardCobranzaList, type CobranzaItem } from "./_components/dashboard-cobranza-list";
 
 interface Property {
   id: string;
@@ -115,33 +116,17 @@ function dayLetter(d: Date): string {
 const CALENDAR_DAYS = 14;
 const WEEKEND_DAY_OF_WEEK = new Set([0, 6]); // Sun, Sat
 
-interface CobranzaItem {
-  reservationId: string;
-  clientName: string;
-  amount: number;
-  dueDate: Date | null;
-  isOverdue: boolean;
-  propertyName: string;
-}
-
-function ReservationStatusBadge({ reservation, today }: { reservation: Reservation; today: Date }) {
+function getReservationStatusPill(
+  reservation: Reservation,
+  today: Date
+): { tone: "success" | "info" | "neutral"; label: string } {
   const start = new Date(reservation.startDate);
-  const isActive = start <= today && new Date(reservation.endDate) >= today;
-
-  if (isActive) {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded bg-primary/10 px-2 py-1 text-[10px] font-bold uppercase text-primary">
-        <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-        Activa
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded border border-info/20 bg-info/10 px-2 py-1 text-[10px] font-bold uppercase text-info-foreground">
-      <span className="h-1.5 w-1.5 rounded-full bg-info" />
-      Próxima
-    </span>
-  );
+  const end = new Date(reservation.endDate);
+  if (reservation.status === "CANCELLED") return { tone: "neutral", label: "Cancelada" };
+  if (reservation.status === "COMPLETED") return { tone: "neutral", label: "Finalizada" };
+  if (start <= today && end >= today) return { tone: "success", label: "Activa" };
+  if (start > today) return { tone: "info", label: "Próxima" };
+  return { tone: "neutral", label: "Finalizada" };
 }
 
 export default async function DashboardPage() {
@@ -406,7 +391,10 @@ export default async function DashboardPage() {
                   </td>
                   <td className="px-6 py-4 text-xs text-muted-foreground">{arrivalLabel}</td>
                   <td className="px-6 py-4">
-                    <ReservationStatusBadge reservation={reservation} today={today} />
+                    {(() => {
+                      const pill = getReservationStatusPill(reservation, today);
+                      return <ReservationPill tone={pill.tone} label={pill.label} />;
+                    })()}
                   </td>
                   <td className="px-6 py-4 text-right text-xs font-bold text-foreground">
                     {formatCLP(Number(reservation.totalPrice))}
@@ -418,57 +406,7 @@ export default async function DashboardPage() {
         </div>
 
         {/* Cobranza list — col-1 */}
-        <div className="flex flex-col overflow-hidden rounded-lg border border-border bg-card">
-          <div className="border-b border-border px-4 py-3">
-            <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-              Cobranza Reservas Mensuales
-            </h2>
-          </div>
-          <div className="flex-1 p-4">
-            {cobranzaItems.length === 0 ? (
-              <p className="py-6 text-center text-xs text-muted-foreground">Sin cobros pendientes</p>
-            ) : (
-              <ul className="space-y-5">
-                {cobranzaItems.map((item, idx) => (
-                  <li key={`${item.reservationId}-${idx}`} className="flex items-center justify-between">
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-bold text-foreground">{item.clientName}</p>
-                      {item.isOverdue ? (
-                        <p className="text-[10px] font-bold text-destructive">
-                          Vencido: {item.dueDate ? formatDate(item.dueDate.toISOString()) : "—"}
-                        </p>
-                      ) : (
-                        <p className="text-[10px] text-muted-foreground">
-                          Vence: {item.dueDate ? formatDate(item.dueDate.toISOString()) : "—"}
-                        </p>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs font-bold text-foreground">{formatCLP(item.amount)}</p>
-                      <span
-                        className={
-                          item.isOverdue
-                            ? "text-[9px] font-bold uppercase text-destructive"
-                            : "text-[9px] font-bold uppercase text-warning-foreground"
-                        }
-                      >
-                        {item.isOverdue ? "Vencido" : "Pendiente"}
-                      </span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          <div className="border-t border-border bg-muted p-4">
-            <Link
-              href="/payments"
-              className="flex w-full items-center justify-center rounded border border-border bg-card py-2 text-[10px] font-bold uppercase text-foreground transition-colors hover:bg-muted"
-            >
-              Gestionar Pagos
-            </Link>
-          </div>
-        </div>
+        <DashboardCobranzaList items={cobranzaItems} />
       </section>
 
       {/* 4. Calendario de ocupación — full width */}
