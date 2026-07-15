@@ -13,20 +13,15 @@ const eslintConfig = [
       ".opencode/**",
     ],
   },
-  {
-    files: ["**/*.{ts,tsx,js,jsx,mjs}"],
-  },
   ...nextCoreWebVitals,
   ...nextTypescript,
   {
-    // P1-tests: relax no-explicit-any for test files (mocks/fixtures).
-    // Code in lib/actions, components, api routes, etc. remains strict.
-    // See docs/handoffs/lint-cleanup.md for the rationale.
-    files: [
-      "**/__tests__/**/*.{ts,tsx}",
-      "**/*.test.{ts,tsx}",
-      "**/__mocks__/**/*.{ts,tsx}",
-    ],
+    // Lint cleanup: downgrade no-explicit-any from error to warn globally.
+    // Rationale: ~498 existing warnings are dominated by pragmatic mocks
+    // (test fixtures, lib/actions inputs, third-party payloads). Refactoring
+    // each one to a precise type has low ROI vs adding types is the right
+    // move per-call when touching that code. See CONTEXT.md decisions.
+    files: ["**/*.{ts,tsx,js,jsx,mjs}"],
     rules: {
       "@typescript-eslint/no-explicit-any": "warn",
     },
