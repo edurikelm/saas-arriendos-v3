@@ -78,9 +78,9 @@ export function LandingPage() {
           </Link>
           
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium">
-            <Link href="#features" className="hover:text-primary transition-colors">Características</Link>
-            <Link href="#pricing" className="hover:text-primary transition-colors">Precios</Link>
-            <Link href="#mercadopago" className="hover:text-primary transition-colors">Mercado Pago</Link>
+            <Link href="/#features" className="hover:text-primary transition-colors">Características</Link>
+            <Link href="/pricing" className="hover:text-primary transition-colors">Precios</Link>
+            <Link href="/#mercadopago" className="hover:text-primary transition-colors">Mercado Pago</Link>
           </nav>
 
           <div className="flex items-center gap-4">
@@ -378,7 +378,7 @@ export function LandingPage() {
               <ul className="space-y-5 text-base text-muted-foreground font-medium">
                 <li><Link href="#features" className="hover:text-primary transition-colors text-muted-foreground">Funciones</Link></li>
                 <li><Link href="#mercadopago" className="hover:text-primary transition-colors text-muted-foreground">Mercado Pago</Link></li>
-                <li><Link href="#pricing" className="hover:text-primary transition-colors text-muted-foreground">Precios</Link></li>
+                <li><Link href="/pricing" className="hover:text-primary transition-colors text-muted-foreground">Precios</Link></li>
               </ul>
             </div>
 
