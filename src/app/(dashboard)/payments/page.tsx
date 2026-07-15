@@ -6,7 +6,8 @@ import { PaymentsKpis } from "@/components/payments/payments-kpis";
 import { PaymentsFilters } from "./_components/payments-filters";
 import { PaymentsTableClient } from "./_components/payment-actions";
 import { PaginationWrapper } from "./_components/pagination-wrapper";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { ReceiptText, X } from "lucide-react";
 
 export const metadata = { title: "Pagos — RentalPro" };
@@ -95,10 +96,13 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
               : "Aún no tienes pagos registrados."}
           </p>
           {hasFilters && (
-            <Button variant="outline" className="mt-4" render={<Link href="/payments" />}>
+            <Link
+              href="/payments"
+              className={cn(buttonVariants({ variant: "outline" }), "mt-4")}
+            >
               <X className="mr-2 h-4 w-4" />
               Limpiar filtros
-            </Button>
+            </Link>
           )}
         </div>
       ) : (
