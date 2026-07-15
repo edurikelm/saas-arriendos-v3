@@ -139,13 +139,26 @@ Las tres fuentes se inyectan vía CSS variables en el `<html>` (layout.tsx:44) y
 
 | Element | Size | Weight | Line Height |
 |---------|------|--------|-------------|
-| Page Title (h1) | `text-2xl sm:text-3xl` | `font-bold` (700) | `leading-tight` |
 | Section Title (h2) | `text-lg` | `font-medium` (500) | `leading-snug` |
 | Card Title | `text-base` / `text-sm` (sm cards) | `font-medium` (500) | `leading-snug` |
 | Body | `text-sm` | `font-normal` (400) | `leading-normal` |
 | Small/Labels | `text-xs` | `font-medium` (500) | `leading-none` |
 | Muted Text | `text-sm` / `text-xs` | (inherit) | (inherit) |
 | Button | `text-sm` / `text-[0.8rem]` (sm) | `font-medium` (500) | (auto) |
+
+### Page Title tiers (h1)
+
+El tamaño del `<h1>` escala con la **densidad visual del contenido** de la página. La regla implícita es: cuando el dato es la hero (tabla/lista densa), el h1 compite visualmente con el `<KpiCard>` (que también usa `text-xl font-bold tabular-nums`). Cuando la página tiene más aire (cards, settings, forms), el h1 puede crecer.
+
+| Tier | Tamaño | Uso | Ejemplos |
+|------|--------|-----|----------|
+| **Tier 1** | `text-xl font-bold` | Páginas data-heavy con tabla/lista como contenido primario. | `/dashboard`, `/admin`, `/admin/users`, `/admin/support`, `/payments`, `/clients`, `/support` |
+| **Tier 2** | `text-2xl sm:text-3xl font-bold` | Settings y detail con cards o secciones, más aire visual. | `/settings`, `/properties` (cards), `/admin/users/[id]` |
+| **Tier 3** | `text-3xl font-bold` | Forms (create/edit). El form es la hero. | `/properties/new`, `/properties/[id]/edit`, `/properties/[id]` |
+
+**Convención adicional**: agregar `tracking-tight` en Tier 1 compensa ópticamente el tamaño menor del header en páginas densas. Aplicado en `/payments` y `/clients`. Opcional pero recomendado para consistencia.
+
+**Color**: `text-foreground` siempre en Tiers 1 y 2. Tier 3 puede omitirlo (default del navegador) o usar `text-foreground` por consistencia.
 
 ### Reglas de uso
 
