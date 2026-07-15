@@ -522,6 +522,339 @@ describe('createReservation emits RESERVATION_CREATED domain event', () => {
   });
 });
 
+describe('createReservation - disponibilidad', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Reset externalChannelBlock.findMany to a fresh mock each test
+    // to avoid interference between tests
+    mockPrisma.externalChannelBlock.findMany = vi.fn().mockResolvedValue([]);
+  });
+
+  it('rechaza si disponibilidad insuficiente (reservas existentes agotan todas las unidades)', async () => {
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+
+    vi.mocked(mockPrisma.property.findUnique).mockResolvedValue({
+      id: 'prop-1',
+      userId: 'owner-1',
+      name: 'Casa',
+      dailyPrice: 25000 as any,
+      monthlyPrice: null,
+      unitsAvailable: 2,
+      mainImage: '',
+      images: [],
+      amenities: [],
+      color: '#000',
+      type: 'APARTMENT' as any,
+      createdAt: new Date(),
+      currency: 'CLP' as any,
+    });
+    vi.mocked(mockPrisma.reservationClient.findUnique).mockResolvedValue({
+      id: 'client-1',
+      name: 'Juan',
+      email: 'juan@test.com',
+      userId: 'user-1',
+      createdAt: new Date(),
+      phone: null,
+      rut: null,
+    });
+    vi.mocked(mockPrisma.userProfile.findUnique).mockResolvedValue({
+      id: 'user-1',
+      name: 'Owner',
+      email: 'test@test.com',
+      plan: 'PRO' as any,
+      createdAt: new Date(),
+    });
+
+    // Existing reservations that already book all 2 units for Jan 1-5
+    vi.mocked(mockPrisma.reservation.findMany).mockResolvedValue([
+      {
+        id: 'existing-res-1',
+        userId: 'user-1',
+        propertyId: 'prop-1',
+        clientId: 'other-client',
+        startDate: new Date('2025-01-01'),
+        endDate: new Date('2025-01-05'),
+        billingType: 'DAILY' as any,
+        unitsBooked: 2,
+        totalPrice: 200000 as any,
+        status: 'CONFIRMED',
+        bookingAirbnb: false,
+        notes: null,
+        createdAt: new Date(),
+      },
+    ]);
+
+    const result = await createReservation({
+      propertyId: 'prop-1',
+      clientId: 'client-1',
+      startDate: '01-01-2025',
+      endDate: '05-01-2025',
+      billingType: 'DAILY',
+      unitsBooked: 1,
+    });
+
+    expect(result).toHaveProperty('error');
+    expect(result.error).toMatch(/disponibilidad|No hay disponibilidad/);
+  });
+
+  it('calcula totalPrice DAILY correctamente: 25000 x 4 noches x 2 unidades = 200000', async () => {
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+
+    vi.mocked(mockPrisma.property.findUnique).mockResolvedValue({
+      id: 'prop-1',
+      userId: 'owner-1',
+      name: 'Casa',
+      dailyPrice: 25000 as any,
+      monthlyPrice: null,
+      unitsAvailable: 5,
+      mainImage: '',
+      images: [],
+      amenities: [],
+      color: '#000',
+      type: 'APARTMENT' as any,
+      createdAt: new Date(),
+      currency: 'CLP' as any,
+    });
+    vi.mocked(mockPrisma.reservationClient.findUnique).mockResolvedValue({
+      id: 'client-1',
+      name: 'Juan',
+      email: 'juan@test.com',
+      userId: 'user-1',
+      createdAt: new Date(),
+      phone: null,
+      rut: null,
+    });
+    vi.mocked(mockPrisma.userProfile.findUnique).mockResolvedValue({
+      id: 'user-1',
+      name: 'Owner',
+      email: 'test@test.com',
+      plan: 'PRO' as any,
+      createdAt: new Date(),
+    });
+    vi.mocked(mockPrisma.reservation.findMany).mockResolvedValue([]);
+    mockPrisma.externalChannelBlock.findMany = vi.fn().mockResolvedValue([]);
+
+    vi.mocked(mockPrisma.reservation.create).mockResolvedValue({
+      id: 'res-1',
+      userId: 'user-1',
+      propertyId: 'prop-1',
+      clientId: 'client-1',
+      startDate: new Date('2025-01-01'),
+      endDate: new Date('2025-01-04'),
+      billingType: 'DAILY',
+      unitsBooked: 2,
+      totalPrice: 200000 as any,
+      status: 'PENDING',
+      bookingAirbnb: false,
+      notes: null,
+      createdAt: new Date(),
+    });
+    vi.mocked(mockPrisma.reservationChange.create).mockResolvedValue({} as any);
+
+    await createReservation({
+      propertyId: 'prop-1',
+      clientId: 'client-1',
+      startDate: '01-01-2025',
+      endDate: '04-01-2025',
+      billingType: 'DAILY',
+      unitsBooked: 2,
+    });
+
+    // dailyPrice=25000, nights=differenceInDays(Jan4,Jan1)+1=4, unitsBooked=2 → 25000*4*2=200000
+    const createCalls = vi.mocked(mockPrisma.reservation.create).mock.calls;
+    expect(createCalls.length).toBeGreaterThan(0);
+    expect(createCalls[0][0].data.totalPrice).toBe(200000);
+  });
+
+  it('bloqueos de canal externo cuentan para disponibilidad', async () => {
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+
+    vi.mocked(mockPrisma.property.findUnique).mockResolvedValue({
+      id: 'prop-1',
+      userId: 'owner-1',
+      name: 'Casa',
+      dailyPrice: 10000 as any,
+      monthlyPrice: null,
+      unitsAvailable: 1,
+      mainImage: '',
+      images: [],
+      amenities: [],
+      color: '#000',
+      type: 'APARTMENT' as any,
+      createdAt: new Date(),
+      currency: 'CLP' as any,
+    });
+    vi.mocked(mockPrisma.reservationClient.findUnique).mockResolvedValue({
+      id: 'client-1',
+      name: 'Juan',
+      email: 'juan@test.com',
+      userId: 'user-1',
+      createdAt: new Date(),
+      phone: null,
+      rut: null,
+    });
+    vi.mocked(mockPrisma.userProfile.findUnique).mockResolvedValue({
+      id: 'user-1',
+      name: 'Owner',
+      email: 'test@test.com',
+      plan: 'PRO' as any,
+      createdAt: new Date(),
+    });
+    // No existing reservations
+    vi.mocked(mockPrisma.reservation.findMany).mockResolvedValue([]);
+    // External channel block occupies 1 unit for the date range (1 + 1 > 1 → blocked)
+    mockPrisma.externalChannelBlock.findMany = vi.fn().mockResolvedValue([
+      {
+        id: 'block-1',
+        propertyId: 'prop-1',
+        startDate: new Date('2025-01-01'),
+        endDate: new Date('2025-01-05'),
+        status: 'ACTIVE',
+        externalCalendar: { channel: 'AIRBNB' as const },
+      },
+    ]);
+
+    const result = await createReservation({
+      propertyId: 'prop-1',
+      clientId: 'client-1',
+      startDate: '01-01-2025',
+      endDate: '05-01-2025',
+      billingType: 'DAILY',
+      unitsBooked: 1,
+    });
+
+    expect(result).toHaveProperty('error');
+    expect(result.error).toMatch(/disponibilidad|No hay disponibilidad/);
+  });
+});
+
+describe('updateReservation - audit log', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('registra reservationChange al cambiar startDate', async () => {
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+
+    const existingReservation = {
+      id: 'res-1',
+      userId: 'user-1',
+      propertyId: 'prop-1',
+      clientId: 'client-1',
+      startDate: new Date('2025-01-01'),
+      endDate: new Date('2025-01-05'),
+      billingType: 'DAILY' as const,
+      unitsBooked: 1,
+      totalPrice: 100000 as any,
+      status: 'CONFIRMED' as const,
+      bookingAirbnb: false,
+      notes: null,
+      createdAt: new Date(),
+      property: {
+        id: 'prop-1',
+        userId: 'user-1',
+        name: 'Casa',
+        dailyPrice: 25000 as any,
+        monthlyPrice: null,
+        unitsAvailable: 5,
+        mainImage: '',
+        images: [],
+        amenities: [],
+        color: '#000',
+        type: 'APARTMENT' as const,
+        createdAt: new Date(),
+        currency: 'CLP' as any,
+      },
+    };
+
+    vi.mocked(mockPrisma.reservation.findFirst).mockResolvedValue(existingReservation as any);
+    // No conflicting reservations for the new dates
+    vi.mocked(mockPrisma.reservation.findMany).mockResolvedValue([]);
+    vi.mocked(mockPrisma.externalChannelBlock.findMany).mockResolvedValue([]);
+    vi.mocked(mockPrisma.reservationChange.create).mockResolvedValue({} as any);
+    vi.mocked(mockPrisma.reservation.update).mockResolvedValue({
+      ...existingReservation,
+      startDate: new Date('2025-01-02'),
+    } as any);
+
+    const { updateReservation } = await import('../reservations');
+    const result = await updateReservation('res-1', {
+      startDate: '02-01-2025',
+    });
+
+    expect(result).toHaveProperty('success', true);
+    // Verify logChange was called via reservationChange.create
+    expect(mockPrisma.reservationChange.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        field: 'startDate',
+        oldValue: expect.any(String),
+        newValue: expect.any(String),
+      }),
+    });
+  });
+
+  it('registra reservationChange al cambiar endDate', async () => {
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+
+    const existingReservation = {
+      id: 'res-1',
+      userId: 'user-1',
+      propertyId: 'prop-1',
+      clientId: 'client-1',
+      startDate: new Date('2025-01-01'),
+      endDate: new Date('2025-01-05'),
+      billingType: 'DAILY' as const,
+      unitsBooked: 1,
+      totalPrice: 100000 as any,
+      status: 'CONFIRMED' as const,
+      bookingAirbnb: false,
+      notes: null,
+      createdAt: new Date(),
+      property: {
+        id: 'prop-1',
+        userId: 'user-1',
+        name: 'Casa',
+        dailyPrice: 25000 as any,
+        monthlyPrice: null,
+        unitsAvailable: 5,
+        mainImage: '',
+        images: [],
+        amenities: [],
+        color: '#000',
+        type: 'APARTMENT' as const,
+        createdAt: new Date(),
+        currency: 'CLP' as any,
+      },
+    };
+
+    vi.mocked(mockPrisma.reservation.findFirst).mockResolvedValue(existingReservation as any);
+    vi.mocked(mockPrisma.reservation.findMany).mockResolvedValue([]);
+    vi.mocked(mockPrisma.externalChannelBlock.findMany).mockResolvedValue([]);
+    vi.mocked(mockPrisma.reservationChange.create).mockResolvedValue({} as any);
+    vi.mocked(mockPrisma.reservation.update).mockResolvedValue({
+      ...existingReservation,
+      endDate: new Date('2025-01-07'),
+    } as any);
+
+    const { updateReservation } = await import('../reservations');
+    const result = await updateReservation('res-1', {
+      endDate: '07-01-2025',
+    });
+
+    expect(result).toHaveProperty('success', true);
+    expect(mockPrisma.reservationChange.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        field: 'endDate',
+      }),
+    });
+  });
+});
+
 describe('deleteReservation - soft-delete payments + block on COMPLETED', () => {
   beforeEach(() => {
     vi.clearAllMocks();

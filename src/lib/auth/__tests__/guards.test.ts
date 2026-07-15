@@ -1,101 +1,126 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { SessionUser } from '@/lib/auth/session';
 
-const { getSessionMock, redirectMock } = vi.hoisted(() => ({
-  getSessionMock: vi.fn(),
-  redirectMock: vi.fn((url: string) => {
-    throw new Error(`__REDIRECT__:${url}`);
+const mockGetSession = vi.hoisted(() => vi.fn());
+
+vi.mock('@/lib/auth/session', () => ({
+  getSession: mockGetSession,
+}));
+
+// redirect() from next/navigation throws an error to interrupt flow.
+// We mock it to throw a recognizable error so we can assert on call arguments.
+vi.mock('next/navigation', () => ({
+  redirect: vi.fn((url: string) => {
+    const err = new Error(`Redirected to ${url}`);
+    (err as any).url = url;
+    throw err;
   }),
 }));
 
-vi.mock("@/lib/auth/session", () => ({
-  getSession: getSessionMock,
+vi.mock('@/lib/auth/role-routes', () => ({
+  isSuperAdmin: (role: string | null | undefined) => role === 'SUPER_ADMIN',
 }));
 
-vi.mock("next/navigation", () => ({
-  redirect: redirectMock,
-}));
+import { requireAuth, requireOwner, requireSuperAdmin } from '../guards';
 
-import { requireAuth, requireOwner, requireSuperAdmin } from "@/lib/auth/guards";
+const ownerSession: SessionUser = {
+  userId: 'user-1',
+  role: 'OWNER',
+  plan: 'PRO',
+  email: 'test@test.com',
+};
 
-beforeEach(() => {
-  vi.clearAllMocks();
-});
+const adminSession: SessionUser = {
+  userId: 'admin-1',
+  role: 'SUPER_ADMIN',
+  plan: 'PRO',
+  email: 'admin@test.com',
+};
 
-describe("requireAuth", () => {
-  it("redirects to /login when there is no session", async () => {
-    getSessionMock.mockResolvedValue(null);
-
-    await expect(requireAuth()).rejects.toThrow("__REDIRECT__:/login");
-    expect(redirectMock).toHaveBeenCalledWith("/login");
+describe('requireAuth', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
-  it("returns SessionUser when session is valid", async () => {
-    const session = { userId: "u-1", role: "OWNER", plan: "PRO", email: "u@t.com" };
-    getSessionMock.mockResolvedValue(session);
+  it('sin sesión → redirect a /login', async () => {
+    mockGetSession.mockResolvedValue(null);
+
+    await expect(requireAuth()).rejects.toThrow('Redirected to /login');
+    const { redirect } = await import('next/navigation');
+    expect(redirect).toHaveBeenCalledWith('/login');
+  });
+
+  it('con sesión → retorna session', async () => {
+    mockGetSession.mockResolvedValue(ownerSession);
 
     const result = await requireAuth();
 
-    expect(result).toEqual(session);
+    expect(result).toEqual(ownerSession);
+    const { redirect } = await import('next/navigation');
+    expect(redirect).not.toHaveBeenCalled();
   });
 });
 
-describe("requireOwner", () => {
-  it("redirects to /login when there is no session", async () => {
-    getSessionMock.mockResolvedValue(null);
-
-    await expect(requireOwner()).rejects.toThrow("__REDIRECT__:/login");
+describe('requireOwner', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
-  it("redirects to /admin when role is SUPER_ADMIN", async () => {
-    getSessionMock.mockResolvedValue({
-      userId: "a-1",
-      role: "SUPER_ADMIN",
-      plan: null,
-      email: "a@t.com",
-    });
+  it('sin sesión → redirect a /login', async () => {
+    mockGetSession.mockResolvedValue(null);
 
-    await expect(requireOwner()).rejects.toThrow("__REDIRECT__:/admin");
+    await expect(requireOwner()).rejects.toThrow('Redirected to /login');
+    const { redirect } = await import('next/navigation');
+    expect(redirect).toHaveBeenCalledWith('/login');
   });
 
-  it("returns SessionUser when role is OWNER", async () => {
-    const session = { userId: "u-1", role: "OWNER", plan: "FREE", email: "u@t.com" };
-    getSessionMock.mockResolvedValue(session);
+  it('con SUPER_ADMIN → redirect a /admin', async () => {
+    mockGetSession.mockResolvedValue(adminSession);
+
+    await expect(requireOwner()).rejects.toThrow('Redirected to /admin');
+    const { redirect } = await import('next/navigation');
+    expect(redirect).toHaveBeenCalledWith('/admin');
+  });
+
+  it('con OWNER → retorna session', async () => {
+    mockGetSession.mockResolvedValue(ownerSession);
 
     const result = await requireOwner();
 
-    expect(result).toEqual(session);
+    expect(result).toEqual(ownerSession);
+    const { redirect } = await import('next/navigation');
+    expect(redirect).not.toHaveBeenCalled();
   });
 });
 
-describe("requireSuperAdmin", () => {
-  it("redirects to /login when there is no session", async () => {
-    getSessionMock.mockResolvedValue(null);
-
-    await expect(requireSuperAdmin()).rejects.toThrow("__REDIRECT__:/login");
+describe('requireSuperAdmin', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
-  it("redirects to /dashboard when role is OWNER", async () => {
-    getSessionMock.mockResolvedValue({
-      userId: "u-1",
-      role: "OWNER",
-      plan: "PRO",
-      email: "u@t.com",
-    });
+  it('sin sesión → redirect a /login', async () => {
+    mockGetSession.mockResolvedValue(null);
 
-    await expect(requireSuperAdmin()).rejects.toThrow("__REDIRECT__:/dashboard");
+    await expect(requireSuperAdmin()).rejects.toThrow('Redirected to /login');
+    const { redirect } = await import('next/navigation');
+    expect(redirect).toHaveBeenCalledWith('/login');
   });
 
-  it("returns SessionUser when role is SUPER_ADMIN", async () => {
-    const session = {
-      userId: "a-1",
-      role: "SUPER_ADMIN",
-      plan: null,
-      email: "a@t.com",
-    };
-    getSessionMock.mockResolvedValue(session);
+  it('con OWNER → redirect a /dashboard', async () => {
+    mockGetSession.mockResolvedValue(ownerSession);
+
+    await expect(requireSuperAdmin()).rejects.toThrow('Redirected to /dashboard');
+    const { redirect } = await import('next/navigation');
+    expect(redirect).toHaveBeenCalledWith('/dashboard');
+  });
+
+  it('con SUPER_ADMIN → retorna session', async () => {
+    mockGetSession.mockResolvedValue(adminSession);
 
     const result = await requireSuperAdmin();
 
-    expect(result).toEqual(session);
+    expect(result).toEqual(adminSession);
+    const { redirect } = await import('next/navigation');
+    expect(redirect).not.toHaveBeenCalled();
   });
 });
