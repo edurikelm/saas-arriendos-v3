@@ -154,6 +154,7 @@ model UserProfile {
   externalCalendars ExternalCalendar[]
   notifications    Notification[]
   notificationReads NotificationRead[]
+  passwordResetTokens PasswordResetToken[]
 }
 
 model Notification {
@@ -502,4 +503,18 @@ model PropertyExportFeed {
   @@unique([propertyId, channel])
   @@index([propertyId])
   @@index([tokenHash])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
