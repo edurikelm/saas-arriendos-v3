@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Plus, Wallet, Clock, CalendarCheck, TrendingUp } from "lucide-react";
+import { Plus, Wallet, Clock, CalendarCheck, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { KpiCard } from "@/components/ui/kpi-card";
@@ -453,27 +453,11 @@ export default async function DashboardPage() {
           <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
             Calendario de ocupación
           </h2>
-          <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="rounded border border-border p-1 text-muted-foreground transition-colors hover:bg-muted"
-                aria-label="Semana anterior"
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </button>
-              <span className="min-w-[80px] text-center text-[10px] font-bold text-foreground">
-                {formatDayShort(calendarStart)} {formatMonthShort(calendarStart)} — {formatDayShort(calendarEnd)}{" "}
-                {formatMonthShort(calendarEnd)}
-              </span>
-              <button
-                type="button"
-                className="rounded border border-border p-1 text-muted-foreground transition-colors hover:bg-muted"
-                aria-label="Semana siguiente"
-              >
-                <ChevronRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
+          <span className="text-[10px] font-bold text-foreground tabular-nums">
+            {formatDayShort(calendarStart)} {formatMonthShort(calendarStart)} — {formatDayShort(calendarEnd)}{" "}
+            {formatMonthShort(calendarEnd)}
+          </span>
+        </div>
         <div className="overflow-x-auto">
           <div className="min-w-[1000px]">
             {/* Day headers */}
@@ -546,14 +530,14 @@ export default async function DashboardPage() {
                               <div className="flex flex-col items-center gap-0.5 overflow-hidden">
                                 <span
                                   className={`truncate text-[10px] font-bold ${
-                                    isAltRow ? "text-primary" : "text-white"
+                                    isAltRow ? "text-primary" : "text-primary-foreground"
                                   }`}
                                 >
                                   {reservation.client.name}
                                 </span>
                                 <span
                                   className={`text-[8px] font-bold uppercase tracking-tighter ${
-                                    isAltRow ? "text-primary/80" : "text-white/90"
+                                    isAltRow ? "text-primary/80" : "text-primary-foreground/90"
                                   }`}
                                 >
                                   {nights} noches
