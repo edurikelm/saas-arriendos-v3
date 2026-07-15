@@ -2,6 +2,7 @@ import { requireOwner } from "@/lib/auth/guards";
 import { prisma } from "@/lib/db/prisma";
 import { notFound } from "next/navigation";
 import { ExportFeedsSection } from "./_components/ExportFeedsSection";
+import { ImportCalendarsSection } from "./_components/ImportCalendarsSection";
 
 interface PropertyDetailPageProps {
   params: Promise<{ id: string }>;
@@ -31,6 +32,8 @@ export default async function PropertyDetailPage({ params }: PropertyDetailPageP
       <div className="rounded-lg border p-6">
         <ExportFeedsSection propertyId={property.id} />
       </div>
+
+      <ImportCalendarsSection propertyId={property.id} />
     </div>
   );
 }
