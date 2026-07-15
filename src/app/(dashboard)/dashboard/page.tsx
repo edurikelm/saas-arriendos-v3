@@ -176,6 +176,7 @@ export default async function DashboardPage() {
 
   // KPI 1: Ingresos Mensuales — suma de pagos COMPLETED con paidAt en el mes actual
   const monthStart = startOfMonth(today);
+  const prevMonthStart = startOfMonth(addDays(monthStart, -1));
   const monthlyIncome = allPayments
     .filter(
       (p) =>
@@ -184,6 +185,29 @@ export default async function DashboardPage() {
         new Date(p.paidAt) >= monthStart
     )
     .reduce((sum, p) => sum + Number(p.amount), 0);
+  const prevMonthIncome = allPayments
+    .filter(
+      (p) =>
+        p.status === "COMPLETED" &&
+        p.paidAt &&
+        new Date(p.paidAt) >= prevMonthStart &&
+        new Date(p.paidAt) < monthStart
+    )
+    .reduce((sum, p) => sum + Number(p.amount), 0);
+  const incomeChangePct =
+    prevMonthIncome > 0
+      ? Math.round(((monthlyIncome - prevMonthIncome) / prevMonthIncome) * 100)
+      : monthlyIncome > 0
+        ? 100
+        : 0;
+  const incomeChangeText =
+    incomeChangePct > 0
+      ? `+${incomeChangePct}% vs mes anterior`
+      : incomeChangePct < 0
+        ? `${incomeChangePct}% vs mes anterior`
+        : "Sin cambio vs mes anterior";
+  const incomeChangeVariant: "positive" | "warning" | "neutral" =
+    incomeChangePct > 0 ? "positive" : incomeChangePct < 0 ? "warning" : "neutral";
 
   // KPI 2: Pagos Pendientes — count de PENDING + X vencidos
   const pendingPaymentsList = allPayments.filter((p) => p.status === "PENDING");
@@ -295,7 +319,7 @@ export default async function DashboardPage() {
           value={formatCLP(monthlyIncome)}
           icon={Wallet}
           tone="success"
-          indicator={{ text: "+0%", variant: "positive" }}
+          indicator={{ text: incomeChangeText, variant: incomeChangeVariant }}
         />
         <KpiCard
           label="Pagos Pendientes"
