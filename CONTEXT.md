@@ -400,15 +400,17 @@ Los callsites que NO encajan en estos helpers (select+groupby custom, where+incl
 
 - **PRD-0001 — Arquitectura: profundización de módulos** (`docs/prd/PRD-0001-arquitectura-deepening.md`) — cerrado en commit `c215e3c` (sesión 2026-07-15). 5/5 candidatos completos: Double Validation, ChangeRecorder (`src/lib/audit/`), PaymentGateway interface + MercadoPago adapter, Admin Routes unificados, `calendar.ts` eliminado. Módulo de tests agregado: 21 tests nuevos en `reservations.test.ts` (5 gaps: disponibilidad, pricing DAILY, bloqueos externos, audit logging), `gateway.test.ts` (8: mapeo status MP→interno + error propagation), `guards.test.ts` (8: `requireAuth`/`requireOwner`/`requireSuperAdmin`). Tests totales: 1155 → 1204.
 
+- **Admin user management — drift fixes** (2026-07-15) — commits `48c5e45` (tab Historial inalcanzable + Button/Link en back button), `65243f3` (Button/Link en tabla de users), `43454a3` (Button/Link en empty state de /payments). Limpia 3 violaciones de la regla "Button es nativo, no Link" y repara tab UI que existía en código pero sin trigger.
+
 ### Backlog activo (en orden sugerido)
 
-1. **Admin user management** (`docs/prd/admin-user-management-roadmap.md` + `docs/prd/super-admin-panel.md`)
-   Roadmap y PRD se solapan (roadmap es sucesor del PRD inicial). Decidir si se actualiza `super-admin-panel.md` con referencia al roadmap, o se elimina el PRD absorbed. Brechas detectadas: UI no expone `AdminNote`/`AdminActionLog`, detalle de owner básico, eliminación hard-delete (riesgo auditoría), sin estado de cuenta (activo/suspendido/cancelado), `ENTERPRISE` aparece en UI pero no existe en schema.
-
-2. **PLAN.md — Rediseño UI Ocean Breeze** (`PLAN.md`)
+1. **PLAN.md — Rediseño UI Ocean Breeze** (`PLAN.md`)
    4 fases (Fase 0 auditoría → Fase 1 design system en Stitch → Fase 2 pantallas piloto → Fase 3 migración por lotes → Fase 4 implementación). **Bloqueado hasta responder las 4 preguntas abiertas** del §Preguntas abiertas: color de acento, top 3-5 pantallas prioritarias, screenshots, estado del proyecto.
+
+### Cerrados en commits recientes
+
+- **Admin user management** (`docs/prd/admin-user-management-roadmap.md` + `docs/prd/super-admin-panel.md`) — 2026-07-15. Las 10 fases del roadmap y los items del PRD están implementados en `master`: `/admin/users/[id]` (846 líneas) con tabs Resumen/Propiedades/Reservas/Financiero/Notas internas/Historial/Progreso, KPIs (propiedades/clientes/reservas/ingresos), estado de cuenta ACTIVE/SUSPENDED/CANCELLED, integración Mercado Pago, salud por owner (HealthBadge), filtros avanzados (noProperties/noReservations/mpDisconnected/pendingPayments/overduePayments/fechas), conversión FREE→PRO en KPI, onboarding tracking (7 pasos), CSV export en `/api/admin/users/export`. Issues #137-146 cerradas al implementarse. Pendiente menor: cleanup de PRDs (roadmap absorbe a `super-admin-panel.md`).
 
 ### Decisiones pendientes
 
-- **Lint warnings (498)**: bajo impacto real, alto ruido en CI. Opciones: (a) override `no-explicit-any` a `warn` en `eslint.config.mjs` (3 líneas, cero código tocado); (b) refactor archivo por archivo; (c) ignorar. Decisión del usuario cuando quiera tacklearlo.
 - **Handoffs en `docs/handoffs/_archive/`**: documentos históricos de sesiones cerradas. No usar como guía de implementación (sus conteos y distribuciones no reflejan el código actual).
