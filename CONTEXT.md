@@ -378,6 +378,19 @@ Además de las acciones en `src/lib/actions/`, los siguientes módulos puros enc
 
 Los callsites que NO encajan en estos helpers (select+groupby custom, where+include complejo) quedan inline. Si un patrón repetido aparece, agregar helper.
 
+### Seam UI de acciones de pago
+
+`src/components/payments/payment-row-actions.tsx` es el seam UI compartido que centraliza la columna de acciones de pagos. Es consumido por `PaymentsTable`, tanto en la página `/payments` como en las tablas de pagos del `ReservationDetailDialog`.
+
+**Derivación de la matriz de acciones**: el componente deriva las acciones desde `status`, `method`, `initPoint`, `expiresAt` y `receiptUrl`. Mantiene una acción primaria visible cuando corresponde y agrupa las acciones secundarias en un menú contextual. Cuando solo existe una acción secundaria —por ejemplo, `Adjuntar comprobante` en un pago `COMPLETED` sin comprobante— la promueve a acción visible.
+
+**Contrato**:
+- Acepta callbacks opcionales (`onGenerateLink`, `onRegenerateLink`, `onMarkPaid`, `onDeletePayment`, `onAttachReceipt`, `onSendLink`) y los loading IDs correspondientes (`generatingLinkId`, `regeneratingLinkId`, `attachingReceiptId`).
+- `compact: boolean` solo se activa en las tablas dentro del modal para reducir labels y densidad horizontal; no oculta acciones elegibles.
+- La prioridad de acciones es `Generar link` → `Regenerar link` → `Copiar link` → `Marcar pagado` → `Ver comprobante`. El ordenamiento de pagos permanece en `PaymentsTable`.
+
+**Límite**: este seam es **solo UI**. No reemplaza las reglas financieras de negocio ni las server actions de `lib/actions/payments.ts`. La transición de estado, validación de montos, generación de links y auditoría permanecen en la capa de servidor.
+
 ## Estado del proyecto / Backlog activo
 
 **Última verificación de baseline** (post cierre PRD-0001 + tests closing, 2026-07-15):
