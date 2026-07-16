@@ -355,7 +355,18 @@ onRefresh?.(reservation.id);
         if (!nextOpen) onClose();
       }}
     >
-      <DialogContent className="w-[95vw] max-w-2xl gap-0 p-0 overflow-hidden" showCloseButton={false}>
+      <DialogContent
+        className={cn(
+          "w-[95vw] gap-0 p-0 overflow-hidden",
+          // MONTHLY reservations render a 7-column payments table (Cuota +
+          // actions) that needs more horizontal room than the 2-col client
+          // / property layout. Bump from max-w-2xl (672px) to max-w-4xl
+          // (896px) only when needed to avoid horizontal scroll in the
+          // installments table. DAILY stays at max-w-2xl (1-2 payments).
+          reservation.billingType === "MONTHLY" ? "max-w-4xl" : "max-w-2xl"
+        )}
+        showCloseButton={false}
+      >
         <DialogHeader className="border-b border-border px-5 py-4 flex-row items-center justify-between gap-2 space-y-0">
           <div className="space-y-1">
             <DialogTitle>Detalles de la Reserva</DialogTitle>
