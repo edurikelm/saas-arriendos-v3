@@ -137,7 +137,7 @@ describe("PaymentsTableClient - handleDeletePayment", () => {
 
     // Open dropdown and click delete
     const moreBtn = screen.getAllByRole("button").find(
-      (b) => b.getAttribute("aria-label") === "Más acciones"
+      (b) => b.getAttribute("aria-label")?.startsWith("Más acciones para")
     );
     expect(moreBtn).toBeTruthy();
     await userEvent.click(moreBtn!);
@@ -165,7 +165,7 @@ describe("PaymentsTableClient - handleDeletePayment", () => {
 
     // Open dropdown and click delete
     const moreBtn = screen.getAllByRole("button").find(
-      (b) => b.getAttribute("aria-label") === "Más acciones"
+      (b) => b.getAttribute("aria-label")?.startsWith("Más acciones para")
     );
     expect(moreBtn).toBeTruthy();
     await userEvent.click(moreBtn!);
@@ -201,7 +201,7 @@ describe("PaymentsTableClient - handleDeletePayment", () => {
     );
 
     const moreBtn = screen.getAllByRole("button").find(
-      (b) => b.getAttribute("aria-label") === "Más acciones"
+      (b) => b.getAttribute("aria-label")?.startsWith("Más acciones para")
     );
     expect(moreBtn).toBeTruthy();
     await userEvent.click(moreBtn!);

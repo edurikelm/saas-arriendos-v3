@@ -173,6 +173,7 @@ export function ReservationDetailDialog({
   const totalPending = pendingAmount + extraPendingAmount;
 
   const [generatingLinkId, setGeneratingLinkId] = useState<string | null>(null);
+  const [regeneratingLinkId, setRegeneratingLinkId] = useState<string | null>(null);
   const [showMarkPaidModal, setShowMarkPaidModal] = useState(false);
   const [markPaidPaymentId, setMarkPaidPaymentId] = useState<string | null>(null);
   const [markPaidDate, setMarkPaidDate] = useState(format(new Date(), "yyyy-MM-dd"));
@@ -188,8 +189,13 @@ export function ReservationDetailDialog({
   const [paymentToDelete, setPaymentToDelete] = useState<string | null>(null);
   const [sendLinkPayment, setSendLinkPayment] = useState<Payment | null>(null);
 
-  const handleRegenerateLink = async (paymentId: string) => {
-    setGeneratingLinkId(paymentId);
+  const handlePaymentLinkRequest = async (paymentId: string, mode: "generate" | "regenerate") => {
+    if (mode === "generate") {
+      setGeneratingLinkId(paymentId);
+    } else {
+      setRegeneratingLinkId(paymentId);
+    }
+
     try {
       const res = await fetch(`/api/payments/${paymentId}`, {
         method: "POST",
@@ -199,15 +205,24 @@ export function ReservationDetailDialog({
         toast.error(result.error);
         return;
       }
-      toast.success("Link regenerado");
+      toast.success(mode === "generate" ? "Link generado" : "Link regenerado");
       onRefresh?.(reservation.id);
-      onRegenerateLink?.(paymentId);
+      if (mode === "regenerate") {
+        onRegenerateLink?.(paymentId);
+      }
     } catch {
-      toast.error("Error al regenerar link");
+      toast.error(mode === "generate" ? "Error al generar link" : "Error al regenerar link");
     } finally {
-      setGeneratingLinkId(null);
+      if (mode === "generate") {
+        setGeneratingLinkId(null);
+      } else {
+        setRegeneratingLinkId(null);
+      }
     }
   };
+
+  const handleGenerateLink = (paymentId: string) => handlePaymentLinkRequest(paymentId, "generate");
+  const handleRegenerateLink = (paymentId: string) => handlePaymentLinkRequest(paymentId, "regenerate");
 
   const handleMarkPaidClick = (paymentId: string) => {
     setMarkPaidPaymentId(paymentId);
@@ -561,13 +576,16 @@ onRefresh?.(reservation.id);
                 </div>
                 <PaymentsTable
                   payments={reservationPayments}
-                  onGenerateLink={handleRegenerateLink}
+                  onGenerateLink={handleGenerateLink}
+                  onRegenerateLink={handleRegenerateLink}
                   onMarkPaid={handleMarkPaidClick}
                   onDeletePayment={setPaymentToDelete}
                   onAttachReceipt={handleAttachReceiptClick}
                   onSendLink={setSendLinkPayment}
                   variant="reservation"
                   generatingLinkId={generatingLinkId}
+                  regeneratingLinkId={regeneratingLinkId}
+                  compact
                 />
               </div>
             )}
@@ -579,13 +597,16 @@ onRefresh?.(reservation.id);
                 </div>
                 <PaymentsTable
                   payments={extraPayments}
-                  onGenerateLink={handleRegenerateLink}
+                  onGenerateLink={handleGenerateLink}
+                  onRegenerateLink={handleRegenerateLink}
                   onMarkPaid={handleMarkPaidClick}
                   onDeletePayment={setPaymentToDelete}
                   onAttachReceipt={handleAttachReceiptClick}
                   onSendLink={setSendLinkPayment}
                   variant="extra"
                   generatingLinkId={generatingLinkId}
+                  regeneratingLinkId={regeneratingLinkId}
+                  compact
                 />
               </div>
             )}

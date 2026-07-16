@@ -2,25 +2,9 @@
 
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import {
-  ExternalLink,
-  Copy,
-  Check,
-  FileText,
-  Loader2,
-  MoreHorizontal,
-  RefreshCw,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableHeader } from "@/components/ui/data-table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { toast } from "sonner";
+import { PaymentRowActions } from "./payment-row-actions";
 
 /**
  * Variantes explícitas de la tabla de pagos.
@@ -140,6 +124,7 @@ export function PaymentsTable({
   generatingLinkId,
   regeneratingLinkId,
   attachingReceiptId,
+  compact = false,
 }: {
   payments: Payment[];
   onGenerateLink?: (paymentId: string) => void;
@@ -152,6 +137,7 @@ export function PaymentsTable({
   generatingLinkId?: string | null;
   regeneratingLinkId?: string | null;
   attachingReceiptId?: string | null;
+  compact?: boolean;
 }) {
   // Auto-detect installment column visibility for the "reservation" variant:
   // if any payment has installment data, show the columns; otherwise hide them.
@@ -188,153 +174,8 @@ export function PaymentsTable({
       {sortedPayments.length === 0 ? null : sortedPayments.map((payment) => {
         const statusCfg = paymentStatusConfig[payment.status] || paymentStatusConfig.PENDING;
         const isPending = payment.status === "PENDING";
-        const isCompleted = payment.status === "COMPLETED";
         const isMercadoPago = payment.method === "MERCADO_PAGO";
         const isExpired = isPaymentExpired(payment);
-        const canGenerateLink = isPending && isMercadoPago && !payment.initPoint && onGenerateLink;
-        const canCopyLink = isPending && isMercadoPago && payment.initPoint && !isExpired;
-        const canRegenerateLink =
-          isPending && isMercadoPago && isExpired && payment.initPoint && onRegenerateLink;
-        const canMarkPaid = isPending && onMarkPaid;
-        const canDelete = isPending && !isMercadoPago && onDeletePayment;
-        const canViewReceipt = Boolean(payment.receiptUrl);
-        const canAttachReceipt = isCompleted && !payment.receiptUrl && onAttachReceipt;
-        const canSendLink = isPending && isMercadoPago && payment.initPoint && onSendLink;
-        const primaryAction = canGenerateLink
-          ? "generate"
-          : canRegenerateLink
-            ? "regenerate"
-            : canCopyLink
-              ? "copy"
-              : canMarkPaid
-                ? "markPaid"
-                : canViewReceipt
-                  ? "viewReceipt"
-                  : null;
-        const secondaryActions = [
-          canMarkPaid && primaryAction !== "markPaid" ? "markPaid" : null,
-          canDelete ? "delete" : null,
-          canViewReceipt && primaryAction !== "viewReceipt" ? "viewReceipt" : null,
-          canAttachReceipt ? "attachReceipt" : null,
-          canSendLink ? "sendLink" : null,
-        ].filter(Boolean) as Array<"markPaid" | "delete" | "viewReceipt" | "attachReceipt" | "sendLink">;
-
-        const renderActionButton = (action: typeof primaryAction) => {
-          if (!action) return null;
-
-          if (action === "generate") {
-            return (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 px-2 text-xs"
-                disabled={generatingLinkId === payment.id}
-                onClick={() => onGenerateLink?.(payment.id)}
-              >
-                {generatingLinkId === payment.id ? (
-                  <Loader2 className="mr-1 size-3 animate-spin" />
-                ) : (
-                  <ExternalLink className="mr-1 size-3" />
-                )}
-                Generar link
-              </Button>
-            );
-          }
-
-          if (action === "copy") {
-            return (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 px-2 text-xs"
-                onClick={() => {
-                  navigator.clipboard.writeText(payment.initPoint!);
-                  toast.success("Link copiado al portapapeles");
-                }}
-              >
-                <Copy className="mr-1 size-3" />
-                Copiar link
-              </Button>
-            );
-          }
-
-          if (action === "regenerate") {
-            return (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 px-2 text-xs"
-                disabled={regeneratingLinkId === payment.id}
-                onClick={() => onRegenerateLink?.(payment.id)}
-              >
-                {regeneratingLinkId === payment.id ? (
-                  <Loader2 className="mr-1 size-3 animate-spin" />
-                ) : (
-                  <RefreshCw className="mr-1 size-3" />
-                )}
-                Regenerar link
-              </Button>
-            );
-          }
-
-          if (action === "markPaid") {
-            return (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 px-2 text-xs"
-                onClick={() => onMarkPaid?.(payment.id)}
-              >
-                <Check className="mr-1 size-3" />
-                Marcar pagado
-              </Button>
-            );
-          }
-
-          if (action === "viewReceipt") {
-            return (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 px-2 text-xs"
-                onClick={() => window.open(payment.receiptUrl!, "_blank")}
-              >
-                <FileText className="mr-1 size-3" />
-                Ver comp.
-              </Button>
-            );
-          }
-
-          return null;
-        };
-
-        const renderMenuItem = (action: (typeof secondaryActions)[number]) => {
-          if (action === "markPaid") {
-            return <DropdownMenuItem onClick={() => onMarkPaid?.(payment.id)}>Marcar como pagado</DropdownMenuItem>;
-          }
-
-          if (action === "delete") {
-            return <DropdownMenuItem variant="destructive" onClick={() => onDeletePayment?.(payment.id)}>Eliminar pago</DropdownMenuItem>;
-          }
-
-          if (action === "viewReceipt") {
-            return <DropdownMenuItem onClick={() => window.open(payment.receiptUrl!, "_blank")}>Ver comprobante</DropdownMenuItem>;
-          }
-
-          if (action === "sendLink") {
-            return <DropdownMenuItem onClick={() => onSendLink?.(payment)}>Enviar link</DropdownMenuItem>;
-          }
-
-          return (
-            <DropdownMenuItem
-              disabled={attachingReceiptId === payment.id}
-              onClick={() => onAttachReceipt?.(payment.id)}
-            >
-              {attachingReceiptId === payment.id ? "Adjuntando..." : "Adjuntar comprobante"}
-            </DropdownMenuItem>
-          );
-        };
-
         return (
           <tr key={payment.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
             {showContextColumns && (
@@ -414,28 +255,19 @@ export function PaymentsTable({
               </div>
             </td>
             <td className="px-6 py-4 text-right">
-              <div className="flex items-center justify-end gap-1">
-                {renderActionButton(primaryAction)}
-                {secondaryActions.length > 0 && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      render={
-                        <Button size="icon" variant="ghost" className="size-7" aria-label="Más acciones">
-                          <MoreHorizontal className="size-3.5" />
-                        </Button>
-                      }
-                    />
-                    <DropdownMenuContent align="end" className="w-44">
-                      {secondaryActions.map((action) => (
-                        <div key={action}>{renderMenuItem(action)}</div>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-                {!primaryAction && secondaryActions.length === 0 && (
-                  <span className="text-muted-foreground text-[10px]">—</span>
-                )}
-              </div>
+              <PaymentRowActions
+                payment={payment}
+                onGenerateLink={onGenerateLink}
+                onRegenerateLink={onRegenerateLink}
+                onMarkPaid={onMarkPaid}
+                onDeletePayment={onDeletePayment}
+                onAttachReceipt={onAttachReceipt}
+                onSendLink={onSendLink}
+                generatingLinkId={generatingLinkId}
+                regeneratingLinkId={regeneratingLinkId}
+                attachingReceiptId={attachingReceiptId}
+                compact={compact}
+              />
             </td>
           </tr>
         );
