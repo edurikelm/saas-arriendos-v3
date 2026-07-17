@@ -351,6 +351,21 @@ model Payment {
   deletedAt        DateTime?
   createdAt        DateTime      @default(now())
 
+  /// Metadata persistida del response GET /v1/payments/{id} de Mercado Pago.
+  /// Ver PRD-0004 (docs/prd/PRD-0004-mp-payment-metadata-pdf.md) y ADR-0026
+  /// (docs/adr/0026-mp-payment-metadata-storage.md).
+  /// Poblada por el webhook #184. Idempotencia garantizada en seam canónico.
+  mpPaymentId          String?   @unique
+  mpStatusDetail       String?
+  mpPaymentMethodId    String?
+  mpPaymentType        String?
+  mpCardLastFour       String?
+  mpInstallments       Int?
+  mpTransactionAmount  Decimal?  @db.Decimal(10, 2)
+  mpNetReceivedAmount  Decimal?  @db.Decimal(10, 2)
+  mpFeeAmount          Decimal?  @db.Decimal(10, 2)
+  mpDateCreated        DateTime?
+
   reservation             Reservation     @relation(fields: [reservationId], references: [id])
   supportTicketsAsPayment SupportTicket[] @relation("TicketAffectedPayment")
 
