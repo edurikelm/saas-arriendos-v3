@@ -3288,16 +3288,164 @@ describe('processMercadoPagoWebhook - mpMetadata persistence', () => {
     });
 
     // Verify no MP metadata fields are in the update call
+    const updateCall = vi.mocked(prisma.payment.update).mock.calls[0];
+    const updateData = updateCall[0].data as Record<string, unknown>;
+    expect(updateData.mpPaymentId).toBeUndefined();
+    expect(updateData.mpStatusDetail).toBeUndefined();
+    expect(updateData.mpPaymentMethodId).toBeUndefined();
+    expect(updateData.mpPaymentType).toBeUndefined();
+    expect(updateData.mpCardLastFour).toBeUndefined();
+    expect(updateData.mpInstallments).toBeUndefined();
+    expect(updateData.mpTransactionAmount).toBeUndefined();
+    expect(updateData.mpNetReceivedAmount).toBeUndefined();
+    expect(updateData.mpFeeAmount).toBeUndefined();
+  });
+
+  it('Rama B: COMPLETED without MP metadata + webhook with mpMetadata → partial UPDATE of MP fields only', async () => {
+    const { prisma } = await import('@/lib/db/prisma');
+
+    // Payment is COMPLETED but has NO MP metadata populated
+    const completedWithoutMetadata = mockAsAny({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      method: 'MERCADO_PAGO',
+      status: 'COMPLETED',
+      deletedAt: null,
+      mercadoPagoId: 'mp-123',
+      receiptUrl: null,
+      paidAt: new Date('2025-06-15T10:00:00Z'),
+      createdAt: new Date(),
+      // MP metadata fields are null/empty
+      mpPaymentId: null,
+      mpStatusDetail: null,
+      mpPaymentMethodId: null,
+      mpPaymentType: null,
+      mpCardLastFour: null,
+      mpInstallments: null,
+      mpTransactionAmount: null,
+      mpNetReceivedAmount: null,
+      mpFeeAmount: null,
+      reservation: mockReservation,
+    });
+
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(completedWithoutMetadata);
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([]);
+
+    const { processMercadoPagoWebhook } = await import('../payments');
+    const result = await processMercadoPagoWebhook({
+      id: 'mp-123',
+      status: 'approved',
+      external_reference: 'res-1:clhn00000000000000000001:123456',
+      mpMetadata: {
+        status_detail: 'accredited',
+        payment_method_id: 'visa',
+        payment_type: 'credit_card',
+        installments: 3,
+        transaction_amount: 50000,
+        net_received_amount: 47500,
+        fee_amount: 2500,
+        date_created: '2025-06-15T10:00:00.000Z',
+        mp_payment_id: 'mp-123',
+        card_last_four: '1234',
+      },
+    });
+
+    // Should succeed and call update with only MP fields (not status or paidAt)
+    expect(result).toHaveProperty('success', true);
+    expect(prisma.payment.update).toHaveBeenCalledTimes(1);
+    const updateCall = vi.mocked(prisma.payment.update).mock.calls[0];
+    const updateData = updateCall[0].data as Record<string, unknown>;
+    // MP fields should be populated
+    expect(updateData.mpPaymentId).toBe('mp-123');
+    expect(updateData.mpStatusDetail).toBe('accredited');
+    expect(updateData.mpPaymentMethodId).toBe('visa');
+    expect(updateData.mpPaymentType).toBe('credit_card');
+    expect(updateData.mpInstallments).toBe(3);
+    expect(updateData.mpTransactionAmount).toBe(50000);
+    expect(updateData.mpNetReceivedAmount).toBe(47500);
+    expect(updateData.mpFeeAmount).toBe(2500);
+    expect(updateData.mpCardLastFour).toBe('1234');
+    // status and paidAt should NOT be updated (already COMPLETED)
+    expect(updateData.status).toBeUndefined();
+    expect(updateData.paidAt).toBeUndefined();
+  });
+
+  it('account_money payment_method persists mpMetadata without card data', async () => {
+    const { prisma } = await import('@/lib/db/prisma');
+
+    vi.mocked(prisma.payment.findFirst)
+      .mockResolvedValueOnce(null) // hintedPaymentId
+      .mockResolvedValueOnce(mockAsAny({ // paymentIdFromRef
+        id: 'pay-1',
+        reservationId: 'res-1',
+        amount: 50000 as any,
+        method: 'MERCADO_PAGO',
+        status: 'PENDING',
+        deletedAt: null,
+        mercadoPagoId: 'mp-wallet-1',
+        receiptUrl: null,
+        createdAt: new Date(),
+        reservation: mockReservation,
+      }))
+      .mockResolvedValueOnce(mockAsAny({ // markPaymentCompleted check
+        id: 'pay-1',
+        reservationId: 'res-1',
+        amount: 50000 as any,
+        method: 'MERCADO_PAGO',
+        status: 'PENDING',
+        deletedAt: null,
+        mercadoPagoId: 'mp-wallet-1',
+        receiptUrl: null,
+        createdAt: new Date(),
+        reservation: mockReservation,
+      }));
+
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([]);
+
+    const { processMercadoPagoWebhook } = await import('../payments');
+    const result = await processMercadoPagoWebhook({
+      id: 'mp-wallet-1',
+      status: 'approved',
+      external_reference: 'res-1:clhn00000000000000000001:123456',
+      mpMetadata: {
+        status_detail: 'accredited',
+        payment_method_id: 'account_money',
+        payment_type: 'wallet',
+        installments: 1,
+        transaction_amount: 50000,
+        net_received_amount: 50000,
+        fee_amount: 0,
+        date_created: '2025-06-15T11:00:00.000Z',
+        mp_payment_id: 'mp-wallet-1',
+        // no card data — account_money has no card
+      },
+    });
+
+    expect(result).toHaveProperty('success', true);
     expect(prisma.payment.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'pay-1' },
-        data: expect.not.objectContaining([
-          'mpPaymentId', 'mpStatusDetail', 'mpPaymentMethodId',
-          'mpPaymentType', 'mpCardLastFour', 'mpInstallments',
-          'mpTransactionAmount', 'mpNetReceivedAmount', 'mpFeeAmount',
-        ]),
+        data: expect.objectContaining({
+          mpPaymentId: 'mp-wallet-1',
+          mpStatusDetail: 'accredited',
+          mpPaymentMethodId: 'account_money',
+          mpPaymentType: 'wallet',
+          mpInstallments: 1,
+          mpTransactionAmount: 50000,
+          mpNetReceivedAmount: 50000,
+          mpFeeAmount: 0,
+          // No card data — mpCardLastFour should be absent/undefined (not set for account_money)
+          // Verify by capturing the actual call
+        }),
       })
     );
+    // Extra assertion: mpCardLastFour should not be present in the update data
+    const updateCall = vi.mocked(prisma.payment.update).mock.calls[0];
+    const updateData = updateCall[0].data as Record<string, unknown>;
+    expect(updateData.mpCardLastFour).toBeUndefined();
   });
 });
 
