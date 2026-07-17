@@ -417,10 +417,11 @@ Los callsites que NO encajan en estos helpers (select+groupby custom, where+incl
 
 ### Backlog activo (en orden sugerido)
 
-1. **PLAN.md — Rediseño UI Ocean Breeze** (`PLAN.md`)
-   4 fases (Fase 0 auditoría → Fase 1 design system en Stitch → Fase 2 pantallas piloto → Fase 3 migración por lotes → Fase 4 implementación). **Bloqueado hasta responder las 4 preguntas abiertas** del §Preguntas abiertas: color de acento, top 3-5 pantallas prioritarias, screenshots, estado del proyecto.
+_(Sin items activos — Ocean Breeze UI redesign cerrado, ver "Cerrados en commits recientes" abajo.)_
 
 ### Cerrados en commits recientes
+
+- **Ocean Breeze UI redesign** — cerrado en commits `f19d424` (Fase 1 — design system, #173) + `7fb0892`/`a4bd6c5`/`da9ad0a`/`54bbe28`/`b260fcf`/`2694d9f` (Fase 2 — calendar + admin + DataTable, #174/#175/#176, 2026-07-06) + refinamientos posteriores (`/settings` #183, `/payments` `b260fcf`, KPI consolidation ADR-0024, etc.). Plan original archivado en `docs/handoffs/_archive/PLAN-ocean-breeze-archived-2026-07-16.md`; **source of truth vigente** = `DESIGN.md`. Color de acento resuelto como opción **(c) Teal** (`oklch(0.7227 0.1920 149.5793)`); fuente DM Sans; 7 issues cerrados (#173-176, #183, #187).
 
 - **Admin user management** (`docs/prd/admin-user-management-roadmap.md` + `docs/prd/super-admin-panel.md`) — 2026-07-15. Las 10 fases del roadmap y los items del PRD están implementados en `master`: `/admin/users/[id]` (846 líneas) con tabs Resumen/Propiedades/Reservas/Financiero/Notas internas/Historial/Progreso, KPIs (propiedades/clientes/reservas/ingresos), estado de cuenta ACTIVE/SUSPENDED/CANCELLED, integración Mercado Pago, salud por owner (HealthBadge), filtros avanzados (noProperties/noReservations/mpDisconnected/pendingPayments/overduePayments/fechas), conversión FREE→PRO en KPI, onboarding tracking (7 pasos), CSV export en `/api/admin/users/export`. Issues #137-146 cerradas al implementarse. Pendiente menor: cleanup de PRDs (roadmap absorbe a `super-admin-panel.md`).
 

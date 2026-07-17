@@ -1,3 +1,29 @@
+# ARCHIVED — Ocean Breeze Plan (Original Draft)
+
+> **Estado: ARCHIVADO — NO usar como guía de implementación.**
+>
+> Este documento es el plan original del rediseño UI "Ocean Breeze" (sesiones previas a Fase 1). Fue **completamente ejecutado y cerrado** el 2026-07-06. Los tokens y decisiones que contiene quedaron **supercedidos** por la implementación real.
+>
+> **Source of truth vigente:** [`DESIGN.md`](../../../DESIGN.md) (raíz del repo).
+>
+> **Ejecución cerrada:**
+> - **Fase 1** (`f19d424`) — issue #173 — design system en `globals.css` + tipografía DM Sans
+> - **Fase 2** (2026-07-06) — issues #174 / #175 / #176 — calendar tokenizado, admin refactor, `<DataTable>` primitive + 6 tablas migradas + `w-[95vw]` en 4 modales, hex fallback `var(--primary)`
+> - **Refinamientos posteriores**: `/settings` rediseño (#183), `/payments` ruta completa (`b260fcf`), `<KpiCard>` primitive único (ADR-0024), consolidación de h1 3-tier, responsive notification bell, etc.
+>
+> **Preguntas abiertas — resolución final:**
+>
+> | Pregunta original | Respuesta implementada |
+> |---|---|
+> | Color de acento (a/b/c/d) | **(c) Teal** — `oklch(0.7227 0.1920 149.5793)` = `#2DBE85` (light) / `oklch(0.7729 0.1535 163.2231)` (dark) |
+> | Top 3-5 pantallas prioritarias | Calendar (Timeline + grid), lista de pagos (`/payments`), lista de reservas, dashboard, settings, soporte, admin |
+> | Screenshots / Stitch reference | Stitch project `projects/1529269251022042678` ("RentalPro - Rediseño UI") |
+> | Estado del proyecto | En desarrollo, pre-deploy (Vercel sin clientes reales) → migración pantalla por pantalla según lote |
+>
+> **Por qué sigue aquí:** referencia histórica de la decisión original (Fase 0 auditoría). Útil para entender por qué se eligieron los tokens actuales. **No refleja** los refinamientos posteriores (radio system ADR-0016, KPI consolidation ADR-0024, página-title tiers, etc.).
+>
+> ---
+
 # RentalPro — Plan de Rediseño UI
 
 ## Contexto del proyecto
