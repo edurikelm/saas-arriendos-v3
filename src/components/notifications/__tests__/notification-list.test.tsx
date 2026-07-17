@@ -155,4 +155,50 @@ describe("NotificationList", () => {
     });
     expect(screen.queryByText("Marcar todas como leídas")).toBeNull();
   });
+
+  it("initialNotifications suppresses mount fetch — does not call getRecentNotifications", async () => {
+    const initialData = [
+      {
+        id: "n1",
+        title: "From server",
+        body: "Pre-loaded",
+        link: null,
+        type: "RESERVATION_CREATED",
+        createdAt: new Date().toISOString(),
+        isRead: false,
+      },
+    ];
+
+    render(<NotificationList initialNotifications={initialData} />);
+
+    // Should render immediately with initial data, no fetch needed
+    await waitFor(() => {
+      expect(screen.getByText("From server")).toBeTruthy();
+    });
+    expect(mockGetRecent).not.toHaveBeenCalled();
+  });
+
+  it("shows initial data without loader when initialNotifications provided", async () => {
+    const initialData = [
+      {
+        id: "n1",
+        title: "Immediate",
+        body: "No loading state",
+        link: null,
+        type: "PAYMENT_RECEIVED",
+        createdAt: new Date().toISOString(),
+        isRead: true,
+      },
+    ];
+
+    render(<NotificationList initialNotifications={initialData} />);
+
+    // No Loader2 should appear — data is already present
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByText("Immediate")).toBeTruthy();
+  });
+
+  // Note: initialNotifications={null} is not a realistic scenario in the app flow —
+  // the layout always passes an array (possibly empty). The mount fetch is covered
+  // by the "shows empty state" test which exercises initialNotifications=undefined path.
 });

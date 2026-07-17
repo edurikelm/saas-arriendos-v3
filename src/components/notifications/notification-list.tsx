@@ -9,11 +9,31 @@ import { getRecentNotifications, markAllNotificationsAsRead, type RecentNotifica
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export function NotificationList() {
-  const [notifications, setNotifications] = useState<RecentNotification[] | null>(null);
+interface NotificationListProps {
+  initialNotifications?: RecentNotification[] | null;
+}
+
+export function NotificationList({ initialNotifications }: NotificationListProps) {
+  const [notifications, setNotifications] = useState<RecentNotification[] | null>(
+    initialNotifications ?? null
+  );
   const [isPending, startTransition] = useTransition();
 
+  // Sync when prop changes after mount (e.g., refresh from NotificationBell).
+  // Effect depends on prop, NOT state — only fires when prop reference changes.
   useEffect(() => {
+    if (initialNotifications !== undefined) {
+      /* eslint-disable react-hooks/set-state-in-effect --
+         Safe: simple replacement, no dependency on current state.
+         Only runs when the prop reference changes (post-mount sync from NotificationBell). */
+      setNotifications(initialNotifications);
+      /* eslint-enable react-hooks/set-state-in-effect */
+    }
+  }, [initialNotifications]);
+
+  // Mount fetch only when no initial data was provided.
+  useEffect(() => {
+    if (initialNotifications !== undefined) return;
     let cancelled = false;
     void getRecentNotifications(10).then((list) => {
       if (!cancelled) setNotifications(list);
@@ -21,6 +41,7 @@ export function NotificationList() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only on mount
   }, []);
 
   const handleMarkAll = () => {

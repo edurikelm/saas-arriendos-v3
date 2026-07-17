@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { requireOwner } from "@/lib/auth/guards";
 import { getUnreadSupportTicketCount } from "@/lib/actions/support-unread";
-import { getUnreadNotificationCount } from "@/lib/actions/notifications";
+import { getUnreadNotificationCount, getRecentNotifications } from "@/lib/actions/notifications";
 import { DashboardLayoutClient } from "@/components/layout/dashboard-layout-client";
 
 export const metadata: Metadata = {
@@ -15,9 +15,10 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const session = await requireOwner();
-  const [supportUnreadCount, notificationUnreadCount] = await Promise.all([
+  const [supportUnreadCount, notificationUnreadCount, initialNotifications] = await Promise.all([
     getUnreadSupportTicketCount(),
     getUnreadNotificationCount(),
+    getRecentNotifications(10),
   ]);
 
   return (
@@ -27,6 +28,7 @@ export default async function DashboardLayout({
       userPlan={session.plan}
       supportUnreadCount={supportUnreadCount}
       notificationUnreadCount={notificationUnreadCount}
+      initialNotifications={initialNotifications}
     >
       {children}
     </DashboardLayoutClient>

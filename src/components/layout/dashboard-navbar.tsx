@@ -1,15 +1,22 @@
 "use client";
 
-import { Bell, HelpCircle, Search } from "lucide-react";
+import { HelpCircle, Search } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import type { RecentNotification } from "@/lib/actions/notifications";
 
 interface DashboardNavbarProps {
   notificationUnreadCount?: number;
+  initialNotifications?: RecentNotification[];
+  onNotificationsRead?: () => void;
 }
 
-export function DashboardNavbar({ notificationUnreadCount = 0 }: DashboardNavbarProps) {
+export function DashboardNavbar({
+  notificationUnreadCount = 0,
+  initialNotifications,
+  onNotificationsRead,
+}: DashboardNavbarProps) {
   return (
-    <header className="sticky top-0 h-16 w-full border-b border-border bg-navbar flex justify-between items-center px-6 z-50">
+    <header className="hidden lg:flex sticky top-0 h-16 w-full border-b border-border bg-navbar justify-between items-center px-6 z-50">
       {/* Izquierda: eyebrow */}
       <div className="hidden md:flex items-center text-xs text-muted-foreground font-medium uppercase tracking-wider">
         Panel de Administración
@@ -29,9 +36,11 @@ export function DashboardNavbar({ notificationUnreadCount = 0 }: DashboardNavbar
 
         {/* Icon buttons */}
         <div className="flex items-center gap-2">
-          <button className="p-2 text-muted-foreground hover:text-foreground transition-colors">
-            <Bell className="h-5 w-5" />
-          </button>
+          <NotificationBell
+            unreadCount={notificationUnreadCount}
+            initialNotifications={initialNotifications}
+            onNotificationsRead={onNotificationsRead}
+          />
           <button className="p-2 text-muted-foreground hover:text-foreground transition-colors">
             <HelpCircle className="h-5 w-5" />
           </button>
