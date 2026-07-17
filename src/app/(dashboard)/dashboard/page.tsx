@@ -361,11 +361,16 @@ export default async function DashboardPage() {
         </div>
 
         {/* Cobranza list — col-1 */}
-        <DashboardCobranzaList items={cobranzaItems} />
+        <DashboardCobranzaList items={cobranzaItems} viewAllHref="/payments" />
       </section>
 
       {/* 4. Calendario de ocupación — full width */}
-      <OccupancyStrip reservations={data.reservations} properties={data.properties} days={14} />
+      <OccupancyStrip
+        reservations={data.reservations}
+        properties={data.properties}
+        days={14}
+        viewAllHref="/calendar"
+      />
     </div>
   );
 }

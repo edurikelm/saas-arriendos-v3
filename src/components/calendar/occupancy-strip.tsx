@@ -14,8 +14,9 @@ import Link from "next/link";
  * - Reservaciones pasadas: solo `DAILY` + no `CANCELLED` (filtrado interno).
  * - Propiedades: solo las que tienen reservas en el rango, hasta `maxProperties`.
  * - Pills clickeables: navegan a `${reservationLinkBase}?reservationId=${id}`.
- * - Color de pills: alterna `bg-primary` sólido y `border-primary/20 bg-primary/10`
- *   entre filas pares/impares (patrón Stitch). Distinto del Timeline, que usa
+ * - Color de pills: las reservas **activas** (en curso) usan `bg-primary`
+ *   sólido; las **próximas** (aún no iniciadas) usan
+ *   `border-primary/20 bg-primary/10`. Distinto del Timeline, que usa
  *   `brand-secondary` (decisión visual separada, NO migrar).
  */
 interface Property {
@@ -49,6 +50,15 @@ interface OccupancyStripProps {
   today?: Date;
   /** Base de la URL para los pills de reserva. Default: `/reservations`. */
   reservationLinkBase?: string;
+  /**
+   * Si se provee, el título se renderiza como bloque standalone AFUERA del card,
+   * junto con un link "Ver todas" que apunta a esta URL (alineado con el patrón
+   * canónico de `/dashboard` sección "Reservas Diarias"). Si se omite, el título
+   * se mantiene dentro del card (back-compat).
+   */
+  viewAllHref?: string;
+  /** Label del link "Ver todas". Default: "Ver todas". */
+  viewAllLabel?: string;
 }
 
 const WEEKEND_DAY_OF_WEEK = new Set([0, 6]); // Sun, Sat
@@ -86,11 +96,38 @@ function formatMonthShort(d: Date): string {
     .replace(".", "");
 }
 
+function formatMonthLong(d: Date): string {
+  return d
+    .toLocaleDateString("es-CL", { month: "long", timeZone: "America/Santiago" })
+    .replace(".", "");
+}
+
+function formatWeekday(d: Date): string {
+  return d.toLocaleDateString("es-CL", { weekday: "long", timeZone: "America/Santiago" });
+}
+
 function dayLetter(d: Date): string {
   return d
     .toLocaleDateString("es-CL", { weekday: "short", timeZone: "America/Santiago" })
     .charAt(0)
     .toUpperCase();
+}
+
+/**
+ * Construye la línea descriptiva del header: día de semana del primer día,
+ * rango, mes(es) y total de días. Si el rango cruza meses, los muestra ambos
+ * (ej: "agosto – septiembre 2026"). Si es del mismo mes, muestra solo uno
+ * capitalizado (ej: "julio 2026").
+ */
+function buildRangeLabel(start: Date, end: Date, days: number): string {
+  const startWeekday = formatWeekday(start);
+  const endWeekday = formatWeekday(end);
+  const sameMonth =
+    start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
+  const monthLabel = sameMonth
+    ? `${formatMonthLong(start)} ${start.getFullYear()}`
+    : `${formatMonthLong(start)} – ${formatMonthLong(end)} ${end.getFullYear()}`;
+  return `${startWeekday} ${formatDayShort(start)} ${formatMonthShort(start)} — ${endWeekday} ${formatDayShort(end)} ${formatMonthShort(end)} · ${days} días · ${monthLabel}`;
 }
 
 export function OccupancyStrip({
@@ -101,6 +138,8 @@ export function OccupancyStrip({
   title = "Calendario de ocupación",
   today,
   reservationLinkBase = "/reservations",
+  viewAllHref,
+  viewAllLabel = "Ver todas",
 }: OccupancyStripProps) {
   const ref = today ?? new Date();
   ref.setHours(0, 0, 0, 0);
@@ -126,18 +165,41 @@ export function OccupancyStrip({
     )
     .slice(0, maxProperties);
 
+  const rangeLabel = buildRangeLabel(calendarStart, calendarEnd, days);
+
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-card">
-      <div className="flex items-center justify-between border-b border-border px-6 py-4">
-        <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-          {title}
-        </h2>
-        <span className="text-[10px] font-bold text-foreground tabular-nums">
-          {formatDayShort(calendarStart)} {formatMonthShort(calendarStart)} —{" "}
-          {formatDayShort(calendarEnd)} {formatMonthShort(calendarEnd)}
-        </span>
-      </div>
-      <div className="overflow-x-auto">
+    <div>
+      {viewAllHref && (
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+              {title}
+            </h2>
+            <p className="mt-1 text-[10px] font-medium capitalize text-foreground/70">
+              {rangeLabel}
+            </p>
+          </div>
+          <Link
+            href={viewAllHref}
+            className="shrink-0 text-[10px] font-bold uppercase text-primary hover:underline"
+          >
+            {viewAllLabel}
+          </Link>
+        </div>
+      )}
+      <div className="overflow-hidden rounded-lg border border-border bg-card">
+        {viewAllHref ? null : (
+          <div className="flex items-center justify-between border-b border-border px-6 py-4">
+            <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+              {title}
+            </h2>
+            <span className="text-[10px] font-bold text-foreground tabular-nums">
+              {formatDayShort(calendarStart)} {formatMonthShort(calendarStart)} —{" "}
+              {formatDayShort(calendarEnd)} {formatMonthShort(calendarEnd)}
+            </span>
+          </div>
+        )}
+        <div className="overflow-x-auto">
         <div className="min-w-[1000px]">
           {/* Day headers */}
           <div className="flex border-b border-border bg-muted">
@@ -187,13 +249,10 @@ export function OccupancyStrip({
                 Sin propiedades registradas
               </div>
             ) : (
-              calendarProperties.map((property, propertyIdx) => {
+              calendarProperties.map((property) => {
                 const propReservations = calendarReservations.filter(
                   (r) => r.propertyId === property.id
                 );
-                // Alternar variantes de teal por fila (par = sólido bg-primary, impar = claro bg-primary/10).
-                // Patrón Stitch: row 1/3 sólido, row 2/4 claro.
-                const isAltRow = propertyIdx % 2 === 1;
                 return (
                   <div
                     key={property.id}
@@ -208,10 +267,36 @@ export function OccupancyStrip({
                       className="relative flex-1"
                       style={{ gridTemplateColumns: `repeat(${days}, minmax(0, 1fr))` }}
                     >
+                      {/* Grid background — empty cells representing slots where events load */}
+                      <div
+                        className="pointer-events-none absolute inset-0 grid"
+                        style={{ gridTemplateColumns: `repeat(${days}, minmax(0, 1fr))` }}
+                      >
+                        {calendarDays.map((day) => {
+                          const isWeekend = WEEKEND_DAY_OF_WEEK.has(day.getDay());
+                          const isToday = isSameDay(day, ref);
+                          return (
+                            <div
+                              key={`slot-${day.toISOString()}`}
+                              className={`border-r border-border/60 last:border-r-0 ${
+                                isToday
+                                  ? "bg-primary/5"
+                                  : isWeekend
+                                    ? "bg-muted/40"
+                                    : "bg-muted/10"
+                              }`}
+                            />
+                          );
+                        })}
+                      </div>
                       {/* Reservation pills */}
                       {propReservations.map((reservation) => {
                         const rStart = new Date(reservation.startDate);
                         const rEnd = new Date(reservation.endDate);
+                        const isActive =
+                          rStart <= ref &&
+                          rEnd >= ref &&
+                          reservation.status !== "CANCELLED";
                         const visibleStart = rStart < calendarStart ? calendarStart : rStart;
                         const visibleEnd = rEnd > calendarEnd ? calendarEnd : rEnd;
                         const startOffset = Math.max(
@@ -227,25 +312,25 @@ export function OccupancyStrip({
                             key={reservation.id}
                             href={`${reservationLinkBase}?reservationId=${reservation.id}`}
                             className={`absolute top-3 bottom-3 z-0 flex cursor-pointer items-center justify-center overflow-hidden rounded px-3 transition-all hover:brightness-95 ${
-                              isAltRow
-                                ? "border border-primary/20 bg-primary/10"
-                                : "bg-primary"
+                              isActive
+                                ? "bg-primary"
+                                : "border border-primary/20 bg-primary/10"
                             }`}
                             style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
                           >
                             <div className="flex flex-col items-center gap-0.5 overflow-hidden">
                               <span
                                 className={`truncate text-[10px] font-bold ${
-                                  isAltRow ? "text-primary" : "text-primary-foreground"
+                                  isActive ? "text-primary-foreground" : "text-primary"
                                 }`}
                               >
                                 {reservation.client.name}
                               </span>
                               <span
                                 className={`text-[8px] font-bold uppercase tracking-tighter ${
-                                  isAltRow
-                                    ? "text-primary/80"
-                                    : "text-primary-foreground/90"
+                                  isActive
+                                    ? "text-primary-foreground/90"
+                                    : "text-primary/80"
                                 }`}
                               >
                                 {nights} noches
@@ -259,6 +344,7 @@ export function OccupancyStrip({
                 );
               })
             )}
+          </div>
           </div>
         </div>
       </div>
