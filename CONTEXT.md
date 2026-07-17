@@ -393,10 +393,10 @@ Los callsites que NO encajan en estos helpers (select+groupby custom, where+incl
 
 ## Estado del proyecto / Backlog activo
 
-**Última verificación de baseline** (post cierre PRD-0001 + tests closing, 2026-07-15):
+**Última verificación de baseline** (post cierre #183 MP metadata migration, 2026-07-17):
 - `npm run typecheck` → 0 errores
-- `npm run lint --quiet` → 0 errores (498 warnings de `no-explicit-any` y `no-unused-vars` en 350 archivos, ver decisión abajo)
-- `npm run test:run` → 1204/1204 verde (~72s; 2 skipped). **Flaky tests conocidos** pueden aparecer en primera corrida (timeouts de 5000ms o assertions de "called N times") en estos 3 archivos — verificados aislados: 7/7, 13/13, 12/12 verde:
+- `npm run lint --quiet` → 0 errores (496 warnings de `no-explicit-any` y `no-unused-vars` en 350 archivos, ver decisión abajo)
+- `npm run test:run` → **1243/1243 verde (~73s; 2 skipped)** — Test Files 110 passed. Delta desde el último baseline documentado (1204) = **+39 tests** introducidos por commits posteriores a PRD-0001 (`d5f6ff9`, `0a30975`, `84cedd4`, `5b4070e`, `24ce686`, `f8e95ee`) que no actualizaron este reporte. **#183 no introdujo tests nuevos.** **Flaky tests conocidos** pueden aparecer en primera corrida (timeouts de 5000ms o assertions de "called N times") en estos 3 archivos — verificados aislados: 7/7, 13/13, 12/12 verde:
   - `src/lib/actions/__tests__/payments-kpis.test.ts`
   - `src/lib/actions/__tests__/reports-revenue.test.ts`
   - `src/lib/actions/__tests__/reports-reservations-paginated.test.ts`
@@ -406,6 +406,8 @@ Los callsites que NO encajan en estos helpers (select+groupby custom, where+incl
 - **PRD-0002 (UI gaps) + fixes MED**: cerrados en commit `a4cb41d` + próximo commit
 
 ### Cerrados en commits recientes
+
+- **#183 — Migración Payment con metadata de Mercado Pago** (`docs/prd/PRD-0004-mp-payment-metadata-pdf.md` + `docs/adr/0026-mp-payment-metadata-storage.md`) — commits `24ce686` (migración DB) + `f8e95ee` (fix ADR encoding). Cierra la fundación del PRD-0004: 10 campos nuevos en `Payment` (`mpPaymentId`, `mpStatusDetail`, `mpPaymentMethodId`, `mpPaymentType`, `mpCardLastFour`, `mpInstallments`, `mpTransactionAmount`, `mpNetReceivedAmount`, `mpFeeAmount`, `mpDateCreated`) — todos nullable, sin defaults, sin backfill. ADR documenta decisión de NO encriptar `mpCardLastFour` (PCI DSS) y de `String` vs `BigInt` para `mpPaymentId`. Webhook/gateway (#184) y PDF comprobante (#185) dependen de este commit.
 
 - **PRD-0002 — Copiar/Eliminar links Mercado Pago** (`docs/prd/PRD-0002-payments-copy-delete.md`) — commit `a4cb41d`. Cerró 3 gaps UI: badge "Expirado", botón "Regenerar" (con guard de `initPoint`), delete con `confirm()` + undo toast 5s (con flag `restored` para evitar false positive). Tests +12 (1152/1152).
 
