@@ -8,6 +8,7 @@ import { getProperties } from "@/lib/actions/properties";
 import { getReservations } from "@/lib/actions/reservations";
 import { getReservationPaidAmount } from "@/lib/payments/calculations";
 import { ReservationPill } from "@/components/reservations/reservation-pill";
+import { OccupancyStrip } from "@/components/calendar/occupancy-strip";
 import { DashboardCobranzaList, type CobranzaItem } from "./_components/dashboard-cobranza-list";
 
 interface Property {
@@ -92,29 +93,6 @@ function addDays(d: Date, n: number): Date {
   result.setDate(result.getDate() + n);
   return result;
 }
-
-function isSameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
-}
-
-function formatDayShort(d: Date): string {
-  return d.toLocaleDateString("es-CL", { day: "numeric", timeZone: "America/Santiago" });
-}
-
-function formatMonthShort(d: Date): string {
-  return d.toLocaleDateString("es-CL", { month: "short", timeZone: "America/Santiago" }).replace(".", "");
-}
-
-function dayLetter(d: Date): string {
-  return d.toLocaleDateString("es-CL", { weekday: "short", timeZone: "America/Santiago" }).charAt(0).toUpperCase();
-}
-
-const CALENDAR_DAYS = 14;
-const WEEKEND_DAY_OF_WEEK = new Set([0, 6]); // Sun, Sat
 
 function getReservationStatusPill(
   reservation: Reservation,
@@ -260,29 +238,6 @@ export default async function DashboardPage() {
     .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
     .slice(0, 6);
 
-  // Calendario: rango de 14 días desde hoy
-  const calendarStart = today;
-  const calendarEnd = addDays(today, CALENDAR_DAYS - 1);
-  const calendarDays: Date[] = Array.from({ length: CALENDAR_DAYS }, (_, i) => addDays(today, i));
-
-  // Reservas que se solapan con el rango (solo DAILY)
-  const calendarReservations = data.reservations.filter((reservation) => {
-    const start = new Date(reservation.startDate);
-    const end = new Date(reservation.endDate);
-    return (
-      start <= calendarEnd &&
-      end >= calendarStart &&
-      reservation.status !== "CANCELLED" &&
-      reservation.billingType === "DAILY"
-    );
-  });
-
-  const calendarProperties = data.properties
-    .filter((property) =>
-      calendarReservations.some((reservation) => reservation.propertyId === property.id)
-    )
-    .slice(0, 6);
-
   return (
     <div className="space-y-6 pb-10">
       {/* 1. Page header */}
@@ -410,113 +365,7 @@ export default async function DashboardPage() {
       </section>
 
       {/* 4. Calendario de ocupación — full width */}
-      <div className="overflow-hidden rounded-lg border border-border bg-card">
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-            Calendario de ocupación
-          </h2>
-          <span className="text-[10px] font-bold text-foreground tabular-nums">
-            {formatDayShort(calendarStart)} {formatMonthShort(calendarStart)} — {formatDayShort(calendarEnd)}{" "}
-            {formatMonthShort(calendarEnd)}
-          </span>
-        </div>
-        <div className="overflow-x-auto">
-          <div className="min-w-[1000px]">
-            {/* Day headers */}
-            <div className="flex border-b border-border bg-muted">
-              <div className="sticky left-0 z-10 flex w-48 shrink-0 items-center border-r border-border bg-muted px-4 py-3">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Propiedad</span>
-              </div>
-              <div className="grid flex-1" style={{ gridTemplateColumns: `repeat(${CALENDAR_DAYS}, minmax(0, 1fr))` }}>
-                {calendarDays.map((day) => {
-                  const isWeekend = WEEKEND_DAY_OF_WEEK.has(day.getDay());
-                  return (
-                    <div
-                      key={day.toISOString()}
-                      className={`border-r border-border px-1 py-3 text-center last:border-r-0 ${isWeekend ? "bg-muted" : ""}`}
-                    >
-                      <span className="text-[10px] font-bold text-muted-foreground">
-                        {formatDayShort(day)} {dayLetter(day)}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            {/* Property rows */}
-            <div className="divide-y divide-border">
-              {calendarProperties.length === 0 ? (
-                <div className="px-6 py-8 text-center text-xs text-muted-foreground">Sin propiedades registradas</div>
-              ) : (
-                calendarProperties.map((property, propertyIdx) => {
-                  const propReservations = calendarReservations.filter((r) => r.propertyId === property.id);
-                  // Alternar variantes de verde por fila (par = sólido, impar = claro).
-                  // Patrón Stitch: row 1/3 sólido bg-primary, row 2/4 claro bg-primary/10.
-                  const isAltRow = propertyIdx % 2 === 1;
-                  return (
-                    <div key={property.id} className="group flex h-14 transition-colors hover:bg-muted/40">
-                      <div className="sticky left-0 z-10 flex w-48 shrink-0 items-center border-r border-border bg-card px-4 group-hover:bg-muted/40">
-                        <span className="truncate text-xs font-bold text-foreground">{property.name}</span>
-                      </div>
-                      <div
-                        className="relative flex-1"
-                        style={{ gridTemplateColumns: `repeat(${CALENDAR_DAYS}, minmax(0, 1fr))` }}
-                      >
-                        {/* Weekend highlight columns */}
-                        {calendarDays.map((day) => {
-                          if (!WEEKEND_DAY_OF_WEEK.has(day.getDay())) return null;
-                          return null; // highlight is on header only in Stitch — keep row clean
-                        })}
-                        {/* Reservation pills */}
-                        {propReservations.map((reservation) => {
-                          const rStart = new Date(reservation.startDate);
-                          const rEnd = new Date(reservation.endDate);
-                          const visibleStart = rStart < calendarStart ? calendarStart : rStart;
-                          const visibleEnd = rEnd > calendarEnd ? calendarEnd : rEnd;
-                          const startOffset = Math.max(0, daysBetween(calendarStart, visibleStart.toISOString()));
-                          const duration = daysBetween(visibleStart, visibleEnd.toISOString()) + 1;
-                          const leftPct = (startOffset / CALENDAR_DAYS) * 100;
-                          const widthPct = (duration / CALENDAR_DAYS) * 100;
-                          const nights = getNights(reservation.startDate, reservation.endDate);
-                          return (
-                            <Link
-                              key={reservation.id}
-                              href={`/reservations?reservationId=${reservation.id}`}
-                              className={`absolute top-3 bottom-3 z-0 flex cursor-pointer items-center justify-center overflow-hidden rounded px-3 transition-all hover:brightness-95 ${
-                                isAltRow
-                                  ? "border border-primary/20 bg-primary/10"
-                                  : "bg-primary"
-                              }`}
-                              style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
-                            >
-                              <div className="flex flex-col items-center gap-0.5 overflow-hidden">
-                                <span
-                                  className={`truncate text-[10px] font-bold ${
-                                    isAltRow ? "text-primary" : "text-primary-foreground"
-                                  }`}
-                                >
-                                  {reservation.client.name}
-                                </span>
-                                <span
-                                  className={`text-[8px] font-bold uppercase tracking-tighter ${
-                                    isAltRow ? "text-primary/80" : "text-primary-foreground/90"
-                                  }`}
-                                >
-                                  {nights} noches
-                                </span>
-                              </div>
-                            </Link>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+      <OccupancyStrip reservations={data.reservations} properties={data.properties} days={14} />
     </div>
   );
 }
