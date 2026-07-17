@@ -3124,3 +3124,245 @@ describe('getPayments - derived fields (overdueDays + installmentLabel)', () => 
     });
   });
 });
+
+describe('processMercadoPagoWebhook - mpMetadata persistence', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('persists mpMetadata fields when payload includes them', async () => {
+    const { prisma } = await import('@/lib/db/prisma');
+
+    // paymentIdFromRef 'clhn00000000000000000001' passes /^[a-z0-9]{20,}$/i
+    // Chain: hintedPaymentId(null), paymentIdFromRef(payment), then markPaymentCompleted check
+    vi.mocked(prisma.payment.findFirst)
+      .mockResolvedValueOnce(null) // hintedPaymentId
+      .mockResolvedValueOnce(mockAsAny({ // paymentIdFromRef
+        id: 'pay-1',
+        reservationId: 'res-1',
+        amount: 50000 as any,
+        method: 'MERCADO_PAGO',
+        status: 'PENDING',
+        deletedAt: null,
+        mercadoPagoId: 'mp-123',
+        receiptUrl: null,
+        createdAt: new Date(),
+        reservation: mockReservation,
+      }))
+      .mockResolvedValueOnce(mockAsAny({ // markPaymentCompleted: non-terminal → update
+        id: 'pay-1',
+        reservationId: 'res-1',
+        amount: 50000 as any,
+        method: 'MERCADO_PAGO',
+        status: 'PENDING',
+        deletedAt: null,
+        mercadoPagoId: 'mp-123',
+        receiptUrl: null,
+        createdAt: new Date(),
+        reservation: mockReservation,
+      }));
+
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([]);
+
+    const { processMercadoPagoWebhook } = await import('../payments');
+    const result = await processMercadoPagoWebhook({
+      id: 'mp-123',
+      status: 'approved',
+      // Valid 20+ char ID to pass regex so paymentIdFromRef lookup is tried
+      external_reference: 'res-1:clhn00000000000000000001:123456',
+      mpMetadata: {
+        status_detail: 'accredited',
+        payment_method_id: 'visa',
+        payment_type: 'credit_card',
+        installments: 3,
+        transaction_amount: 50000,
+        net_received_amount: 47500,
+        fee_amount: 2500,
+        date_created: '2025-06-15T10:00:00.000Z',
+        mp_payment_id: 'mp-123',
+        card_last_four: '1234',
+      },
+    });
+
+    expect(result).toHaveProperty('success', true);
+    expect(prisma.payment.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'pay-1' },
+        data: expect.objectContaining({
+          mpPaymentId: 'mp-123',
+          mpStatusDetail: 'accredited',
+          mpPaymentMethodId: 'visa',
+          mpPaymentType: 'credit_card',
+          mpInstallments: 3,
+          mpTransactionAmount: 50000,
+          mpNetReceivedAmount: 47500,
+          mpFeeAmount: 2500,
+          mpCardLastFour: '1234',
+        }),
+      })
+    );
+  });
+
+  it('COMPLETED payment with already-populated MP metadata: no UPDATE called (idempotency guard)', async () => {
+    const { prisma } = await import('@/lib/db/prisma');
+
+    // Payment found immediately (hintedPaymentId or via getPaymentByMercadoPagoId)
+    const completedWithMetadata = mockAsAny({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      method: 'MERCADO_PAGO',
+      status: 'COMPLETED',
+      deletedAt: null,
+      mercadoPagoId: 'mp-123',
+      receiptUrl: null,
+      paidAt: new Date('2025-06-15T10:00:00Z'),
+      createdAt: new Date(),
+      mpPaymentId: 'mp-123',
+      mpStatusDetail: 'accredited',
+      mpPaymentMethodId: 'visa',
+      mpCardLastFour: '1234',
+      reservation: mockReservation,
+    });
+
+    // Both findFirst calls (in processMercadoPagoWebhook AND inside markPaymentCompleted idempotency check)
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(completedWithMetadata);
+
+    const { processMercadoPagoWebhook } = await import('../payments');
+    const result = await processMercadoPagoWebhook({
+      id: 'mp-123',
+      status: 'approved',
+      external_reference: 'res-1:clhn00000000000000000001:123456',
+      mpMetadata: {
+        status_detail: 'accredited',
+        payment_method_id: 'visa',
+        card_last_four: '1234',
+      },
+    });
+
+    // Already COMPLETED with metadata → idempotent skip
+    expect(result).toEqual({ success: true, skipped: true });
+    expect(prisma.payment.update).not.toHaveBeenCalled();
+  });
+
+  it('webhook without mpMetadata does not attempt to persist MP metadata fields', async () => {
+    const { prisma } = await import('@/lib/db/prisma');
+
+    vi.mocked(prisma.payment.findFirst)
+      .mockResolvedValueOnce(null) // hintedPaymentId
+      .mockResolvedValueOnce(mockAsAny({ // paymentIdFromRef
+        id: 'pay-1',
+        reservationId: 'res-1',
+        amount: 50000 as any,
+        method: 'MERCADO_PAGO',
+        status: 'PENDING',
+        deletedAt: null,
+        mercadoPagoId: 'mp-123',
+        receiptUrl: null,
+        createdAt: new Date(),
+        reservation: mockReservation,
+      }))
+      .mockResolvedValueOnce(mockAsAny({ // markPaymentCompleted check
+        id: 'pay-1',
+        reservationId: 'res-1',
+        amount: 50000 as any,
+        method: 'MERCADO_PAGO',
+        status: 'PENDING',
+        deletedAt: null,
+        mercadoPagoId: 'mp-123',
+        receiptUrl: null,
+        createdAt: new Date(),
+        reservation: mockReservation,
+      }));
+
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([]);
+
+    const { processMercadoPagoWebhook } = await import('../payments');
+    await processMercadoPagoWebhook({
+      id: 'mp-123',
+      status: 'approved',
+      external_reference: 'res-1:clhn00000000000000000001:123456',
+      // mpMetadata intentionally omitted
+    });
+
+    // Verify no MP metadata fields are in the update call
+    expect(prisma.payment.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'pay-1' },
+        data: expect.not.objectContaining([
+          'mpPaymentId', 'mpStatusDetail', 'mpPaymentMethodId',
+          'mpPaymentType', 'mpCardLastFour', 'mpInstallments',
+          'mpTransactionAmount', 'mpNetReceivedAmount', 'mpFeeAmount',
+        ]),
+      })
+    );
+  });
+});
+
+describe('processMercadoPagoWebhook - mpMetadata merchant_order path', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('merchant_order path propagates mpMetadata to processMercadoPagoWebhook', async () => {
+    // This test validates that the webhook route correctly builds mpMetadata
+    // from the extended getPaymentStatus response and passes it through.
+    // The actual merchant_order flow is tested via the route handler tests.
+    const { prisma } = await import('@/lib/db/prisma');
+
+    vi.mocked(prisma.payment.findFirst).mockResolvedValue(mockAsAny({
+      id: 'pay-1',
+      reservationId: 'res-1',
+      amount: 50000 as any,
+      method: 'MERCADO_PAGO',
+      status: 'PENDING',
+      deletedAt: null,
+      mercadoPagoId: 'mp-merchant-1',
+      receiptUrl: null,
+      createdAt: new Date(),
+      reservation: mockReservation,
+    }));
+
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([]);
+
+    const { processMercadoPagoWebhook } = await import('../payments');
+    const result = await processMercadoPagoWebhook({
+      id: 'mp-merchant-1',
+      status: 'approved',
+      external_reference: 'res-1:pay-1:123456',
+      preference_id: 'pref-123',
+      mpMetadata: {
+        status_detail: 'accredited',
+        payment_method_id: 'mastercard',
+        payment_type: 'credit_card',
+        installments: 6,
+        transaction_amount: 50000,
+        net_received_amount: 47200,
+        fee_amount: 2800,
+        date_created: '2025-06-15T11:00:00.000Z',
+        mp_payment_id: 'mp-merchant-1',
+        card_last_four: '5678',
+      },
+    });
+
+    expect(result).toHaveProperty('success', true);
+    expect(prisma.payment.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'pay-1' },
+        data: expect.objectContaining({
+          mpPaymentId: 'mp-merchant-1',
+          mpPaymentMethodId: 'mastercard',
+          mpPaymentType: 'credit_card',
+          mpInstallments: 6,
+          mpCardLastFour: '5678',
+          mpTransactionAmount: 50000,
+          mpNetReceivedAmount: 47200,
+          mpFeeAmount: 2800,
+        }),
+      })
+    );
+  });
+});

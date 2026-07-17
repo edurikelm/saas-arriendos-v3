@@ -437,6 +437,20 @@ export async function generateMercadoPagoLink(reservationId: string, amount?: nu
   }
 }
 
+/** Shape del payload de MP tal como llega del webhook/API (snake_case). */
+export type WebhookMpMetadata = {
+  status_detail?: string;
+  payment_method_id?: string;
+  payment_type?: string;
+  installments?: number;
+  transaction_amount?: number;
+  net_received_amount?: number;
+  fee_amount?: number;
+  date_created?: string;
+  mp_payment_id?: string;
+  card_last_four?: string;
+};
+
 export async function processMercadoPagoWebhook(payload: {
   id: string;
   status: string;
@@ -445,8 +459,9 @@ export async function processMercadoPagoWebhook(payload: {
   date_approved?: string;
   hintedPaymentId?: string;
   receipt_url?: string;
+  mpMetadata?: WebhookMpMetadata;
 }) {
-  const { id, status, external_reference, preference_id, date_approved, hintedPaymentId, receipt_url } = payload;
+  const { id, status, external_reference, preference_id, date_approved, hintedPaymentId, receipt_url, mpMetadata } = payload;
 
   console.log(`[MP Webhook] Processing. ID: ${id}, Status: ${status}, ExternalRef: ${external_reference}, PreferenceID: ${preference_id}`);
 
@@ -511,20 +526,44 @@ export async function processMercadoPagoWebhook(payload: {
       newStatus = "PENDING";
   }
 
-  if (payment.status === newStatus) {
+  // Idempotencia: si status no cambió Y no hay metadata MP nueva, skip.
+  // Excepción (ADR-0026): si ya es COMPLETED pero no tiene metadata MP poblada,
+  // hay que seguir para poblarla.
+  const hasNewMpMetadata = Boolean(mpMetadata && (
+    mpMetadata.mp_payment_id || mpMetadata.card_last_four ||
+    mpMetadata.status_detail || mpMetadata.payment_method_id
+  ));
+  if (payment.status === newStatus && !hasNewMpMetadata) {
     console.log(`[MP Webhook] Payment ${payment.id} already in status ${newStatus}, skipping duplicate webhook`);
     return { success: true, skipped: true };
   }
 
+  // ADR-0026: si ya es COMPLETED con mpPaymentId, es idempotente (rama 1).
+  // Este early-return evita la llamada a markPaymentCompleted cuando no es needed.
+  if (payment.status === "COMPLETED" && payment.mpPaymentId) {
+    return { success: true, skipped: true };
+  }
+
   if (newStatus === "COMPLETED") {
-    await prisma.payment.update({
-      where: { id: payment.id },
-      data: {
-        status: newStatus,
-        paidAt: date_approved ? new Date(date_approved) : new Date(),
-        mercadoPagoId: id,
-        receiptUrl: receipt_url ?? undefined,
-      },
+    // Construir MpMetadata (DB field names) desde WebhookMpMetadata (API field names)
+    const dbMpMetadata = mpMetadata ? {
+      mpPaymentId: mpMetadata.mp_payment_id,
+      mpStatusDetail: mpMetadata.status_detail,
+      mpPaymentMethodId: mpMetadata.payment_method_id,
+      mpPaymentType: mpMetadata.payment_type,
+      mpCardLastFour: mpMetadata.card_last_four,
+      mpInstallments: mpMetadata.installments,
+      mpTransactionAmount: mpMetadata.transaction_amount,
+      mpNetReceivedAmount: mpMetadata.net_received_amount,
+      mpFeeAmount: mpMetadata.fee_amount,
+      mpDateCreated: mpMetadata.date_created,
+    } : undefined;
+
+    await markPaymentCompleted(payment.id, {
+      paidAt: date_approved ? new Date(date_approved) : new Date(),
+      mercadoPagoId: id,
+      receiptUrl: receipt_url ?? undefined,
+      mpMetadata: dbMpMetadata,
     });
 
     await confirmReservationIfPaid(payment.reservationId);

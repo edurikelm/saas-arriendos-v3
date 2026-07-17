@@ -118,12 +118,28 @@ export function verifyMercadoPagoSignature(headers: Headers, rawBody: string, re
   return true;
 }
 
-async function getPaymentStatus(paymentId: string, accessToken: string): Promise<{
+export interface MpPaymentInfo {
   status: string;
+  status_detail?: string;
   external_reference?: string;
   preference_id?: string;
   date_approved?: string;
-} | null> {
+  date_created?: string;
+  payment_method_id?: string;
+  payment_type?: string;
+  installments?: number;
+  transaction_amount?: number;
+  net_received_amount?: number;
+  fee_details?: Array<{ type: string; amount: number }>;
+  card?: {
+    last_four_digits?: string;
+    first_six_digits?: string;
+    cardholder?: { name?: string };
+  };
+  id?: string;
+}
+
+async function getPaymentStatus(paymentId: string, accessToken: string): Promise<MpPaymentInfo | null> {
   try {
     const response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
       headers: {
@@ -139,9 +155,19 @@ async function getPaymentStatus(paymentId: string, accessToken: string): Promise
     const payment = await response.json();
     return {
       status: payment.status,
+      status_detail: payment.status_detail,
       external_reference: payment.external_reference,
       preference_id: payment.preference_id,
       date_approved: payment.date_approved,
+      date_created: payment.date_created,
+      payment_method_id: payment.payment_method_id,
+      payment_type: payment.payment_type,
+      installments: payment.installments,
+      transaction_amount: payment.transaction_amount,
+      net_received_amount: payment.net_received_amount,
+      fee_details: payment.fee_details,
+      card: payment.card,
+      id: payment.id,
     };
   } catch (error) {
     console.error(`Error fetching payment ${paymentId}:`, error);
@@ -233,6 +259,25 @@ export async function POST(request: Request) {
         return NextResponse.json({ received: true, warning: "Could not fetch payment status from MP" });
       }
 
+      // Build mpMetadata from extended paymentInfo
+      // fee_amount is computed as sum of fee_details[].amount
+      const fee_amount = paymentInfo.fee_details?.reduce(
+        (sum, f) => sum + (f.amount ?? 0), 0
+      ) ?? undefined;
+
+      const mpMetadata = {
+        status_detail: paymentInfo.status_detail,
+        payment_method_id: paymentInfo.payment_method_id,
+        payment_type: paymentInfo.payment_type,
+        installments: paymentInfo.installments,
+        transaction_amount: paymentInfo.transaction_amount,
+        net_received_amount: paymentInfo.net_received_amount,
+        fee_amount,
+        date_created: paymentInfo.date_created,
+        mp_payment_id: paymentInfo.id,
+        card_last_four: paymentInfo.card?.last_four_digits,
+      };
+
       const result = await processMercadoPagoWebhook({
         id: paymentId,
         status: paymentInfo.status,
@@ -240,6 +285,7 @@ export async function POST(request: Request) {
         preference_id: paymentInfo.preference_id || "",
         date_approved: paymentInfo.date_approved,
         hintedPaymentId: hintedPaymentId || undefined,
+        mpMetadata,
       });
 
       console.log(`Processed payment webhook: ${paymentId}`, result);
@@ -305,6 +351,29 @@ export async function POST(request: Request) {
 
           const paymentInfo = await getPaymentStatus(String(payment.id), paymentAccessToken);
 
+          if (!paymentInfo) {
+            console.warn(`[MP Webhook] merchant_order: failed to fetch payment ${payment.id} from MP`);
+            continue;
+          }
+
+          // Build mpMetadata from extended paymentInfo (same as payment path)
+          const fee_amount = paymentInfo.fee_details?.reduce(
+            (sum, f) => sum + (f.amount ?? 0), 0
+          ) ?? undefined;
+
+          const mpMetadata = {
+            status_detail: paymentInfo.status_detail,
+            payment_method_id: paymentInfo.payment_method_id,
+            payment_type: paymentInfo.payment_type,
+            installments: paymentInfo.installments,
+            transaction_amount: paymentInfo.transaction_amount,
+            net_received_amount: paymentInfo.net_received_amount,
+            fee_amount,
+            date_created: paymentInfo.date_created,
+            mp_payment_id: paymentInfo.id,
+            card_last_four: paymentInfo.card?.last_four_digits,
+          };
+
           const result = await processMercadoPagoWebhook({
             id: String(payment.id),
             status: payment.status,
@@ -312,6 +381,7 @@ export async function POST(request: Request) {
             preference_id: String(payment.preference_id || ""),
             date_approved: paymentInfo?.date_approved,
             hintedPaymentId: hintedPaymentId || undefined,
+            mpMetadata,
           });
 
           console.log(`Processed merchant_order payment: ${payment.id}`, result);

@@ -211,12 +211,30 @@ export async function sumCompletedPaymentsAll(
 // Patrón D — Status updates (mark payment as COMPLETED / FAILED / revert)
 // ────────────────────────────────────────────────────────────────────────────
 
+export type MpMetadata = {
+  mpPaymentId?: string;
+  mpStatusDetail?: string;
+  mpPaymentMethodId?: string;
+  mpPaymentType?: string;
+  mpCardLastFour?: string;
+  mpInstallments?: number;
+  mpTransactionAmount?: number;
+  mpNetReceivedAmount?: number;
+  mpFeeAmount?: number;
+  mpDateCreated?: string;
+};
+
 /**
  * Marca un payment como COMPLETED.
  *
  * Acepta campos opcionales: `paidAt` (default: now), `mercadoPagoId`,
  * `receiptUrl`. El caller es responsable de pasar los campos relevantes
  * según el método (MP webhook vs manual).
+ *
+ * Idempotencia (ADR-0026):
+ * - Si el pago ya es COMPLETED con metadata MP poblada → no pisa nada.
+ * - Si el pago ya es COMPLETED pero sin metadata MP → pobla solo campos MP nuevos.
+ * - Si está en estado no-terminal → actualiza normalmente.
  */
 export async function markPaymentCompleted(
   paymentId: string,
@@ -224,17 +242,77 @@ export async function markPaymentCompleted(
     paidAt?: Date;
     mercadoPagoId?: string;
     receiptUrl?: string;
+    mpMetadata?: MpMetadata;
   } = {},
   adapter: QueryAdapter = prisma,
 ): Promise<Payment> {
+  const { paidAt, mercadoPagoId, receiptUrl, mpMetadata } = data;
+
+  // Si ya está COMPLETED, verificar idempotencia de metadata
+  const current = await adapter.payment.findFirst({
+    where: { id: paymentId, deletedAt: null },
+    select: { status: true, mpPaymentId: true, mpStatusDetail: true },
+  });
+
+  if (current?.status === "COMPLETED") {
+    // Ya completo: verificar si hay metadata MP que ya existe
+    const hasMpMetadata = Boolean(current.mpPaymentId || current.mpStatusDetail);
+
+    if (hasMpMetadata) {
+      // Idempotencia: no pisar nada si ya tiene metadata de MP
+      const existing = await adapter.payment.findFirst({ where: { id: paymentId } });
+      return existing!;
+    }
+
+    // COMPLETED pero sin metadata MP → poblar solo campos MP
+    if (mpMetadata) {
+      const mpData: Record<string, unknown> = {};
+      if (mpMetadata.mpPaymentId) mpData.mpPaymentId = mpMetadata.mpPaymentId;
+      if (mpMetadata.mpStatusDetail) mpData.mpStatusDetail = mpMetadata.mpStatusDetail;
+      if (mpMetadata.mpPaymentMethodId) mpData.mpPaymentMethodId = mpMetadata.mpPaymentMethodId;
+      if (mpMetadata.mpPaymentType) mpData.mpPaymentType = mpMetadata.mpPaymentType;
+      if (mpMetadata.mpCardLastFour) mpData.mpCardLastFour = mpMetadata.mpCardLastFour;
+      if (mpMetadata.mpInstallments != null) mpData.mpInstallments = mpMetadata.mpInstallments;
+      if (mpMetadata.mpTransactionAmount != null) mpData.mpTransactionAmount = mpMetadata.mpTransactionAmount;
+      if (mpMetadata.mpNetReceivedAmount != null) mpData.mpNetReceivedAmount = mpMetadata.mpNetReceivedAmount;
+      if (mpMetadata.mpFeeAmount != null) mpData.mpFeeAmount = mpMetadata.mpFeeAmount;
+      if (mpMetadata.mpDateCreated) mpData.mpDateCreated = new Date(mpMetadata.mpDateCreated);
+
+      return adapter.payment.update({
+        where: { id: paymentId },
+        data: mpData,
+      });
+    }
+
+    // Ya completo sin metadata nueva → no hacer nada extra
+    const existing = await adapter.payment.findFirst({ where: { id: paymentId } });
+    return existing!;
+  }
+
+  // Estado no-terminal → update normal
+  const updateData: Record<string, unknown> = {
+    status: "COMPLETED",
+    paidAt: paidAt ?? new Date(),
+  };
+  if (mercadoPagoId) updateData.mercadoPagoId = mercadoPagoId;
+  if (receiptUrl) updateData.receiptUrl = receiptUrl;
+
+  if (mpMetadata) {
+    if (mpMetadata.mpPaymentId) updateData.mpPaymentId = mpMetadata.mpPaymentId;
+    if (mpMetadata.mpStatusDetail) updateData.mpStatusDetail = mpMetadata.mpStatusDetail;
+    if (mpMetadata.mpPaymentMethodId) updateData.mpPaymentMethodId = mpMetadata.mpPaymentMethodId;
+    if (mpMetadata.mpPaymentType) updateData.mpPaymentType = mpMetadata.mpPaymentType;
+    if (mpMetadata.mpCardLastFour) updateData.mpCardLastFour = mpMetadata.mpCardLastFour;
+    if (mpMetadata.mpInstallments != null) updateData.mpInstallments = mpMetadata.mpInstallments;
+    if (mpMetadata.mpTransactionAmount != null) updateData.mpTransactionAmount = mpMetadata.mpTransactionAmount;
+    if (mpMetadata.mpNetReceivedAmount != null) updateData.mpNetReceivedAmount = mpMetadata.mpNetReceivedAmount;
+    if (mpMetadata.mpFeeAmount != null) updateData.mpFeeAmount = mpMetadata.mpFeeAmount;
+    if (mpMetadata.mpDateCreated) updateData.mpDateCreated = new Date(mpMetadata.mpDateCreated);
+  }
+
   return adapter.payment.update({
     where: { id: paymentId },
-    data: {
-      status: "COMPLETED",
-      paidAt: data.paidAt ?? new Date(),
-      ...(data.mercadoPagoId ? { mercadoPagoId: data.mercadoPagoId } : {}),
-      ...(data.receiptUrl ? { receiptUrl: data.receiptUrl } : {}),
-    },
+    data: updateData,
   });
 }
 
