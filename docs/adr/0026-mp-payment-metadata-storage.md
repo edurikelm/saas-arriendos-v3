@@ -154,6 +154,25 @@ Migración `20260717000000_add_mp_payment_metadata` — 100% no destructiva:
 - **Re-fetch histórico**: script one-off opcional para poblar metadata de los últimos N pagos completados. Requiere token OAuth válido del owner. Out of scope para esta iteración.
 - **UI de auditoría**: mostrar los campos nuevos en `PaymentDetail` o receipt PDF (#185). Out of scope para esta iteración.
 
+## Storage path del PDF comprobante (#185)
+
+La generación de comprobante PDF (issue #185) usa un path determinista basado en `paidAt`:
+
+```
+payments/{paymentId}/{paymentId}-{paidAtUnix}.pdf
+```
+
+Ejemplo: `payments/p_abc123/p_abc123-1752758400.pdf`.
+
+**Decisión de diseño (refinamiento durante implementación #185):**
+
+El path original propuesto en el PRD-0004 era `receipt-{ISO_timestamp}.pdf`. Se refinó a `{paymentId}-{paidAtUnix}.pdf` porque:
+
+- Es **determinista**: dos requests del mismo pago siempre caen en el mismo path, simplificando idempotencia.
+- Permite que el endpoint verifique existencia con `supabase.storage.from(BUCKET).list()` o un `head()` antes de re-renderizar.
+- Si el `paidAt` cambia (escenario raro — requeriría re-marcado manual), se regenera naturalmente con un nuevo path.
+- Más corto que un ISO timestamp completo.
+
 ## References
 
 - PRD-0004: `docs/prd/PRD-0004-mp-payment-metadata-pdf.md`
