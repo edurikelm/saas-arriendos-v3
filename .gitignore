@@ -40,3 +40,9 @@ coverage/
 
 # Supabase CLI local config (linked project ref + temp state)
 supabase/
+# Local IDE config
+.opencode/
+
+# TestSprite MCP artifacts (local testing only, not portable)
+testsprite_tests/
+
