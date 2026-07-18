@@ -358,6 +358,34 @@ export async function revertPaymentToPending(
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Patrón F — Receipt PDF data ( Issue #185 )
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Carga datos necesarios para generar el comprobante PDF de un Payment.
+ * Selects optimizados (no full Payment con relations innecesarias).
+ * Excluye soft-deleted.
+ * Acepta adapter opcional para participar en $transaction.
+ */
+export async function getPaymentReceiptData(
+  paymentId: string,
+  adapter: QueryAdapter = prisma,
+) {
+  return adapter.payment.findFirst({
+    where: { id: paymentId, deletedAt: null },
+    include: {
+      reservation: {
+        include: {
+          client: { select: { id: true, name: true, email: true, phone: true } },
+          property: { select: { id: true, name: true } },
+        },
+      },
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  }) as any;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Patrón E — Counters (verificar completitud de pagos de una reserva)
 // ────────────────────────────────────────────────────────────────────────────
 

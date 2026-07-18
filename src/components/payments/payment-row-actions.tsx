@@ -5,6 +5,7 @@ import {
   Copy,
   Check,
   FileText,
+  FileDown,
   Loader2,
   MoreHorizontal,
   RefreshCw,
@@ -84,6 +85,7 @@ export function PaymentRowActions({
   const canMarkPaid = isPending && onMarkPaid;
   const canDelete = isPending && !isMercadoPago && onDeletePayment;
   const canViewReceipt = Boolean(payment.receiptUrl);
+  const canDownloadReceipt = isCompleted && isMercadoPago;
   const canAttachReceipt = isCompleted && !payment.receiptUrl && onAttachReceipt;
   const canSendLink = isPending && isMercadoPago && payment.initPoint && onSendLink;
 
@@ -94,6 +96,7 @@ export function PaymentRowActions({
     | "copy"
     | "markPaid"
     | "viewReceipt"
+    | "downloadReceipt"
     | null =
     canGenerateLink
       ? "generate"
@@ -105,17 +108,20 @@ export function PaymentRowActions({
             ? "markPaid"
             : canViewReceipt
               ? "viewReceipt"
-              : null;
+              : canDownloadReceipt
+                ? "downloadReceipt"
+                : null;
 
   // ── Secondary actions ─────────────────────────────────────────────────────
   const secondaryActions = [
     canMarkPaid && primaryAction !== "markPaid" ? "markPaid" : null,
     canDelete ? "delete" : null,
     canViewReceipt && primaryAction !== "viewReceipt" ? "viewReceipt" : null,
+    canDownloadReceipt && primaryAction !== "downloadReceipt" ? "downloadReceipt" : null,
     canAttachReceipt ? "attachReceipt" : null,
     canSendLink ? "sendLink" : null,
   ].filter(Boolean) as Array<
-    "markPaid" | "delete" | "viewReceipt" | "attachReceipt" | "sendLink"
+    "markPaid" | "delete" | "viewReceipt" | "downloadReceipt" | "attachReceipt" | "sendLink"
   >;
 
   // ── UX: promote single secondary action to primary when primary is absent ──
@@ -224,6 +230,21 @@ export function PaymentRowActions({
       );
     }
 
+    if (effectivePrimary === "downloadReceipt") {
+      return (
+        <Button
+          size="sm"
+          variant="outline"
+          className={btnClassName}
+          aria-label={compact ? "Descargar comprobante" : undefined}
+          onClick={() => window.open(`/api/payments/${payment.id}/receipt`, "_blank")}
+        >
+          <FileDown className="mr-0.5 size-3" />
+          {compact ? "Comprobante" : "Descargar comprobante"}
+        </Button>
+      );
+    }
+
     if (effectivePrimary === "attachReceipt") {
       return (
         <Button
@@ -275,6 +296,17 @@ export function PaymentRowActions({
         <DropdownMenuItem onClick={() => window.open(payment.receiptUrl!, "_blank")}>
           <FileText className="size-3.5 shrink-0" />
           Ver comprobante
+        </DropdownMenuItem>
+      );
+    }
+
+    if (action === "downloadReceipt") {
+      return (
+        <DropdownMenuItem
+          onClick={() => window.open(`/api/payments/${payment.id}/receipt`, "_blank")}
+        >
+          <FileDown className="size-3.5 shrink-0" />
+          Descargar comprobante PDF
         </DropdownMenuItem>
       );
     }

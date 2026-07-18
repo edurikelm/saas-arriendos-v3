@@ -42,6 +42,7 @@ import {
   markPaymentStatus,
   revertPaymentToPending,
   countCompletedPaymentsForReservation,
+  getPaymentReceiptData,
 } from "../queries";
 
 beforeEach(() => {
@@ -424,6 +425,69 @@ describe("countCompletedPaymentsForReservation", () => {
         deletedAt: null,
       },
     });
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Patrón F — Receipt PDF data
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("getPaymentReceiptData", () => {
+  it("returns payment with reservation+client+property selects, excludes soft-deleted", async () => {
+    const fake = {
+      id: "pay-receipt-1",
+      amount: 50000,
+      reservation: {
+        id: "res-1",
+        startDate: new Date(),
+        endDate: new Date(),
+        billingType: "DAILY" as const,
+        totalPrice: 200000,
+        client: { id: "c1", name: "Juan", email: "juan@test.com", phone: "+569" },
+        property: { id: "p1", name: "Cabaña", address: "Los Aromos 123" },
+      },
+    };
+    mocks.findFirst.mockResolvedValue(fake);
+
+    const result = await getPaymentReceiptData("pay-receipt-1");
+
+    expect(result).toBe(fake);
+    expect(mocks.findFirst).toHaveBeenCalledWith({
+      where: { id: "pay-receipt-1", deletedAt: null },
+      include: {
+        reservation: {
+          include: {
+            client: { select: { id: true, name: true, email: true, phone: true } },
+            property: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+  });
+
+  it("returns null for soft-deleted payment", async () => {
+    mocks.findFirst.mockResolvedValue(null);
+
+    const result = await getPaymentReceiptData("pay-deleted");
+
+    expect(result).toBeNull();
+  });
+
+  it("uses adapter when passed (adapter pattern)", async () => {
+    const txAdapter = {
+      payment: {
+        findFirst: vi.fn().mockResolvedValue({ id: "pay-tx-receipt" }),
+        findMany: vi.fn(),
+        aggregate: vi.fn(),
+        count: vi.fn(),
+        update: vi.fn(),
+      },
+    } as any;
+
+    await getPaymentReceiptData("pay-1", txAdapter);
+
+    expect(txAdapter.payment.findFirst).toHaveBeenCalled();
+    expect(mocks.findFirst).not.toHaveBeenCalled();
   });
 });
 

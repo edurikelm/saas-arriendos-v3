@@ -196,6 +196,68 @@ describe("PaymentRowActions — CASH PENDING", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// COMPLETED — MERCADO_PAGO — downloadReceipt
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("PaymentRowActions — COMPLETED MERCADO_PAGO downloadReceipt", () => {
+  it("muestra Descargar comprobante PDF como acción secundaria cuando hay receiptUrl (imagen)", async () => {
+    const { PaymentRowActions } = await renderComponent();
+    const payment = createMockPayment({
+      status: "COMPLETED",
+      method: "MERCADO_PAGO",
+      receiptUrl: "https://www.mercadopago.com.ar/receipts/abc123",
+    });
+
+    render(<PaymentRowActions payment={payment} />);
+
+    // Ver comprobante es primaria, Descargar PDF en menú
+    expect(screen.getByRole("button", { name: /ver comprobante/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /más acciones/i })).toBeTruthy();
+  });
+
+  it("muestra Descargar comprobante PDF como acción primaria cuando NO hay receiptUrl", async () => {
+    const { PaymentRowActions } = await renderComponent();
+    const payment = createMockPayment({
+      status: "COMPLETED",
+      method: "MERCADO_PAGO",
+      receiptUrl: null,
+    });
+
+    render(<PaymentRowActions payment={payment} />);
+
+    // Descargar comprobante es la única acción visible (promovida de secondary)
+    expect(screen.getByRole("button", { name: /descargar comprobante/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /más acciones/i })).toBeNull();
+  });
+
+  it("COMPLETED CASH no muestra opción de descargar PDF", async () => {
+    const { PaymentRowActions } = await renderComponent();
+    const payment = createMockPayment({
+      status: "COMPLETED",
+      method: "CASH",
+      receiptUrl: null,
+    });
+
+    render(<PaymentRowActions payment={payment} />);
+
+    expect(screen.queryByRole("button", { name: /descargar comprobante/i })).toBeNull();
+  });
+
+  it("PENDING MERCADO_PAGO no muestra opción de descargar PDF", async () => {
+    const { PaymentRowActions } = await renderComponent();
+    const payment = createMockPayment({
+      status: "PENDING",
+      method: "MERCADO_PAGO",
+      initPoint: "https://www.mercadopago.com.ar/checkout/test",
+    });
+
+    render(<PaymentRowActions payment={payment} />);
+
+    expect(screen.queryByRole("button", { name: /descargar comprobante/i })).toBeNull();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // COMPLETED — con y sin comprobante
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -214,10 +276,11 @@ describe("PaymentRowActions — COMPLETED con comprobante", () => {
 });
 
 describe("PaymentRowActions — COMPLETED sin comprobante", () => {
-  it('promueve "Adjuntar comprobante" a acción visible (sin menú)', async () => {
+  it('promueve "Adjuntar comprobante" a acción visible para CASH (sin menú)', async () => {
     const { PaymentRowActions } = await renderComponent();
     const payment = createMockPayment({
       status: "COMPLETED",
+      method: "CASH",
       receiptUrl: null,
     });
 
@@ -231,10 +294,11 @@ describe("PaymentRowActions — COMPLETED sin comprobante", () => {
     expect(screen.queryByRole("button", { name: /más acciones/i })).toBeNull();
   });
 
-  it("el menú no aparece cuando la única acción ya es visible", async () => {
+  it("el menú no aparece cuando la única acción ya es visible (CASH)", async () => {
     const { PaymentRowActions } = await renderComponent();
     const payment = createMockPayment({
       status: "COMPLETED",
+      method: "CASH",
       receiptUrl: null,
     });
 
