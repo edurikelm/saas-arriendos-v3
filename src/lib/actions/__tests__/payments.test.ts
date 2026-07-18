@@ -3447,6 +3447,83 @@ describe('processMercadoPagoWebhook - mpMetadata persistence', () => {
     const updateData = updateCall[0].data as Record<string, unknown>;
     expect(updateData.mpCardLastFour).toBeUndefined();
   });
+
+  it('coerces mp_payment_id from number to String (ADR-0026 decision 4)', async () => {
+    // Regression test for runtime bug: Mercado Pago returns the payment `id`
+    // as an int64 in JSON (JavaScript Number), but the Prisma schema declares
+    // mpPaymentId as String?. Without coercion the update throws
+    // "Argument mpPaymentId: Invalid value provided. Expected String, ... provided Int."
+    // The fix lives in processMercadoPagoWebhook (defensive coercion at the
+    // API boundary). This test guards that seam.
+    const { prisma } = await import('@/lib/db/prisma');
+
+    vi.mocked(prisma.payment.findFirst)
+      .mockResolvedValueOnce(null) // hintedPaymentId
+      .mockResolvedValueOnce(mockAsAny({ // paymentIdFromRef
+        id: 'pay-1',
+        reservationId: 'res-1',
+        amount: 75000 as any,
+        method: 'MERCADO_PAGO',
+        status: 'PENDING',
+        deletedAt: null,
+        mercadoPagoId: 'mp-int-bug',
+        receiptUrl: null,
+        createdAt: new Date(),
+        reservation: mockReservation,
+      }))
+      .mockResolvedValueOnce(mockAsAny({ // markPaymentCompleted: non-terminal
+        id: 'pay-1',
+        reservationId: 'res-1',
+        amount: 75000 as any,
+        method: 'MERCADO_PAGO',
+        status: 'PENDING',
+        deletedAt: null,
+        mercadoPagoId: 'mp-int-bug',
+        receiptUrl: null,
+        createdAt: new Date(),
+        reservation: mockReservation,
+      }));
+
+    vi.mocked(prisma.payment.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([]);
+
+    const { processMercadoPagoWebhook } = await import('../payments');
+    const result = await processMercadoPagoWebhook({
+      id: 'mp-int-bug',
+      status: 'approved',
+      external_reference: 'res-1:clhn00000000000000000001:123456',
+      mpMetadata: {
+        status_detail: 'accredited',
+        payment_method_id: 'debvisa',
+        payment_type: 'debit_card',
+        installments: 1,
+        transaction_amount: 75000,
+        net_received_amount: 72150,
+        fee_amount: 2850,
+        date_created: '2026-07-18T16:53:27.000Z',
+        // MP returns `id` as a JSON number (int64). Simulate the real shape:
+        mp_payment_id: 168557179395,
+        card_last_four: '7115',
+      },
+    });
+
+    expect(result).toHaveProperty('success', true);
+    expect(prisma.payment.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'pay-1' },
+        data: expect.objectContaining({
+          // Must be string after coercion, not number
+          mpPaymentId: '168557179395',
+          mpCardLastFour: '7115',
+        }),
+      })
+    );
+
+    // Belt and braces: capture the actual data and assert typeof explicitly
+    const updateCall = vi.mocked(prisma.payment.update).mock.calls[0];
+    const updateData = updateCall[0].data as Record<string, unknown>;
+    expect(typeof updateData.mpPaymentId).toBe('string');
+  });
 });
 
 describe('processMercadoPagoWebhook - mpMetadata merchant_order path', () => {

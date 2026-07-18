@@ -546,8 +546,13 @@ export async function processMercadoPagoWebhook(payload: {
 
   if (newStatus === "COMPLETED") {
     // Construir MpMetadata (DB field names) desde WebhookMpMetadata (API field names)
+    // ADR-0026 decision 4: mpPaymentId stored as String. MP returns it as int64
+    // (a JSON number), so we coerce defensively at the API boundary here even
+    // though the route handler also coerces in getPaymentStatus. Belt and
+    // braces — any future caller that bypasses the route handler still gets
+    // a String before hitting Prisma.
     const dbMpMetadata = mpMetadata ? {
-      mpPaymentId: mpMetadata.mp_payment_id,
+      mpPaymentId: mpMetadata.mp_payment_id != null ? String(mpMetadata.mp_payment_id) : undefined,
       mpStatusDetail: mpMetadata.status_detail,
       mpPaymentMethodId: mpMetadata.payment_method_id,
       mpPaymentType: mpMetadata.payment_type,

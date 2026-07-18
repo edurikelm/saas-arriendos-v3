@@ -167,7 +167,11 @@ async function getPaymentStatus(paymentId: string, accessToken: string): Promise
       net_received_amount: payment.net_received_amount,
       fee_details: payment.fee_details,
       card: payment.card,
-      id: payment.id,
+      // ADR-0026 decision 4: store mpPaymentId as String (MP returns int64).
+      // The Prisma schema declares mpPaymentId as String?, so we coerce here
+      // at the API boundary to keep the type honest and avoid runtime
+      // PrismaClientValidationError when the raw JSON `id` arrives as a number.
+      id: payment.id != null ? String(payment.id) : undefined,
     };
   } catch (error) {
     console.error(`Error fetching payment ${paymentId}:`, error);
