@@ -437,7 +437,12 @@ export async function generateMercadoPagoLink(reservationId: string, amount?: nu
   }
 }
 
-/** Shape del payload de MP tal como llega del webhook/API (snake_case). */
+/** Shape del payload de MP tal como llega del webhook/API (snake_case).
+ *
+ * Note on `mp_payment_id`: Mercado Pago's API returns this as int64, which
+ * the JSON parser decodes as a JavaScript Number. We type it as `string | number`
+ * to reflect the real shape; processMercadoPagoWebhook coerces to String at
+ * the boundary (ADR-0026 decision 4) so the DB column (String?) is honored. */
 export type WebhookMpMetadata = {
   status_detail?: string;
   payment_method_id?: string;
@@ -447,7 +452,7 @@ export type WebhookMpMetadata = {
   net_received_amount?: number;
   fee_amount?: number;
   date_created?: string;
-  mp_payment_id?: string;
+  mp_payment_id?: string | number;
   card_last_four?: string;
 };
 
