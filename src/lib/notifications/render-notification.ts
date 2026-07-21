@@ -13,7 +13,10 @@ export type NotificationEventType =
   | "PAYMENT_RECEIVED"
   | "PAYMENT_REVERTED"
   | "PAYMENT_REMINDER"
-  | "PAYMENT_FAILED";
+  | "PAYMENT_FAILED"
+  | "SUBSCRIPTION_ACTIVATED"
+  | "SUBSCRIPTION_CANCELLED"
+  | "SUBSCRIPTION_EXPIRED";
 
 export interface RenderedNotification {
   subject: string;

@@ -19,6 +19,7 @@ import { PRO_PRICING } from "@/lib/subscriptions/pricing";
 import { getActiveSubscription } from "@/lib/subscriptions/queries";
 import type { QueryAdapter } from "@/lib/subscriptions/queries";
 import type { Subscription, SubscriptionStatus } from "@prisma/client";
+import { recordSubscriptionNotification } from "@/lib/notifications/subscription-events";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Types
@@ -381,7 +382,7 @@ export async function applySubscriptionEvent(
     return work(adapter);
   };
 
-  return runInTx(async (tx) => {
+  const result = await runInTx(async (tx) => {
     // "payment_failed" y "duplicate" no producen cambios en la subscription.
     const hasUpdate = targetStatus !== null || type === "renewed";
 
@@ -421,6 +422,32 @@ export async function applySubscriptionEvent(
 
     return { subscription: updatedSubscription, planChange };
   });
+
+  // ── Post-commit: notificar al owner si el plan cambió por lifecycle ────────
+  if (
+    result.planChange &&
+    result.planChange.source === "subscription_lifecycle" &&
+    result.planChange.from !== result.planChange.to
+  ) {
+    const notificationType =
+      result.planChange.to === "PRO"
+        ? "SUBSCRIPTION_ACTIVATED"
+        : "SUBSCRIPTION_EXPIRED";
+
+    // Fire-and-forget: si falla, el cambio de plan ya está persistido
+    recordSubscriptionNotification({
+      userId: currentSubscription.userId,
+      type: notificationType,
+      subscriptionId,
+    }).catch((error) => {
+      console.error(
+        `[applySubscriptionEvent] Failed to record ${notificationType} notification:`,
+        error,
+      );
+    });
+  }
+
+  return result;
 }
 
 // ────────────────────────────────────────────────────────────────────────────

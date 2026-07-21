@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   userProfileFindUnique: vi.fn<() => Promise<{ plan: string | null } | null>>(),
   userProfileUpdate: vi.fn<() => Promise<never>>(),
   adminActionLogCreate: vi.fn<() => Promise<never>>(),
+  recordSubscriptionNotification: vi.fn<() => Promise<void>>(),
   // $transaction ejecuta el callback pasando un tx mockeado que comparte los mismos mocks
   // (porque el código del lifecycle usa tx.subscription.update etc. cuando está en tx)
   $transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) =>
@@ -63,6 +64,10 @@ vi.mock("@/lib/db/prisma", () => ({
   },
 }));
 
+vi.mock("@/lib/notifications/subscription-events", () => ({
+  recordSubscriptionNotification: mocks.recordSubscriptionNotification,
+}));
+
 // ────────────────────────────────────────────────────────────────────────────
 // Imports — después de los mocks
 // ────────────────────────────────────────────────────────────────────────────
@@ -103,6 +108,8 @@ const fakeSub = (overrides: Partial<Record<string, unknown>> = {}): Subscription
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Por defecto, recordSubscriptionNotification retorna Promise resuelta
+  mocks.recordSubscriptionNotification.mockResolvedValue(undefined);
 });
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -471,6 +478,104 @@ describe("applyPlanChange", () => {
     });
     expect(mocks.userProfileUpdate).not.toHaveBeenCalled();
     expect(mocks.adminActionLogCreate).not.toHaveBeenCalled();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Notification hook — recordSubscriptionNotification calls
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("applySubscriptionEvent notification hook", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.recordSubscriptionNotification.mockResolvedValue(undefined);
+  });
+
+  it("authorized (FREE→PRO) calls recordSubscriptionNotification with SUBSCRIPTION_ACTIVATED", async () => {
+    const pendingSub = fakeSub({ status: "PENDING" });
+    const authorizedSub = fakeSub({ id: "sub-1", status: "AUTHORIZED" });
+
+    mocks.subscriptionFindUnique.mockResolvedValue(pendingSub);
+    mocks.subscriptionUpdate.mockResolvedValue(authorizedSub);
+    mocks.subscriptionEventCreate.mockResolvedValue({} as SubscriptionEvent);
+    mocks.userProfileFindUnique.mockResolvedValue({ plan: "FREE" });
+    mocks.userProfileUpdate.mockResolvedValue({} as never);
+    mocks.adminActionLogCreate.mockResolvedValue({} as never);
+
+    await applySubscriptionEvent({
+      type: "authorized",
+      subscriptionId: "sub-1",
+    });
+
+    expect(mocks.recordSubscriptionNotification).toHaveBeenCalledWith({
+      userId: "user-1",
+      type: "SUBSCRIPTION_ACTIVATED",
+      subscriptionId: "sub-1",
+    });
+  });
+
+  it("expired (PRO→FREE) calls recordSubscriptionNotification with SUBSCRIPTION_EXPIRED", async () => {
+    const authorizedSub = fakeSub({ id: "sub-1", status: "AUTHORIZED" });
+    const expiredSub = fakeSub({ id: "sub-1", status: "EXPIRED" });
+
+    mocks.subscriptionFindUnique.mockResolvedValue(authorizedSub);
+    mocks.subscriptionUpdate.mockResolvedValue(expiredSub);
+    mocks.subscriptionEventCreate.mockResolvedValue({} as SubscriptionEvent);
+    mocks.userProfileFindUnique.mockResolvedValue({ plan: "PRO" });
+    mocks.userProfileUpdate.mockResolvedValue({} as never);
+    mocks.adminActionLogCreate.mockResolvedValue({} as never);
+
+    await applySubscriptionEvent({
+      type: "expired",
+      subscriptionId: "sub-1",
+    });
+
+    expect(mocks.recordSubscriptionNotification).toHaveBeenCalledWith({
+      userId: "user-1",
+      type: "SUBSCRIPTION_EXPIRED",
+      subscriptionId: "sub-1",
+    });
+  });
+
+  it("when plan does NOT change (duplicate event), does NOT call notification", async () => {
+    // Already AUTHORIZED — event is idempotent, no plan change
+    const authorizedSub = fakeSub({ id: "sub-1", status: "AUTHORIZED" });
+
+    mocks.subscriptionFindUnique.mockResolvedValue(authorizedSub);
+    mocks.subscriptionEventCreate.mockResolvedValue({} as SubscriptionEvent);
+
+    await applySubscriptionEvent({
+      type: "authorized",
+      subscriptionId: "sub-1",
+    });
+
+    // planChange is undefined because currentPlan === newPlan (both PRO)
+    expect(mocks.recordSubscriptionNotification).not.toHaveBeenCalled();
+  });
+
+  it("if recordSubscriptionNotification throws, the main event still succeeds (best-effort)", async () => {
+    const pendingSub = fakeSub({ status: "PENDING" });
+    const authorizedSub = fakeSub({ id: "sub-1", status: "AUTHORIZED" });
+
+    mocks.subscriptionFindUnique.mockResolvedValue(pendingSub);
+    mocks.subscriptionUpdate.mockResolvedValue(authorizedSub);
+    mocks.subscriptionEventCreate.mockResolvedValue({} as SubscriptionEvent);
+    mocks.userProfileFindUnique.mockResolvedValue({ plan: "FREE" });
+    mocks.userProfileUpdate.mockResolvedValue({} as never);
+    mocks.adminActionLogCreate.mockResolvedValue({} as never);
+    // Notification throws — should not affect the main result
+    mocks.recordSubscriptionNotification.mockRejectedValue(
+      new Error("Notification service down"),
+    );
+
+    // Should NOT throw even though notification fails
+    const result = await applySubscriptionEvent({
+      type: "authorized",
+      subscriptionId: "sub-1",
+    });
+
+    expect(result.subscription.status).toBe("AUTHORIZED");
+    expect(result.planChange?.to).toBe("PRO");
   });
 });
 

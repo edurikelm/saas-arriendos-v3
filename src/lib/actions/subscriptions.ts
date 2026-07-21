@@ -30,6 +30,7 @@ import {
   cancelSubscriptionSchema,
   reactivateSubscriptionSchema,
 } from "@/lib/validations/subscriptions";
+import { recordSubscriptionNotification } from "@/lib/notifications/subscription-events";
 
 // ────────────────────────────────────────────────────────────────────────────
 // getCurrentSubscription
@@ -186,6 +187,18 @@ export async function cancelMySubscription(
     type: "owner_cancel",
     subscriptionId: subscription.id,
     payload: { reason: reason ?? null, userId },
+  });
+
+  // Notificar al owner que su plan fue cancelado (best-effort)
+  recordSubscriptionNotification({
+    userId,
+    type: "SUBSCRIPTION_CANCELLED",
+    subscriptionId: subscription.id,
+  }).catch((error) => {
+    console.error(
+      "[cancelMySubscription] Failed to record SUBSCRIPTION_CANCELLED notification:",
+      error,
+    );
   });
 
   // Obtener fecha fin del período para informar al owner
