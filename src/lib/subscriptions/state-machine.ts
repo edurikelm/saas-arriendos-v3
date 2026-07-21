@@ -10,7 +10,7 @@
  * | PENDING      |         |     ✓      |   ✓    |     ✓     |    ✓    |        |
  * | AUTHORIZED   |         |            |   ✓    |     ✓     |    ✓    |    ✓   |
  * | PAUSED       |         |     ✓      |        |     ✓     |    ✓    |        |
- * | CANCELLED    |         |            |        |           |    ✓    |        |
+ * | CANCELLED    |         |     ✓      |        |           |    ✓    |        |
  * | EXPIRED      |         |     ✓      |        |           |         |        |
  * | FAILED       |         |     ✓      |   ✓    |     ✓     |    ✓    |        |
  *
@@ -46,9 +46,10 @@ const TRANSITION_TABLE: StatusTuple[] = [
   ["PAUSED", "CANCELLED", true],
   ["PAUSED", "EXPIRED", true],
   ["PAUSED", "FAILED", false],
+  // CANCELLED → AUTHORIZED (reactivación manual antes de expirar) y
   // CANCELLED → EXPIRED (el período terminó y la cancelación se procesó)
   ["CANCELLED", "PENDING", false],
-  ["CANCELLED", "AUTHORIZED", false],
+  ["CANCELLED", "AUTHORIZED", true],
   ["CANCELLED", "PAUSED", false],
   ["CANCELLED", "EXPIRED", true],
   ["CANCELLED", "FAILED", false],

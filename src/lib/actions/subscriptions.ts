@@ -88,34 +88,46 @@ export async function startProUpgrade(): Promise<{
     payload: { initiatedBy: "owner", email },
   });
 
-  // Obtener planId de MP
-  const { planId } = await getProGateway().ensurePlan();
+  try {
+    // Obtener planId de MP
+    const { planId } = await getProGateway().ensurePlan();
 
-  // Crear preapproval en MP
-  const { preapprovalId, initPoint } = await getProGateway().createPreapproval({
-    userId,
-    payerEmail: email,
-    planId,
-  });
+    // Crear preapproval en MP
+    const { preapprovalId, initPoint } = await getProGateway().createPreapproval({
+      userId,
+      payerEmail: email,
+      planId,
+    });
 
-  // Actualizar subscription con datos de MP
-  const now = new Date();
-  const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // sandbox: +1 mes
+    // Actualizar subscription con datos de MP
+    const now = new Date();
+    const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // sandbox: +1 mes
 
-  await prisma.subscription.update({
-    where: { id: subscription.id },
-    data: {
-      mpPreapprovalId: preapprovalId,
-      mpPlanId: planId,
-      currentPeriodStart: now,
-      currentPeriodEnd: periodEnd,
-      nextPaymentDate: periodEnd,
-    },
-  });
+    await prisma.subscription.update({
+      where: { id: subscription.id },
+      data: {
+        mpPreapprovalId: preapprovalId,
+        mpPlanId: planId,
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
+        nextPaymentDate: periodEnd,
+      },
+    });
 
-  revalidatePath("/settings/billing");
+    revalidatePath("/settings/billing");
 
-  return { initPoint, subscriptionId: subscription.id };
+    return { initPoint, subscriptionId: subscription.id };
+  } catch (error) {
+    // Si falla la creación del preapproval o el update, limpiar la subscription PENDING huérfana
+    // para evitar que el owner quede bloqueado por el constraint userId @unique.
+    await prisma.subscription.delete({
+      where: { id: subscription.id },
+    }).catch(() => {
+      // Si el delete también falla (raro), noop. El owner podrá intentar de nuevo
+      // y `getActiveSubscription` bloqueará el doble intento via la validación previa.
+    });
+    throw error;
+  }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -175,11 +187,9 @@ export async function cancelMySubscription(
  * Reactivar una suscripción cancelada que aún no expiró.
  *
  * Solo válido si `status === CANCELLED && currentPeriodEnd > now`.
- * Limpia `cancelledAt` y `cancellationReason`, vuelve a AUTHORIZED.
- *
- * NO llama `applySubscriptionEvent` porque la transición CANCELLED → AUTHORIZED
- * no está en la tabla del state machine (existe solo para este caso específico
- * de "reactivación manual antes de expirar").
+ * Pasa por `applySubscriptionEvent({ type: "authorized" })` para mantener
+ * el patrón de auditoría. El lifecycle limpia `cancelledAt` y `cancellationReason`
+ * cuando la transición viene de CANCELLED.
  */
 export async function reactivateMySubscription(): Promise<{
   success: true;
@@ -191,12 +201,12 @@ export async function reactivateMySubscription(): Promise<{
   const subscription = await getCurrentSubscription(userId);
 
   if (!subscription) {
-    throw new Error("No tienes una suscripción para reactivarr");
+    throw new Error("No tienes una suscripción para reactivar");
   }
 
   if (subscription.status !== "CANCELLED") {
     throw new Error(
-      `Solo puedes reactivarr una suscripción cancelada. Estado actual: "${subscription.status}"`,
+      `Solo puedes reactivar una suscripción cancelada. Estado actual: "${subscription.status}"`,
     );
   }
 
@@ -207,23 +217,12 @@ export async function reactivateMySubscription(): Promise<{
     );
   }
 
-  // Transición CANCELLED → AUTHORIZED (válida según tabla del ADR-0027 § Decisión 9)
-  await prisma.subscription.update({
-    where: { id: subscription.id },
-    data: {
-      status: "AUTHORIZED",
-      cancelledAt: null,
-      cancellationReason: null,
-    },
-  });
-
-  // Registrar el evento
-  await prisma.subscriptionEvent.create({
-    data: {
-      subscriptionId: subscription.id,
-      type: "authorized",
-      payload: { source: "reactivate" },
-    },
+  // Transición CANCELLED → AUTHORIZED pasa por applySubscriptionEvent
+  // (state-machine.ts permite esta transición para reactivación manual).
+  await applySubscriptionEvent({
+    type: "authorized",
+    subscriptionId: subscription.id,
+    payload: { source: "reactivate", userId },
   });
 
   revalidatePath("/settings/billing");

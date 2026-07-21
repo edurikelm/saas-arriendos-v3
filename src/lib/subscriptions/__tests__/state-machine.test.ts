@@ -68,6 +68,10 @@ describe("canTransition — transiciones válidas (✓)", () => {
     expect(canTransition("CANCELLED", "EXPIRED")).toBe(true);
   });
 
+  it("CANCELLED → AUTHORIZED (reactivación manual antes de expirar)", () => {
+    expect(canTransition("CANCELLED", "AUTHORIZED")).toBe(true);
+  });
+
   it("EXPIRED → AUTHORIZED", () => {
     expect(canTransition("EXPIRED", "AUTHORIZED")).toBe(true);
   });
@@ -118,9 +122,8 @@ describe("canTransition — transiciones inválidas", () => {
     expect(canTransition("PAUSED", "FAILED")).toBe(false);
   });
 
-  it("CANCELLED → cualquier estado excepto EXPIRED", () => {
+  it("CANCELLED → cualquier estado excepto AUTHORIZED y EXPIRED", () => {
     expect(canTransition("CANCELLED", "PENDING")).toBe(false);
-    expect(canTransition("CANCELLED", "AUTHORIZED")).toBe(false);
     expect(canTransition("CANCELLED", "PAUSED")).toBe(false);
     expect(canTransition("CANCELLED", "CANCELLED")).toBe(false);
     expect(canTransition("CANCELLED", "FAILED")).toBe(false);
@@ -176,7 +179,7 @@ describe("cobertura exhaustiva — matriz 6x6 completa", () => {
     ["PAUSED", "FAILED", false],
     // from=CANCELLED
     ["CANCELLED", "PENDING", false],
-    ["CANCELLED", "AUTHORIZED", false],
+    ["CANCELLED", "AUTHORIZED", true],
     ["CANCELLED", "PAUSED", false],
     ["CANCELLED", "CANCELLED", false],
     ["CANCELLED", "EXPIRED", true],

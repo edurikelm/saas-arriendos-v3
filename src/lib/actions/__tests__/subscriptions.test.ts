@@ -264,6 +264,13 @@ describe("reactivateMySubscription", () => {
     mocks.subscriptionFindFirst.mockResolvedValue(
       mockSub({ status: "CANCELLED", currentPeriodEnd: futureDate }),
     );
+    // applySubscriptionEvent usa findUnique internamente
+    mocks.subscriptionFindUnique.mockResolvedValue(
+      mockSub({ status: "CANCELLED", currentPeriodEnd: futureDate }),
+    );
+    // El owner sigue PRO durante CANCELLED (período pagado), así que applyPlanChange
+    // es no-op (currentPlan === newPlan === "PRO"). Mockear findUnique para que no falle.
+    mocks.userProfileFindUnique.mockResolvedValue({ plan: "PRO" });
     mocks.subscriptionUpdate.mockResolvedValue(
       mockSub({ status: "AUTHORIZED", cancelledAt: null, cancellationReason: null }),
     );
@@ -273,28 +280,42 @@ describe("reactivateMySubscription", () => {
 
     expect(result.success).toBe(true);
     expect(result.subscription.status).toBe("AUTHORIZED");
-    expect(mocks.subscriptionUpdate).toHaveBeenCalledWith({
-      where: { id: "sub-1" },
-      data: {
-        status: "AUTHORIZED",
-        cancelledAt: null,
-        cancellationReason: null,
-      },
-    });
+    // Verifica que se llamó subscription.update con status AUTHORIZED y limpieza de cancellation
+    expect(mocks.subscriptionUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "sub-1" },
+        data: expect.objectContaining({
+          status: "AUTHORIZED",
+          cancelledAt: null,
+          cancellationReason: null,
+        }),
+      }),
+    );
+    // Plan no cambia (sigue PRO durante el período pagado), así que NO se llama userProfile.update
+    expect(mocks.userProfileUpdate).not.toHaveBeenCalled();
+    // Audit trail se registra via lifecycle
+    expect(mocks.subscriptionEventCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          subscriptionId: "sub-1",
+          type: "authorized",
+        }),
+      }),
+    );
   });
 
   it("cuando no hay subscription: throw", async () => {
     mocks.subscriptionFindFirst.mockResolvedValue(null);
 
     await expect(reactivateMySubscription()).rejects.toThrow(
-      "No tienes una suscripción para reactivarr",
+      "No tienes una suscripción para reactivar",
     );
   });
 
   it("cuando no está CANCELLED: throw", async () => {
     mocks.subscriptionFindFirst.mockResolvedValue(mockSub({ status: "AUTHORIZED" }));
 
-    await expect(reactivateMySubscription()).rejects.toThrow(/Solo puedes reactivarr/);
+    await expect(reactivateMySubscription()).rejects.toThrow(/Solo puedes reactivar/);
   });
 
   it("cuando CANCELLED + currentPeriodEnd <= now: throw", async () => {

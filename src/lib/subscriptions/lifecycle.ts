@@ -299,6 +299,12 @@ export async function applySubscriptionEvent(
       updateData.nextPaymentDate = payload?.nextPaymentDate
         ? new Date(payload.nextPaymentDate as string)
         : null;
+      // Si la reactivación viene desde CANCELLED, limpiar marcadores de cancelación
+      // para que la subscription quede "como nueva" sin perder su historial de eventos.
+      if (currentSubscription.status === "CANCELLED") {
+        updateData.cancelledAt = null;
+        updateData.cancellationReason = null;
+      }
       break;
 
     case "renewed":
