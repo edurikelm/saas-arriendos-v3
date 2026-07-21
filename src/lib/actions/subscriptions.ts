@@ -1,0 +1,282 @@
+"use server";
+
+/**
+ * Server actions para gestión de suscripciones PRO.
+ *
+ * Principios de diseño:
+ * - Todas las acciones que modifican estado usan `applySubscriptionEvent`.
+ * - La cancelación es al fin del período: `cancelMySubscription` marca
+ *   `CANCELLED` pero NO cambia `UserProfile.plan`.
+ * - `startProUpgrade` crea la subscription en PENDING, el plan cambia cuando
+ *   MP envía el webhook de "authorized".
+ *
+ * Decisiones documentadas (no cambiar sin coordinar con el equipo):
+ * - `userId @unique`: 1 owner = 1 subscription activa.
+ * - Si la subscription está CANCELLED y no expiró, `reactivateMySubscription`
+ *   reactiva la misma fila (no se crea nueva).
+ * - Si la subscription está EXPIRED, se debe crear una fila nueva
+ *   (`startProUpgrade` lo maneja).
+ */
+
+import { requireOwner } from "@/lib/auth/guards";
+import { prisma } from "@/lib/db/prisma";
+import { revalidatePath } from "next/cache";
+import { getProGateway } from "@/lib/payment/pro-gateway";
+import {
+  applySubscriptionEvent,
+  getCurrentSubscription,
+} from "@/lib/subscriptions/lifecycle";
+
+// ────────────────────────────────────────────────────────────────────────────
+// getCurrentSubscription
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Devuelve la suscripción activa del owner actual o null.
+ * Retornable desde server component.
+ */
+export async function getCurrentSubscriptionAction() {
+  const session = await requireOwner();
+  return getCurrentSubscription(session.userId);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// startProUpgrade
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Inicia el flujo de upgrade a PRO.
+ *
+ * 1. Verifica que no tenga subscription activa (o que esté EXPIRED).
+ * 2. Crea `Subscription(PENDING)` vía `applySubscriptionEvent("created")`.
+ * 3. Obtiene `planId` de MP vía `ensurePlan()`.
+ * 4. Crea el preapproval en MP y obtiene `initPoint`.
+ * 5. Actualiza la subscription con los IDs de MP y fechas.
+ *
+ * El plan se activa cuando MP envía el webhook "authorized".
+ */
+export async function startProUpgrade(): Promise<{
+  initPoint: string;
+  subscriptionId: string;
+}> {
+  const session = await requireOwner();
+  const { userId, email } = session;
+
+  // Verificar subscription existente
+  const existing = await getCurrentSubscription(userId);
+
+  if (existing) {
+    if (existing.status === "AUTHORIZED" || existing.status === "PAUSED") {
+      throw new Error("Ya tienes PRO activo");
+    }
+    if (existing.status === "CANCELLED" && existing.currentPeriodEnd && existing.currentPeriodEnd > new Date()) {
+      const endDate = existing.currentPeriodEnd.toLocaleDateString("es-CL", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      });
+      throw new Error(`Tu suscripción PRO sigue activa hasta ${endDate}`);
+    }
+    // Si CANCELLED + expirada o FAILED/EXPIRED → se permite crear nueva
+    // (el constraint userId@unique se maneja via delete o reuso de fila)
+  }
+
+  // Crear subscription PENDING
+  const { subscription } = await applySubscriptionEvent({
+    type: "created",
+    userId,
+    payload: { initiatedBy: "owner", email },
+  });
+
+  // Obtener planId de MP
+  const { planId } = await getProGateway().ensurePlan();
+
+  // Crear preapproval en MP
+  const { preapprovalId, initPoint } = await getProGateway().createPreapproval({
+    userId,
+    payerEmail: email,
+    planId,
+  });
+
+  // Actualizar subscription con datos de MP
+  const now = new Date();
+  const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // sandbox: +1 mes
+
+  await prisma.subscription.update({
+    where: { id: subscription.id },
+    data: {
+      mpPreapprovalId: preapprovalId,
+      mpPlanId: planId,
+      currentPeriodStart: now,
+      currentPeriodEnd: periodEnd,
+      nextPaymentDate: periodEnd,
+    },
+  });
+
+  revalidatePath("/settings/billing");
+
+  return { initPoint, subscriptionId: subscription.id };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// cancelMySubscription
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * El owner cancela su suscripción.
+ *
+ * Marca `status = CANCELLED` + `cancelledAt` pero NO cambia `UserProfile.plan`.
+ * El downgrade a FREE ocurre cuando MP envía el webhook "expired" o cuando
+ * el cron detecta `currentPeriodEnd < now` (ADR-0027 § Decisión 3).
+ */
+export async function cancelMySubscription(
+  reason?: "too_expensive" | "not_using" | "switching_provider" | "other",
+): Promise<{ success: true; currentPeriodEnd: Date | null }> {
+  const session = await requireOwner();
+  const { userId } = session;
+
+  const subscription = await getCurrentSubscription(userId);
+
+  if (!subscription) {
+    throw new Error("No tienes una suscripción activa");
+  }
+
+  if (subscription.status !== "AUTHORIZED" && subscription.status !== "PAUSED") {
+    throw new Error(
+      `No puedes cancelar una suscripción en estado "${subscription.status}"`,
+    );
+  }
+
+  await applySubscriptionEvent({
+    type: "owner_cancel",
+    subscriptionId: subscription.id,
+    payload: { reason: reason ?? null, userId },
+  });
+
+  // Obtener fecha fin del período para informar al owner
+  const updated = await prisma.subscription.findUnique({
+    where: { id: subscription.id },
+    select: { currentPeriodEnd: true },
+  });
+
+  revalidatePath("/settings/billing");
+
+  return {
+    success: true,
+    currentPeriodEnd: updated?.currentPeriodEnd ?? null,
+  };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// reactivateMySubscription
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Reactivar una suscripción cancelada que aún no expiró.
+ *
+ * Solo válido si `status === CANCELLED && currentPeriodEnd > now`.
+ * Limpia `cancelledAt` y `cancellationReason`, vuelve a AUTHORIZED.
+ *
+ * NO llama `applySubscriptionEvent` porque la transición CANCELLED → AUTHORIZED
+ * no está en la tabla del state machine (existe solo para este caso específico
+ * de "reactivación manual antes de expirar").
+ */
+export async function reactivateMySubscription(): Promise<{
+  success: true;
+  subscription: { id: string; status: string; currentPeriodEnd: Date | null };
+}> {
+  const session = await requireOwner();
+  const { userId } = session;
+
+  const subscription = await getCurrentSubscription(userId);
+
+  if (!subscription) {
+    throw new Error("No tienes una suscripción para reactivarr");
+  }
+
+  if (subscription.status !== "CANCELLED") {
+    throw new Error(
+      `Solo puedes reactivarr una suscripción cancelada. Estado actual: "${subscription.status}"`,
+    );
+  }
+
+  const now = new Date();
+  if (!subscription.currentPeriodEnd || subscription.currentPeriodEnd <= now) {
+    throw new Error(
+      "Tu suscripción ya expiró. Usa 'Activar PRO' para crear una nueva.",
+    );
+  }
+
+  // Transición CANCELLED → AUTHORIZED (válida según tabla del ADR-0027 § Decisión 9)
+  await prisma.subscription.update({
+    where: { id: subscription.id },
+    data: {
+      status: "AUTHORIZED",
+      cancelledAt: null,
+      cancellationReason: null,
+    },
+  });
+
+  // Registrar el evento
+  await prisma.subscriptionEvent.create({
+    data: {
+      subscriptionId: subscription.id,
+      type: "authorized",
+      payload: { source: "reactivate" },
+    },
+  });
+
+  revalidatePath("/settings/billing");
+
+  return {
+    success: true,
+    subscription: {
+      id: subscription.id,
+      status: "AUTHORIZED",
+      currentPeriodEnd: subscription.currentPeriodEnd,
+    },
+  };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// countOwnerUsage — helper para la UI de /settings/billing
+// ────────────────────────────────────────────────────────────────────────────
+
+export type OwnerUsage = {
+  properties: number;
+  clients: number;
+  propertiesLimit: number;
+  clientsLimit: number;
+};
+
+/**
+ * Cuenta el uso actual del owner para mostrar en la UI de billing.
+ *
+ * Límites FREE: 3 propiedades, 5 clientes.
+ * Límites PRO: Infinity (sin límite).
+ *
+ * future: cuando el plan se lea de `UserProfile.plan` en vez de subscription,
+ * este helper consultará `session.plan` directamente.
+ */
+export async function countOwnerUsage(userId: string): Promise<OwnerUsage> {
+  const [propertyCount, clientCount] = await Promise.all([
+    prisma.property.count({ where: { userId } }),
+    prisma.reservationClient.count({ where: { userId } }),
+  ]);
+
+  // Determinar plan actual del owner
+  const user = await prisma.userProfile.findUnique({
+    where: { id: userId },
+    select: { plan: true },
+  });
+
+  const plan = (user?.plan as "FREE" | "PRO" | null) ?? "FREE";
+  const isPro = plan === "PRO";
+
+  return {
+    properties: propertyCount,
+    clients: clientCount,
+    propertiesLimit: isPro ? Infinity : 3,
+    clientsLimit: isPro ? Infinity : 5,
+  };
+}
