@@ -28,11 +28,29 @@ const mocks = vi.hoisted(() => ({
   userProfileFindUnique: vi.fn(),
   userProfileUpdate: vi.fn(),
   adminActionLogCreate: vi.fn(),
+  // $transaction: ejecuta el callback pasando un tx que comparte los mismos mocks
+  $transaction: vi.fn(async (cb) =>
+    cb({
+      subscription: {
+        findUnique: mocks.subscriptionFindUnique,
+        findFirst: mocks.subscriptionFindFirst,
+        create: mocks.subscriptionCreate,
+        update: mocks.subscriptionUpdate,
+      },
+      subscriptionEvent: { create: mocks.subscriptionEventCreate },
+      userProfile: {
+        findUnique: mocks.userProfileFindUnique,
+        update: mocks.userProfileUpdate,
+      },
+      adminActionLog: { create: mocks.adminActionLogCreate },
+    }),
+  ),
   // Session
   requireOwner: vi.fn(),
   // Gateway
   ensurePlan: vi.fn(),
   createPreapproval: vi.fn(),
+  cancelPreapproval: vi.fn(),
   // next/cache
   revalidatePath: vi.fn(),
 }));
@@ -55,7 +73,16 @@ vi.mock("@/lib/db/prisma", () => ({
     property: { count: mocks.propertyCount },
     reservationClient: { count: mocks.reservationClientCount },
     adminActionLog: { create: mocks.adminActionLogCreate },
+    $transaction: mocks.$transaction,
   },
+}));
+
+vi.mock("@/lib/payment/pro-gateway", () => ({
+  getProGateway: vi.fn(() => ({
+    ensurePlan: mocks.ensurePlan,
+    createPreapproval: mocks.createPreapproval,
+    cancelPreapproval: mocks.cancelPreapproval,
+  })),
 }));
 
 vi.mock("@/lib/auth/guards", () => ({

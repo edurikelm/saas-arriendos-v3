@@ -6,15 +6,20 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
+import { Progress } from "@/components/ui/progress"; // o equivalente
 import { Sparkles, Check } from "lucide-react";
 import { startProUpgrade } from "@/lib/actions/subscriptions";
 import type { OwnerUsage } from "@/lib/actions/subscriptions";
 import type { Subscription } from "@prisma/client";
+import { PRO_PRICING } from "@/lib/subscriptions/pricing";
 
 interface BillingClientProps {
   subscription: Subscription | null;
   usage: OwnerUsage;
+}
+
+function formatPrice(amount: number): string {
+  return `$${amount.toLocaleString("es-CL")}`;
 }
 
 export function BillingClient({ subscription, usage }: BillingClientProps) {
@@ -26,7 +31,9 @@ export function BillingClient({ subscription, usage }: BillingClientProps) {
       try {
         const { initPoint } = await startProUpgrade();
         toast.success("Redirigiendo a Mercado Pago...");
-        window.location.href = initPoint;
+        // MP abre en nueva pestaña para que el usuario pueda volver atrás
+        // si abandona el checkout. window.open preserva el historial de navegación.
+        window.open(initPoint, "_blank", "noopener,noreferrer");
       } catch (error) {
         const msg = error instanceof Error ? error.message : "Error desconocido";
         toast.error(msg);
@@ -38,7 +45,7 @@ export function BillingClient({ subscription, usage }: BillingClientProps) {
   const isPro = subscription?.status === "AUTHORIZED" || subscription?.status === "PAUSED";
   const isCancelled = subscription?.status === "CANCELLED";
   const planName = isPro ? "PRO" : "FREE";
-  const planPrice = isPro ? "$9.990 / mes" : "Gratis";
+  const planPrice = isPro ? `${formatPrice(PRO_PRICING.monthly.amount)} / mes` : "Gratis";
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

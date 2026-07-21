@@ -26,6 +26,10 @@ import {
   applySubscriptionEvent,
   getCurrentSubscription,
 } from "@/lib/subscriptions/lifecycle";
+import {
+  cancelSubscriptionSchema,
+  reactivateSubscriptionSchema,
+} from "@/lib/validations/subscriptions";
 
 // ────────────────────────────────────────────────────────────────────────────
 // getCurrentSubscription
@@ -144,6 +148,9 @@ export async function startProUpgrade(): Promise<{
 export async function cancelMySubscription(
   reason?: "too_expensive" | "not_using" | "switching_provider" | "other",
 ): Promise<{ success: true; currentPeriodEnd: Date | null }> {
+  // Validación Zod (defensa en profundidad, también para callers programáticos)
+  cancelSubscriptionSchema.parse({ reason });
+
   const session = await requireOwner();
   const { userId } = session;
 
@@ -157,6 +164,22 @@ export async function cancelMySubscription(
     throw new Error(
       `No puedes cancelar una suscripción en estado "${subscription.status}"`,
     );
+  }
+
+  // Cancelar primero en Mercado Pago para que MP deje de cobrar.
+  // Si falla, el estado local queda intacto y el owner puede reintentar.
+  // La subscription local se mantiene AUTHORIZED hasta que MP confirme la
+  // cancelación vía webhook (que marcará CANCELLED + creará evento).
+  if (subscription.mpPreapprovalId) {
+    try {
+      await getProGateway().cancelPreapproval(subscription.mpPreapprovalId);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error(`[cancelMySubscription] MP cancel failed for ${subscription.mpPreapprovalId}:`, msg);
+      throw new Error(
+        "No pudimos cancelar la suscripción en Mercado Pago. Por favor intenta de nuevo en unos minutos."
+      );
+    }
   }
 
   await applySubscriptionEvent({
@@ -195,6 +218,8 @@ export async function reactivateMySubscription(): Promise<{
   success: true;
   subscription: { id: string; status: string; currentPeriodEnd: Date | null };
 }> {
+  reactivateSubscriptionSchema.parse({});
+
   const session = await requireOwner();
   const { userId } = session;
 

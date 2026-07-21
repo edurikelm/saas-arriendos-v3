@@ -21,6 +21,24 @@ const mocks = vi.hoisted(() => ({
   userProfileFindUnique: vi.fn<() => Promise<{ plan: string | null } | null>>(),
   userProfileUpdate: vi.fn<() => Promise<never>>(),
   adminActionLogCreate: vi.fn<() => Promise<never>>(),
+  // $transaction ejecuta el callback pasando un tx mockeado que comparte los mismos mocks
+  // (porque el código del lifecycle usa tx.subscription.update etc. cuando está en tx)
+  $transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) =>
+    cb({
+      subscription: {
+        findUnique: mocks.subscriptionFindUnique,
+        findFirst: mocks.subscriptionFindFirst,
+        create: mocks.subscriptionCreate,
+        update: mocks.subscriptionUpdate,
+      },
+      subscriptionEvent: { create: mocks.subscriptionEventCreate },
+      userProfile: {
+        findUnique: mocks.userProfileFindUnique,
+        update: mocks.userProfileUpdate,
+      },
+      adminActionLog: { create: mocks.adminActionLogCreate },
+    }),
+  ),
 }));
 
 vi.mock("@/lib/db/prisma", () => ({
@@ -41,6 +59,7 @@ vi.mock("@/lib/db/prisma", () => ({
     adminActionLog: {
       create: mocks.adminActionLogCreate,
     },
+    $transaction: mocks.$transaction,
   },
 }));
 
@@ -394,7 +413,7 @@ describe("applyPlanChange", () => {
     });
     expect(mocks.adminActionLogCreate).toHaveBeenCalledWith({
       data: {
-        adminId: "user-1",
+        adminId: "system", // cambio automático del sistema
         targetId: "user-1",
         action: "PLAN_CHANGED_AUTO",
         details: JSON.stringify({
@@ -425,7 +444,7 @@ describe("applyPlanChange", () => {
     });
     expect(mocks.adminActionLogCreate).toHaveBeenCalledWith({
       data: {
-        adminId: "user-1",
+        adminId: "system", // fallback cuando adminId no se pasa explícito
         targetId: "user-1",
         action: "PLAN_CHANGED_MANUAL",
         details: JSON.stringify({

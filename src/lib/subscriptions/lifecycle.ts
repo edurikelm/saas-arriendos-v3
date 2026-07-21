@@ -51,6 +51,8 @@ export type ApplyPlanChangeArgs = {
   newPlan: "FREE" | "PRO";
   source: "subscription_lifecycle" | "admin_manual" | "owner_request";
   subscriptionId?: string;
+  /** Solo para source="admin_manual": ID del SUPER_ADMIN que ejecuta la acción */
+  adminId?: string;
 };
 
 export type PlanChange = {
@@ -150,10 +152,15 @@ export async function applyPlanChange(
   });
 
   // Emitir AdminActionLog según la fuente del cambio
+  // Para source="subscription_lifecycle", el cambio es automático del sistema:
+  // adminId es un placeholder que identifica al sistema (no a un usuario real).
+  // Para source="admin_manual", adminId debe ser el ID del SUPER_ADMIN que
+  // ejecutó la acción (pasado por el caller; si no se pasa, fallback al target).
+  const SYSTEM_ADMIN_ID = "system";
   if (source === "subscription_lifecycle") {
     await adapter.adminActionLog.create({
       data: {
-        adminId: userId, // sistema — se usa targetId para el owner
+        adminId: SYSTEM_ADMIN_ID,
         targetId: userId,
         action: "PLAN_CHANGED_AUTO",
         details: JSON.stringify({
@@ -167,7 +174,7 @@ export async function applyPlanChange(
   } else if (source === "admin_manual") {
     await adapter.adminActionLog.create({
       data: {
-        adminId: userId,
+        adminId: args.adminId ?? SYSTEM_ADMIN_ID,
         targetId: userId,
         action: "PLAN_CHANGED_MANUAL",
         details: JSON.stringify({
@@ -359,45 +366,61 @@ export async function applySubscriptionEvent(
       break;
   }
 
-  // ── Transacción atómica — solo actualizar si hay cambios reales ─────────────
-  // "payment_failed" y "duplicate" no producen cambios en la subscription.
-  const hasUpdate = targetStatus !== null || type === "renewed";
+  // ── Transacción atómica ──────────────────────────────────────────────────
+  // Si el adapter es prisma global (no una tx en curso), envolvemos todas
+  // las escrituras en una $transaction para garantizar consistencia entre
+  // Subscription update, SubscriptionEvent create, y applyPlanChange.
+  // Si el adapter ya es un Prisma.TransactionClient, las operaciones se
+  // ejecutan dentro de la transacción del caller (sin abrir una nueva).
+  const isGlobalPrisma = adapter === prisma;
 
-  const updatedSubscription = hasUpdate
-    ? await adapter.subscription.update({
-        where: { id: subscriptionId },
-        data: updateData,
-      })
-    : currentSubscription;
+  const runInTx = async <T>(work: (a: QueryAdapter) => Promise<T>): Promise<T> => {
+    if (isGlobalPrisma) {
+      return prisma.$transaction(async (tx) => work(tx as unknown as QueryAdapter));
+    }
+    return work(adapter);
+  };
 
-  // Registrar evento de auditoría
-  await adapter.subscriptionEvent.create({
-    data: {
-      subscriptionId,
-      type,
-      payload: (payload ?? undefined) as any,
-    },
-  });
+  return runInTx(async (tx) => {
+    // "payment_failed" y "duplicate" no producen cambios en la subscription.
+    const hasUpdate = targetStatus !== null || type === "renewed";
 
-  // ── Plan change (si corresponde) ─────────────────────────────────────────
-  let planChange: PlanChange | undefined;
+    const updatedSubscription = hasUpdate
+      ? await tx.subscription.update({
+          where: { id: subscriptionId },
+          data: updateData,
+        })
+      : currentSubscription;
 
-  if (eventTriggersPlanChange(type)) {
-    const newPlan: "FREE" | "PRO" =
-      type === "authorized" ? "PRO" : "FREE";
-
-    planChange = await applyPlanChange(
-      {
-        userId: currentSubscription.userId,
-        newPlan,
-        source: "subscription_lifecycle",
+    // Registrar evento de auditoría
+    await tx.subscriptionEvent.create({
+      data: {
         subscriptionId,
+        type,
+        payload: (payload ?? undefined) as any,
       },
-      adapter,
-    );
-  }
+    });
 
-  return { subscription: updatedSubscription, planChange };
+    // ── Plan change (si corresponde) ───────────────────────────────────────
+    let planChange: PlanChange | undefined;
+
+    if (eventTriggersPlanChange(type)) {
+      const newPlan: "FREE" | "PRO" =
+        type === "authorized" ? "PRO" : "FREE";
+
+      planChange = await applyPlanChange(
+        {
+          userId: currentSubscription.userId,
+          newPlan,
+          source: "subscription_lifecycle",
+          subscriptionId,
+        },
+        tx,
+      );
+    }
+
+    return { subscription: updatedSubscription, planChange };
+  });
 }
 
 // ────────────────────────────────────────────────────────────────────────────
