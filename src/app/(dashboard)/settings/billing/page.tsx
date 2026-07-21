@@ -1,0 +1,30 @@
+import { redirect } from "next/navigation";
+import { requireOwner } from "@/lib/auth/guards";
+import { getCurrentSubscriptionAction, countOwnerUsage } from "@/lib/actions/subscriptions";
+import { BillingClient } from "@/components/billing/billing-client";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Plan y facturación - RentalPro",
+};
+
+export default async function BillingPage() {
+  const session = await requireOwner();
+  const [subscription, usage] = await Promise.all([
+    getCurrentSubscriptionAction(),
+    countOwnerUsage(session.userId),
+  ]);
+
+  return (
+    <div className="max-w-6xl mx-auto">
+      <div className="space-y-2 mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold">Plan y facturación</h1>
+        <p className="text-sm text-muted-foreground">
+          Administra tu suscripción PRO y revisa el uso de tu cuenta
+        </p>
+      </div>
+
+      <BillingClient subscription={subscription} usage={usage} />
+    </div>
+  );
+}
