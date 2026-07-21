@@ -1,15 +1,75 @@
 import { Check, X, Sparkles, MessageCircle, ArrowRight } from "lucide-react";
+import { Fragment } from "react";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { PRO_PRICING } from "@/lib/subscriptions/pricing";
+import type { SessionUser } from "@/lib/auth/session";
+import type { SubscriptionStatus } from "@prisma/client";
 
-/**
- * TODO Operativo: actualizar el canal de contacto para upgrade a PRO.
- * Hoy el upgrade es manual (super-admin ejecuta `updateUserPlan`), no hay Stripe.
- * Reemplazar `WHATSAPP_URL` y `SUPPORT_EMAIL` con los valores reales antes de publicar.
- */
-const WHATSAPP_URL = "https://wa.me/56999999999?text=Hola%2C%20quiero%20el%20plan%20PRO%20de%20RentalPro";
-const SUPPORT_EMAIL = "soporte@rentalpro.cl";
+// ─── CTA logic ────────────────────────────────────────────────────────────────
+
+type CtaDef = {
+  label: string;
+  href: string | null;
+  current?: boolean;
+  disabled?: boolean;
+};
+
+function getPricingCta({
+  session,
+  subscriptionStatus,
+}: {
+  session: SessionUser | null;
+  subscriptionStatus: SubscriptionStatus | null;
+}): { free: CtaDef; pro: CtaDef } {
+  // Visitante anónimo
+  if (!session) {
+    return {
+      free: { label: "Empieza gratis", href: "/register" },
+      pro: { label: "Crear cuenta gratis", href: "/register?plan=pro" },
+    };
+  }
+
+  // SUPER_ADMIN
+  if (session.role === "SUPER_ADMIN") {
+    return {
+      free: { label: "Plan FREE", href: null, disabled: true },
+      pro: { label: "Plan PRO", href: null, disabled: true },
+    };
+  }
+
+  // Owner autenticado
+  const isPro =
+    subscriptionStatus === "AUTHORIZED" || subscriptionStatus === "PAUSED";
+  const isCancelled = subscriptionStatus === "CANCELLED";
+
+  if (isPro) {
+    return {
+      free: { label: "Plan FREE", href: null, disabled: true },
+      pro: {
+        label: "Tu plan actual",
+        href: "/settings/billing",
+        current: true,
+      },
+    };
+  }
+
+  if (isCancelled) {
+    return {
+      free: { label: "Plan FREE", href: null, disabled: true },
+      pro: { label: "Reactivar PRO", href: "/settings/billing" },
+    };
+  }
+
+  // FREE o PENDING o cualquier otro estado sin PRO activo
+  return {
+    free: { label: "Tu plan actual", href: null, current: true },
+    pro: { label: "Activar PRO", href: "/settings/billing" },
+  };
+}
+
+// ─── Plan data (single source of truth from pricing.ts) ──────────────────────
 
 const PLAN_FEATURES = {
   free: {
@@ -17,7 +77,6 @@ const PLAN_FEATURES = {
     tagline: "Para propietarios que están partiendo",
     price: "$0",
     priceSuffix: "siempre",
-    cta: { label: "Empieza gratis", href: "/register" },
     highlights: [
       "3 propiedades",
       "5 clientes",
@@ -29,9 +88,12 @@ const PLAN_FEATURES = {
   pro: {
     name: "PRO",
     tagline: "Para administradores con varias propiedades",
-    price: "Consulta",
-    priceSuffix: "precio según volumen",
-    cta: { label: "Hablar con ventas", href: WHATSAPP_URL, external: true },
+    price: new Intl.NumberFormat("es-CL", {
+      style: "currency",
+      currency: "CLP",
+      minimumFractionDigits: 0,
+    }).format(PRO_PRICING.monthly.amount),
+    priceSuffix: "/ mes",
     highlights: [
       "Propiedades ilimitadas",
       "Clientes ilimitados",
@@ -42,6 +104,47 @@ const PLAN_FEATURES = {
     ],
   },
 } as const;
+
+// ─── FAQ ──────────────────────────────────────────────────────────────────────
+
+const FAQ = [
+  {
+    q: "¿Puedo cambiar de plan en cualquier momento?",
+    a: "Sí. Si pasas de FREE a PRO te activamos las funciones avanzadas inmediatamente al confirmar el pago. Si vuelves a FREE conservas todos tus datos (reservas, clientes, pagos), solo se desactivan las funciones que exceden el límite.",
+  },
+  {
+    q: "¿Cómo se activa el plan PRO?",
+    a: "Activas PRO desde Configuración → Plan y facturación. Te redirigimos a Mercado Pago para autorizar el cargo recurrente mensual. Una vez confirmado el pago, el plan se activa automáticamente.",
+  },
+  {
+    q: "¿Puedo cancelar en cualquier momento?",
+    a: "Sí. Si cancelas PRO, tu plan sigue activo hasta el fin del período que ya pagaste. Después bajas automáticamente a FREE sin perder tus datos.",
+  },
+  {
+    q: "¿Cómo se procesa el pago?",
+    a: "Aceptamos tarjetas de crédito y débito a través de Mercado Pago. El cargo se realiza mensualmente de forma automática. Puedes actualizar tu tarjeta en cualquier momento desde tu cuenta de Mercado Pago.",
+  },
+  {
+    q: "¿Qué métodos de pago aceptan para PRO?",
+    a: "Tarjetas de crédito y débito procesadas vía Mercado Pago (Visa, Mastercard, American Express, etc.).",
+  },
+  {
+    q: "¿Mis datos están seguros si paso de PRO a FREE?",
+    a: "Sí. Tus reservas, clientes, propiedades y pagos no se eliminan. Solo se desactivan las funciones que exceden los límites del plan FREE (iCal, documentos, reportes con rango completo). Si superas los límites de FREE, los datos quedan visibles pero no podrás crear nuevos hasta que subas de plan.",
+  },
+  {
+    q: "¿Hay descuento por pago anual?",
+    a: "Por ahora solo ofrecemos el plan mensual. Pago anual estará disponible próximamente.",
+  },
+] as const;
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const WHATSAPP_URL =
+  "https://wa.me/56999999999?text=Hola%2C%20quiero%20el%20plan%20PRO%20de%20RentalPro";
+const SUPPORT_EMAIL = "soporte@rentalpro.cl";
+
+// ─── Comparison table ─────────────────────────────────────────────────────────
 
 const COMPARISON: Array<{
   category: string;
@@ -59,29 +162,59 @@ const COMPARISON: Array<{
     category: "Integraciones",
     rows: [
       { feature: "MercadoPago (cobros automáticos)", free: true, pro: true },
-      { feature: "Sincronización iCal (Airbnb, Booking, VRBO)", free: false, pro: true },
-      { feature: "Exportar feed iCal hacia canales externos", free: false, pro: true },
+      {
+        feature: "Sincronización iCal (Airbnb, Booking, VRBO)",
+        free: false,
+        pro: true,
+      },
+      {
+        feature: "Exportar feed iCal hacia canales externos",
+        free: false,
+        pro: true,
+      },
     ],
   },
   {
     category: "Operación diaria",
     rows: [
-      { feature: "Calendario timeline multi-propiedad", free: true, pro: true },
+      {
+        feature: "Calendario timeline multi-propiedad",
+        free: true,
+        pro: true,
+      },
       { feature: "Reportes de cobranza", free: true, pro: true },
-      { feature: "Reportes con rango de fechas completo", free: false, pro: true },
-      { feature: "Documentos de reserva (contratos, anexos)", free: false, pro: true },
+      {
+        feature: "Reportes con rango de fechas completo",
+        free: false,
+        pro: true,
+      },
+      {
+        feature: "Documentos de reserva (contratos, anexos)",
+        free: false,
+        pro: true,
+      },
     ],
   },
   {
     category: "Comunicación",
     rows: [
-      { feature: "Notificaciones in-app + email", free: true, pro: true },
-      { feature: "Recordatorios automáticos de pago", free: true, pro: true },
+      {
+        feature: "Notificaciones in-app + email",
+        free: true,
+        pro: true,
+      },
+      {
+        feature: "Recordatorios automáticos de pago",
+        free: true,
+        pro: true,
+      },
       { feature: "Soporte por tickets", free: true, pro: true },
       { feature: "Soporte prioritario", free: false, pro: true },
     ],
   },
 ];
+
+// ─── Cell component ───────────────────────────────────────────────────────────
 
 function Cell({ value }: { value: string | boolean }) {
   if (typeof value === "boolean") {
@@ -98,12 +231,18 @@ function Cell({ value }: { value: string | boolean }) {
   return <span className="text-sm font-medium">{value}</span>;
 }
 
+// ─── PlanCard component ───────────────────────────────────────────────────────
+
+type PlanData = (typeof PLAN_FEATURES)[keyof typeof PLAN_FEATURES];
+
 function PlanCard({
   plan,
   featured,
+  cta,
 }: {
-  plan: (typeof PLAN_FEATURES)[keyof typeof PLAN_FEATURES];
+  plan: PlanData;
   featured: boolean;
+  cta: CtaDef;
 }) {
   return (
     <div
@@ -158,20 +297,45 @@ function PlanCard({
         </span>
       </div>
 
-      <Link
-        href={plan.cta.href}
-        target={("external" in plan.cta && plan.cta.external) ? "_blank" : undefined}
-        rel={("external" in plan.cta && plan.cta.external) ? "noopener noreferrer" : undefined}
-        className={cn(
-          "mt-8 inline-flex items-center justify-center gap-2 rounded-full px-6 py-3.5 text-sm font-bold transition-all w-full",
-          featured
-            ? "bg-white text-primary hover:scale-105 shadow-lg"
-            : "bg-foreground text-background hover:bg-foreground/90",
-        )}
-      >
-        {plan.cta.label}
-        <ArrowRight className="size-4" />
-      </Link>
+      {/* Dynamic CTA */}
+      {cta.disabled ? (
+        <button
+          disabled
+          className={cn(
+            "mt-8 inline-flex items-center justify-center gap-2 rounded-full px-6 py-3.5 text-sm font-bold transition-all w-full cursor-not-allowed opacity-50",
+            featured
+              ? "bg-white/50 text-primary/70"
+              : "bg-muted text-muted-foreground",
+          )}
+        >
+          {cta.label}
+        </button>
+      ) : cta.current ? (
+        <div
+          className={cn(
+            "mt-8 inline-flex items-center justify-center gap-2 rounded-full px-6 py-3.5 text-sm font-bold w-full",
+            featured
+              ? "bg-white/20 text-white"
+              : "bg-primary/10 text-primary",
+          )}
+        >
+          <Check className="size-4 mr-2" />
+          {cta.label}
+        </div>
+      ) : (
+        <Link
+          href={cta.href!}
+          className={cn(
+            "mt-8 inline-flex items-center justify-center gap-2 rounded-full px-6 py-3.5 text-sm font-bold transition-all w-full",
+            featured
+              ? "bg-white text-primary hover:scale-105 shadow-lg"
+              : "bg-foreground text-background hover:bg-foreground/90",
+          )}
+        >
+          {cta.label}
+          <ArrowRight className="size-4" />
+        </Link>
+      )}
 
       <ul className="mt-10 space-y-4">
         {plan.highlights.map((h) => (
@@ -183,11 +347,16 @@ function PlanCard({
               )}
             >
               <Check
-                className={cn("size-3", featured ? "text-white" : "text-primary")}
+                className={cn(
+                  "size-3",
+                  featured ? "text-white" : "text-primary",
+                )}
                 strokeWidth={3}
               />
             </span>
-            <span className={cn(featured ? "text-white" : "text-foreground")}>{h}</span>
+            <span className={cn(featured ? "text-white" : "text-foreground")}>
+              {h}
+            </span>
           </li>
         ))}
       </ul>
@@ -195,27 +364,60 @@ function PlanCard({
   );
 }
 
-export function PricingPage() {
+// ─── Main component ───────────────────────────────────────────────────────────
+
+export function PricingPage({
+  session,
+  subscriptionStatus,
+}: {
+  session: SessionUser | null;
+  subscriptionStatus: SubscriptionStatus | null;
+}) {
+  const ctas = getPricingCta({ session, subscriptionStatus });
+
   return (
     <div className="min-h-screen bg-white text-foreground">
       {/* Header */}
       <header className="fixed top-0 w-full z-50 glass border-b border-black/5 transition-all duration-300">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 group">
+          <Link
+            href="/"
+            className="flex items-center gap-2 group"
+          >
             <div className="size-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20 group-hover:scale-105 transition-transform">
               <span className="text-white font-bold text-xl">R</span>
             </div>
-            <span className="font-bold text-2xl tracking-tight text-foreground">RentalPro</span>
+            <span className="font-bold text-2xl tracking-tight text-foreground">
+              RentalPro
+            </span>
           </Link>
 
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium">
-            <Link href="/#features" className="hover:text-primary transition-colors">Características</Link>
-            <Link href="/pricing" className="text-primary font-bold">Precios</Link>
-            <Link href="/#mercadopago" className="hover:text-primary transition-colors">Mercado Pago</Link>
+            <Link
+              href="/#features"
+              className="hover:text-primary transition-colors"
+            >
+              Características
+            </Link>
+            <Link href="/pricing" className="text-primary font-bold">
+              Precios
+            </Link>
+            <Link
+              href="/#mercadopago"
+              className="hover:text-primary transition-colors"
+            >
+              Mercado Pago
+            </Link>
           </nav>
 
           <div className="flex items-center gap-4">
-            <Link href="/login" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "text-sm font-semibold hover:text-primary transition-colors px-4 py-2")}>
+            <Link
+              href="/login"
+              className={cn(
+                buttonVariants({ variant: "ghost", size: "sm" }),
+                "text-sm font-semibold hover:text-primary transition-colors px-4 py-2",
+              )}
+            >
               Entrar
             </Link>
             <Link
@@ -242,10 +444,12 @@ export function PricingPage() {
               <Sparkles className="size-3" /> Planes y precios
             </div>
             <h1 className="text-5xl md:text-6xl font-bold leading-[1.05] mb-6 text-foreground tracking-tight">
-              Empieza gratis. <span className="text-primary">Crece sin límites</span>.
+              Empieza gratis. <span className="text-primary">Crece sin límites</span>
+              .
             </h1>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-              Elige el plan que se ajusta a tu operación. Sin tarjetas, sin compromisos, cancela cuando quieras.
+              Elige el plan que se ajusta a tu operación. Sin tarjetas, sin
+              compromisos, cancela cuando quieras.
             </p>
           </div>
         </section>
@@ -253,8 +457,16 @@ export function PricingPage() {
         {/* Pricing cards */}
         <section className="px-6 pb-24">
           <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-6 md:gap-8 items-stretch">
-            <PlanCard plan={PLAN_FEATURES.free} featured={false} />
-            <PlanCard plan={PLAN_FEATURES.pro} featured={true} />
+            <PlanCard
+              plan={PLAN_FEATURES.free}
+              featured={false}
+              cta={ctas.free}
+            />
+            <PlanCard
+              plan={PLAN_FEATURES.pro}
+              featured={true}
+              cta={ctas.pro}
+            />
           </div>
 
           <p className="max-w-3xl mx-auto text-center text-sm text-muted-foreground mt-12">
@@ -299,8 +511,10 @@ export function PricingPage() {
                   </thead>
                   <tbody>
                     {COMPARISON.map((section) => (
-                      <>
-                        <tr key={`${section.category}-header`} className="bg-muted/30">
+                      <Fragment
+                        key={`${section.category}-header`}
+                      >
+                        <tr className="bg-muted/30">
                           <td
                             colSpan={3}
                             className="px-6 py-3 text-xs font-bold uppercase tracking-wider text-foreground"
@@ -313,7 +527,9 @@ export function PricingPage() {
                             key={row.feature}
                             className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors"
                           >
-                            <td className="px-6 py-4 text-sm text-foreground">{row.feature}</td>
+                            <td className="px-6 py-4 text-sm text-foreground">
+                              {row.feature}
+                            </td>
                             <td className="px-6 py-4 text-center">
                               <Cell value={row.free} />
                             </td>
@@ -322,7 +538,7 @@ export function PricingPage() {
                             </td>
                           </tr>
                         ))}
-                      </>
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -341,28 +557,7 @@ export function PricingPage() {
             </div>
 
             <div className="space-y-4">
-              {[
-                {
-                  q: "¿Puedo cambiar de plan en cualquier momento?",
-                  a: "Sí. Si pasas de FREE a PRO te activamos las funciones avanzadas en menos de 24 horas hábiles. Si vuelves a FREE conservas todos tus datos (reservas, clientes, pagos), solo se desactivan las funciones que exceden el límite.",
-                },
-                {
-                  q: "¿Cómo se activa el plan PRO?",
-                  a: "Escríbenos por WhatsApp o email y coordinamos la activación. El proceso es manual porque ajustamos el precio según el tamaño de tu operación.",
-                },
-                {
-                  q: "¿Qué métodos de pago aceptan para PRO?",
-                  a: "Transferencia bancaria o MercadoPago. Emitimos boleta de honorarios o factura según corresponda.",
-                },
-                {
-                  q: "¿Mis datos están seguros si paso de PRO a FREE?",
-                  a: "Sí. Tus reservas, clientes, propiedades y pagos no se eliminan. Solo se desactivan las funciones que exceden los límites del plan FREE (iCal, documentos, reportes con rango completo). Si superas los límites de FREE, los datos quedan ocultos hasta que subas de plan o limpies el excedente.",
-                },
-                {
-                  q: "¿Hay descuento por pago anual?",
-                  a: "Sí, consulta por nuestras tarifas anuales según el tamaño de tu operación.",
-                },
-              ].map((item) => (
+              {FAQ.map((item) => (
                 <details
                   key={item.q}
                   className="group rounded-2xl border border-black/5 bg-white shadow-sm open:shadow-md transition-shadow"
@@ -370,8 +565,12 @@ export function PricingPage() {
                   <summary className="flex items-center justify-between gap-4 px-6 py-5 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                     <span className="font-medium text-foreground">{item.q}</span>
                     <span className="shrink-0 size-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground group-open:bg-primary group-open:text-primary-foreground transition-colors">
-                      <span className="text-xl leading-none group-open:hidden">+</span>
-                      <span className="text-xl leading-none hidden group-open:inline">−</span>
+                      <span className="text-xl leading-none group-open:hidden">
+                        +
+                      </span>
+                      <span className="text-xl leading-none hidden group-open:inline">
+                        −
+                      </span>
                     </span>
                   </summary>
                   <div className="px-6 pb-5 text-sm text-muted-foreground leading-relaxed">
@@ -393,7 +592,8 @@ export function PricingPage() {
                   Empieza gratis hoy
                 </h2>
                 <p className="text-lg md:text-xl text-white/90 mb-12 max-w-2xl mx-auto leading-relaxed font-medium">
-                  Crea tu cuenta en menos de 1 minuto. Sin tarjetas, sin compromisos.
+                  Crea tu cuenta en menos de 1 minuto. Sin tarjetas, sin
+                  compromisos.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
                   <Link
@@ -429,9 +629,18 @@ export function PricingPage() {
             <span>· © 2026</span>
           </div>
           <div className="flex gap-6">
-            <Link href="/" className="hover:text-primary transition-colors">Inicio</Link>
-            <Link href="/login" className="hover:text-primary transition-colors">Entrar</Link>
-            <Link href="/register" className="hover:text-primary transition-colors">Registrarse</Link>
+            <Link href="/" className="hover:text-primary transition-colors">
+              Inicio
+            </Link>
+            <Link href="/login" className="hover:text-primary transition-colors">
+              Entrar
+            </Link>
+            <Link
+              href="/register"
+              className="hover:text-primary transition-colors"
+            >
+              Registrarse
+            </Link>
           </div>
         </div>
       </footer>
