@@ -12,6 +12,8 @@ import { startProUpgrade } from "@/lib/actions/subscriptions";
 import type { OwnerUsage } from "@/lib/actions/subscriptions";
 import type { Subscription } from "@prisma/client";
 import { PRO_PRICING } from "@/lib/subscriptions/pricing";
+import { CancelSubscriptionDialog } from "./cancel-subscription-dialog";
+import { ReactivateButton } from "./reactivate-button";
 
 interface BillingClientProps {
   subscription: Subscription | null;
@@ -25,6 +27,7 @@ function formatPrice(amount: number): string {
 export function BillingClient({ subscription, usage }: BillingClientProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [cancelOpen, setCancelOpen] = useState(false);
 
   const handleUpgrade = () => {
     startTransition(async () => {
@@ -48,6 +51,7 @@ export function BillingClient({ subscription, usage }: BillingClientProps) {
   const planPrice = isPro ? `${formatPrice(PRO_PRICING.monthly.amount)} / mes` : "Gratis";
 
   return (
+    <>
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Plan Card - columna principal */}
       <div className="lg:col-span-2 space-y-6">
@@ -75,18 +79,21 @@ export function BillingClient({ subscription, usage }: BillingClientProps) {
                 </p>
               )}
               {isCancelled && subscription?.currentPeriodEnd && (
-                <p className="text-sm text-warning mt-1">
-                  Tu plan sigue activo hasta el{" "}
-                  {new Date(subscription.currentPeriodEnd).toLocaleDateString("es-CL", {
-                    day: "2-digit",
-                    month: "long",
-                    year: "numeric",
-                  }
-                  )}
-                  . Después bajarás a FREE.
-                </p>
+                <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 p-4">
+                  <p className="text-sm text-amber-900 dark:text-amber-200">
+                    Tu plan sigue activo hasta el{" "}
+                    {new Date(subscription.currentPeriodEnd).toLocaleDateString("es-CL", {
+                      day: "2-digit",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                    . Después bajarás a FREE.
+                  </p>
+                </div>
               )}
             </div>
+
+            {isCancelled && <ReactivateButton />}
 
             {/* CTA según estado */}
             {!subscription && (
@@ -110,12 +117,22 @@ export function BillingClient({ subscription, usage }: BillingClientProps) {
             )}
 
             {isPro && (
-              <div className="rounded-lg border border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/20 p-4">
-                <p className="text-sm text-green-900 dark:text-green-400">
-                  Tienes acceso completo a las funciones PRO: iCal, documentos, propiedades
-                  ilimitadas.
-                </p>
-              </div>
+              <>
+                <div className="rounded-lg border border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/20 p-4">
+                  <p className="text-sm text-green-900 dark:text-green-400">
+                    Tienes acceso completo a las funciones PRO: iCal, documentos, propiedades
+                    ilimitadas.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setCancelOpen(true)}
+                  className="w-full"
+                >
+                  Cancelar suscripción
+                </Button>
+              </>
             )}
           </CardContent>
         </Card>
@@ -167,6 +184,13 @@ export function BillingClient({ subscription, usage }: BillingClientProps) {
         </Card>
       </div>
     </div>
+
+    <CancelSubscriptionDialog
+      open={cancelOpen}
+      onOpenChange={setCancelOpen}
+      currentPeriodEnd={subscription?.currentPeriodEnd ?? null}
+    />
+    </>
   );
 }
 
