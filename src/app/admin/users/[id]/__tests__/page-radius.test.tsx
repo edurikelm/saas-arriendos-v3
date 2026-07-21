@@ -21,6 +21,16 @@ vi.mock("@/components/admin/action-history", () => ({
   ActionHistory: () => null,
 }));
 
+// Slice 9 (#194) agrega getActiveSubscription a la página. Sin mock,
+// el test falla con "DATABASE_URL environment variable is not set".
+vi.mock("@/lib/subscriptions/queries", () => ({
+  getActiveSubscription: vi.fn().mockResolvedValue(null),
+}));
+
+vi.mock("@/components/admin/admin-cancel-subscription-button", () => ({
+  AdminCancelSubscriptionButton: () => null,
+}));
+
 vi.mock("next/link", () => ({
   default: ({ children, href, ...rest }: { children: React.ReactNode; href: string }) => (
     <a href={href} {...rest}>
