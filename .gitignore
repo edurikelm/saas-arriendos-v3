@@ -46,3 +46,5 @@ supabase/
 # TestSprite MCP artifacts (local testing only, not portable)
 testsprite_tests/
 
+
+testsprite_tests\tmp\config.json

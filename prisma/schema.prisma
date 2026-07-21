@@ -122,6 +122,15 @@ enum NotificationType {
   PAYMENT_FAILED
 }
 
+enum SubscriptionStatus {
+  PENDING
+  AUTHORIZED
+  PAUSED
+  CANCELLED
+  EXPIRED
+  FAILED
+}
+
 model UserProfile {
   id                         String     @id @default(cuid())
   name                       String?
@@ -155,6 +164,7 @@ model UserProfile {
   notifications    Notification[]
   notificationReads NotificationRead[]
   passwordResetTokens PasswordResetToken[]
+  subscription       Subscription?
 }
 
 model Notification {
@@ -532,4 +542,49 @@ model PasswordResetToken {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+model Subscription {
+  id                 String             @id @default(cuid())
+  userId             String             @unique
+  user               UserProfile        @relation(fields: [userId], references: [id])
+
+  plan               Plan
+  status             SubscriptionStatus
+
+  mpPreapprovalId    String?            @unique
+  mpPlanId           String?            @unique
+
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  nextPaymentDate    DateTime?
+
+  amount             Decimal
+  currency           String             @default("CLP")
+  frequency          Int                @default(1)
+  frequencyType      String             @default("months")
+
+  startedAt          DateTime           @default(now())
+  cancelledAt        DateTime?
+  cancellationReason String?
+
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  events             SubscriptionEvent[]
+
+  @@index([status])
+  @@index([nextPaymentDate])
+}
+
+model SubscriptionEvent {
+  id             String       @id @default(cuid())
+  subscriptionId String
+  type           String
+  payload        Json?
+  createdAt      DateTime     @default(now())
+
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id])
+
+  @@index([subscriptionId, createdAt])
 }
