@@ -16,7 +16,7 @@ export type ReactivateSubscriptionInput = z.infer<
 
 export const adminCancelSubscriptionSchema = z.object({
   userId: z.string().cuid(),
-  reason: z.string().min(1).max(500),
+  reason: z.string().trim().min(1).max(500),
 });
 
 export type AdminCancelSubscriptionInput = z.infer<

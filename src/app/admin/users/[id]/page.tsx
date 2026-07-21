@@ -38,6 +38,8 @@ import { getOwnerDetail } from "@/lib/actions/admin-users";
 import { AdminOwnerNotes } from "@/components/admin/admin-owner-notes";
 import { ActionHistory } from "@/components/admin/action-history";
 import { updateUserStatus } from "@/lib/actions/super-admin";
+import { getActiveSubscription } from "@/lib/subscriptions/queries";
+import { AdminCancelSubscriptionButton } from "@/components/admin/admin-cancel-subscription-button";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -108,6 +110,9 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
   }
 
   const { owner, stats, properties, reservations, payments } = data;
+
+  // Cargar suscripción activa del owner
+  const subscription = await getActiveSubscription(owner.id);
 
   const formatCLP = (amount: number) => {
     return new Intl.NumberFormat("es-CL", {
@@ -461,6 +466,87 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Suscripción PRO */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="size-4 text-muted-foreground" />
+            Suscripción PRO
+          </CardTitle>
+          <CardDescription>Estado de la suscripción y gestión</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {subscription ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Badge
+                  variant={
+                    subscription.status === "AUTHORIZED"
+                      ? "success"
+                      : subscription.status === "PAUSED"
+                        ? "warning"
+                        : subscription.status === "PENDING"
+                          ? "secondary"
+                          : "destructive"
+                  }
+                  className="rounded-md"
+                >
+                  {subscription.status}
+                </Badge>
+                <span className="text-sm text-muted-foreground">
+                  Plan: {subscription.plan}
+                </span>
+              </div>
+              <dl className="grid grid-cols-2 gap-2 text-sm">
+                <dt className="text-muted-foreground">Inicio del período:</dt>
+                <dd>
+                  {subscription.currentPeriodStart
+                    ? formatDate(subscription.currentPeriodStart)
+                    : "—"}
+                </dd>
+                <dt className="text-muted-foreground">Fin del período:</dt>
+                <dd>
+                  {subscription.currentPeriodEnd
+                    ? formatDate(subscription.currentPeriodEnd)
+                    : "—"}
+                </dd>
+                <dt className="text-muted-foreground">Próximo cobro:</dt>
+                <dd>
+                  {subscription.nextPaymentDate
+                    ? formatDate(subscription.nextPaymentDate)
+                    : "—"}
+                </dd>
+                {subscription.cancelledAt && (
+                  <>
+                    <dt className="text-muted-foreground">Cancelada el:</dt>
+                    <dd>{formatDate(subscription.cancelledAt)}</dd>
+                  </>
+                )}
+                {subscription.mpPreapprovalId && (
+                  <>
+                    <dt className="text-muted-foreground">MP Preapproval ID:</dt>
+                    <dd className="font-mono text-xs break-all">
+                      {subscription.mpPreapprovalId}
+                    </dd>
+                  </>
+                )}
+              </dl>
+              {(subscription.status === "AUTHORIZED" ||
+                subscription.status === "PAUSED") && (
+                <AdminCancelSubscriptionButton
+                  userId={owner.id}
+                  subscriptionId={subscription.id}
+                />
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Este owner no tiene una suscripción PRO activa.
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       <Tabs defaultValue="resumen" className="w-full">
         <TabsList className="w-full justify-start overflow-x-auto flex-nowrap">
