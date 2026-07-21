@@ -11,9 +11,11 @@ export async function POST(request: Request) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
+  // ADR-0018 + Decisión 5 de ADR-0027: solo owners PRO sincronizan.
+  // Calendarios de owners FREE quedan inactivos (no se borran).
   const calendars = await prisma.externalCalendar.findMany({
-    where: { isActive: true },
-    select: { id: true },
+    where: { isActive: true, user: { plan: "PRO" } },
+    include: { user: true },
   });
 
   const results = { synced: 0, failed: 0, errors: [] as string[] };
