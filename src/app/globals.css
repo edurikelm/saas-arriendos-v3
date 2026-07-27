@@ -296,16 +296,23 @@
   }
 
   .glass {
-    background: rgba(255, 255, 255, 0.7);
+    background: color-mix(in oklch, var(--card) 75%, transparent);
     backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid color-mix(in oklch, var(--border) 50%, transparent);
+  }
+
+  .dark .glass {
+    background: color-mix(in oklch, var(--background) 70%, var(--card) 30%);
+    border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
   }
 
   .polaroid {
-    background: white;
+    background: var(--card);
+    color: var(--card-foreground);
     padding: 1rem 1rem 3rem 1rem;
-    box-shadow: 0 10px 30px -10px rgba(0,0,0,0.1);
-    border: 1px solid rgba(0,0,0,0.05);
+    box-shadow: 0 10px 30px -10px oklch(0 0 0 / 0.15);
+    border: 1px solid var(--border);
   }
 
   .floating {
