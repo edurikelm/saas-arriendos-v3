@@ -13,6 +13,10 @@ interface DataTableProps {
   emptyState?: React.ReactNode;
   caption?: string;
   className?: string;
+  /** Minimum table width in any CSS unit (e.g. "640px"). Defaults to "640px" to enable
+   * natural horizontal scroll on mobile viewports (e.g. 375px) without truncating
+   * column content. */
+  minWidth?: string;
 }
 
 function normalizeHeader(header: DataTableHeader): { label: string; align: DataTableHeaderAlign } {
@@ -28,11 +32,11 @@ function alignClass(align: DataTableHeaderAlign): string {
   return "text-left";
 }
 
-export function DataTable({ headers, children, emptyState, caption, className }: DataTableProps) {
+export function DataTable({ headers, children, emptyState, caption, className, minWidth = "640px" }: DataTableProps) {
   return (
     <div className={cn("overflow-hidden rounded-md border border-border bg-card", className)}>
       <div className="overflow-x-auto">
-        <table className="w-full">
+        <table className="w-full" style={{ minWidth }}>
           {caption && <caption className="sr-only">{caption}</caption>}
           <thead>
             <tr className="border-b bg-muted/50">

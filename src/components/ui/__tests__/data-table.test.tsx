@@ -79,4 +79,25 @@ describe("DataTable", () => {
       expect(th.className).toContain("text-left");
     });
   });
+
+  it("applies minWidth to the table element (horizontal scroll on mobile)", () => {
+    const { container } = render(
+      <DataTable headers={["A", "B"]}>
+        <tr><td>Test</td></tr>
+      </DataTable>
+    );
+    const table = container.querySelector("table");
+    expect(table).not.toBeNull();
+    expect(table!.style.minWidth).toBe("640px");
+  });
+
+  it("allows overriding minWidth via prop", () => {
+    const { container } = render(
+      <DataTable headers={["A"]} minWidth="800px">
+        <tr><td>Test</td></tr>
+      </DataTable>
+    );
+    const table = container.querySelector("table");
+    expect(table!.style.minWidth).toBe("800px");
+  });
 });

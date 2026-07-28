@@ -50,6 +50,7 @@ export function PropertySummaryTable({ rows }: PropertySummaryTableProps) {
             Sin propiedades en el rango seleccionado
           </p>
         }
+        minWidth="640px"
       >
         {rows.map((row) => {
           const cancelledCash = row.collectedCashFromCancelledReservations;

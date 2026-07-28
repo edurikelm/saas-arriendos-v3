@@ -546,7 +546,7 @@ export function ReportsClient({
               icon={Wallet}
               tone="success"
               indicator={
-                revenueTrend && revenueTrend.direction
+                revenueTrend && revenueTrend.direction !== null && revenueTrend.pct !== null
                   ? {
                       text:
                         revenueTrend.direction === "up"
@@ -626,11 +626,11 @@ export function ReportsClient({
 
           {/* P2: Top 5 deudores — mini card antes del resumen por propiedad */}
           {topDebtors.length > 0 && (
-            <section aria-labelledby="reports-top-debtors-heading" className="rounded-lg border border-border bg-card p-4">
+            <section aria-labelledby="reports-top-debtors-heading" className="rounded-lg border border-border bg-card p-4 pr-6 overflow-hidden">
               <div className="flex items-center gap-2 mb-3">
                 <AlertTriangle className="size-4 text-destructive" aria-hidden="true" />
                 <p className="text-xs font-bold text-foreground uppercase tracking-wider">
-                  Top deudores
+                  Top deudores{topDebtors.length < 5 ? ` (${topDebtors.length})` : ""}
                 </p>
               </div>
               <div className="space-y-2">
