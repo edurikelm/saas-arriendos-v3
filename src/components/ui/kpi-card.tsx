@@ -64,7 +64,7 @@ export function KpiCard({
   const progressValue = progressBar ? Math.max(0, Math.min(100, progressBar.value)) : null;
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div role="group" aria-label={label} className="rounded-lg border border-border bg-card p-4">
       <div className="mb-1 flex items-start justify-between gap-2">
         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
           {label}
@@ -75,6 +75,7 @@ export function KpiCard({
               "flex size-9 shrink-0 items-center justify-center rounded-xl",
               iconContainerToneClass[tone]
             )}
+            aria-hidden="true"
           >
             <Icon className="size-4" />
           </div>

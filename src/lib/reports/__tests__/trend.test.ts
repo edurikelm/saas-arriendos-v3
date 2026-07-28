@@ -60,6 +60,18 @@ describe("computeTrend — direction and percentage", () => {
     expect(result.direction).toBe("up");
     expect(result.pct).toBe(50);
   });
+
+  it("computeTrend(1000, 0) retorna direction up, pct null (sin division por cero)", () => {
+    const result = computeTrend(1000, 0);
+    expect(result.direction).toBe("up");
+    expect(result.pct).toBe(null);
+  });
+
+  it("computeTrend(0, 1000) retorna direction down, pct null", () => {
+    const result = computeTrend(0, 1000);
+    expect(result.direction).toBe("down");
+    expect(result.pct).toBe(null);
+  });
 });
 
 describe("computeTrend — label", () => {
@@ -154,6 +166,29 @@ describe("selectTopDebtors", () => {
     const result = selectTopDebtors([], 5);
     expect(result).toHaveLength(0);
   });
+
+  it("limit=0 retorna array vacio sin importar las propiedades", () => {
+    const byProperty: DecisionByPropertyEntry[] = [
+      makeEntry("p1", "Casa Playa", 500000),
+      makeEntry("p2", "Depto Centro", 300000),
+    ];
+
+    const result = selectTopDebtors(byProperty, 0);
+
+    expect(result).toHaveLength(0);
+  });
+
+  it("limit negativo produce slice(0, -1) que retorna 1 elemento (comportamiento JS)", () => {
+    const byProperty: DecisionByPropertyEntry[] = [
+      makeEntry("p1", "Casa Playa", 500000),
+      makeEntry("p2", "Depto Centro", 300000),
+    ];
+
+    const result = selectTopDebtors(byProperty, -1);
+
+    // slice(0, -1) retorna desde 0 hasta penúltimo = 1 elemento
+    expect(result).toHaveLength(1);
+  });
 });
 
 // ─── P3: computeGroupedByPropertyFromSummary ──────────────────────────────────
@@ -247,5 +282,94 @@ describe("computeGroupedByPropertyFromSummary — ADR-0029 export semantics", ()
     const summary = makeSummary([]);
     const result = computeGroupedByPropertyFromSummary(summary);
     expect(result).toHaveLength(0);
+  });
+
+  it("excluye filas con reservedRevenueInRange === 0 Y pendingRevenue === 0", () => {
+    const summary = makeSummary([
+      makeByPropertyEntry("p1", "Casa Playa", 0, 0), // ambos cero → excluir
+      makeByPropertyEntry("p2", "Depto Centro", 100000, 0), // pendingRevenue > 0 → incluir
+      makeByPropertyEntry("p3", "Cabaña Norte", 0, 50000), // reservedRevenueInRange > 0 → incluir
+    ]);
+
+    const result = computeGroupedByPropertyFromSummary(summary);
+
+    expect(result).toHaveLength(2);
+    expect(result.find((r) => r.propertyName === "Casa Playa")).toBeUndefined();
+    expect(result.find((r) => r.propertyName === "Depto Centro")).toBeDefined();
+    expect(result.find((r) => r.propertyName === "Cabaña Norte")).toBeDefined();
+  });
+
+  it("propiedad con outstandingBalance > 0 y collectedCash = 0: paidRevenue=0, pendingRevenue>0", () => {
+    const summary = makeSummary([
+      makeByPropertyEntry("p1", "Casa Cancelada", 300000, 0),
+    ]);
+
+    const result = computeGroupedByPropertyFromSummary(summary);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].paidRevenue).toBe(0);
+    expect(result[0].pendingRevenue).toBe(300000);
+    expect(result[0].reservedRevenueInRange).toBe(300000);
+  });
+
+  it("paidRevenue y pendingRevenue mantienen su magnitud sin intercambiarse", () => {
+    const summary = makeSummary([
+      makeByPropertyEntry("p1", "Casa Alta", 1000000, 500000),
+    ]);
+
+    const result = computeGroupedByPropertyFromSummary(summary);
+
+    // paidRevenue viene de collectedCash
+    expect(result[0].paidRevenue).toBe(500000);
+    // pendingRevenue viene de outstandingBalance
+    expect(result[0].pendingRevenue).toBe(1000000);
+    // reservado =两者之和
+    expect(result[0].reservedRevenueInRange).toBe(1500000);
+  });
+
+  it("mantiene orden de entrada cuando pendingRevenue es igual (estabilidad del sort)", () => {
+    const summary = makeSummary([
+      makeByPropertyEntry("p1", "Casa A", 100000, 100000),
+      makeByPropertyEntry("p2", "Casa B", 100000, 100000),
+    ]);
+
+    const result = computeGroupedByPropertyFromSummary(summary);
+
+    // Ambas tienen mismo pendingRevenue (100000), el sort estable preserva orden de entrada
+    expect(result[0].propertyName).toBe("Casa A");
+    expect(result[1].propertyName).toBe("Casa B");
+  });
+
+  it("totalRevenue es alias de reservedRevenueInRange", () => {
+    const summary = makeSummary([
+      makeByPropertyEntry("p1", "Casa Playa", 200000, 300000),
+    ]);
+
+    const result = computeGroupedByPropertyFromSummary(summary);
+
+    expect(result[0].totalRevenue).toBe(result[0].reservedRevenueInRange);
+    expect(result[0].totalRevenue).toBe(500000);
+  });
+
+  it("mapea reservationCount hacia totalReservations", () => {
+    const summary = makeSummary([
+      makeByPropertyEntry("p1", "Casa Playa", 0, 100000, 0, 7),
+    ]);
+
+    const result = computeGroupedByPropertyFromSummary(summary);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].totalReservations).toBe(7);
+  });
+
+  it("mapea occupiedNightUnits hacia totalNights", () => {
+    const summary = makeSummary([
+      makeByPropertyEntry("p1", "Casa Playa", 0, 100000, 20, 0),
+    ]);
+
+    const result = computeGroupedByPropertyFromSummary(summary);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].totalNights).toBe(20);
   });
 });

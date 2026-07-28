@@ -30,6 +30,7 @@ export function DashboardNavbar({
           <input
             type="text"
             placeholder="Buscar..."
+            aria-label="Buscar"
             className="bg-background border-none rounded py-1.5 pl-9 pr-4 text-xs w-64 focus:ring-1 focus:ring-primary placeholder-muted-foreground text-foreground"
           />
         </div>
@@ -41,7 +42,7 @@ export function DashboardNavbar({
             initialNotifications={initialNotifications}
             onNotificationsRead={onNotificationsRead}
           />
-          <button className="p-2 text-muted-foreground hover:text-foreground transition-colors">
+          <button aria-label="Ayuda" className="p-2 text-muted-foreground hover:text-foreground transition-colors">
             <HelpCircle className="h-5 w-5" />
           </button>
         </div>

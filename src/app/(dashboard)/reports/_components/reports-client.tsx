@@ -424,46 +424,53 @@ export function ReportsClient({
         <div className="flex items-center gap-2">
           {/* Date range pill — label informativo, no clickeable */}
           <div className="hidden lg:flex items-center bg-card border border-border rounded px-3 py-1.5 gap-2">
-            <Calendar className="size-4 text-muted-foreground" />
+            <Calendar className="size-4 text-muted-foreground" aria-hidden="true" />
             <span className="text-xs font-medium text-foreground">{rangeLabel}</span>
           </div>
           {/* Excel (outline, izquierda del PDF) */}
           <Button variant="outline" size="sm" onClick={handleExcelExport} disabled={exportLoading}>
-            <FileSpreadsheet className="size-4 mr-1" />
+            <FileSpreadsheet className="size-4 mr-1" aria-hidden="true" />
             Excel
           </Button>
           {/* Exportar PDF (primary) */}
           <Button size="sm" onClick={handlePDFExport} disabled={exportLoading}>
-            <Download className="size-4 mr-1" />
+            <Download className="size-4 mr-1" aria-hidden="true" />
             Exportar PDF
           </Button>
         </div>
       </div>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Filtros</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-4">
+      <section aria-labelledby="reports-filters-heading">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle id="reports-filters-heading" className="text-base">Filtros</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap gap-4">
             <div className="flex flex-col gap-1.5">
               <label className="text-xs text-muted-foreground">Rango rápido</label>
-              <div className="flex flex-wrap gap-2">
-                {QUICK_RANGES.map((range) => (
-                  <Button
-                    key={range.value}
-                    variant={quickRange === range.value ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => handleQuickRangeChange(range.value)}
-                    disabled={!isReportsRangeAllowed(initialSession.plan, range.value)}
-                    className="text-xs"
-                  >
-                    {range.label}
-                    {!isReportsRangeAllowed(initialSession.plan, range.value) && (
-                      <span className="ml-1 opacity-70">🔒</span>
-                    )}
-                  </Button>
-                ))}
+              <div role="group" aria-label="Rango rápido" className="flex flex-wrap gap-2">
+                {QUICK_RANGES.map((range) => {
+                  const isAllowed = isReportsRangeAllowed(initialSession.plan, range.value);
+                  const isActive = quickRange === range.value;
+                  return (
+                    <Button
+                      key={range.value}
+                      variant={isActive ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleQuickRangeChange(range.value)}
+                      disabled={!isAllowed}
+                      aria-pressed={isActive}
+                      aria-label={!isAllowed ? `${range.label} — disponible solo en plan PRO` : undefined}
+                      className="text-xs"
+                    >
+                      {range.label}
+                      {!isAllowed && (
+                        <span aria-hidden="true" className="ml-1 opacity-70">🔒</span>
+                      )}
+                    </Button>
+                  );
+                })}
               </div>
               {isFreePlan && (
                 <p className="text-xs text-muted-foreground mt-1">
@@ -489,7 +496,7 @@ export function ReportsClient({
             <div className="flex flex-col gap-1.5">
               <label className="text-xs text-muted-foreground">Propiedad</label>
               <Select value={selectedProperty} onValueChange={(value) => setSelectedProperty(value || "all")}>
-                <SelectTrigger className="w-full sm:w-48">
+                <SelectTrigger aria-label="Propiedad" className="w-full sm:w-48">
                   <SelectValue placeholder="Todas" />
                 </SelectTrigger>
                 <SelectContent>
@@ -504,7 +511,7 @@ export function ReportsClient({
             <div className="flex flex-col gap-1.5">
               <label className="text-xs text-muted-foreground">Estado de Reservas (detalle/exportación)</label>
               <Select value={selectedStatus} onValueChange={(v) => v && setSelectedStatus(v)}>
-                <SelectTrigger className="w-full sm:w-40">
+                <SelectTrigger aria-label="Estado de Reservas (detalle/exportación)" className="w-full sm:w-40">
                   <SelectValue placeholder="Todos" />
                 </SelectTrigger>
                 <SelectContent>
@@ -520,15 +527,19 @@ export function ReportsClient({
           </div>
         </CardContent>
       </Card>
+      </section>
 
       {loading ? (
-        <div className="flex h-96 items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        <div role="status" aria-live="polite" className="flex h-96 items-center justify-center">
+          <div aria-hidden="true" className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <span className="sr-only">Cargando…</span>
         </div>
       ) : (
         <>
           {/* ─── 4 KPIs Ejecutivos ─── */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <section aria-labelledby="reports-kpis-heading">
+            <h2 id="reports-kpis-heading" className="sr-only">KPIs Ejecutivos</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard
               label="Ingresos cobrados"
               value={formattedRevenue}
@@ -570,9 +581,12 @@ export function ReportsClient({
               }
             />
           </div>
+          </section>
 
           {decisionSummary && billingTypeMetrics && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <section aria-labelledby="reports-distribution-heading">
+                <h2 id="reports-distribution-heading" className="sr-only">Modelo de Negocio</h2>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <ModelDistributionCard
                   title="Modelo de Negocio: Diario"
                   description="Ingresos por estancias cortas"
@@ -600,6 +614,7 @@ export function ReportsClient({
                   variant="secondary"
                 />
               </div>
+              </section>
             )}
 
           {/* Nota: la ocupación incluye Reservas internas. Los Bloqueos de Canal Externo no están incluidos. */}
@@ -611,9 +626,9 @@ export function ReportsClient({
 
           {/* P2: Top 5 deudores — mini card antes del resumen por propiedad */}
           {topDebtors.length > 0 && (
-            <div className="rounded-lg border border-border bg-card p-4">
+            <section aria-labelledby="reports-top-debtors-heading" className="rounded-lg border border-border bg-card p-4">
               <div className="flex items-center gap-2 mb-3">
-                <AlertTriangle className="size-4 text-destructive" />
+                <AlertTriangle className="size-4 text-destructive" aria-hidden="true" />
                 <p className="text-xs font-bold text-foreground uppercase tracking-wider">
                   Top deudores
                 </p>
@@ -628,16 +643,18 @@ export function ReportsClient({
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
           )}
 
-          <PropertySummaryTable rows={decisionSummary?.byProperty ?? []} />
+          <section aria-labelledby="reports-summary-heading">
+            <PropertySummaryTable rows={decisionSummary?.byProperty ?? []} />
+          </section>
 
           {decisionSummary && (
-            <div className="space-y-3">
+            <section aria-labelledby="reports-monthly-heading" className="space-y-3">
               <div className="flex items-center gap-2">
-                <TrendingUp className="text-primary size-5" />
-                <h2 className="text-xs font-bold text-foreground uppercase tracking-wider">
+                <TrendingUp className="text-primary size-5" aria-hidden="true" />
+                <h2 id="reports-monthly-heading" className="text-xs font-bold text-foreground uppercase tracking-wider">
                   Ingresos cobrados por mes
                 </h2>
               </div>
@@ -651,6 +668,7 @@ export function ReportsClient({
                   { label: "Pagos", align: "right" },
                   { label: "Canceladas", align: "right" },
                 ]}
+                caption="Ingresos cobrados por mes — cash de arriendo en el rango seleccionado, agrupado por mes calendario."
                 emptyState={<p className="text-sm text-muted-foreground">Sin datos de cash en el rango</p>}
               >
                 {(decisionSummary?.cash?.byMonth ?? []).map((m) => (
@@ -668,20 +686,21 @@ export function ReportsClient({
                   </tr>
                 ))}
               </DataTable>
-            </div>
+            </section>
           )}
 
-          <div className="mb-4 flex items-center gap-2">
-            <Wallet className="text-primary size-5" />
-            <h2 className="text-xs font-bold text-foreground uppercase tracking-wider">
-              Reporte de Cobranza Detallado
-            </h2>
-          </div>
+          <section aria-labelledby="reports-collection-heading">
+            <div className="mb-4 flex items-center gap-2">
+              <Wallet className="text-primary size-5" aria-hidden="true" />
+              <h2 id="reports-collection-heading" className="text-xs font-bold text-foreground uppercase tracking-wider">
+                Reporte de Cobranza Detallado
+              </h2>
+            </div>
 
           {/* P5: Banner when collection filters are active — clarifies filters don't affect KPIs */}
           {hasActiveCollectionFilters && (
-            <div className="mb-4 flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2">
-              <AlertTriangle className="size-4 text-warning shrink-0 mt-0.5" />
+            <div role="note" aria-live="polite" className="mb-4 flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2">
+              <AlertTriangle className="size-4 text-warning shrink-0 mt-0.5" aria-hidden="true" />
               <p className="text-xs text-foreground">
                 Los filtros aplicados aquí solo afectan esta tabla. No modifican los KPIs financieros ni el Resumen por Propiedad.
               </p>
@@ -693,7 +712,7 @@ export function ReportsClient({
               setCollectionBillingType((value ?? "GENERAL") as "GENERAL" | "DAILY" | "MONTHLY");
               setCollectionPage(1);
             }}>
-              <SelectTrigger className="w-full sm:w-44">
+              <SelectTrigger aria-label="Tipo arriendo" className="w-full sm:w-44">
                 <SelectValue placeholder="Tipo arriendo" />
               </SelectTrigger>
               <SelectContent>
@@ -707,7 +726,7 @@ export function ReportsClient({
               setCollectionClientId(value ?? "all");
               setCollectionPage(1);
             }}>
-              <SelectTrigger className="w-full sm:w-52">
+              <SelectTrigger aria-label="Cliente" className="w-full sm:w-52">
                 <SelectValue placeholder="Cliente" />
               </SelectTrigger>
               <SelectContent>
@@ -722,7 +741,7 @@ export function ReportsClient({
               setCollectionDebtStatus((value ?? "ACTIVE") as "ACTIVE" | "ALL" | "OVERDUE" | "UPCOMING" | "PAID");
               setCollectionPage(1);
             }}>
-              <SelectTrigger className="w-full sm:w-44">
+              <SelectTrigger aria-label="Estado deuda" className="w-full sm:w-44">
                 <SelectValue placeholder="Estado deuda" />
               </SelectTrigger>
               <SelectContent>
@@ -813,12 +832,14 @@ export function ReportsClient({
               onLimitChange={setCollectionLimit}
             />
           )}
+          </section>
 
           {decisionSummary?.cash?.annual && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Resumen Anual {decisionSummary.cash.annual.year}</CardTitle>
-                <CardDescription>
+            <section aria-labelledby="reports-annual-heading">
+              <Card>
+                <CardHeader>
+                  <CardTitle id="reports-annual-heading">Resumen Anual {decisionSummary.cash.annual.year}</CardTitle>
+                  <CardDescription>
                   Total de {decisionSummary.cash.annual.paymentCount} pagos registrados
                 </CardDescription>
               </CardHeader>
@@ -843,22 +864,32 @@ export function ReportsClient({
                   </div>
                   <div>
                     <p className="text-sm font-medium mb-2">Distribución mensual</p>
-                    <div className="flex items-end gap-1 h-20">
+                    <figure
+                      role="figure"
+                      aria-label="Distribución mensual de ingresos cobrados en el año actual"
+                      className="flex items-end gap-1 h-20"
+                    >
                       {decisionSummary.cash.annual.byMonth.map((monthEntry, index) => {
                         const maxMonthCash = Math.max(...decisionSummary.cash.annual.byMonth.map(m => m.collectedCash), 1);
+                        const monthName = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"][index];
                         return (
                           <div
                             key={index}
+                            role="img"
+                            aria-label={`${monthName}: ${monthEntry.collectedCash.toLocaleString("CLP")}`}
                             className="flex-1 bg-primary rounded-t"
                             style={{
                               height: `${(monthEntry.collectedCash / maxMonthCash) * 100}%`,
                               minHeight: monthEntry.collectedCash > 0 ? "4px" : "0",
                             }}
-                            title={`${["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"][index]}: ${monthEntry.collectedCash.toLocaleString("CLP")}`}
+                            title={`${monthName}: ${monthEntry.collectedCash.toLocaleString("CLP")}`}
                           />
                         );
                       })}
-                    </div>
+                      <figcaption className="sr-only">
+                        Distribución mensual de ingresos cobrados en el año actual
+                      </figcaption>
+                    </figure>
                     <div className="flex justify-between mt-1 text-xs text-muted-foreground">
                       <span>Ene</span>
                       <span>Dic</span>
@@ -867,6 +898,7 @@ export function ReportsClient({
                 </div>
               </CardContent>
             </Card>
+            </section>
           )}
         </>
       )}

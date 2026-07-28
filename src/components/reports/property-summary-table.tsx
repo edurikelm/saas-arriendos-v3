@@ -36,14 +36,15 @@ export function PropertySummaryTable({ rows }: PropertySummaryTableProps) {
     <div className="space-y-3">
       {/* Standalone header */}
       <div className="flex items-center gap-2">
-        <Building2 className="text-primary size-5" />
-        <h2 className="text-xs font-bold text-foreground uppercase tracking-wider">
+        <Building2 className="text-primary size-5" aria-hidden="true" />
+        <h2 id="reports-summary-heading" className="text-xs font-bold text-foreground uppercase tracking-wider">
           Resumen Operativo por Propiedad
         </h2>
       </div>
 
       <DataTable
         headers={headers}
+        caption="Resumen Operativo por Propiedad — operación por propiedad en el rango seleccionado."
         emptyState={
           <p className="text-sm text-muted-foreground">
             Sin propiedades en el rango seleccionado

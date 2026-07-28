@@ -41,6 +41,7 @@ export function DataTable({ headers, children, emptyState, caption, className }:
                 return (
                   <th
                     key={`${label}-${idx}`}
+                    scope="col"
                     className={cn(
                       "px-6 py-4 align-middle text-[10px] font-bold uppercase tracking-wider text-muted-foreground",
                       alignClass(align)
