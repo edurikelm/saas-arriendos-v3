@@ -2,11 +2,27 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { ReservationDetail, PropertySummary } from "./excel";
 
+/** Error thrown when export details exceed the safe limit for PDF rendering. */
+export class ExportDetailsLimitError extends Error {
+  readonly total: number;
+  constructor(total: number) {
+    super(`El reporte contiene ${total} reservas, superando el límite de 100 filas para PDF.`);
+    this.name = "ExportDetailsLimitError";
+    this.total = total;
+  }
+}
+
 export function exportToPDF(
   details: ReservationDetail[],
   summaries: PropertySummary[],
   dateRange: { from: Date; to: Date } | null
 ) {
+  // P4: detect silent truncation and throw friendly error
+  if (details.length > 100) {
+    console.warn(`[exportToPDF] ${details.length} details exceeds limit of 100 — refusing to render partial PDF.`);
+    throw new ExportDetailsLimitError(details.length);
+  }
+
   const doc = new jsPDF();
 
   const title = dateRange
@@ -21,12 +37,12 @@ export function exportToPDF(
 
   autoTable(doc, {
     startY: 40,
-    head: [["Propiedad", "Reservas", "Noches", "Total", "Pagado", "Pendiente"]],
+    head: [["Propiedad", "Reservas", "Noches", "Total Reservado", "Cobrado", "Pendiente"]],
     body: summaries.map((s) => [
       s.propertyName,
       s.totalReservations.toString(),
       s.totalNights.toString(),
-      s.totalRevenue.toLocaleString("CLP"),
+      (s.reservedRevenueInRange ?? s.totalRevenue ?? 0).toLocaleString("CLP"),
       s.paidRevenue.toLocaleString("CLP"),
       s.pendingRevenue.toLocaleString("CLP"),
     ]),
@@ -35,7 +51,7 @@ export function exportToPDF(
         "TOTAL",
         summaries.reduce((acc, s) => acc + s.totalReservations, 0).toString(),
         summaries.reduce((acc, s) => acc + s.totalNights, 0).toString(),
-        summaries.reduce((acc, s) => acc + s.totalRevenue, 0).toLocaleString("CLP"),
+        summaries.reduce((acc, s) => acc + (s.reservedRevenueInRange ?? s.totalRevenue ?? 0), 0).toLocaleString("CLP"),
         summaries.reduce((acc, s) => acc + s.paidRevenue, 0).toLocaleString("CLP"),
         summaries.reduce((acc, s) => acc + s.pendingRevenue, 0).toLocaleString("CLP"),
       ],
@@ -53,7 +69,7 @@ export function exportToPDF(
   autoTable(doc, {
     startY: finalY + 20,
     head: [["Propiedad", "Cliente", "Inicio", "Fin", "Total", "Estado", "Pago"]],
-    body: details.slice(0, 100).map((d) => [
+    body: details.map((d) => [
       d.propertyName.substring(0, 15),
       d.clientName.substring(0, 20),
       d.startDate.toLocaleDateString("es-CL"),

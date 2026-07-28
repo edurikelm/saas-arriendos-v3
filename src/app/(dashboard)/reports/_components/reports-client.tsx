@@ -1,27 +1,28 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { BarChart3, Calendar, FileSpreadsheet, Download, Wallet, Building2, AlertCircle, AlertTriangle, TrendingUp } from "lucide-react";
+import { Calendar, FileSpreadsheet, Download, Wallet, Building2, AlertCircle, AlertTriangle, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
-import { getDashboardStats, getOccupancyReport, getCollectionReport, getDecisionSummary } from "@/lib/actions/reports";
+import { getCollectionReport, getDecisionSummary } from "@/lib/actions/reports";
 import { getReservationsReportForExport } from "@/lib/actions/reports";
-import type { DashboardStats, OccupancyReport, ReservationReport } from "@/lib/actions/reports";
+import type { ReservationReport } from "@/lib/actions/reports";
 import type { CollectionReportRow } from "@/lib/reports/collection";
 import type { ReportDecisionSummary } from "@/lib/reports/decision-summary";
 import { getCollectionDueLabel, getCollectionStatus } from "@/lib/reports/collection";
 import { Pagination } from "@/components/ui/pagination";
 import { DataTable } from "@/components/ui/data-table";
-import { exportToExcel, exportToPDF, type ReservationDetail, type PropertySummary } from "@/lib/export-utils";
+import { exportToExcel, exportToPDF, type ReservationDetail, type PropertySummary, ExportDetailsLimitError } from "@/lib/export-utils";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { ModelDistributionCard } from "@/components/reports/model-distribution-card";
 import { PropertySummaryTable } from "@/components/reports/property-summary-table";
 import { startOfMonth, endOfMonth, subMonths, startOfYear, format } from "date-fns";
 import { es } from "date-fns/locale/es";
-import { isReportsRangeAllowed, portfolioOccupancyDenominator } from "@/lib/reports/kpis";
+import { isReportsRangeAllowed } from "@/lib/reports/kpis";
+import { computeTrend, selectTopDebtors, computeGroupedByPropertyFromSummary } from "@/lib/reports/trend";
 
 type QuickRange = "current_month" | "prev_month" | "last_3" | "last_6" | "year_to_date" | "custom";
 
@@ -61,8 +62,6 @@ function monthKeyLabel(monthKey: string): string {
 }
 
 export interface ReportsClientProps {
-  initialStats: DashboardStats;
-  initialOccupancyData: OccupancyReport[];
   initialCollectionRows: CollectionReportRow[];
   initialCollectionTotal: number;
   initialCollectionTotalPages: number;
@@ -73,8 +72,6 @@ export interface ReportsClientProps {
 }
 
 export function ReportsClient({
-  initialStats,
-  initialOccupancyData,
   initialCollectionRows,
   initialCollectionTotal,
   initialCollectionTotalPages,
@@ -84,8 +81,7 @@ export function ReportsClient({
   initialDecisionSummary,
 }: ReportsClientProps) {
   const [decisionSummary, setDecisionSummary] = useState<ReportDecisionSummary | null>(initialDecisionSummary);
-  const [stats, setStats] = useState<DashboardStats | null>(initialStats);
-  const [occupancyData, setOccupancyData] = useState<OccupancyReport[]>(initialOccupancyData);
+  const [decisionSummaryPrev, setDecisionSummaryPrev] = useState<ReportDecisionSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [quickRange, setQuickRange] = useState<QuickRange>("current_month");
   const [customRange, setCustomRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
@@ -95,7 +91,6 @@ export function ReportsClient({
   const [selectedProperty, setSelectedProperty] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [properties, setProperties] = useState<Property[]>(initialProperties);
-  const [session, setSession] = useState<SessionInfo | null>(initialSession);
   const [exportLoading, setExportLoading] = useState(false);
   const [collectionRows, setCollectionRows] = useState<CollectionReportRow[]>(initialCollectionRows);
   const [collectionBillingType, setCollectionBillingType] = useState<"GENERAL" | "DAILY" | "MONTHLY">("GENERAL");
@@ -137,16 +132,37 @@ export function ReportsClient({
     return { from: startOfMonth(now), to: endOfMonth(now) };
   }, [quickRange, customRange]);
 
+  /** Previous period range — only for exact-range quick ranges, not for custom. */
+  const previousDateRange = useMemo((): { from: Date; to: Date } | null => {
+    if (quickRange === "custom") return null;
+    const now = new Date();
+    if (quickRange === "current_month") {
+      const prev = subMonths(now, 1);
+      return { from: startOfMonth(prev), to: endOfMonth(prev) };
+    }
+    if (quickRange === "prev_month") {
+      const prev = subMonths(now, 2);
+      return { from: startOfMonth(prev), to: endOfMonth(prev) };
+    }
+    if (quickRange === "last_3") {
+      const rangeEnd = subMonths(now, 1);
+      return { from: startOfMonth(subMonths(rangeEnd, 2)), to: endOfMonth(rangeEnd) };
+    }
+    if (quickRange === "last_6") {
+      const rangeEnd = subMonths(now, 1);
+      return { from: startOfMonth(subMonths(rangeEnd, 5)), to: endOfMonth(rangeEnd) };
+    }
+    if (quickRange === "year_to_date") {
+      const prevYear = now.getFullYear() - 1;
+      return { from: startOfYear(new Date(prevYear, 0, 1)), to: new Date(prevYear, now.getMonth(), now.getDate()) };
+    }
+    return null;
+  }, [quickRange]);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [statsData, occupancy, collection, decision] = await Promise.all([
-        getDashboardStats({ propertyId: selectedProperty !== "all" ? selectedProperty : undefined }),
-        getOccupancyReport({
-          propertyId: selectedProperty !== "all" ? selectedProperty : undefined,
-          startDate: effectiveDateRange.from || undefined,
-          endDate: effectiveDateRange.to || undefined,
-        }),
+      const [collection, decision, decisionPrev] = await Promise.all([
         getCollectionReport({
           propertyId: selectedProperty !== "all" ? selectedProperty : undefined,
           billingType: collectionBillingType,
@@ -162,10 +178,16 @@ export function ReportsClient({
           rangeEnd: effectiveDateRange.to || undefined,
           propertyId: selectedProperty !== "all" ? selectedProperty : undefined,
         }),
+        // P1: fetch previous period only for exact ranges
+        previousDateRange
+          ? getDecisionSummary({
+              rangeStart: previousDateRange.from,
+              rangeEnd: previousDateRange.to,
+              propertyId: selectedProperty !== "all" ? selectedProperty : undefined,
+            })
+          : Promise.resolve(null),
       ]);
 
-      setStats(statsData);
-      setOccupancyData(occupancy || []);
       if (collection && "data" in collection) {
         setCollectionRows(collection.data);
         setCollectionTotal(collection.total);
@@ -178,12 +200,13 @@ export function ReportsClient({
         setCollectionRows(collection || []);
       }
       setDecisionSummary(decision);
+      setDecisionSummaryPrev(decisionPrev);
     } catch (error) {
       console.error("Error fetching reports:", error);
     } finally {
       setLoading(false);
     }
-  }, [effectiveDateRange, selectedProperty, selectedStatus, collectionBillingType, collectionClientId, collectionDebtStatus, collectionDueRange, collectionPage, collectionLimit]);
+  }, [effectiveDateRange, previousDateRange, selectedProperty, selectedStatus, collectionBillingType, collectionClientId, collectionDebtStatus, collectionDueRange, collectionPage, collectionLimit]);
 
   // Trigger fetch when filters change (not on initial mount — server pre-computed data is used)
   useEffect(() => {
@@ -212,7 +235,7 @@ export function ReportsClient({
       entry.totalNights += Math.ceil(
         (r.endDate.getTime() - r.startDate.getTime()) / (1000 * 60 * 60 * 24)
       ) + 1;
-      entry.totalRevenue += r.totalPrice;
+      entry.totalRevenue = (entry.totalRevenue ?? 0) + r.totalPrice;
       if (r.paymentStatus === "COMPLETED") entry.paidRevenue += r.totalPrice;
       else entry.pendingRevenue += r.totalPrice;
     });
@@ -230,7 +253,28 @@ export function ReportsClient({
     return { daily, monthly, totalCollected, dailyPct };
   }, [decisionSummary]);
 
-  const isFreePlan = session?.plan === "FREE";
+  // P1: trend for "Ingresos cobrados" KPI vs previous period
+  const revenueTrend = useMemo(() => {
+    if (!decisionSummary || !previousDateRange) return null;
+    if (!decisionSummaryPrev) return null; // first render or no data for prev period
+    return computeTrend(decisionSummary.collectedCash, decisionSummaryPrev.collectedCash);
+  }, [decisionSummary, decisionSummaryPrev, previousDateRange]);
+
+  // P2: top 5 debtors from decisionSummary.byProperty
+  const topDebtors = useMemo(() => {
+    if (!decisionSummary) return [];
+    return selectTopDebtors(decisionSummary.byProperty, 5);
+  }, [decisionSummary]);
+
+  // P5: collection filters are active (non-default)
+  const hasActiveCollectionFilters =
+    collectionBillingType !== "GENERAL" ||
+    collectionClientId !== "all" ||
+    collectionDebtStatus !== "ACTIVE" ||
+    collectionDueRange.from !== undefined ||
+    collectionDueRange.to !== undefined;
+
+  const isFreePlan = initialSession?.plan === "FREE";
 
   const collectionClients = useMemo(() => {
     const map = new Map<string, string>();
@@ -285,7 +329,9 @@ export function ReportsClient({
         billingType: r.billingType,
         createdAt: new Date(r.createdAt),
       }));
-      const grouped = computeGroupedByProperty(details);
+      const grouped = decisionSummary
+        ? computeGroupedByPropertyFromSummary(decisionSummary)
+        : computeGroupedByProperty(details);
       exportToExcel(details, grouped, effectiveDateRange.from ? effectiveDateRange : null);
     } finally {
       setExportLoading(false);
@@ -315,29 +361,27 @@ export function ReportsClient({
         billingType: r.billingType,
         createdAt: new Date(r.createdAt),
       }));
-      const grouped = computeGroupedByProperty(details);
+      const grouped = decisionSummary
+        ? computeGroupedByPropertyFromSummary(decisionSummary)
+        : computeGroupedByProperty(details);
       exportToPDF(details, grouped, effectiveDateRange.from ? effectiveDateRange : null);
+    } catch (error) {
+      if (error instanceof ExportDetailsLimitError) {
+        alert(`No se puede generar el PDF: ${error.message} Usa Excel para exportar más de 100 filas.`);
+      } else {
+        console.error("Error exporting PDF:", error);
+        alert("Error al exportar PDF. Intenta de nuevo.");
+      }
     } finally {
       setExportLoading(false);
     }
   };
 
-  // KPI Ingresos cobrados: use decisionSummary.collectedCash (cash collected in range)
+  // KPI Ingresos cobrados: from decisionSummary (cash collected in range)
   const totalRevenue = decisionSummary?.collectedCash ?? 0;
 
   // KPI Ocupación: from decisionSummary (ADR-0029, date-only, full scope)
-  // Fallback to legacy occupancyData computation if decisionSummary not yet loaded.
-  const totalNights = decisionSummary?.occupiedNightUnits
-    ?? occupancyData.reduce((acc, p) => acc + p.totalNights, 0);
-  const maxPossibleNights = decisionSummary?.capacityNightUnits
-    ?? (portfolioOccupancyDenominator(
-      initialProperties,
-      selectedProperty !== "all" ? selectedProperty : undefined,
-    ) * 31);
-  const occupancyRate = decisionSummary?.occupancyRate
-    ?? (maxPossibleNights > 0 && totalNights > 0
-      ? Math.min(100, Math.round((totalNights / maxPossibleNights) * 100))
-      : 0);
+  const occupancyRate = decisionSummary?.occupancyRate ?? 0;
 
   // Usar totales del servidor (conjunto completo, no paginado) para los KPIs de cobranza
   const totalToCollect = collectionTotals.totalToCollect;
@@ -490,6 +534,17 @@ export function ReportsClient({
               value={formattedRevenue}
               icon={Wallet}
               tone="success"
+              indicator={
+                revenueTrend && revenueTrend.direction
+                  ? {
+                      text:
+                        revenueTrend.direction === "up"
+                          ? `+${revenueTrend.pct}% vs período anterior`
+                          : `${revenueTrend.pct}% vs período anterior`,
+                      variant: revenueTrend.direction === "up" ? "positive" : "warning",
+                    }
+                  : undefined
+              }
             />
             <KpiCard
               label={selectedProperty === "all" ? "Ocupación del portafolio" : "Ocupación de la propiedad"}
@@ -554,6 +609,28 @@ export function ReportsClient({
             </p>
           </div>
 
+          {/* P2: Top 5 deudores — mini card antes del resumen por propiedad */}
+          {topDebtors.length > 0 && (
+            <div className="rounded-lg border border-border bg-card p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertTriangle className="size-4 text-destructive" />
+                <p className="text-xs font-bold text-foreground uppercase tracking-wider">
+                  Top deudores
+                </p>
+              </div>
+              <div className="space-y-2">
+                {topDebtors.map((debtor) => (
+                  <div key={debtor.propertyId} className="flex items-center justify-between">
+                    <span className="text-sm text-foreground truncate pr-4">{debtor.propertyName}</span>
+                    <span className="text-sm font-medium tabular-nums text-destructive shrink-0">
+                      {formatCLP(debtor.outstandingBalance)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <PropertySummaryTable rows={decisionSummary?.byProperty ?? []} />
 
           {decisionSummary && (
@@ -594,53 +671,22 @@ export function ReportsClient({
             </div>
           )}
 
-          <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5" />
-                  Ocupación por Propiedad
-                </CardTitle>
-                <CardDescription>
-                  Reservas y noches por propiedad
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {occupancyData.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">
-                    Sin datos de ocupación
-                  </p>
-                ) : (
-                  <div className="space-y-4">
-                    {occupancyData.map((item) => (
-                      <div key={item.propertyId} className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium">{item.propertyName}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {item.totalReservations} reservas · {item.totalNights} noches
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-medium">
-                            {item.totalRevenue.toLocaleString("CLP")}
-                          </p>
-                          <p className="text-xs text-muted-foreground">ingresos</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
           <div className="mb-4 flex items-center gap-2">
             <Wallet className="text-primary size-5" />
             <h2 className="text-xs font-bold text-foreground uppercase tracking-wider">
               Reporte de Cobranza Detallado
             </h2>
           </div>
+
+          {/* P5: Banner when collection filters are active — clarifies filters don't affect KPIs */}
+          {hasActiveCollectionFilters && (
+            <div className="mb-4 flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2">
+              <AlertTriangle className="size-4 text-warning shrink-0 mt-0.5" />
+              <p className="text-xs text-foreground">
+                Los filtros aplicados aquí solo afectan esta tabla. No modifican los KPIs financieros ni el Resumen por Propiedad.
+              </p>
+            </div>
+          )}
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-4">
             <Select value={collectionBillingType} onValueChange={(value) => {

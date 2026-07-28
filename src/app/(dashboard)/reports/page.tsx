@@ -1,6 +1,5 @@
 import { startOfMonth, endOfMonth } from "date-fns";
-import { getDashboardStats, getOccupancyReport, getCollectionReport, getDecisionSummary } from "@/lib/actions/reports";
-import type { DashboardStats, OccupancyReport } from "@/lib/actions/reports";
+import { getCollectionReport, getDecisionSummary } from "@/lib/actions/reports";
 import type { CollectionReportRow } from "@/lib/reports/collection";
 import type { ReportDecisionSummary } from "@/lib/reports/decision-summary";
 import { getProperties } from "@/lib/actions/properties";
@@ -19,19 +18,11 @@ export default async function ReportsPage() {
   const defaultEndDate = endOfMonth(now);
 
   const [
-    initialStats,
-    initialOccupancyData,
     initialCollection,
     initialProperties,
     initialSession,
     initialDecisionSummary,
   ] = await Promise.all([
-    getDashboardStats(),
-    getOccupancyReport({
-      propertyId: undefined,
-      startDate: defaultStartDate,
-      endDate: defaultEndDate,
-    }),
     getCollectionReport({
       billingType: "GENERAL",
       clientId: undefined,
@@ -66,8 +57,6 @@ export default async function ReportsPage() {
 
   return (
     <ReportsClient
-      initialStats={initialStats as DashboardStats}
-      initialOccupancyData={initialOccupancyData as OccupancyReport[]}
       initialCollectionRows={initialCollectionRows}
       initialCollectionTotal={initialCollectionTotal}
       initialCollectionTotalPages={initialCollectionTotalPages}

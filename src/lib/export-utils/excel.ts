@@ -18,7 +18,10 @@ export interface PropertySummary {
   propertyName: string;
   totalReservations: number;
   totalNights: number;
-  totalRevenue: number;
+  /** Reserved revenue in range (ADR-0029: totalPrice-based, not cash). Fallback: totalRevenue. */
+  reservedRevenueInRange?: number;
+  /** @deprecated Use reservedRevenueInRange instead — kept for backward compat with old computeGroupedByProperty */
+  totalRevenue?: number;
   paidRevenue: number;
   pendingRevenue: number;
 }
@@ -56,8 +59,8 @@ export function exportToExcel(
       "Propiedad": s.propertyName,
       "Reservas": s.totalReservations,
       "Noches": s.totalNights,
-      "Ingresos Totales": s.totalRevenue,
-      "Pagado": s.paidRevenue,
+      "Total Reservado": s.reservedRevenueInRange ?? s.totalRevenue,
+      "Cobrado": s.paidRevenue,
       "Pendiente": s.pendingRevenue,
     }))
   );
