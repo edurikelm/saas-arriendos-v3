@@ -134,13 +134,16 @@ export async function getActivePaymentsForReservation(
  * (usa `paidAt` como filtro de fecha — cash basis; ver JSDoc del archivo).
  *
  * Si no se pasa `from` ni `to`, devuelve el total histórico.
+ *
+ * @param options.propertyId — si se pasa, filtra por propiedad específica.
+ *   Usado por el KPI "Ingresos cobrados" cuando el owner filtra por propiedad.
  */
 export async function sumCompletedPaymentsForOwner(
   userId: string,
-  options: { from?: Date; to?: Date } = {},
+  options: { from?: Date; to?: Date; propertyId?: string } = {},
   adapter: QueryAdapter = prisma,
 ): Promise<number> {
-  const { from, to } = options;
+  const { from, to, propertyId } = options;
   const result = await adapter.payment.aggregate({
     where: {
       status: "COMPLETED",
@@ -150,7 +153,10 @@ export async function sumCompletedPaymentsForOwner(
         ...(to ? { lte: to } : {}),
       },
       deletedAt: null,
-      reservation: { userId },
+      reservation: {
+        userId,
+        ...(propertyId ? { propertyId } : {}),
+      },
     },
     _sum: { amount: true },
   });

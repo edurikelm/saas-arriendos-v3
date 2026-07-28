@@ -1,95 +1,131 @@
 import { Building2 } from "lucide-react";
-import { cn } from "@/lib/utils";
-
-interface PropertySummaryRow {
-  propertyName: string;
-  modality: "Diario" | "Mensual" | "Mixto";
-  nightsOrDays: {
-    nights?: number;
-    days?: number;
-    label: string;
-  };
-  revenue: number;
-  occupancyRate: number;
-  performance: number;
-}
+import { DataTable } from "@/components/ui/data-table";
+import type { DecisionByPropertyEntry, DecisionActivity } from "@/lib/reports/decision-summary";
 
 interface PropertySummaryTableProps {
-  rows: PropertySummaryRow[];
+  rows: DecisionByPropertyEntry[];
+}
+
+const ACTIVITY_LABELS: Record<DecisionActivity, string> = {
+  NONE: "Sin actividad",
+  DAILY: "Diario",
+  MONTHLY: "Mensual",
+  MIXED: "Mixto",
+};
+
+function ModalityBadge({ activity }: { activity: DecisionActivity }) {
+  return (
+    <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+      {ACTIVITY_LABELS[activity]}
+    </span>
+  );
 }
 
 export function PropertySummaryTable({ rows }: PropertySummaryTableProps) {
-  if (rows.length === 0) return null;
+  const headers = [
+    "Propiedad",
+    "Modalidad",
+    { label: "Cobrado", align: "right" as const },
+    { label: "Saldo pendiente", align: "right" as const },
+    { label: "Unidades-noche", align: "right" as const },
+    { label: "Ocupación", align: "right" as const },
+    { label: "Reservas", align: "center" as const },
+  ];
 
   return (
-    <div className="bg-card border border-border rounded overflow-hidden mb-6">
-      <div className="px-4 py-4 border-b border-border flex justify-between items-center bg-muted/30">
-        <div className="flex items-center gap-2">
-          <Building2 className="text-primary size-5" />
-          <h2 className="text-xs font-bold text-foreground uppercase tracking-wider">
-            Resumen Operativo por Propiedad
-          </h2>
-        </div>
+    <div className="space-y-3">
+      {/* Standalone header */}
+      <div className="flex items-center gap-2">
+        <Building2 className="text-primary size-5" />
+        <h2 className="text-xs font-bold text-foreground uppercase tracking-wider">
+          Resumen Operativo por Propiedad
+        </h2>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead className="bg-muted/50 border-b border-border">
-            <tr className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-              <th className="px-6 py-3">Propiedad</th>
-              <th className="px-6 py-3">Modalidad</th>
-              <th className="px-6 py-3">Noches/Días</th>
-              <th className="px-6 py-3">Ingresos</th>
-              <th className="px-6 py-3">Ocupación</th>
-              <th className="px-6 py-3 text-right">Rendimiento</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border text-xs">
-            {rows.map((row) => (
-              <tr
-                key={row.propertyName}
-                className="hover:bg-muted/50 transition-colors"
-              >
-                <td className="px-6 py-4 font-medium text-foreground">
+
+      <DataTable
+        headers={headers}
+        emptyState={
+          <p className="text-sm text-muted-foreground">
+            Sin propiedades en el rango seleccionado
+          </p>
+        }
+      >
+        {rows.map((row) => {
+          const cancelledCash = row.collectedCashFromCancelledReservations;
+          return (
+            <tr
+              key={row.propertyId}
+              className="border-b last:border-0 hover:bg-muted/30 transition-colors"
+            >
+              {/* Propiedad */}
+              <td className="px-6 py-4">
+                <span className="font-medium text-foreground text-xs">
                   {row.propertyName}
-                </td>
-                <td className="px-6 py-4 text-muted-foreground">
-                  {row.modality}
-                </td>
-                <td className="px-6 py-4">{row.nightsOrDays.label}</td>
-                <td className="px-6 py-4 font-bold text-foreground tabular-nums">
-                  ${row.revenue.toLocaleString("CLP")}
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-16 bg-muted h-1.5 rounded-full overflow-hidden">
-                      <div
-                        className="bg-primary h-1.5 rounded-full transition-all"
-                        style={{ width: `${row.occupancyRate}%` }}
-                      />
-                    </div>
-                    <span className="text-[10px] font-bold tabular-nums">
-                      {row.occupancyRate}%
-                    </span>
+                </span>
+              </td>
+
+              {/* Modalidad */}
+              <td className="px-6 py-4">
+                <ModalityBadge activity={row.activity} />
+              </td>
+
+              {/* Cobrado (right) */}
+              <td className="px-6 py-4 text-right">
+                <div className="font-bold text-foreground tabular-nums text-xs">
+                  ${row.collectedCash.toLocaleString("CLP")}
+                </div>
+                {cancelledCash > 0 && (
+                  <div className="text-[10px] text-muted-foreground tabular-nums">
+                    +${cancelledCash.toLocaleString("CLP")} canceladas
                   </div>
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <span
-                    className={cn(
-                      "font-bold tabular-nums",
-                      row.performance >= 0 ? "text-primary" : "text-destructive"
-                    )}
-                  >
-                    {row.performance >= 0 ? "+" : ""}
-                    {row.performance.toFixed(1)}%
+                )}
+              </td>
+
+              {/* Saldo pendiente (right) */}
+              <td className="px-6 py-4 text-right">
+                <span className="tabular-nums text-xs text-muted-foreground">
+                  {row.outstandingBalance > 0
+                    ? `$${row.outstandingBalance.toLocaleString("CLP")}`
+                    : "—"}
+                </span>
+              </td>
+
+              {/* Unidades-noche (right) */}
+              <td className="px-6 py-4 text-right">
+                <span className="tabular-nums text-xs text-muted-foreground">
+                  {row.occupiedNightUnits.toLocaleString("es-CL")}
+                  {" / "}
+                  {row.capacityNightUnits.toLocaleString("es-CL")}
+                </span>
+              </td>
+
+              {/* Ocupación (right) */}
+              <td className="px-6 py-4 text-right">
+                <div className="flex items-center justify-end gap-2">
+                  <div className="w-16 bg-muted h-1.5 rounded-full overflow-hidden">
+                    <div
+                      className="bg-primary h-1.5 rounded-full transition-all"
+                      style={{ width: `${row.occupancyRate}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] font-bold tabular-nums text-muted-foreground">
+                    {row.occupancyRate}%
                   </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                </div>
+              </td>
+
+              {/* Reservas (center) */}
+              <td className="px-6 py-4 text-center">
+                <span className="tabular-nums text-xs font-medium text-muted-foreground">
+                  {row.reservationCount}
+                </span>
+              </td>
+            </tr>
+          );
+        })}
+      </DataTable>
     </div>
   );
 }
 
-export type { PropertySummaryRow };
+export type { PropertySummaryTableProps };

@@ -1,37 +1,36 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { BarChart3, TrendingUp, Calendar, FileSpreadsheet, SlidersHorizontal, Download, ChevronDown, Wallet, Building2, AlertCircle, AlertTriangle } from "lucide-react";
+import { BarChart3, Calendar, FileSpreadsheet, Download, Wallet, Building2, AlertCircle, AlertTriangle, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
-import { getDashboardStats, getRevenueReport, getOccupancyReport, getYearlySummary, getReservationsReportForExport, getCollectionReport } from "@/lib/actions/reports";
-import type { DashboardStats, RevenueReport, OccupancyReport, ReservationReport } from "@/lib/actions/reports";
+import { getDashboardStats, getOccupancyReport, getCollectionReport, getDecisionSummary } from "@/lib/actions/reports";
+import { getReservationsReportForExport } from "@/lib/actions/reports";
+import type { DashboardStats, OccupancyReport, ReservationReport } from "@/lib/actions/reports";
 import type { CollectionReportRow } from "@/lib/reports/collection";
+import type { ReportDecisionSummary } from "@/lib/reports/decision-summary";
 import { getCollectionDueLabel, getCollectionStatus } from "@/lib/reports/collection";
 import { Pagination } from "@/components/ui/pagination";
 import { DataTable } from "@/components/ui/data-table";
-import { getProperties } from "@/lib/actions/properties";
 import { exportToExcel, exportToPDF, type ReservationDetail, type PropertySummary } from "@/lib/export-utils";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { ModelDistributionCard } from "@/components/reports/model-distribution-card";
-import { PropertySummaryTable, type PropertySummaryRow } from "@/components/reports/property-summary-table";
-import { RevenueBarChart } from "@/components/reports/revenue-bar-chart";
-import { startOfMonth, endOfMonth, subMonths, format } from "date-fns";
+import { PropertySummaryTable } from "@/components/reports/property-summary-table";
+import { startOfMonth, endOfMonth, subMonths, startOfYear, format } from "date-fns";
 import { es } from "date-fns/locale/es";
+import { isReportsRangeAllowed, portfolioOccupancyDenominator } from "@/lib/reports/kpis";
 
-type YearlySummary = Awaited<ReturnType<typeof getYearlySummary>>;
-
-type QuickRange = "current_month" | "prev_month" | "last_3" | "last_6" | "all" | "custom";
+type QuickRange = "current_month" | "prev_month" | "last_3" | "last_6" | "year_to_date" | "custom";
 
 const QUICK_RANGES: { value: QuickRange; label: string }[] = [
   { value: "current_month", label: "Mes actual" },
   { value: "prev_month", label: "Mes anterior" },
   { value: "last_3", label: "Últimos 3 meses" },
   { value: "last_6", label: "Últimos 6 meses" },
-  { value: "all", label: "Todos" },
+  { value: "year_to_date", label: "Año actual" },
   { value: "custom", label: "Personalizado" },
 ];
 
@@ -48,36 +47,45 @@ function formatCLP(amount: number): string {
   return clpFormatter.format(amount);
 }
 
+/** Converts "2026-01" → "Ene 2026" using Intl.DateTimeFormat (no date-fns/tz dependency). */
+function monthKeyLabel(monthKey: string): string {
+  // Parse YYYY-MM using UTC to avoid timezone shifts
+  const [year, month] = monthKey.split("-").map(Number);
+  // month is 1-indexed; Date months are 0-indexed
+  const date = new Date(Date.UTC(year, month - 1, 1, 12, 0, 0));
+  return new Intl.DateTimeFormat("es-CL", {
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
+
 export interface ReportsClientProps {
   initialStats: DashboardStats;
-  initialRevenueData: RevenueReport[];
   initialOccupancyData: OccupancyReport[];
-  initialYearlySummary: YearlySummary;
-  initialReservationDetails: ReservationDetail[];
   initialCollectionRows: CollectionReportRow[];
   initialCollectionTotal: number;
   initialCollectionTotalPages: number;
+  initialCollectionTotals: { totalToCollect: number; totalOverdue: number; pendingInvoices: number };
   initialProperties: Property[];
   initialSession: SessionInfo;
+  initialDecisionSummary: ReportDecisionSummary | null;
 }
 
 export function ReportsClient({
   initialStats,
-  initialRevenueData,
   initialOccupancyData,
-  initialYearlySummary,
-  initialReservationDetails,
   initialCollectionRows,
   initialCollectionTotal,
   initialCollectionTotalPages,
+  initialCollectionTotals,
   initialProperties,
   initialSession,
+  initialDecisionSummary,
 }: ReportsClientProps) {
+  const [decisionSummary, setDecisionSummary] = useState<ReportDecisionSummary | null>(initialDecisionSummary);
   const [stats, setStats] = useState<DashboardStats | null>(initialStats);
-  const [revenueData, setRevenueData] = useState<RevenueReport[]>(initialRevenueData);
   const [occupancyData, setOccupancyData] = useState<OccupancyReport[]>(initialOccupancyData);
-  const [yearlySummary, setYearlySummary] = useState<YearlySummary>(initialYearlySummary);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [loading, setLoading] = useState(false);
   const [quickRange, setQuickRange] = useState<QuickRange>("current_month");
   const [customRange, setCustomRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
@@ -88,7 +96,6 @@ export function ReportsClient({
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [properties, setProperties] = useState<Property[]>(initialProperties);
   const [session, setSession] = useState<SessionInfo | null>(initialSession);
-  const [reservationDetails, setReservationDetails] = useState<ReservationDetail[]>(initialReservationDetails);
   const [exportLoading, setExportLoading] = useState(false);
   const [collectionRows, setCollectionRows] = useState<CollectionReportRow[]>(initialCollectionRows);
   const [collectionBillingType, setCollectionBillingType] = useState<"GENERAL" | "DAILY" | "MONTHLY">("GENERAL");
@@ -102,14 +109,8 @@ export function ReportsClient({
   const [collectionTotal, setCollectionTotal] = useState(initialCollectionTotal);
   const [collectionTotalPages, setCollectionTotalPages] = useState(initialCollectionTotalPages);
   const [collectionLimit, setCollectionLimit] = useState(10);
-
-  useEffect(() => {
-    const loadProperties = async () => {
-      const props = await getProperties();
-      setProperties(props);
-    };
-    loadProperties();
-  }, []);
+  // Totales de colección del servidor (conjunto completo, no paginado)
+  const [collectionTotals, setCollectionTotals] = useState(initialCollectionTotals);
 
   const effectiveDateRange = useMemo(() => {
     const now = new Date();
@@ -126,8 +127,9 @@ export function ReportsClient({
     if (quickRange === "last_6") {
       return { from: startOfMonth(subMonths(now, 5)), to: endOfMonth(now) };
     }
-    if (quickRange === "all") {
-      return { from: undefined, to: undefined };
+    if (quickRange === "year_to_date") {
+      // Año actual desde 1 enero hasta hoy
+      return { from: startOfYear(now), to: now };
     }
     if (quickRange === "custom" && customRange.from && customRange.to) {
       return { from: customRange.from, to: customRange.to };
@@ -138,23 +140,10 @@ export function ReportsClient({
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [statsData, revenue, occupancy, yearly, reservations, collection] = await Promise.all([
-        getDashboardStats(),
-        getRevenueReport({
-          months: effectiveDateRange.from ? undefined : 12,
-          year: effectiveDateRange.from ? undefined : parseInt(selectedYear),
-          startDate: effectiveDateRange.from || undefined,
-          endDate: effectiveDateRange.to || undefined,
-        }),
+      const [statsData, occupancy, collection, decision] = await Promise.all([
+        getDashboardStats({ propertyId: selectedProperty !== "all" ? selectedProperty : undefined }),
         getOccupancyReport({
           propertyId: selectedProperty !== "all" ? selectedProperty : undefined,
-          startDate: effectiveDateRange.from || undefined,
-          endDate: effectiveDateRange.to || undefined,
-        }),
-        getYearlySummary(effectiveDateRange.from ? undefined : parseInt(selectedYear)),
-        getReservationsReportForExport({
-          propertyId: selectedProperty !== "all" ? selectedProperty : undefined,
-          status: selectedStatus !== "all" ? selectedStatus : undefined,
           startDate: effectiveDateRange.from || undefined,
           endDate: effectiveDateRange.to || undefined,
         }),
@@ -168,38 +157,33 @@ export function ReportsClient({
           page: collectionPage,
           limit: collectionLimit,
         }),
+        getDecisionSummary({
+          rangeStart: effectiveDateRange.from || undefined,
+          rangeEnd: effectiveDateRange.to || undefined,
+          propertyId: selectedProperty !== "all" ? selectedProperty : undefined,
+        }),
       ]);
 
       setStats(statsData);
-      setRevenueData(revenue || []);
       setOccupancyData(occupancy || []);
-      setYearlySummary(yearly);
-      setReservationDetails((reservations || []).map((r: ReservationReport) => ({
-        id: r.id,
-        propertyName: r.propertyName,
-        clientName: r.clientName,
-        clientEmail: r.clientEmail,
-        startDate: new Date(r.startDate),
-        endDate: new Date(r.endDate),
-        totalPrice: Number(r.totalPrice),
-        status: r.status,
-        paymentStatus: r.paymentStatus,
-        billingType: r.billingType,
-        createdAt: new Date(r.createdAt),
-      })));
       if (collection && "data" in collection) {
         setCollectionRows(collection.data);
         setCollectionTotal(collection.total);
         setCollectionTotalPages(collection.totalPages);
+        // Usar totales del servidor (conjunto completo, no la página)
+        if ("totals" in collection) {
+          setCollectionTotals(collection.totals);
+        }
       } else {
         setCollectionRows(collection || []);
       }
+      setDecisionSummary(decision);
     } catch (error) {
       console.error("Error fetching reports:", error);
     } finally {
       setLoading(false);
     }
-  }, [effectiveDateRange, selectedYear, selectedProperty, selectedStatus, collectionBillingType, collectionClientId, collectionDebtStatus, collectionDueRange, collectionPage, collectionLimit]);
+  }, [effectiveDateRange, selectedProperty, selectedStatus, collectionBillingType, collectionClientId, collectionDebtStatus, collectionDueRange, collectionPage, collectionLimit]);
 
   // Trigger fetch when filters change (not on initial mount — server pre-computed data is used)
   useEffect(() => {
@@ -207,11 +191,12 @@ export function ReportsClient({
     fetchData();
   }, [fetchData]);
 
-  const maxRevenue = Math.max(...revenueData.map((r) => r.totalRevenue), 1);
+  // maxRevenue removed — bar chart and duplicate revenue card deleted (ADR-0030)
 
-  const groupedByProperty = useMemo(() => {
+  /** Pure helper: group reservation details by property for export. */
+  function computeGroupedByProperty(details: ReservationDetail[]): PropertySummary[] {
     const map = new Map<string, PropertySummary>();
-    reservationDetails.forEach((r) => {
+    details.forEach((r) => {
       if (!map.has(r.propertyName)) {
         map.set(r.propertyName, {
           propertyName: r.propertyName,
@@ -232,128 +217,18 @@ export function ReportsClient({
       else entry.pendingRevenue += r.totalPrice;
     });
     return Array.from(map.values());
-  }, [reservationDetails]);
+  }
 
-  const revenueByBillingType = useMemo(() => {
-    const daily = reservationDetails.filter((r) => r.billingType === "DAILY");
-    const monthly = reservationDetails.filter((r) => r.billingType === "MONTHLY");
-    const dailyRevenue = daily.reduce((acc, r) => acc + r.totalPrice, 0);
-    const monthlyRevenue = monthly.reduce((acc, r) => acc + r.totalPrice, 0);
-    const total = dailyRevenue + monthlyRevenue;
-    const dailyPct = total > 0 ? Math.round((dailyRevenue / total) * 100) : 0;
-    return {
-      dailyRevenue,
-      monthlyRevenue,
-      dailyCount: daily.length,
-      monthlyCount: monthly.length,
-      dailyPct,
-      monthlyPct: total > 0 ? 100 - dailyPct : 0,
-    };
-  }, [reservationDetails]);
-
-  const periodDays = useMemo(() => {
-    if (effectiveDateRange.from && effectiveDateRange.to) {
-      return Math.max(
-        Math.ceil((effectiveDateRange.to.getTime() - effectiveDateRange.from.getTime()) / (1000 * 60 * 60 * 24)) + 1,
-        1
-      );
-    }
-    if (reservationDetails.length > 0) {
-      const minStart = Math.min(...reservationDetails.map((r) => r.startDate.getTime()));
-      const maxEnd = Math.max(...reservationDetails.map((r) => r.endDate.getTime()));
-      return Math.max(Math.ceil((maxEnd - minStart) / (1000 * 60 * 60 * 24)) + 1, 1);
-    }
-    return new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
-  }, [effectiveDateRange.from, effectiveDateRange.to, reservationDetails]);
-
-  const propertySummary = useMemo<PropertySummaryRow[]>(() => {
-    const map = new Map<string, {
-      propertyName: string;
-      dailyRevenue: number;
-      monthlyRevenue: number;
-      dailyNights: number;
-      monthlyDays: number;
-      totalRevenue: number;
-    }>();
-
-    reservationDetails.forEach((r) => {
-      const nights = Math.ceil((r.endDate.getTime() - r.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-
-      if (!map.has(r.propertyName)) {
-        map.set(r.propertyName, {
-          propertyName: r.propertyName,
-          dailyRevenue: 0,
-          monthlyRevenue: 0,
-          dailyNights: 0,
-          monthlyDays: 0,
-          totalRevenue: 0,
-        });
-      }
-
-      const entry = map.get(r.propertyName)!;
-      if (r.billingType === "DAILY") {
-        entry.dailyRevenue += r.totalPrice;
-        entry.dailyNights += nights;
-      } else {
-        entry.monthlyRevenue += r.totalPrice;
-        entry.monthlyDays += nights;
-      }
-      entry.totalRevenue += r.totalPrice;
-    });
-
-    const totalRevenueSum = Array.from(map.values()).reduce((acc, e) => acc + e.totalRevenue, 0);
-    const totalProps = map.size;
-    const avgRevenue = totalProps > 0 ? totalRevenueSum / totalProps : 0;
-
-    return Array.from(map.values()).map((entry) => {
-      const hasDaily = entry.dailyRevenue > 0 || entry.dailyNights > 0;
-      const hasMonthly = entry.monthlyRevenue > 0 || entry.monthlyDays > 0;
-      const modality: "Diario" | "Mensual" | "Mixto" =
-        hasDaily && hasMonthly ? "Mixto" :
-        hasDaily ? "Diario" :
-        "Mensual";
-
-      let nightsOrDays: PropertySummaryRow["nightsOrDays"];
-      if (modality === "Mixto") {
-        const parts: string[] = [];
-        if (entry.dailyNights > 0) parts.push(`${entry.dailyNights} ${entry.dailyNights === 1 ? "Noche" : "Noches"}`);
-        if (entry.monthlyDays > 0) parts.push(`${entry.monthlyDays} ${entry.monthlyDays === 1 ? "Día" : "Días"}`);
-        nightsOrDays = { label: parts.join(" + ") || "—" };
-      } else if (modality === "Diario") {
-        const n = entry.dailyNights;
-        nightsOrDays = { nights: n, label: `${n} ${n === 1 ? "Noche" : "Noches"}` };
-      } else {
-        const d = entry.monthlyDays;
-        nightsOrDays = { days: d, label: `${d} ${d === 1 ? "Día" : "Días"}` };
-      }
-
-      const propData = properties.find((p) => p.name === entry.propertyName);
-      const units = propData?.unitsAvailable || 1;
-      const maxPossibleNights = Math.max(periodDays, 1) * Math.max(units, 1);
-      const totalOccupiedNights = entry.dailyNights + entry.monthlyDays;
-      const occupancyRate = maxPossibleNights > 0 && totalOccupiedNights > 0
-        ? Math.min(100, Math.round((totalOccupiedNights / maxPossibleNights) * 100))
-        : 0;
-
-      const performance = avgRevenue > 0
-        ? Math.round(((entry.totalRevenue / avgRevenue) - 1) * 1000) / 10
-        : 0;
-
-      return {
-        propertyName: entry.propertyName,
-        modality,
-        nightsOrDays,
-        revenue: entry.totalRevenue,
-        occupancyRate,
-        performance,
-      };
-    }).sort((a, b) => b.revenue - a.revenue);
-  }, [reservationDetails, properties, effectiveDateRange.from, effectiveDateRange.to]);
-
-  const last6Months = useMemo(
-    () => revenueData.slice(-6).map((r) => ({ month: r.month, revenue: r.totalRevenue })),
-    [revenueData]
-  );
+  // ── Billing type metrics derived from decisionSummary (ADR-0029) ──
+  // Cash share % is calculated over decisionSummary.collectedCash (total portfolio cash)
+  const billingTypeMetrics = useMemo(() => {
+    if (!decisionSummary) return null;
+    const daily = decisionSummary.byBillingType.DAILY;
+    const monthly = decisionSummary.byBillingType.MONTHLY;
+    const totalCollected = decisionSummary.collectedCash;
+    const dailyPct = totalCollected > 0 ? Math.round((daily.collectedCash / totalCollected) * 100) : 0;
+    return { daily, monthly, totalCollected, dailyPct };
+  }, [decisionSummary]);
 
   const isFreePlan = session?.plan === "FREE";
 
@@ -364,7 +239,8 @@ export function ReportsClient({
   }, [collectionRows]);
 
   const handleQuickRangeChange = (value: QuickRange) => {
-    if (isFreePlan && value !== "current_month") {
+    // Plan FREE: solo mes actual, incluyendo rango personalizado
+    if (!isReportsRangeAllowed(initialSession.plan, value)) {
       return;
     }
     setQuickRange(value);
@@ -379,6 +255,8 @@ export function ReportsClient({
       setCustomRange({ from: startOfMonth(subMonths(now, 2)), to: endOfMonth(now) });
     } else if (value === "last_6") {
       setCustomRange({ from: startOfMonth(subMonths(now, 5)), to: endOfMonth(now) });
+    } else if (value === "year_to_date") {
+      setCustomRange({ from: startOfYear(now), to: now });
     } else {
       setCustomRange({ from: undefined, to: undefined });
     }
@@ -387,7 +265,28 @@ export function ReportsClient({
   const handleExcelExport = async () => {
     setExportLoading(true);
     try {
-      exportToExcel(reservationDetails, groupedByProperty, effectiveDateRange.from ? effectiveDateRange : null);
+      // On-demand: fetch with current filters (ADR-0030 — no SSR/refresh)
+      const reservations = await getReservationsReportForExport({
+        propertyId: selectedProperty !== "all" ? selectedProperty : undefined,
+        status: selectedStatus !== "all" ? selectedStatus : undefined,
+        startDate: effectiveDateRange.from || undefined,
+        endDate: effectiveDateRange.to || undefined,
+      });
+      const details: ReservationDetail[] = (reservations || []).map((r: ReservationReport) => ({
+        id: r.id,
+        propertyName: r.propertyName,
+        clientName: r.clientName,
+        clientEmail: r.clientEmail,
+        startDate: new Date(r.startDate),
+        endDate: new Date(r.endDate),
+        totalPrice: Number(r.totalPrice),
+        status: r.status,
+        paymentStatus: r.paymentStatus,
+        billingType: r.billingType,
+        createdAt: new Date(r.createdAt),
+      }));
+      const grouped = computeGroupedByProperty(details);
+      exportToExcel(details, grouped, effectiveDateRange.from ? effectiveDateRange : null);
     } finally {
       setExportLoading(false);
     }
@@ -396,42 +295,54 @@ export function ReportsClient({
   const handlePDFExport = async () => {
     setExportLoading(true);
     try {
-      exportToPDF(reservationDetails, groupedByProperty, effectiveDateRange.from ? effectiveDateRange : null);
+      // On-demand: fetch with current filters (ADR-0030 — no SSR/refresh)
+      const reservations = await getReservationsReportForExport({
+        propertyId: selectedProperty !== "all" ? selectedProperty : undefined,
+        status: selectedStatus !== "all" ? selectedStatus : undefined,
+        startDate: effectiveDateRange.from || undefined,
+        endDate: effectiveDateRange.to || undefined,
+      });
+      const details: ReservationDetail[] = (reservations || []).map((r: ReservationReport) => ({
+        id: r.id,
+        propertyName: r.propertyName,
+        clientName: r.clientName,
+        clientEmail: r.clientEmail,
+        startDate: new Date(r.startDate),
+        endDate: new Date(r.endDate),
+        totalPrice: Number(r.totalPrice),
+        status: r.status,
+        paymentStatus: r.paymentStatus,
+        billingType: r.billingType,
+        createdAt: new Date(r.createdAt),
+      }));
+      const grouped = computeGroupedByProperty(details);
+      exportToPDF(details, grouped, effectiveDateRange.from ? effectiveDateRange : null);
     } finally {
       setExportLoading(false);
     }
   };
 
-  const totalRevenue = effectiveDateRange.from
-    ? revenueData.reduce((acc, r) => acc + r.totalRevenue, 0)
-    : stats?.monthlyRevenue ?? 0;
+  // KPI Ingresos cobrados: use decisionSummary.collectedCash (cash collected in range)
+  const totalRevenue = decisionSummary?.collectedCash ?? 0;
 
-  const totalNights = occupancyData.reduce((acc, p) => acc + p.totalNights, 0);
+  // KPI Ocupación: from decisionSummary (ADR-0029, date-only, full scope)
+  // Fallback to legacy occupancyData computation if decisionSummary not yet loaded.
+  const totalNights = decisionSummary?.occupiedNightUnits
+    ?? occupancyData.reduce((acc, p) => acc + p.totalNights, 0);
+  const maxPossibleNights = decisionSummary?.capacityNightUnits
+    ?? (portfolioOccupancyDenominator(
+      initialProperties,
+      selectedProperty !== "all" ? selectedProperty : undefined,
+    ) * 31);
+  const occupancyRate = decisionSummary?.occupancyRate
+    ?? (maxPossibleNights > 0 && totalNights > 0
+      ? Math.min(100, Math.round((totalNights / maxPossibleNights) * 100))
+      : 0);
 
-  const totalUnits = properties.reduce((acc, p) => acc + (p.unitsAvailable || 1), 0);
-  const maxPossibleNights = Math.max(periodDays, 1) * Math.max(totalUnits, 1);
-  const occupancyRate = maxPossibleNights > 0 && totalNights > 0
-    ? Math.min(100, Math.round((totalNights / maxPossibleNights) * 100))
-    : 0;
-
-  const totalToCollect = collectionRows.reduce((acc, r) => acc + r.pending + r.extrasPending, 0);
-  const pendingInvoices = collectionRows.filter((r) => r.pending + r.extrasPending > 0).length;
-  const totalOverdue = collectionRows.reduce((acc, r) => acc + r.overdue, 0);
-
-  const revenueTrend = useMemo(() => {
-    if (!effectiveDateRange.from && revenueData.length >= 2) {
-      const last = revenueData[revenueData.length - 1];
-      const prev = revenueData[revenueData.length - 2];
-      if (prev && prev.totalRevenue > 0) {
-        const pct = ((last.totalRevenue - prev.totalRevenue) / prev.totalRevenue) * 100;
-        return {
-          direction: pct >= 0 ? "up" as const : "down" as const,
-          label: `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% vs mes anterior`,
-        };
-      }
-    }
-    return undefined;
-  }, [effectiveDateRange.from, revenueData]);
+  // Usar totales del servidor (conjunto completo, no paginado) para los KPIs de cobranza
+  const totalToCollect = collectionTotals.totalToCollect;
+  const pendingInvoices = collectionTotals.pendingInvoices;
+  const totalOverdue = collectionTotals.totalOverdue;
 
   const occupancySublabel = useMemo(() => {
     if (occupancyRate === 0) return "Sin datos de ocupación";
@@ -441,9 +352,15 @@ export function ReportsClient({
     return "Baja demanda";
   }, [occupancyRate]);
 
-  const rangeLabel = effectiveDateRange.from && effectiveDateRange.to
-    ? `${format(effectiveDateRange.from, "dd MMM, yyyy", { locale: es })} - ${format(effectiveDateRange.to, "dd MMM, yyyy", { locale: es })}`
-    : "Mes actual";
+  const rangeLabel = (() => {
+    if (effectiveDateRange.from && effectiveDateRange.to) {
+      return `${format(effectiveDateRange.from, "dd MMM, yyyy", { locale: es })} - ${format(effectiveDateRange.to, "dd MMM, yyyy", { locale: es })}`;
+    }
+    if (quickRange === "year_to_date") {
+      return `${format(startOfYear(new Date()), "dd MMM, yyyy", { locale: es })} - ${format(new Date(), "dd MMM, yyyy", { locale: es })}`;
+    }
+    return "Mes actual";
+  })();
 
   const formattedRevenue = typeof totalRevenue === "number" && !isNaN(totalRevenue)
     ? `$${totalRevenue.toLocaleString("CLP")}`
@@ -461,25 +378,18 @@ export function ReportsClient({
           <p className="text-sm text-muted-foreground">Análisis estratégico y estado de cobranza</p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Date range pill */}
-          <div className="hidden lg:flex items-center bg-card border border-border rounded px-3 py-1.5 gap-2 cursor-pointer hover:bg-muted transition-colors">
+          {/* Date range pill — label informativo, no clickeable */}
+          <div className="hidden lg:flex items-center bg-card border border-border rounded px-3 py-1.5 gap-2">
             <Calendar className="size-4 text-muted-foreground" />
             <span className="text-xs font-medium text-foreground">{rangeLabel}</span>
-            <ChevronDown className="size-4 text-muted-foreground" />
           </div>
-          {/* Filtros Avanzados placeholder */}
-          <Button variant="outline" size="sm" onClick={() => {}}>
-            {/* TODO: filtros avanzados en panel lateral — fase posterior */}
-            <SlidersHorizontal className="size-4 mr-1" />
-            Filtros Avanzados
-          </Button>
           {/* Excel (outline, izquierda del PDF) */}
-          <Button variant="outline" size="sm" onClick={handleExcelExport} disabled={exportLoading || reservationDetails.length === 0}>
+          <Button variant="outline" size="sm" onClick={handleExcelExport} disabled={exportLoading}>
             <FileSpreadsheet className="size-4 mr-1" />
             Excel
           </Button>
           {/* Exportar PDF (primary) */}
-          <Button size="sm" onClick={handlePDFExport} disabled={exportLoading || reservationDetails.length === 0}>
+          <Button size="sm" onClick={handlePDFExport} disabled={exportLoading}>
             <Download className="size-4 mr-1" />
             Exportar PDF
           </Button>
@@ -501,11 +411,11 @@ export function ReportsClient({
                     variant={quickRange === range.value ? "default" : "outline"}
                     size="sm"
                     onClick={() => handleQuickRangeChange(range.value)}
-                    disabled={isFreePlan && range.value !== "current_month" && range.value !== "custom"}
+                    disabled={!isReportsRangeAllowed(initialSession.plan, range.value)}
                     className="text-xs"
                   >
                     {range.label}
-                    {isFreePlan && range.value !== "current_month" && range.value !== "custom" && (
+                    {!isReportsRangeAllowed(initialSession.plan, range.value) && (
                       <span className="ml-1 opacity-70">🔒</span>
                     )}
                   </Button>
@@ -548,7 +458,7 @@ export function ReportsClient({
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-muted-foreground">Estado reserva</label>
+              <label className="text-xs text-muted-foreground">Estado de Reservas (detalle/exportación)</label>
               <Select value={selectedStatus} onValueChange={(v) => v && setSelectedStatus(v)}>
                 <SelectTrigger className="w-full sm:w-40">
                   <SelectValue placeholder="Todos" />
@@ -561,20 +471,7 @@ export function ReportsClient({
                   <SelectItem value="CANCELLED">Cancelada</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-muted-foreground">Año</label>
-              <Select value={selectedYear} onValueChange={(v) => setSelectedYear(v || new Date().getFullYear().toString())}>
-                <SelectTrigger className="w-full sm:w-32">
-                  <SelectValue placeholder="Año" />
-                </SelectTrigger>
-                <SelectContent>
-                  {[2024, 2025, 2026].map((year) => (
-                    <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <p className="text-[10px] text-muted-foreground">No modifica el resumen financiero-operativo.</p>
             </div>
           </div>
         </CardContent>
@@ -589,18 +486,13 @@ export function ReportsClient({
           {/* ─── 4 KPIs Ejecutivos ─── */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard
-              label="Ingresos Totales"
+              label="Ingresos cobrados"
               value={formattedRevenue}
               icon={Wallet}
               tone="success"
-              indicator={
-                revenueTrend
-                  ? { text: revenueTrend.label, variant: "positive" }
-                  : undefined
-              }
             />
             <KpiCard
-              label="Ocupación Promedio"
+              label={selectedProperty === "all" ? "Ocupación del portafolio" : "Ocupación de la propiedad"}
               value={formattedOccupancy}
               icon={Building2}
               tone="default"
@@ -624,73 +516,85 @@ export function ReportsClient({
             />
           </div>
 
-          {reservationDetails.length > 0 &&
-            revenueByBillingType.dailyRevenue + revenueByBillingType.monthlyRevenue > 0 && (
+          {decisionSummary && billingTypeMetrics && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <ModelDistributionCard
                   title="Modelo de Negocio: Diario"
                   description="Ingresos por estancias cortas"
-                  amount={revenueByBillingType.dailyRevenue}
-                  percentage={revenueByBillingType.dailyPct}
-                  reservationCount={revenueByBillingType.dailyCount}
+                  collectedCash={billingTypeMetrics.daily.collectedCash}
+                  cashSharePercentage={billingTypeMetrics.dailyPct}
+                  reservationCount={billingTypeMetrics.daily.reservationCount}
+                  outstandingBalance={billingTypeMetrics.daily.outstandingBalance}
+                  occupancyRate={billingTypeMetrics.daily.occupancyRate}
+                  occupiedNightUnits={billingTypeMetrics.daily.occupiedNightUnits}
+                  capacityNightUnits={billingTypeMetrics.daily.capacityNightUnits}
+                  cancelledCash={billingTypeMetrics.daily.collectedCashFromCancelledReservations}
                   variant="primary"
                 />
                 <ModelDistributionCard
                   title="Modelo de Negocio: Mensual"
                   description="Ingresos por contratos de larga duración"
-                  amount={revenueByBillingType.monthlyRevenue}
-                  percentage={revenueByBillingType.monthlyPct}
-                  reservationCount={revenueByBillingType.monthlyCount}
+                  collectedCash={billingTypeMetrics.monthly.collectedCash}
+                  cashSharePercentage={100 - billingTypeMetrics.dailyPct}
+                  reservationCount={billingTypeMetrics.monthly.reservationCount}
+                  outstandingBalance={billingTypeMetrics.monthly.outstandingBalance}
+                  occupancyRate={billingTypeMetrics.monthly.occupancyRate}
+                  occupiedNightUnits={billingTypeMetrics.monthly.occupiedNightUnits}
+                  capacityNightUnits={billingTypeMetrics.monthly.capacityNightUnits}
+                  cancelledCash={billingTypeMetrics.monthly.collectedCashFromCancelledReservations}
                   variant="secondary"
                 />
               </div>
             )}
 
-          {propertySummary.length > 0 && (
-            <PropertySummaryTable rows={propertySummary} />
-          )}
+          {/* Nota: la ocupación incluye Reservas internas. Los Bloqueos de Canal Externo no están incluidos. */}
+          <div className="flex items-center gap-2">
+            <p className="text-[10px] text-muted-foreground italic">
+              La ocupación incluye Reservas internas. Los Bloqueos de Canal Externo no están incluidos.
+            </p>
+          </div>
 
-          {last6Months.length > 0 && (
-            <RevenueBarChart data={last6Months} />
+          <PropertySummaryTable rows={decisionSummary?.byProperty ?? []} />
+
+          {decisionSummary && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="text-primary size-5" />
+                <h2 className="text-xs font-bold text-foreground uppercase tracking-wider">
+                  Ingresos cobrados por mes
+                </h2>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Cash de arriendo en el rango seleccionado, agrupado por mes calendario.
+              </p>
+              <DataTable
+                headers={[
+                  "Mes",
+                  { label: "Cobrado de arriendo", align: "right" },
+                  { label: "Pagos", align: "right" },
+                  { label: "Canceladas", align: "right" },
+                ]}
+                emptyState={<p className="text-sm text-muted-foreground">Sin datos de cash en el rango</p>}
+              >
+                {(decisionSummary?.cash?.byMonth ?? []).map((m) => (
+                  <tr key={m.monthKey} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                    <td className="px-4 py-3 text-foreground">{monthKeyLabel(m.monthKey)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-foreground font-medium">
+                      {formatCLP(m.collectedCash)}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
+                      {m.paymentCount}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
+                      {m.cancelledCash > 0 ? formatCLP(m.cancelledCash) : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </DataTable>
+            </div>
           )}
 
           <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5" />
-                  Ingresos por Mes
-                </CardTitle>
-                <CardDescription>
-                  Evolución de ingresos {effectiveDateRange.from ? `(${format(effectiveDateRange.from, "PP", { locale: es })} - ${format(effectiveDateRange.to!, "PP", { locale: es })})` : "últimos 12 meses"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {revenueData.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">Sin datos</p>
-                ) : (
-                  <div className="space-y-3">
-                    {revenueData.map((item, index) => (
-                      <div key={index} className="flex items-center gap-3">
-                        <span className="w-20 text-sm text-muted-foreground">{item.month}</span>
-                        <div className="flex-1 h-6 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary rounded-full transition-all"
-                            style={{ width: `${(item.totalRevenue / maxRevenue) * 100}%` }}
-                          />
-                        </div>
-                        <span className="w-28 text-right text-sm font-medium">
-                          {item.totalRevenue.toLocaleString("CLP")}
-                        </span>
-                        <Badge variant="secondary" className="w-16 text-center">
-                          {item.reservationCount}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
 
             <Card>
               <CardHeader>
@@ -864,26 +768,26 @@ export function ReportsClient({
             />
           )}
 
-          {yearlySummary && (
+          {decisionSummary?.cash?.annual && (
             <Card>
               <CardHeader>
-                <CardTitle>Resumen Anual {selectedYear}</CardTitle>
+                <CardTitle>Resumen Anual {decisionSummary.cash.annual.year}</CardTitle>
                 <CardDescription>
-                  Total de {yearlySummary.totalPayments} pagos registrados
+                  Total de {decisionSummary.cash.annual.paymentCount} pagos registrados
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-6 grid-cols-1 sm:grid-cols-3">
                   <div className="text-center">
                     <p className="text-3xl font-bold text-primary">
-                      {yearlySummary.totalRevenue.toLocaleString("CLP")}
+                      {decisionSummary.cash.annual.totalCash.toLocaleString("CLP")}
                     </p>
                     <p className="text-sm text-muted-foreground">ingresos totales</p>
                   </div>
                   <div>
                     <p className="text-sm font-medium mb-2">Por método de pago</p>
                     <div className="space-y-1">
-                      {Object.entries(yearlySummary.byMethod).map(([method, amount]) => (
+                      {Object.entries(decisionSummary.cash.annual.byMethod).map(([method, amount]) => (
                         <div key={method} className="flex justify-between text-sm">
                           <span className="text-muted-foreground">{method}</span>
                           <span className="font-medium">{Number(amount).toLocaleString("CLP")}</span>
@@ -894,17 +798,20 @@ export function ReportsClient({
                   <div>
                     <p className="text-sm font-medium mb-2">Distribución mensual</p>
                     <div className="flex items-end gap-1 h-20">
-                      {yearlySummary.byMonth.map((amount: number, index: number) => (
-                        <div
-                          key={index}
-                          className="flex-1 bg-primary rounded-t"
-                          style={{
-                            height: `${maxRevenue > 0 ? (amount / maxRevenue) * 100 : 0}%`,
-                            minHeight: amount > 0 ? "4px" : "0",
-                          }}
-                          title={`${["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"][index]}: ${amount.toLocaleString("CLP")}`}
-                        />
-                      ))}
+                      {decisionSummary.cash.annual.byMonth.map((monthEntry, index) => {
+                        const maxMonthCash = Math.max(...decisionSummary.cash.annual.byMonth.map(m => m.collectedCash), 1);
+                        return (
+                          <div
+                            key={index}
+                            className="flex-1 bg-primary rounded-t"
+                            style={{
+                              height: `${(monthEntry.collectedCash / maxMonthCash) * 100}%`,
+                              minHeight: monthEntry.collectedCash > 0 ? "4px" : "0",
+                            }}
+                            title={`${["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"][index]}: ${monthEntry.collectedCash.toLocaleString("CLP")}`}
+                          />
+                        );
+                      })}
                     </div>
                     <div className="flex justify-between mt-1 text-xs text-muted-foreground">
                       <span>Ene</span>

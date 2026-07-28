@@ -128,6 +128,22 @@ El webhook intenta matchear el pago en este orden:
 - **Por propiedad:** reservas en rango, con totales (ingreso, pagado, pendiente)
 - **Resumen general:** todas las propiedades, agrupadas
 
+### KPIs de Reportes (Fase 1 implementada)
+
+**Ingresos cobrados:** suma de `Payment` con `status: COMPLETED`, `paymentType: RESERVATION`, `deletedAt: null` y `paidAt` en el rango. Filtra por `propertyId` cuando se selecciona una propiedad. Decisión: usa `paidAt` (cash basis), no `createdAt`.
+
+**Series de ingresos (ADR-0030):** la serie mensual `cash.byMonth` y anual `cash.annual` en `ReportDecisionSummary` se calculan con el mismo predicate de cash basis. `paymentCount` es el conteo de pagos eligible (no `reservationCount`). La reconciliación garantiza `totalCash === sum(byMonth.collectedCash) === sum(byMethod)`.
+
+**Ocupación del portafolio:** calcula night-units con intersección inclusiva del rango seleccionado. Multiplica las noches intersectadas por `unitsBooked`. Excluye `CANCELLED` y, por ahora, Bloqueos de Canal Externo. Divide por `(días del rango) × unitsAvailable`.
+
+**Total por cobrar / Cobros vencidos:** agregan el conjunto COMPLETO filtrado, nunca la página. Se computan en `getCollectionReport` y se retornan en `CollectionReportTotals`. La UI los usa directamente del servidor.
+
+**Filtro `propertyId`:** afecta los 4 KPIs en `/reports` y la serie de ingresos anual (`getYearlySummary`). `status` de reserva es un filtro operativo y no afecta los KPIs financieros.
+
+**Plan FREE:** en `/reports`, solo el rango rápido `current_month` está habilitado. Los demás (`prev_month`, `last_3`, `last_6`, `year_to_date`, `custom`) están deshabilitados tanto en la UI (`disabled`) como en el handler del cliente.
+
+**Exportación on-demand (ADR-0030):** `getReservationsReportForExport` se invoca únicamente desde `handleExcelExport` y `handlePDFExport` con los filtros efectivos del momento. Ya no se llama en SSR ni en cada refresh de filtros — las exportaciones se ejecutan bajo demanda cuando el usuario las dispara, sin afectar el tiempo de carga inicial.
+
 ## Calendario
 
 - Vista por defecto: **Timeline** (no grid). El toggle grid↔timeline está en el header.
@@ -347,7 +363,9 @@ Grid de 7 columnas en todas las resoluciones. Celdas: `min-h-12 sm:min-h-20 lg:m
 - ADR-0018: `docs/adr/0018-external-calendar-sync.md` — iCal import + semántica de fuente no financiera
 - ADR-0019: `docs/adr/0019-ical-export-feed.md` — iCal export por canal con anti-eco
 - ADR-0020: `docs/adr/0020-business-dates-timezone.md` — fechas de negocio en `America/Santiago`
-- ADR-0025: `docs/adr/0025-reservations-domain-seam.md` — `src/lib/reservations/` como seam canónico de lógica de dominio de Reservation (transiciones de estado, confirmación, validaciones)
+  - ADR-0025: `docs/adr/0025-reservations-domain-seam.md` — `src/lib/reservations/` como seam canónico de lógica de dominio de Reservation (transiciones de estado, confirmación, validaciones)
+  - ADR-0028: `docs/adr/0028-reports-kpi-semantics.md` — decisiones semánticas de KPIs financieros (Ingresos cobrados, Ocupación, Collection totals, propertyId scope, FREE plan constraints)
+  - ADR-0030: `docs/adr/0030-reports-financial-series-source-of-truth.md` — serie de ingresos cash-basis source of truth: `revenue-series.ts` como seam puro, `buildDecisionSummary` como adapter, `getYearlySummary` reescrito, UI simplificada, exportación on-demand
 
 ## Seams de dominio en `src/lib/`
 
@@ -357,6 +375,8 @@ Además de las acciones en `src/lib/actions/`, los siguientes módulos puros enc
 - **`lib/reservations/state-machine.ts`** — `canTransition({from, to, completedReservationPayments})`. Tabla de transiciones de `Reservation.status` codificada (4×4); fuente autoritativa para validar updates.
 - **`lib/payments/calculations.ts`** — `getReservationPaidAmount(payments)`, `getReservationPendingAmount(payments, totalPrice)`. Lógica pura sobre `Payment[]` (sin DB), opera sobre shape `PaymentLike`.
 - **`lib/payments/monthly.ts`** — `generateMonthlyPayments(startDate, months, monthlyPrice, unitsBooked)`. Genera inputs `Payment` para reservas `MONTHLY`. **Decisión de dominio** (per ADR-0012): `dueDate` = día 1 del **mismo mes** que `startDate`, no del mes siguiente. Ejemplo canónico: `Sep 1 → Sep 1, Oct 1, Nov 1`.
+- **`lib/reports/revenue-series.ts`** (ADR-0030) — Seam puro de series de ingresos cash-basis. Funciones: `isEligibleCashPayment` (predicate), `buildMonthlyCollectedCash` (serie mensual), `buildAnnualCollectedCash` (serie anual con reconciliación `totalCash === sum(byMonth) === sum(byMethod)`). Tipos: `CashPaymentInput`, `MonthlyCollectedCash`, `AnnualCollectedCash`. `monthKey` usa `America/Santiago`. `cancelledCash` es subtotal dentro de `collectedCash` (pagos de reservas CANCELLED incluidos).
+- **`lib/reports/decision-summary.ts`** (ADR-0029) — Módulo puro `buildDecisionSummary` que integra `revenue-series.ts` para el campo `cash` en `ReportDecisionSummary`. Ver ADR-0029 para decisiones de semántica (cash, outstanding, occupancy, billing type).
 - **`lib/payments/queries.ts`** (Tier 2 #7) — Seam canónico de queries Prisma para `Payment`. 11 helpers:
   - Lookup: `getPaymentById`, `getPaymentByMercadoPagoId`
   - Por reserva: `getAllPaymentsForReservation`, `getActivePaymentsForReservation`

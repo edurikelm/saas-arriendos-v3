@@ -4,12 +4,16 @@ import { prisma } from "@/lib/db/prisma";
 import type { Prisma } from "@prisma/client";
 import { getSession } from "@/lib/auth/session";
 import { startOfMonth, endOfMonth, format, startOfYear, endOfYear } from "date-fns";
+import { BUSINESS_TIME_ZONE } from "@/lib/domain/timezone";
 import {
   buildCollectionReportRows,
   type CollectionDebtStatusFilter,
   type CollectionBillingFilter,
   type CollectionReportRow,
 } from "@/lib/reports/collection";
+import { type ReportDecisionSummary } from "@/lib/reports/decision-summary";
+import { buildAnnualCollectedCash, type CashPaymentInput } from "@/lib/reports/revenue-series";
+import { sumCollectionTotals } from "@/lib/reports/kpis";
 import type { PaginatedResponse } from "@/types/pagination";
 import {
   sumCompletedPaymentsForOwner,
@@ -28,6 +32,7 @@ export interface OccupancyReport {
   totalReservations: number;
   totalNights: number;
   totalRevenue: number;
+  unitsAvailable: number;
 }
 
 export interface DashboardStats {
@@ -52,25 +57,29 @@ export interface ReservationReport {
   createdAt: Date;
 }
 
-export async function getDashboardStats() {
+export async function getDashboardStats(options?: { propertyId?: string }) {
   const session = await getSession();
   if (!session) return null;
 
   const now = new Date();
   const monthStart = startOfMonth(now);
   const monthEnd = endOfMonth(now);
+  const { propertyId } = options ?? {};
+
+  const propertyFilter = { userId: session.userId, ...(propertyId ? { id: propertyId } : {}) };
 
   const [properties, clients, activeReservations, monthlyRevenue, pendingPayments] = await Promise.all([
-    prisma.property.count({ where: { userId: session.userId } }),
+    prisma.property.count({ where: propertyFilter }),
     prisma.reservationClient.count({ where: { userId: session.userId } }),
     prisma.reservation.count({
       where: {
         userId: session.userId,
+        ...(propertyId ? { propertyId } : {}),
         status: { in: ["PENDING", "CONFIRMED"] },
         endDate: { gte: now },
       },
     }),
-    sumCompletedPaymentsForOwner(session.userId, { from: monthStart, to: monthEnd }),
+    sumCompletedPaymentsForOwner(session.userId, { from: monthStart, to: monthEnd, propertyId }),
     sumPendingPaymentsForOwner(session.userId),
   ]);
 
@@ -83,22 +92,29 @@ export async function getDashboardStats() {
   };
 }
 
+/**
+ * @deprecated Use getDecisionSummary + decisionSummary.cash.byMonth instead (ADR-0030).
+ *             This adapter exists for backward compat only. Not called from UI.
+ */
 export async function getRevenueReport(options?: {
   months?: number;
   year?: number;
   startDate?: Date;
   endDate?: Date;
+  propertyId?: string;
 }) {
   const session = await getSession();
   if (!session) return [];
 
-  const { startDate, endDate } = options || {};
+  const { startDate, endDate, propertyId } = options || {};
 
   if (startDate && endDate) {
     const payments = await prisma.payment.findMany({
       where: {
-        reservation: { userId: session.userId },
+        reservation: { userId: session.userId, ...(propertyId ? { propertyId } : {}) },
         status: "COMPLETED",
+        paymentType: "RESERVATION",
+        deletedAt: null,
         paidAt: { gte: startDate, lte: endDate },
       },
       select: {
@@ -132,11 +148,13 @@ export async function getRevenueReport(options?: {
   const yearEnd = endOfYear(new Date(year, 0, 1));
 
   // H1 perf fix: single query, aggregated by month in JS.
-  // Migrated to paidAt (cash basis) from createdAt — aligns with getYearlySummary and sumCompletedPaymentsForOwner.
+  // Uses paidAt (cash basis) + paymentType: RESERVATION + deletedAt: null.
   const payments = await prisma.payment.findMany({
     where: {
-      reservation: { userId: session.userId },
+      reservation: { userId: session.userId, ...(propertyId ? { propertyId } : {}) },
       status: "COMPLETED",
+      paymentType: "RESERVATION",
+      deletedAt: null,
       paidAt: { gte: yearStart, lte: yearEnd },
     },
     select: {
@@ -188,12 +206,11 @@ export async function getOccupancyReport(options?: {
     where.propertyId = options.propertyId;
   }
 
-  if (options?.startDate) {
-    where.startDate = { gte: options.startDate };
-  }
-
-  if (options?.endDate) {
-    where.endDate = { lte: options.endDate };
+  // Intersección: reserva que se solapa con el rango
+  // startDate <= rangoEnd AND endDate >= rangoStart
+  if (options?.startDate && options?.endDate) {
+    where.startDate = { lte: options.endDate };
+    where.endDate = { gte: options.startDate };
   }
 
   const reservations = await prisma.reservation.findMany({
@@ -203,109 +220,150 @@ export async function getOccupancyReport(options?: {
       propertyId: true,
       startDate: true,
       endDate: true,
+      unitsBooked: true,
       totalPrice: true,
       status: true,
       property: {
-        select: { name: true },
+        select: { name: true, unitsAvailable: true },
       },
     },
     orderBy: { startDate: "asc" },
   });
 
+  const { clipNightsToRange } = await import("@/lib/reports/kpis");
+
   const propertyMap = new Map<string, {
     propertyId: string;
     propertyName: string;
     totalReservations: number;
-    totalNights: number;
+    totalNightUnits: number;
     totalRevenue: number;
+    unitsAvailable: number;
   }>();
 
+  const rangeStart = options?.startDate;
+  const rangeEnd = options?.endDate;
+
   reservations.forEach((res) => {
-    const nights = Math.ceil(
-      (new Date(res.endDate).getTime() - new Date(res.startDate).getTime()) / (1000 * 60 * 60 * 24)
-    ) + 1;
+    // Usar intersección inclusiva con el rango, multiplicar por unitsBooked
+    let nightUnits: number;
+    if (rangeStart && rangeEnd) {
+      nightUnits = clipNightsToRange(res.startDate, res.endDate, rangeStart, rangeEnd) * (res.unitsBooked ?? 1);
+    } else {
+      nightUnits = (
+        Math.ceil(
+          (new Date(res.endDate).getTime() - new Date(res.startDate).getTime()) / (1000 * 60 * 60 * 24)
+        ) + 1
+      ) * (res.unitsBooked ?? 1);
+    }
 
     if (!propertyMap.has(res.propertyId)) {
       propertyMap.set(res.propertyId, {
         propertyId: res.propertyId,
         propertyName: res.property.name,
         totalReservations: 0,
-        totalNights: 0,
+        totalNightUnits: 0,
         totalRevenue: 0,
+        unitsAvailable: res.property.unitsAvailable ?? 1,
       });
     }
 
     const entry = propertyMap.get(res.propertyId)!;
     entry.totalReservations += 1;
-    entry.totalNights += nights;
+    entry.totalNightUnits += nightUnits;
     entry.totalRevenue += Number(res.totalPrice);
   });
 
-  return Array.from(propertyMap.values());
+  return Array.from(propertyMap.values()).map((entry) => ({
+    propertyId: entry.propertyId,
+    propertyName: entry.propertyName,
+    totalReservations: entry.totalReservations,
+    totalNights: entry.totalNightUnits,
+    totalRevenue: entry.totalRevenue,
+    unitsAvailable: entry.unitsAvailable,
+  }));
 }
 
-export async function getYearlySummary(year?: number) {
+export interface YearlySummaryFilters {
+  year?: number;
+  /** Filter payments to a specific property (via reservation.propertyId). */
+  propertyId?: string;
+}
+
+/**
+ * Returns annual cash-basis revenue using the buildAnnualCollectedCash seam.
+ *
+ * Supports two call styles for backward compat:
+ *   getYearlySummary(2026)          — legacy (year as positional arg)
+ *   getYearlySummary({ year: 2026, propertyId: "prop-1" }) — new filters
+ *
+ * Predicate: COMPLETED, paymentType RESERVATION, deletedAt null,
+ * paidAt in [year-01-01, year-12-31], reservation.userId = session.userId,
+ * optionally filtered by reservation.propertyId.
+ *
+ * Reconciliation: totalCash === sum(byMonth.collectedCash) === sum(byMethod)
+ *
+ * @see ADR-0030
+ */
+export async function getYearlySummary(yearOrFilters?: number | YearlySummaryFilters) {
   const session = await getSession();
   if (!session) return null;
 
-  const targetYear = year || new Date().getFullYear();
-  const yearStart = startOfYear(new Date(targetYear, 0, 1));
-  const yearEnd = endOfYear(new Date(targetYear, 11, 31));
+  // Support legacy positional year: getYearlySummary(2026)
+  const filters: YearlySummaryFilters =
+    typeof yearOrFilters === "number" ? { year: yearOrFilters } : (yearOrFilters ?? {});
 
-  // H4 perf fix: replaced findMany + JS aggregation with parallel DB queries.
-  // NOTE: migrated to paidAt (cash basis) from createdAt — aligns with sumCompletedPaymentsForOwner
-  const [totalRevenue, byMethodRows, byMonthRows] = await Promise.all([
-    sumCompletedPaymentsForOwner(session.userId, { from: yearStart, to: yearEnd }),
-    // byMethod: groupBy with _sum.amount (4 rows max: MERCADO_PAGO, CASH, TRANSFER, future methods)
-    prisma.payment.groupBy({
-      by: ["method"],
-      where: {
-        reservation: { userId: session.userId },
-        status: "COMPLETED",
-        paidAt: { gte: yearStart, lte: yearEnd },
-      },
-      _sum: { amount: true },
-      _count: { _all: true },
-    }),
-    // byMonth: raw SQL with EXTRACT(MONTH) — max 12 rows
-    prisma.$queryRaw<Array<{ month: number | string; total: string | number; count: bigint | number }>>`
-      SELECT
-        EXTRACT(MONTH FROM "paidAt")::int AS month,
-        SUM("amount") AS total,
-        COUNT(*)::int AS count
-      FROM "Payment"
-      WHERE "status" = 'COMPLETED'
-        AND "paidAt" >= ${yearStart}
-        AND "paidAt" <= ${yearEnd}
-        AND "reservationId" IN (
-          SELECT "id" FROM "Reservation" WHERE "userId" = ${session.userId}
-        )
-      GROUP BY EXTRACT(MONTH FROM "paidAt")
-    `,
-  ]);
+  const year = filters.year ?? new Date().getFullYear();
+  const yearStart = startOfYear(new Date(year, 0, 1));
+  const yearEnd = endOfYear(new Date(year, 11, 31, 23, 59, 59, 999));
 
-  // Combine byMethod rows into Record<string, number>
-  const byMethod: Record<string, number> = {};
-  let totalPayments = 0;
-  for (const row of byMethodRows) {
-    byMethod[row.method] = Number(row._sum.amount);
-    totalPayments += row._count._all;
-  }
-
-  // Combine byMonth rows into 12-element array (zero-fill for months without data)
-  const byMonth: number[] = Array(12).fill(0);
-  for (const row of byMonthRows) {
-    const monthIndex = Number(row.month) - 1; // EXTRACT returns 1-12
-    byMonth[monthIndex] = Number(row.total);
-  }
-
-  return {
-    year: targetYear,
-    totalRevenue,
-    totalPayments,
-    byMonth,
-    byMethod,
+  // Single read: all COMPLETED RESERVATION payments with paidAt in year.
+  // Join to reservation to filter by userId (+ optional propertyId)
+  // and to get reservation.status for cancelledPaymentIds.
+  const reservationFilter: Prisma.ReservationWhereInput = {
+    userId: session.userId,
+    ...(filters.propertyId ? { id: filters.propertyId } : {}),
   };
+
+  const payments = await prisma.payment.findMany({
+    where: {
+      status: "COMPLETED",
+      paymentType: "RESERVATION",
+      deletedAt: null,
+      paidAt: { gte: yearStart, lte: yearEnd },
+      reservation: reservationFilter,
+    },
+    select: {
+      id: true,
+      amount: true,
+      method: true,
+      paidAt: true,
+      reservation: {
+        select: { id: true, status: true, propertyId: true },
+      },
+    },
+  });
+
+  // Build cancelledPaymentIds set — payments whose reservation is CANCELLED
+  const cancelledPaymentIds = new Set<string>();
+  for (const p of payments) {
+    if (p.reservation.status === "CANCELLED") {
+      cancelledPaymentIds.add(p.id);
+    }
+  }
+
+  // Map to CashPaymentInput for the seam
+  const cashPayments: CashPaymentInput[] = payments.map((p) => ({
+    id: p.id,
+    amount: Number(p.amount),
+    status: "COMPLETED" as const,
+    paymentType: "RESERVATION" as const,
+    method: (p.method ?? "CASH") as CashPaymentInput["method"],
+    paidAt: p.paidAt,
+    deletedAt: null,
+  }));
+
+  return buildAnnualCollectedCash(cashPayments, year, BUSINESS_TIME_ZONE, cancelledPaymentIds);
 }
 
 export async function getReservationsReportForExport(options?: {
@@ -477,7 +535,16 @@ export interface CollectionReportFilters {
   limit?: number;
 }
 
-export async function getCollectionReport(filters?: CollectionReportFilters): Promise<PaginatedResponse<CollectionReportRow> | []> {
+export interface CollectionReportTotals {
+  totalToCollect: number;
+  totalOverdue: number;
+  pendingInvoices: number;
+}
+
+export async function getCollectionReport(filters?: CollectionReportFilters): Promise<
+  | (PaginatedResponse<CollectionReportRow> & { totals: CollectionReportTotals })
+  | []
+> {
   const session = await getSession();
   if (!session) return [];
 
@@ -556,5 +623,133 @@ export async function getCollectionReport(filters?: CollectionReportFilters): Pr
   const skip = (page - 1) * limit;
   const data = rows.slice(skip, skip + limit);
 
-  return { data, total, page, totalPages };
+  // Computar totales sobre el CONJUNTO COMPLETO (no la página) para los KPIs
+  const totals = sumCollectionTotals(rows);
+
+  return { data, total, page, totalPages, totals };
+}
+
+// ─── Decision Summary ───────────────────────────────────────────────────────────
+
+export interface DecisionSummaryFilters {
+  propertyId?: string;
+  rangeStart: Date;
+  rangeEnd: Date;
+  /** Year for the annual cash series. Defaults to current year. */
+  annualYear?: number;
+}
+
+/**
+ * Returns the Decision Summary report for the authenticated user.
+ *
+ * Uses buildDecisionSummary (pure domain module) after loading data from Prisma.
+ * Implements ADR-0028, ADR-0020 (timezone: America/Santiago), and ADR-0030
+ * (cash basis source of truth, single payment read).
+ *
+ * Payment selection includes `method` to power the cash byMethod breakdown.
+ */
+export async function getDecisionSummary(
+  filters: DecisionSummaryFilters,
+): Promise<ReportDecisionSummary | null> {
+  const session = await getSession();
+  if (!session) return null;
+
+  const { propertyId, rangeStart, rangeEnd, annualYear } = filters;
+
+  // Fetch all properties the user owns (optionally filtered by propertyId).
+  // propertyId is always combined with userId (ownerId) for security.
+  const properties = await prisma.property.findMany({
+    where: {
+      userId: session.userId,
+      ...(propertyId ? { id: propertyId } : {}),
+    },
+    select: {
+      id: true,
+      name: true,
+      unitsAvailable: true,
+    },
+  });
+
+  if (properties.length === 0) {
+    const { buildDecisionSummary } = await import("@/lib/reports/decision-summary");
+    return buildDecisionSummary({
+      reservations: [],
+      properties: [],
+      rangeStart,
+      rangeEnd,
+    });
+  }
+
+  const propertyIdsInScope = properties.map((p) => p.id);
+
+  // Fetch ALL reservations (including CANCELLED) for cash tracking.
+  // IMPORTANT: No date intersection filter here — cash is determined by payment paidAt date,
+  // not by stay dates. A payment on Feb 28 belongs to February's cash even if the stay
+  // started March 1. The domain module (decision-summary.ts) filters by paidAt date.
+  const reservations = await prisma.reservation.findMany({
+    where: {
+      userId: session.userId,
+      propertyId: { in: propertyIdsInScope },
+      // CANCELLED needed for collectedCashFromCancelledReservations — do NOT filter out
+    },
+    select: {
+      id: true,
+      propertyId: true,
+      billingType: true,
+      status: true,
+      startDate: true,
+      endDate: true,
+      totalPrice: true,
+      unitsBooked: true,
+      payments: {
+        select: {
+          id: true,
+          amount: true,
+          status: true,
+          paymentType: true,
+          method: true,
+          paidAt: true,
+          deletedAt: true,
+          dueDate: true,
+        },
+      },
+    },
+  });
+
+  const { buildDecisionSummary } = await import("@/lib/reports/decision-summary");
+
+  const decisionProperties = properties.map((p) => ({
+    id: p.id,
+    name: p.name,
+    unitsAvailable: p.unitsAvailable,
+  }));
+
+  const decisionReservations = reservations.map((r) => ({
+    id: r.id,
+    propertyId: r.propertyId,
+    billingType: r.billingType as "DAILY" | "MONTHLY",
+    status: r.status as "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED",
+    startDate: r.startDate,
+    endDate: r.endDate,
+    totalPrice: Number(r.totalPrice),
+    unitsBooked: r.unitsBooked,
+    payments: r.payments.map((p) => ({
+      id: p.id,
+      amount: Number(p.amount),
+      status: p.status as "PENDING" | "COMPLETED" | "FAILED",
+      paymentType: p.paymentType as "RESERVATION" | "EXTRA",
+      method: p.method as "MERCADO_PAGO" | "CASH" | "TRANSFER",
+      paidAt: p.paidAt,
+      deletedAt: p.deletedAt,
+      dueDate: p.dueDate,
+    })),
+  }));
+
+  return buildDecisionSummary({
+    reservations: decisionReservations,
+    properties: decisionProperties,
+    rangeStart,
+    rangeEnd,
+    annualYear,
+  });
 }
