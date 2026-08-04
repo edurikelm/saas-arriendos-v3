@@ -4,9 +4,14 @@ import { prisma } from "@/lib/db/prisma";
 import { addDays } from "date-fns";
 import { getActivePaymentsForReservation } from "@/lib/payments/queries";
 import { toMercadoPagoIso8601 } from "./mp-fetch";
+import { validateAppUrl } from "@/lib/config/env-validation";
 
 function buildMercadoPagoNotificationUrl(paymentId: string) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  const validation = validateAppUrl(appUrl);
+  if (!validation.valid) {
+    console.warn(`[MP Gateway] Invalid NEXT_PUBLIC_APP_URL: ${validation.reason}`);
+  }
   return `${appUrl}/api/webhooks/mercadopago?source_news=webhooks&paymentId=${paymentId}`;
 }
 
