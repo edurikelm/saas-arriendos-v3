@@ -245,6 +245,35 @@ describe("verifyMpProWebhookSignature", () => {
   });
 
   // ──────────────────────────────────────────────────────────────────────────────
+  // RED test for issue #198 — timestamp tolerance / replay protection
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  it("rejects signature with ts more than 5 minutes in the past (replay protection)", async () => {
+    const secret = "pro-secret";
+    process.env.MERCADOPAGO_PRO_WEBHOOK_SECRET = secret;
+
+    const { verifyMpProWebhookSignature } = await import("../route");
+
+    const now = Date.now();
+    const ts = String(Math.floor(now / 1000) - 6 * 60); // 6 minutes in the past
+    const requestId = "req-abc";
+    const preapprovalId = "pre-123";
+    const validSig = computeSignature(secret, preapprovalId, requestId, ts);
+
+    const headers = new Headers();
+    headers.set("x-request-id", requestId);
+    headers.set("x-signature", `ts=${ts},v1=${validSig}`);
+
+    const result = verifyMpProWebhookSignature(
+      headers,
+      '{"action":"preapproval.created","data":{"id":"pre-123"}}',
+      `https://example.com/api/webhooks/mercadopago-pro?data.id=${preapprovalId}&topic=preapproval`,
+    );
+
+    expect(result).toBe(false);
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────────
   // RED test for issue #197 — uppercase alphanumeric data.id HMAC bug
   // ──────────────────────────────────────────────────────────────────────────────
 

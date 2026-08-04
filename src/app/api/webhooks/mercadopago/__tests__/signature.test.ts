@@ -209,6 +209,90 @@ describe('verifyMercadoPagoSignature', () => {
   });
 
   // ──────────────────────────────────────────────────────────────────────────────
+  // RED tests for issue #198 — timestamp tolerance / replay protection
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  it('rejects signature with ts more than 5 minutes in the past (replay protection)', async () => {
+    const secret = 'my-secret-key';
+    process.env.MERCADOPAGO_WEBHOOK_SECRET = secret;
+
+    const { verifyMercadoPagoSignature } = await import('../route');
+
+    const now = Date.now();
+    const ts = String(Math.floor(now / 1000) - 6 * 60); // 6 minutes in the past
+    const requestId = 'request-abc';
+    const manifest = buildManifest('12345', requestId, ts);
+    const validSignature = computeSignature(secret, manifest);
+
+    const rawBody = '{"action":"payment.updated","data":{"id":"12345"}}';
+
+    const headers = new Headers();
+    headers.set('x-request-id', requestId);
+    headers.set('x-signature', `ts=${ts},v1=${validSignature}`);
+
+    const result = verifyMercadoPagoSignature(
+      headers,
+      rawBody,
+      'https://example.com/api/webhooks/mercadopago?data.id=12345&type=payment'
+    );
+
+    expect(result).toBe(false);
+  });
+
+  it('accepts signature with ts 30 seconds in the past (within tolerance)', async () => {
+    const secret = 'my-secret-key';
+    process.env.MERCADOPAGO_WEBHOOK_SECRET = secret;
+
+    const { verifyMercadoPagoSignature } = await import('../route');
+
+    const now = Date.now();
+    const ts = String(Math.floor(now / 1000) - 30); // 30 seconds in the past
+    const requestId = 'request-abc';
+    const manifest = buildManifest('12345', requestId, ts);
+    const validSignature = computeSignature(secret, manifest);
+
+    const rawBody = '{"action":"payment.updated","data":{"id":"12345"}}';
+
+    const headers = new Headers();
+    headers.set('x-request-id', requestId);
+    headers.set('x-signature', `ts=${ts},v1=${validSignature}`);
+
+    const result = verifyMercadoPagoSignature(
+      headers,
+      rawBody,
+      'https://example.com/api/webhooks/mercadopago?data.id=12345&type=payment'
+    );
+
+    expect(result).toBe(true);
+  });
+
+  it('accepts signature with ts 30 seconds in the future (clock skew)', async () => {
+    const secret = 'my-secret-key';
+    process.env.MERCADOPAGO_WEBHOOK_SECRET = secret;
+
+    const { verifyMercadoPagoSignature } = await import('../route');
+
+    const ts = String(Math.floor(Date.now() / 1000) + 30); // 30 seconds in the future
+    const requestId = 'request-abc';
+    const manifest = buildManifest('12345', requestId, ts);
+    const validSignature = computeSignature(secret, manifest);
+
+    const rawBody = '{"action":"payment.updated","data":{"id":"12345"}}';
+
+    const headers = new Headers();
+    headers.set('x-request-id', requestId);
+    headers.set('x-signature', `ts=${ts},v1=${validSignature}`);
+
+    const result = verifyMercadoPagoSignature(
+      headers,
+      rawBody,
+      'https://example.com/api/webhooks/mercadopago?data.id=12345&type=payment'
+    );
+
+    expect(result).toBe(true);
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────────
   // RED tests for issue #197 — uppercase alphanumeric data.id HMAC bug
   // ──────────────────────────────────────────────────────────────────────────────
 
