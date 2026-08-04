@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createHmac } from "crypto";
 
+import { buildManifest, computeSignature } from "../../__tests__/helpers";
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Mocks — hoisted para estar disponibles antes de los imports del módulo
 // ──────────────────────────────────────────────────────────────────────────────
@@ -61,16 +63,6 @@ afterEach(() => {
 // ──────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ──────────────────────────────────────────────────────────────────────────────
-
-function computeSignature(
-  secret: string,
-  dataId: string,
-  requestId: string,
-  ts: string,
-): string {
-  const manifest = `id:${dataId};request-id:${requestId};ts:${ts};`;
-  return createHmac("sha256", secret).update(manifest, "utf-8").digest("hex");
-}
 
 function buildPreapprovalPayload(
   action: string,
@@ -169,7 +161,7 @@ describe("verifyMpProWebhookSignature", () => {
     const ts = "1717094400";
     const requestId = "req-abc";
     // signature computed for pre-123 but we send pre-999 as dataId
-    const wrongSig = computeSignature(secret, "pre-999", requestId, ts);
+    const wrongSig = computeSignature(secret, buildManifest("pre-999", requestId, ts));
 
     const headers = new Headers();
     headers.set("x-request-id", requestId);
@@ -193,7 +185,7 @@ describe("verifyMpProWebhookSignature", () => {
     const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
     const preapprovalId = "pre-123";
-    const validSig = computeSignature(secret, preapprovalId, requestId, ts);
+    const validSig = computeSignature(secret, buildManifest(preapprovalId, requestId, ts));
 
     const headers = new Headers();
     headers.set("x-request-id", requestId);
@@ -217,7 +209,7 @@ describe("verifyMpProWebhookSignature", () => {
     const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
     // Signature uses query data.id = pre-999
-    const validSig = computeSignature(secret, "pre-999", requestId, ts);
+    const validSig = computeSignature(secret, buildManifest("pre-999", requestId, ts));
 
     const headers = new Headers();
     headers.set("x-request-id", requestId);
@@ -241,7 +233,7 @@ describe("verifyMpProWebhookSignature", () => {
 
     const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
-    const validSig = computeSignature(secret, "", requestId, ts);
+    const validSig = computeSignature(secret, buildManifest("", requestId, ts));
 
     const headers = new Headers();
     headers.set("x-request-id", requestId);
@@ -270,7 +262,7 @@ describe("verifyMpProWebhookSignature", () => {
     const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
     const preapprovalId = "pre-123";
-    const validSig = computeSignature(secret, preapprovalId, requestId, ts);
+    const validSig = computeSignature(secret, buildManifest(preapprovalId, requestId, ts));
 
     const headers = new Headers();
     headers.set("x-request-id", requestId);
@@ -300,7 +292,7 @@ describe("verifyMpProWebhookSignature", () => {
     const ts = String(Math.floor(now / 1000) - 6 * 60); // 6 minutes in the past
     const requestId = "req-abc";
     const preapprovalId = "pre-123";
-    const validSig = computeSignature(secret, preapprovalId, requestId, ts);
+    const validSig = computeSignature(secret, buildManifest(preapprovalId, requestId, ts));
 
     const headers = new Headers();
     headers.set("x-request-id", requestId);
@@ -411,7 +403,7 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
     const preapprovalId = "pre-123";
     const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
-    const sig = computeSignature(secret, preapprovalId, requestId, ts);
+    const sig = computeSignature(secret, buildManifest(preapprovalId, requestId, ts));
 
     mockGetSubscriptionByPreapprovalId.mockResolvedValue({
       id: "sub-1",
@@ -453,7 +445,7 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
     const preapprovalId = "pre-456";
     const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
-    const sig = computeSignature(secret, preapprovalId, requestId, ts);
+    const sig = computeSignature(secret, buildManifest(preapprovalId, requestId, ts));
 
     mockGetSubscriptionByPreapprovalId.mockResolvedValue({
       id: "sub-2",
@@ -490,7 +482,7 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
     const preapprovalId = "pre-789";
     const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
-    const sig = computeSignature(secret, preapprovalId, requestId, ts);
+    const sig = computeSignature(secret, buildManifest(preapprovalId, requestId, ts));
 
     mockGetSubscriptionByPreapprovalId.mockResolvedValue({
       id: "sub-3",
@@ -517,7 +509,7 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
     const preapprovalId = "pre-pending";
     const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
-    const sig = computeSignature(secret, preapprovalId, requestId, ts);
+    const sig = computeSignature(secret, buildManifest(preapprovalId, requestId, ts));
 
     mockGetSubscriptionByPreapprovalId.mockResolvedValue({
       id: "sub-4",
@@ -546,7 +538,7 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
     const preapprovalId = "pre-unknown";
     const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
-    const sig = computeSignature(secret, preapprovalId, requestId, ts);
+    const sig = computeSignature(secret, buildManifest(preapprovalId, requestId, ts));
 
     mockGetSubscriptionByPreapprovalId.mockResolvedValue(null);
 
@@ -571,7 +563,7 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
     const preapprovalId = "pre-idempotent";
     const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
-    const sig = computeSignature(secret, preapprovalId, requestId, ts);
+    const sig = computeSignature(secret, buildManifest(preapprovalId, requestId, ts));
 
     mockGetSubscriptionByPreapprovalId.mockResolvedValue({
       id: "sub-5",
@@ -619,7 +611,7 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
     const paymentId = "mp-payment-999";
     const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
-    const sig = computeSignature(secret, paymentId, requestId, ts);
+    const sig = computeSignature(secret, buildManifest(paymentId, requestId, ts));
 
     mockPrismaSubscriptionFindFirst.mockResolvedValue({
       id: "sub-6",
@@ -650,7 +642,7 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
     const paymentId = "mp-payment-noauth";
     const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
-    const sig = computeSignature(secret, paymentId, requestId, ts);
+    const sig = computeSignature(secret, buildManifest(paymentId, requestId, ts));
 
     mockPrismaSubscriptionFindFirst.mockResolvedValue(null);
 
@@ -674,7 +666,7 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
     const resourceId = "some-unknown-topic-id";
     const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
-    const sig = computeSignature(secret, resourceId, requestId, ts);
+    const sig = computeSignature(secret, buildManifest(resourceId, requestId, ts));
 
     const response = await makeRequest(
       `https://example.com/api/webhooks/mercadopago-pro?data.id=${resourceId}&topic=unknown_topic`,
@@ -708,7 +700,7 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
     const preapprovalId = "pre-error";
     const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
-    const sig = computeSignature(secret, preapprovalId, requestId, ts);
+    const sig = computeSignature(secret, buildManifest(preapprovalId, requestId, ts));
 
     // Simular error en fetchPreapproval
     mockGetSubscriptionByPreapprovalId.mockResolvedValue({

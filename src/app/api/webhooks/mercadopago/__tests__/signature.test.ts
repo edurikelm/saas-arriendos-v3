@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createHmac } from 'crypto';
 
+import { buildManifest, computeSignature, prismaMock, getMercadoPagoTokenMock, processMercadoPagoWebhookMock } from '../../__tests__/helpers';
+
 // ─── timingSafeEqual spy via vi.hoisted ───────────────────────────────────────
 const timingSafeEqualMock = vi.hoisted(() => vi.fn(() => true));
 
@@ -24,8 +26,6 @@ vi.mock('crypto', () => {
   };
 });
 
-const processMercadoPagoWebhookMock = vi.fn();
-
 const ORIGINAL_ENV = { ...process.env };
 
 beforeEach(() => {
@@ -43,32 +43,13 @@ vi.mock('@/lib/actions/payments', () => ({
   processMercadoPagoWebhook: processMercadoPagoWebhookMock,
 }));
 
-const getMercadoPagoTokenMock = vi.fn();
-
 vi.mock('@/lib/actions/mercado-pago', () => ({
   getMercadoPagoToken: getMercadoPagoTokenMock,
 }));
 
-const prismaMock = {
-  payment: {
-    findFirst: vi.fn(),
-  },
-  userIntegration: {
-    findMany: vi.fn(),
-  },
-};
-
 vi.mock('@/lib/db/prisma', () => ({
   prisma: prismaMock,
 }));
-
-function computeSignature(secret: string, manifest: string): string {
-  return createHmac('sha256', secret).update(manifest, 'utf-8').digest('hex');
-}
-
-function buildManifest(dataId: string, requestId: string, ts: string): string {
-  return `id:${dataId};request-id:${requestId};ts:${ts};`;
-}
 
 describe('verifyMercadoPagoSignature', () => {
   it('returns true when secret is missing in development (dev bypass)', async () => {
