@@ -1,6 +1,29 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createHmac } from 'crypto';
 
+// ─── timingSafeEqual spy via vi.hoisted ───────────────────────────────────────
+const timingSafeEqualMock = vi.hoisted(() => vi.fn(() => true));
+
+vi.mock('node:crypto', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const actual = require('node:crypto') as typeof import('node:crypto');
+  return {
+    default: actual,
+    ...actual,
+    timingSafeEqual: timingSafeEqualMock,
+  };
+});
+
+vi.mock('crypto', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const actual = require('crypto') as typeof import('crypto');
+  return {
+    default: actual,
+    ...actual,
+    timingSafeEqual: timingSafeEqualMock,
+  };
+});
+
 const processMercadoPagoWebhookMock = vi.fn();
 
 const ORIGINAL_ENV = { ...process.env };
@@ -280,6 +303,62 @@ describe('verifyMercadoPagoSignature', () => {
 
     const rawBody = '{"action":"payment.updated","data":{"id":"12345"}}';
 
+    const headers = new Headers();
+    headers.set('x-request-id', requestId);
+    headers.set('x-signature', `ts=${ts},v1=${validSignature}`);
+
+    const result = verifyMercadoPagoSignature(
+      headers,
+      rawBody,
+      'https://example.com/api/webhooks/mercadopago?data.id=12345&type=payment'
+    );
+
+    expect(result).toBe(true);
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // RED tests for issue #199 — timing-safe HMAC comparison
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  it('uses crypto.timingSafeEqual for HMAC comparison', async () => {
+    const secret = 'my-secret-key';
+    process.env.MERCADOPAGO_WEBHOOK_SECRET = secret;
+
+    const { verifyMercadoPagoSignature } = await import('../route');
+
+    const ts = String(Math.floor(Date.now() / 1000));
+    const requestId = 'request-abc';
+    const manifest = buildManifest('12345', requestId, ts);
+    const validSignature = computeSignature(secret, manifest);
+
+    const rawBody = '{"action":"payment.updated","data":{"id":"12345"}}';
+    const headers = new Headers();
+    headers.set('x-request-id', requestId);
+    headers.set('x-signature', `ts=${ts},v1=${validSignature}`);
+
+    verifyMercadoPagoSignature(
+      headers,
+      rawBody,
+      'https://example.com/api/webhooks/mercadopago?data.id=12345&type=payment'
+    );
+
+    expect(timingSafeEqualMock).toHaveBeenCalled();
+    // Verify it was called with two Buffers (the HMAC digest and the v1 signature)
+    expect(timingSafeEqualMock.mock.calls[0].length).toBe(2);
+  });
+
+  it('returns true for valid signature using timingSafeEqual internally', async () => {
+    const secret = 'my-secret-key';
+    process.env.MERCADOPAGO_WEBHOOK_SECRET = secret;
+
+    const { verifyMercadoPagoSignature } = await import('../route');
+
+    const ts = String(Math.floor(Date.now() / 1000));
+    const requestId = 'request-abc';
+    const manifest = buildManifest('12345', requestId, ts);
+    const validSignature = computeSignature(secret, manifest);
+
+    const rawBody = '{"action":"payment.updated","data":{"id":"12345"}}';
     const headers = new Headers();
     headers.set('x-request-id', requestId);
     headers.set('x-signature', `ts=${ts},v1=${validSignature}`);

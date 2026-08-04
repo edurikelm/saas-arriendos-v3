@@ -32,6 +32,19 @@ vi.mock("@/lib/payment/pro-gateway", () => ({
   }),
 }));
 
+// ─── timingSafeEqual spy via vi.hoisted ───────────────────────────────────────
+const timingSafeEqualMock = vi.hoisted(() => vi.fn(() => true));
+
+vi.mock('crypto', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const actual = require('crypto') as typeof import('crypto');
+  return {
+    default: actual,
+    ...actual,
+    timingSafeEqual: timingSafeEqualMock,
+  };
+});
+
 const ORIGINAL_ENV = { ...process.env };
 
 beforeEach(() => {
@@ -242,6 +255,35 @@ describe("verifyMpProWebhookSignature", () => {
     );
 
     expect(result).toBe(false);
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // RED test for issue #199 — timing-safe HMAC comparison
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  it("uses crypto.timingSafeEqual for HMAC comparison", async () => {
+    const secret = "pro-secret";
+    process.env.MERCADOPAGO_PRO_WEBHOOK_SECRET = secret;
+
+    const { verifyMpProWebhookSignature } = await import("../route");
+
+    const ts = String(Math.floor(Date.now() / 1000));
+    const requestId = "req-abc";
+    const preapprovalId = "pre-123";
+    const validSig = computeSignature(secret, preapprovalId, requestId, ts);
+
+    const headers = new Headers();
+    headers.set("x-request-id", requestId);
+    headers.set("x-signature", `ts=${ts},v1=${validSig}`);
+
+    verifyMpProWebhookSignature(
+      headers,
+      '{"action":"preapproval.created","data":{"id":"pre-123"}}',
+      `https://example.com/api/webhooks/mercadopago-pro?data.id=${preapprovalId}&topic=preapproval`,
+    );
+
+    expect(timingSafeEqualMock).toHaveBeenCalled();
+    expect(timingSafeEqualMock.mock.calls[0].length).toBe(2);
   });
 
   // ──────────────────────────────────────────────────────────────────────────────
