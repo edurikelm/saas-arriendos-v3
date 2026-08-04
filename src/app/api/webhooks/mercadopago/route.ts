@@ -264,16 +264,11 @@ export async function POST(request: Request) {
           console.warn(`[MP Webhook] No Mercado Pago token for user ${userId}, skipping webhook for payment ${paymentId}`);
           return NextResponse.json({ received: true, warning: "No token configured for payment owner" });
         }
-      } else if (!hintedPaymentId) {
-        const tokenResult = await findTokenForPayment(paymentId);
-        if (!tokenResult) {
-          console.warn(`[MP Webhook] Could not determine owner for payment ${paymentId}. Attempted all active integrations.`);
-          return NextResponse.json({ received: true, warning: "Could not find payment owner" });
-        }
-        accessToken = tokenResult.accessToken;
       } else {
-        console.warn(`[MP Webhook] Hint paymentId=${hintedPaymentId} did not resolve a local payment for notification ${paymentId}`);
-        return NextResponse.json({ received: true, warning: "Could not resolve payment owner from hint" });
+        // No hint AND no payment found by mercadoPagoId: skip immediately.
+        // Rationale: iterating all integrations is O(N) external calls and amplifies DoS risk.
+        console.warn(`[MP Webhook] Could not resolve payment for ${paymentId} (no hint, no match by mercadoPagoId). Skipping.`);
+        return NextResponse.json({ received: true, warning: "Could not resolve payment" });
       }
 
       const paymentInfo = await getPaymentStatus(paymentId, accessToken);
