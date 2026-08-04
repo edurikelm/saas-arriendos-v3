@@ -159,7 +159,7 @@ export interface MpPaymentInfo {
   id?: string;
 }
 
-async function getPaymentStatus(paymentId: string, accessToken: string): Promise<MpPaymentInfo | null> {
+export async function getPaymentStatus(paymentId: string, accessToken: string): Promise<MpPaymentInfo | null> {
   try {
     const response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
       headers: {

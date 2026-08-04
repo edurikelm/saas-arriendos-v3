@@ -664,4 +664,22 @@ describe('POST /api/webhooks/mercadopago', () => {
     // No webhook processing
     expect(processMercadoPagoWebhookMock).not.toHaveBeenCalled();
   });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // RED test for issue #201 — outbound MP calls must use AbortSignal.timeout
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  it('passes AbortSignal.timeout to fetch in getPaymentStatus', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(new Response('{}'));
+    global.fetch = fetchSpy as any;
+
+    const { getPaymentStatus } = await import('../route');
+
+    await getPaymentStatus('mp-pay-1', 'token');
+
+    const callArgs = fetchSpy.mock.calls[0];
+    const [, options] = callArgs;
+    expect(options.signal).toBeDefined();
+    expect(options.signal).toBeInstanceOf(AbortSignal);
+  });
 });
