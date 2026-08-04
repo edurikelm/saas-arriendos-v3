@@ -207,6 +207,66 @@ describe('verifyMercadoPagoSignature', () => {
 
     expect(result).toBe(false);
   });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // RED tests for issue #197 — uppercase alphanumeric data.id HMAC bug
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  it('accepts valid signature with uppercase alphanumeric dataId when HMAC uses lowercase', async () => {
+    const secret = 'my-secret-key';
+    process.env.MERCADOPAGO_WEBHOOK_SECRET = secret;
+
+    const { verifyMercadoPagoSignature } = await import('../route');
+
+    const dataId = 'ORDTST01ABCDEF1234567890';
+    const ts = '1717094400';
+    const requestId = 'request-abc';
+
+    // MP computes the manifest signature using the lowercase version of dataId
+    const manifest = buildManifest(dataId.toLowerCase(), requestId, ts);
+    const validSignature = computeSignature(secret, manifest);
+
+    const headers = new Headers();
+    headers.set('x-request-id', requestId);
+    headers.set('x-signature', `ts=${ts},v1=${validSignature}`);
+
+    // MP sends the dataId in UPPERCASE in the query param
+    const result = verifyMercadoPagoSignature(
+      headers,
+      '',
+      `https://example.com/api/webhooks/mercadopago?data.id=${dataId}&type=payment`
+    );
+
+    expect(result).toBe(true);
+  });
+
+  it('accepts valid signature with mixed-case alphanumeric dataId when HMAC uses lowercase', async () => {
+    const secret = 'my-secret-key';
+    process.env.MERCADOPAGO_WEBHOOK_SECRET = secret;
+
+    const { verifyMercadoPagoSignature } = await import('../route');
+
+    const dataId = 'ORdTST01AbCdEf1234567890';
+    const ts = '1717094400';
+    const requestId = 'request-abc';
+
+    // MP computes the manifest signature using the lowercase version of dataId
+    const manifest = buildManifest(dataId.toLowerCase(), requestId, ts);
+    const validSignature = computeSignature(secret, manifest);
+
+    const headers = new Headers();
+    headers.set('x-request-id', requestId);
+    headers.set('x-signature', `ts=${ts},v1=${validSignature}`);
+
+    // MP sends the dataId in MIXED CASE in the query param
+    const result = verifyMercadoPagoSignature(
+      headers,
+      '',
+      `https://example.com/api/webhooks/mercadopago?data.id=${dataId}&type=payment`
+    );
+
+    expect(result).toBe(true);
+  });
 });
 
 describe('POST /api/webhooks/mercadopago', () => {

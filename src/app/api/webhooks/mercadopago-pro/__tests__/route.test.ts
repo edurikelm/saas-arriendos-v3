@@ -243,6 +243,40 @@ describe("verifyMpProWebhookSignature", () => {
 
     expect(result).toBe(false);
   });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // RED test for issue #197 — uppercase alphanumeric data.id HMAC bug
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  it("accepts valid signature with uppercase alphanumeric dataId when HMAC uses lowercase", async () => {
+    const secret = "pro-secret";
+    process.env.MERCADOPAGO_PRO_WEBHOOK_SECRET = secret;
+
+    const { verifyMpProWebhookSignature } = await import("../route");
+
+    const dataId = "ORDTST01ABCDEF1234567890";
+    const ts = "1717094400";
+    const requestId = "req-abc";
+
+    // MP computes the manifest signature using the lowercase version of dataId
+    const manifest = `id:${dataId.toLowerCase()};request-id:${requestId};ts:${ts};`;
+    const validSignature = createHmac("sha256", secret)
+      .update(manifest, "utf-8")
+      .digest("hex");
+
+    const headers = new Headers();
+    headers.set("x-request-id", requestId);
+    headers.set("x-signature", `ts=${ts},v1=${validSignature}`);
+
+    // MP sends the dataId in UPPERCASE in the query param
+    const result = verifyMpProWebhookSignature(
+      headers,
+      '{"action":"preapproval.created","data":{"id":"pre-123"}}',
+      `https://example.com/api/webhooks/mercadopago-pro?data.id=${dataId}&topic=preapproval`,
+    );
+
+    expect(result).toBe(true);
+  });
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
