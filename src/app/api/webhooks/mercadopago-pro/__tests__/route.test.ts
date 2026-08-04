@@ -32,6 +32,19 @@ vi.mock("@/lib/payment/pro-gateway", () => ({
   }),
 }));
 
+// ─── timingSafeEqual spy via vi.hoisted ───────────────────────────────────────
+const timingSafeEqualMock = vi.hoisted(() => vi.fn(() => true));
+
+vi.mock('crypto', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const actual = require('crypto') as typeof import('crypto');
+  return {
+    default: actual,
+    ...actual,
+    timingSafeEqual: timingSafeEqualMock,
+  };
+});
+
 const ORIGINAL_ENV = { ...process.env };
 
 beforeEach(() => {
@@ -177,7 +190,7 @@ describe("verifyMpProWebhookSignature", () => {
 
     const { verifyMpProWebhookSignature } = await import("../route");
 
-    const ts = "1717094400";
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
     const preapprovalId = "pre-123";
     const validSig = computeSignature(secret, preapprovalId, requestId, ts);
@@ -201,7 +214,7 @@ describe("verifyMpProWebhookSignature", () => {
 
     const { verifyMpProWebhookSignature } = await import("../route");
 
-    const ts = "1717094400";
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
     // Signature uses query data.id = pre-999
     const validSig = computeSignature(secret, "pre-999", requestId, ts);
@@ -226,7 +239,7 @@ describe("verifyMpProWebhookSignature", () => {
 
     const { verifyMpProWebhookSignature } = await import("../route");
 
-    const ts = "1717094400";
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
     const validSig = computeSignature(secret, "", requestId, ts);
 
@@ -242,6 +255,98 @@ describe("verifyMpProWebhookSignature", () => {
     );
 
     expect(result).toBe(false);
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // RED test for issue #199 — timing-safe HMAC comparison
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  it("uses crypto.timingSafeEqual for HMAC comparison", async () => {
+    const secret = "pro-secret";
+    process.env.MERCADOPAGO_PRO_WEBHOOK_SECRET = secret;
+
+    const { verifyMpProWebhookSignature } = await import("../route");
+
+    const ts = String(Math.floor(Date.now() / 1000));
+    const requestId = "req-abc";
+    const preapprovalId = "pre-123";
+    const validSig = computeSignature(secret, preapprovalId, requestId, ts);
+
+    const headers = new Headers();
+    headers.set("x-request-id", requestId);
+    headers.set("x-signature", `ts=${ts},v1=${validSig}`);
+
+    verifyMpProWebhookSignature(
+      headers,
+      '{"action":"preapproval.created","data":{"id":"pre-123"}}',
+      `https://example.com/api/webhooks/mercadopago-pro?data.id=${preapprovalId}&topic=preapproval`,
+    );
+
+    expect(timingSafeEqualMock).toHaveBeenCalled();
+    expect(timingSafeEqualMock.mock.calls[0].length).toBe(2);
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // RED test for issue #198 — timestamp tolerance / replay protection
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  it("rejects signature with ts more than 5 minutes in the past (replay protection)", async () => {
+    const secret = "pro-secret";
+    process.env.MERCADOPAGO_PRO_WEBHOOK_SECRET = secret;
+
+    const { verifyMpProWebhookSignature } = await import("../route");
+
+    const now = Date.now();
+    const ts = String(Math.floor(now / 1000) - 6 * 60); // 6 minutes in the past
+    const requestId = "req-abc";
+    const preapprovalId = "pre-123";
+    const validSig = computeSignature(secret, preapprovalId, requestId, ts);
+
+    const headers = new Headers();
+    headers.set("x-request-id", requestId);
+    headers.set("x-signature", `ts=${ts},v1=${validSig}`);
+
+    const result = verifyMpProWebhookSignature(
+      headers,
+      '{"action":"preapproval.created","data":{"id":"pre-123"}}',
+      `https://example.com/api/webhooks/mercadopago-pro?data.id=${preapprovalId}&topic=preapproval`,
+    );
+
+    expect(result).toBe(false);
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // RED test for issue #197 — uppercase alphanumeric data.id HMAC bug
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  it("accepts valid signature with uppercase alphanumeric dataId when HMAC uses lowercase", async () => {
+    const secret = "pro-secret";
+    process.env.MERCADOPAGO_PRO_WEBHOOK_SECRET = secret;
+
+    const { verifyMpProWebhookSignature } = await import("../route");
+
+    const dataId = "ORDTST01ABCDEF1234567890";
+    const ts = String(Math.floor(Date.now() / 1000));
+    const requestId = "req-abc";
+
+    // MP computes the manifest signature using the lowercase version of dataId
+    const manifest = `id:${dataId.toLowerCase()};request-id:${requestId};ts:${ts};`;
+    const validSignature = createHmac("sha256", secret)
+      .update(manifest, "utf-8")
+      .digest("hex");
+
+    const headers = new Headers();
+    headers.set("x-request-id", requestId);
+    headers.set("x-signature", `ts=${ts},v1=${validSignature}`);
+
+    // MP sends the dataId in UPPERCASE in the query param
+    const result = verifyMpProWebhookSignature(
+      headers,
+      '{"action":"preapproval.created","data":{"id":"pre-123"}}',
+      `https://example.com/api/webhooks/mercadopago-pro?data.id=${dataId}&topic=preapproval`,
+    );
+
+    expect(result).toBe(true);
   });
 });
 
@@ -304,7 +409,7 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
     process.env.MERCADOPAGO_PRO_WEBHOOK_SECRET = "pro-secret";
     const secret = "pro-secret";
     const preapprovalId = "pre-123";
-    const ts = "1717094400";
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
     const sig = computeSignature(secret, preapprovalId, requestId, ts);
 
@@ -346,7 +451,7 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
     process.env.MERCADOPAGO_PRO_WEBHOOK_SECRET = "pro-secret";
     const secret = "pro-secret";
     const preapprovalId = "pre-456";
-    const ts = "1717094400";
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
     const sig = computeSignature(secret, preapprovalId, requestId, ts);
 
@@ -383,7 +488,7 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
     process.env.MERCADOPAGO_PRO_WEBHOOK_SECRET = "pro-secret";
     const secret = "pro-secret";
     const preapprovalId = "pre-789";
-    const ts = "1717094400";
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
     const sig = computeSignature(secret, preapprovalId, requestId, ts);
 
@@ -410,7 +515,7 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
     process.env.MERCADOPAGO_PRO_WEBHOOK_SECRET = "pro-secret";
     const secret = "pro-secret";
     const preapprovalId = "pre-pending";
-    const ts = "1717094400";
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
     const sig = computeSignature(secret, preapprovalId, requestId, ts);
 
@@ -439,7 +544,7 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
     process.env.MERCADOPAGO_PRO_WEBHOOK_SECRET = "pro-secret";
     const secret = "pro-secret";
     const preapprovalId = "pre-unknown";
-    const ts = "1717094400";
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
     const sig = computeSignature(secret, preapprovalId, requestId, ts);
 
@@ -464,7 +569,7 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
     process.env.MERCADOPAGO_PRO_WEBHOOK_SECRET = "pro-secret";
     const secret = "pro-secret";
     const preapprovalId = "pre-idempotent";
-    const ts = "1717094400";
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
     const sig = computeSignature(secret, preapprovalId, requestId, ts);
 
@@ -512,7 +617,7 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
     process.env.MERCADOPAGO_PRO_WEBHOOK_SECRET = "pro-secret";
     const secret = "pro-secret";
     const paymentId = "mp-payment-999";
-    const ts = "1717094400";
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
     const sig = computeSignature(secret, paymentId, requestId, ts);
 
@@ -543,7 +648,7 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
     process.env.MERCADOPAGO_PRO_WEBHOOK_SECRET = "pro-secret";
     const secret = "pro-secret";
     const paymentId = "mp-payment-noauth";
-    const ts = "1717094400";
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
     const sig = computeSignature(secret, paymentId, requestId, ts);
 
@@ -567,7 +672,7 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
     process.env.MERCADOPAGO_PRO_WEBHOOK_SECRET = "pro-secret";
     const secret = "pro-secret";
     const resourceId = "some-unknown-topic-id";
-    const ts = "1717094400";
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
     const sig = computeSignature(secret, resourceId, requestId, ts);
 
@@ -601,7 +706,7 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
     process.env.MERCADOPAGO_PRO_WEBHOOK_SECRET = "pro-secret";
     const secret = "pro-secret";
     const preapprovalId = "pre-error";
-    const ts = "1717094400";
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = "req-abc";
     const sig = computeSignature(secret, preapprovalId, requestId, ts);
 

@@ -1,6 +1,29 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createHmac } from 'crypto';
 
+// ─── timingSafeEqual spy via vi.hoisted ───────────────────────────────────────
+const timingSafeEqualMock = vi.hoisted(() => vi.fn(() => true));
+
+vi.mock('node:crypto', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const actual = require('node:crypto') as typeof import('node:crypto');
+  return {
+    default: actual,
+    ...actual,
+    timingSafeEqual: timingSafeEqualMock,
+  };
+});
+
+vi.mock('crypto', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const actual = require('crypto') as typeof import('crypto');
+  return {
+    default: actual,
+    ...actual,
+    timingSafeEqual: timingSafeEqualMock,
+  };
+});
+
 const processMercadoPagoWebhookMock = vi.fn();
 
 const ORIGINAL_ENV = { ...process.env };
@@ -100,7 +123,7 @@ describe('verifyMercadoPagoSignature', () => {
 
     const { verifyMercadoPagoSignature } = await import('../route');
 
-    const ts = '1717094400';
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = 'request-abc';
     const manifest = buildManifest('12345', requestId, ts);
     const validSignature = computeSignature(secret, manifest);
@@ -125,7 +148,7 @@ describe('verifyMercadoPagoSignature', () => {
 
     const { verifyMercadoPagoSignature } = await import('../route');
 
-    const ts = '1717094400';
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = 'request-abc';
     const manifest = buildManifest('99999', requestId, ts);
     const validSignature = computeSignature(secret, manifest);
@@ -150,7 +173,7 @@ describe('verifyMercadoPagoSignature', () => {
 
     const { verifyMercadoPagoSignature } = await import('../route');
 
-    const ts = '1717094400';
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = 'request-abc';
     const manifest = buildManifest('12345', requestId, ts);
     const validSignature = computeSignature(secret, manifest);
@@ -177,7 +200,8 @@ describe('verifyMercadoPagoSignature', () => {
 
     const headers = new Headers();
     headers.set('x-request-id', 'request-abc');
-    headers.set('x-signature', 'ts=1717094400,v1=wrong-signature');
+    const ts = String(Math.floor(Date.now() / 1000));
+    headers.set('x-signature', `ts=${ts},v1=wrong-signature`);
 
     const result = verifyMercadoPagoSignature(
       headers,
@@ -206,6 +230,206 @@ describe('verifyMercadoPagoSignature', () => {
     );
 
     expect(result).toBe(false);
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // RED tests for issue #198 — timestamp tolerance / replay protection
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  it('rejects signature with ts more than 5 minutes in the past (replay protection)', async () => {
+    const secret = 'my-secret-key';
+    process.env.MERCADOPAGO_WEBHOOK_SECRET = secret;
+
+    const { verifyMercadoPagoSignature } = await import('../route');
+
+    const now = Date.now();
+    const ts = String(Math.floor(now / 1000) - 6 * 60); // 6 minutes in the past
+    const requestId = 'request-abc';
+    const manifest = buildManifest('12345', requestId, ts);
+    const validSignature = computeSignature(secret, manifest);
+
+    const rawBody = '{"action":"payment.updated","data":{"id":"12345"}}';
+
+    const headers = new Headers();
+    headers.set('x-request-id', requestId);
+    headers.set('x-signature', `ts=${ts},v1=${validSignature}`);
+
+    const result = verifyMercadoPagoSignature(
+      headers,
+      rawBody,
+      'https://example.com/api/webhooks/mercadopago?data.id=12345&type=payment'
+    );
+
+    expect(result).toBe(false);
+  });
+
+  it('accepts signature with ts 30 seconds in the past (within tolerance)', async () => {
+    const secret = 'my-secret-key';
+    process.env.MERCADOPAGO_WEBHOOK_SECRET = secret;
+
+    const { verifyMercadoPagoSignature } = await import('../route');
+
+    const now = Date.now();
+    const ts = String(Math.floor(now / 1000) - 30); // 30 seconds in the past
+    const requestId = 'request-abc';
+    const manifest = buildManifest('12345', requestId, ts);
+    const validSignature = computeSignature(secret, manifest);
+
+    const rawBody = '{"action":"payment.updated","data":{"id":"12345"}}';
+
+    const headers = new Headers();
+    headers.set('x-request-id', requestId);
+    headers.set('x-signature', `ts=${ts},v1=${validSignature}`);
+
+    const result = verifyMercadoPagoSignature(
+      headers,
+      rawBody,
+      'https://example.com/api/webhooks/mercadopago?data.id=12345&type=payment'
+    );
+
+    expect(result).toBe(true);
+  });
+
+  it('accepts signature with ts 30 seconds in the future (clock skew)', async () => {
+    const secret = 'my-secret-key';
+    process.env.MERCADOPAGO_WEBHOOK_SECRET = secret;
+
+    const { verifyMercadoPagoSignature } = await import('../route');
+
+    const ts = String(Math.floor(Date.now() / 1000) + 30); // 30 seconds in the future
+    const requestId = 'request-abc';
+    const manifest = buildManifest('12345', requestId, ts);
+    const validSignature = computeSignature(secret, manifest);
+
+    const rawBody = '{"action":"payment.updated","data":{"id":"12345"}}';
+
+    const headers = new Headers();
+    headers.set('x-request-id', requestId);
+    headers.set('x-signature', `ts=${ts},v1=${validSignature}`);
+
+    const result = verifyMercadoPagoSignature(
+      headers,
+      rawBody,
+      'https://example.com/api/webhooks/mercadopago?data.id=12345&type=payment'
+    );
+
+    expect(result).toBe(true);
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // RED tests for issue #199 — timing-safe HMAC comparison
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  it('uses crypto.timingSafeEqual for HMAC comparison', async () => {
+    const secret = 'my-secret-key';
+    process.env.MERCADOPAGO_WEBHOOK_SECRET = secret;
+
+    const { verifyMercadoPagoSignature } = await import('../route');
+
+    const ts = String(Math.floor(Date.now() / 1000));
+    const requestId = 'request-abc';
+    const manifest = buildManifest('12345', requestId, ts);
+    const validSignature = computeSignature(secret, manifest);
+
+    const rawBody = '{"action":"payment.updated","data":{"id":"12345"}}';
+    const headers = new Headers();
+    headers.set('x-request-id', requestId);
+    headers.set('x-signature', `ts=${ts},v1=${validSignature}`);
+
+    verifyMercadoPagoSignature(
+      headers,
+      rawBody,
+      'https://example.com/api/webhooks/mercadopago?data.id=12345&type=payment'
+    );
+
+    expect(timingSafeEqualMock).toHaveBeenCalled();
+    // Verify it was called with two Buffers (the HMAC digest and the v1 signature)
+    expect(timingSafeEqualMock.mock.calls[0].length).toBe(2);
+  });
+
+  it('returns true for valid signature using timingSafeEqual internally', async () => {
+    const secret = 'my-secret-key';
+    process.env.MERCADOPAGO_WEBHOOK_SECRET = secret;
+
+    const { verifyMercadoPagoSignature } = await import('../route');
+
+    const ts = String(Math.floor(Date.now() / 1000));
+    const requestId = 'request-abc';
+    const manifest = buildManifest('12345', requestId, ts);
+    const validSignature = computeSignature(secret, manifest);
+
+    const rawBody = '{"action":"payment.updated","data":{"id":"12345"}}';
+    const headers = new Headers();
+    headers.set('x-request-id', requestId);
+    headers.set('x-signature', `ts=${ts},v1=${validSignature}`);
+
+    const result = verifyMercadoPagoSignature(
+      headers,
+      rawBody,
+      'https://example.com/api/webhooks/mercadopago?data.id=12345&type=payment'
+    );
+
+    expect(result).toBe(true);
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // RED tests for issue #197 — uppercase alphanumeric data.id HMAC bug
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  it('accepts valid signature with uppercase alphanumeric dataId when HMAC uses lowercase', async () => {
+    const secret = 'my-secret-key';
+    process.env.MERCADOPAGO_WEBHOOK_SECRET = secret;
+
+    const { verifyMercadoPagoSignature } = await import('../route');
+
+    const dataId = 'ORDTST01ABCDEF1234567890';
+    const ts = String(Math.floor(Date.now() / 1000));
+    const requestId = 'request-abc';
+
+    // MP computes the manifest signature using the lowercase version of dataId
+    const manifest = buildManifest(dataId.toLowerCase(), requestId, ts);
+    const validSignature = computeSignature(secret, manifest);
+
+    const headers = new Headers();
+    headers.set('x-request-id', requestId);
+    headers.set('x-signature', `ts=${ts},v1=${validSignature}`);
+
+    // MP sends the dataId in UPPERCASE in the query param
+    const result = verifyMercadoPagoSignature(
+      headers,
+      '',
+      `https://example.com/api/webhooks/mercadopago?data.id=${dataId}&type=payment`
+    );
+
+    expect(result).toBe(true);
+  });
+
+  it('accepts valid signature with mixed-case alphanumeric dataId when HMAC uses lowercase', async () => {
+    const secret = 'my-secret-key';
+    process.env.MERCADOPAGO_WEBHOOK_SECRET = secret;
+
+    const { verifyMercadoPagoSignature } = await import('../route');
+
+    const dataId = 'ORdTST01AbCdEf1234567890';
+    const ts = String(Math.floor(Date.now() / 1000));
+    const requestId = 'request-abc';
+
+    // MP computes the manifest signature using the lowercase version of dataId
+    const manifest = buildManifest(dataId.toLowerCase(), requestId, ts);
+    const validSignature = computeSignature(secret, manifest);
+
+    const headers = new Headers();
+    headers.set('x-request-id', requestId);
+    headers.set('x-signature', `ts=${ts},v1=${validSignature}`);
+
+    // MP sends the dataId in MIXED CASE in the query param
+    const result = verifyMercadoPagoSignature(
+      headers,
+      '',
+      `https://example.com/api/webhooks/mercadopago?data.id=${dataId}&type=payment`
+    );
+
+    expect(result).toBe(true);
   });
 });
 
@@ -257,7 +481,7 @@ describe('POST /api/webhooks/mercadopago', () => {
 
     const { POST } = await import('../route');
 
-    const ts = '1717094400';
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = 'request-abc';
     const manifest = buildManifest('mp-payment-123', requestId, ts);
     const validSignature = computeSignature(secret, manifest);
@@ -303,7 +527,7 @@ describe('POST /api/webhooks/mercadopago', () => {
 
     const { POST } = await import('../route');
 
-    const ts = '1717094400';
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = 'request-abc';
     const manifest = buildManifest('mp-payment-123', requestId, ts);
     const validSignature = computeSignature(secret, manifest);
@@ -362,7 +586,7 @@ describe('POST /api/webhooks/mercadopago', () => {
 
     const { POST } = await import('../route');
 
-    const ts = '1717094400';
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = 'request-abc';
     const manifest = buildManifest('merchant-order-123', requestId, ts);
     const validSignature = computeSignature(secret, manifest);
