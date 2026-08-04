@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHmac } from "crypto";
 import { applySubscriptionEvent } from "@/lib/subscriptions/lifecycle";
-import { normalizeDataId } from "@/lib/payment/webhook-helpers";
+import { normalizeDataId, WEBHOOK_TIMESTAMP_TOLERANCE_MS } from "@/lib/payment/webhook-helpers";
 import { getSubscriptionByPreapprovalId } from "@/lib/subscriptions/queries";
 import { getProGateway } from "@/lib/payment/pro-gateway";
 
@@ -87,6 +87,22 @@ export function verifyMpProWebhookSignature(
   const { ts, v1 } = parseSignatureHeader(signatureHeader);
   if (!ts || !v1) {
     console.error("Webhook request has invalid x-signature format");
+    return false;
+  }
+
+  // Timestamp tolerance check — prevents replay attacks
+  const toleranceMs =
+    Number(process.env.MERCADOPAGO_PRO_WEBHOOK_TIMESTAMP_TOLERANCE_MS) ||
+    WEBHOOK_TIMESTAMP_TOLERANCE_MS;
+  const tsMs = parseInt(ts, 10);
+  const nowMs = Date.now();
+  if (
+    Number.isFinite(tsMs) &&
+    Math.abs(nowMs - tsMs) > toleranceMs
+  ) {
+    console.warn(
+      `[MP Pro Webhook] Signature rejected: ts ${ts} is outside tolerance window`,
+    );
     return false;
   }
 

@@ -11,3 +11,12 @@
 export function normalizeDataId(dataId: string): string {
   return dataId.toLowerCase();
 }
+
+/**
+ * Constante de tolerancia para validación de timestamp en webhooks de MP.
+ * Doc MP: "puedes usar el timestamp extraído del header para compararlo con
+ * un timestamp generado en el momento de la recepción de la notificación,
+ * con el fin de establecer una tolerancia de demora en la recepción del mensaje."
+ * Default: 5 minutos.
+ */
+export const WEBHOOK_TIMESTAMP_TOLERANCE_MS = 5 * 60 * 1000;
