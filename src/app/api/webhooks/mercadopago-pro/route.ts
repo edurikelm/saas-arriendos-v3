@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createHmac } from "crypto";
+import * as crypto from "crypto";
 import { applySubscriptionEvent } from "@/lib/subscriptions/lifecycle";
 import { normalizeDataId, WEBHOOK_TIMESTAMP_TOLERANCE_MS } from "@/lib/payment/webhook-helpers";
 import { getSubscriptionByPreapprovalId } from "@/lib/subscriptions/queries";
@@ -115,11 +115,14 @@ export function verifyMpProWebhookSignature(
   }
 
   const manifest = `id:${normalizeDataId(dataId)};request-id:${requestId};ts:${ts};`;
-  const hmac = createHmac("sha256", secret);
+  const hmac = crypto.createHmac("sha256", secret);
   hmac.update(manifest, "utf-8");
   const computed = hmac.digest("hex");
 
-  if (computed !== v1) {
+  if (
+    computed.length !== v1.length ||
+    !crypto.timingSafeEqual(Buffer.from(computed), Buffer.from(v1))
+  ) {
     console.error(
       `[MP Pro Webhook] Signature mismatch. dataId=${dataId}, requestId=${requestId}, ts=${ts}`,
     );

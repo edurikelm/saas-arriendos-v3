@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createHmac } from "crypto";
+import * as crypto from "crypto";
 import { processMercadoPagoWebhook } from "@/lib/actions/payments";
 import { normalizeDataId, WEBHOOK_TIMESTAMP_TOLERANCE_MS } from "@/lib/payment/webhook-helpers";
 
@@ -117,11 +117,14 @@ export function verifyMercadoPagoSignature(headers: Headers, rawBody: string, re
   }
 
   const manifest = `id:${normalizeDataId(dataId)};request-id:${requestId};ts:${ts};`;
-  const hmac = createHmac("sha256", secret);
+  const hmac = crypto.createHmac("sha256", secret);
   hmac.update(manifest, "utf-8");
   const computedSignature = hmac.digest("hex");
 
-  if (computedSignature !== v1) {
+  if (
+    computedSignature.length !== v1.length ||
+    !crypto.timingSafeEqual(Buffer.from(computedSignature), Buffer.from(v1))
+  ) {
     console.error(`[MP Webhook] Signature mismatch. dataId=${dataId}, requestId=${requestId}, ts=${ts}`);
 
     if (allowsInvalidWebhookSignatureInDevelopment()) {
