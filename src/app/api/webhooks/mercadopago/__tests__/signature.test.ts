@@ -100,7 +100,7 @@ describe('verifyMercadoPagoSignature', () => {
 
     const { verifyMercadoPagoSignature } = await import('../route');
 
-    const ts = '1717094400';
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = 'request-abc';
     const manifest = buildManifest('12345', requestId, ts);
     const validSignature = computeSignature(secret, manifest);
@@ -125,7 +125,7 @@ describe('verifyMercadoPagoSignature', () => {
 
     const { verifyMercadoPagoSignature } = await import('../route');
 
-    const ts = '1717094400';
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = 'request-abc';
     const manifest = buildManifest('99999', requestId, ts);
     const validSignature = computeSignature(secret, manifest);
@@ -150,7 +150,7 @@ describe('verifyMercadoPagoSignature', () => {
 
     const { verifyMercadoPagoSignature } = await import('../route');
 
-    const ts = '1717094400';
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = 'request-abc';
     const manifest = buildManifest('12345', requestId, ts);
     const validSignature = computeSignature(secret, manifest);
@@ -177,7 +177,8 @@ describe('verifyMercadoPagoSignature', () => {
 
     const headers = new Headers();
     headers.set('x-request-id', 'request-abc');
-    headers.set('x-signature', 'ts=1717094400,v1=wrong-signature');
+    const ts = String(Math.floor(Date.now() / 1000));
+    headers.set('x-signature', `ts=${ts},v1=wrong-signature`);
 
     const result = verifyMercadoPagoSignature(
       headers,
@@ -303,7 +304,7 @@ describe('verifyMercadoPagoSignature', () => {
     const { verifyMercadoPagoSignature } = await import('../route');
 
     const dataId = 'ORDTST01ABCDEF1234567890';
-    const ts = '1717094400';
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = 'request-abc';
 
     // MP computes the manifest signature using the lowercase version of dataId
@@ -331,7 +332,7 @@ describe('verifyMercadoPagoSignature', () => {
     const { verifyMercadoPagoSignature } = await import('../route');
 
     const dataId = 'ORdTST01AbCdEf1234567890';
-    const ts = '1717094400';
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = 'request-abc';
 
     // MP computes the manifest signature using the lowercase version of dataId
@@ -401,7 +402,7 @@ describe('POST /api/webhooks/mercadopago', () => {
 
     const { POST } = await import('../route');
 
-    const ts = '1717094400';
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = 'request-abc';
     const manifest = buildManifest('mp-payment-123', requestId, ts);
     const validSignature = computeSignature(secret, manifest);
@@ -447,7 +448,7 @@ describe('POST /api/webhooks/mercadopago', () => {
 
     const { POST } = await import('../route');
 
-    const ts = '1717094400';
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = 'request-abc';
     const manifest = buildManifest('mp-payment-123', requestId, ts);
     const validSignature = computeSignature(secret, manifest);
@@ -506,7 +507,7 @@ describe('POST /api/webhooks/mercadopago', () => {
 
     const { POST } = await import('../route');
 
-    const ts = '1717094400';
+    const ts = String(Math.floor(Date.now() / 1000));
     const requestId = 'request-abc';
     const manifest = buildManifest('merchant-order-123', requestId, ts);
     const validSignature = computeSignature(secret, manifest);

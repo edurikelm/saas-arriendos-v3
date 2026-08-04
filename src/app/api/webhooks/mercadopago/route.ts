@@ -97,7 +97,7 @@ export function verifyMercadoPagoSignature(headers: Headers, rawBody: string, re
   const toleranceMs =
     Number(process.env.MERCADOPAGO_WEBHOOK_TIMESTAMP_TOLERANCE_MS) ||
     WEBHOOK_TIMESTAMP_TOLERANCE_MS;
-  const tsMs = parseInt(ts, 10);
+  const tsMs = parseInt(ts, 10) * 1000; // Convert seconds (Unix ts) to ms
   const nowMs = Date.now();
   if (
     Number.isFinite(tsMs) &&
