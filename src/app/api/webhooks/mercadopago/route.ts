@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import * as crypto from "crypto";
 import { processMercadoPagoWebhook } from "@/lib/actions/payments";
 import { normalizeDataId, WEBHOOK_TIMESTAMP_TOLERANCE_MS } from "@/lib/payment/webhook-helpers";
+import { mpFetch } from "@/lib/payment/mp-fetch";
 
 interface MercadoPagoWebhookPayload {
   id: number;
@@ -161,7 +162,7 @@ export interface MpPaymentInfo {
 
 export async function getPaymentStatus(paymentId: string, accessToken: string): Promise<MpPaymentInfo | null> {
   try {
-    const response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+    const response = await mpFetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
@@ -342,7 +343,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ received: true, warning: "No token available to process merchant order" });
       }
 
-      const response = await fetch(`https://api.mercadopago.com/merchant_orders/${paymentId}`, {
+      const response = await mpFetch(`https://api.mercadopago.com/merchant_orders/${paymentId}`, {
         headers: {
           Authorization: `Bearer ${tokenResult.accessToken}`,
         },

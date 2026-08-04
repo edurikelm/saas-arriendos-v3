@@ -3,7 +3,20 @@ import { mpFetch } from '../mp-fetch';
 
 describe('mpFetch', () => {
   it('rejects with AbortError when timeout exceeded', async () => {
-    const slowFetch = vi.fn(() => new Promise(resolve => setTimeout(() => resolve(new Response()), 200)));
+    const slowFetch = vi.fn((_url: string, options?: RequestInit) => {
+      return new Promise((_resolve, reject) => {
+        // The AbortSignal.timeout fires an 'abort' event when timeout is reached
+        const timeoutId = setTimeout(() => {
+          const error = new DOMException('The operation was aborted due to timeout', 'AbortError');
+          reject(error);
+        }, 200);
+        // If the signal is aborted, clear the timeout and reject
+        options?.signal?.addEventListener('abort', () => {
+          clearTimeout(timeoutId);
+          reject(new DOMException('The operation was aborted', 'AbortError'));
+        });
+      });
+    });
     global.fetch = slowFetch as any;
 
     await expect(mpFetch('https://api.mercadopago.com/v1/payments/123', {}, 50))
