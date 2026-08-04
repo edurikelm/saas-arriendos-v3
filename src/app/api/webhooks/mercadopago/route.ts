@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import * as crypto from "crypto";
 import { processMercadoPagoWebhook } from "@/lib/actions/payments";
 import { normalizeDataId, WEBHOOK_TIMESTAMP_TOLERANCE_MS } from "@/lib/payment/webhook-helpers";
+import { mpFetch } from "@/lib/payment/mp-fetch";
 
 interface MercadoPagoWebhookPayload {
   id: number;
@@ -159,9 +160,9 @@ export interface MpPaymentInfo {
   id?: string;
 }
 
-async function getPaymentStatus(paymentId: string, accessToken: string): Promise<MpPaymentInfo | null> {
+export async function getPaymentStatus(paymentId: string, accessToken: string): Promise<MpPaymentInfo | null> {
   try {
-    const response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+    const response = await mpFetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
@@ -264,16 +265,11 @@ export async function POST(request: Request) {
           console.warn(`[MP Webhook] No Mercado Pago token for user ${userId}, skipping webhook for payment ${paymentId}`);
           return NextResponse.json({ received: true, warning: "No token configured for payment owner" });
         }
-      } else if (!hintedPaymentId) {
-        const tokenResult = await findTokenForPayment(paymentId);
-        if (!tokenResult) {
-          console.warn(`[MP Webhook] Could not determine owner for payment ${paymentId}. Attempted all active integrations.`);
-          return NextResponse.json({ received: true, warning: "Could not find payment owner" });
-        }
-        accessToken = tokenResult.accessToken;
       } else {
-        console.warn(`[MP Webhook] Hint paymentId=${hintedPaymentId} did not resolve a local payment for notification ${paymentId}`);
-        return NextResponse.json({ received: true, warning: "Could not resolve payment owner from hint" });
+        // No hint AND no payment found by mercadoPagoId: skip immediately.
+        // Rationale: iterating all integrations is O(N) external calls and amplifies DoS risk.
+        console.warn(`[MP Webhook] Could not resolve payment for ${paymentId} (no hint, no match by mercadoPagoId). Skipping.`);
+        return NextResponse.json({ received: true, warning: "Could not resolve payment" });
       }
 
       const paymentInfo = await getPaymentStatus(paymentId, accessToken);
@@ -347,7 +343,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ received: true, warning: "No token available to process merchant order" });
       }
 
-      const response = await fetch(`https://api.mercadopago.com/merchant_orders/${paymentId}`, {
+      const response = await mpFetch(`https://api.mercadopago.com/merchant_orders/${paymentId}`, {
         headers: {
           Authorization: `Bearer ${tokenResult.accessToken}`,
         },

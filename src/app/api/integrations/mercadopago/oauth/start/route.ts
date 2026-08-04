@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { IntegrationProvider } from "@prisma/client";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
+import { validateAppUrl } from "@/lib/config/env-validation";
 
 const MP_AUTH_BASE = "https://auth.mercadopago.com";
 
@@ -25,6 +26,11 @@ export async function GET() {
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
   const clientId = process.env.MERCADOPAGO_OAUTH_CLIENT_ID || process.env.MERCADOPAGO_CLIENT_ID;
+  const validation = validateAppUrl(appUrl);
+  if (!validation.valid) {
+    console.warn(`[MP OAuth] Invalid NEXT_PUBLIC_APP_URL: ${validation.reason}`);
+    return NextResponse.redirect(new URL("/settings?mp=config_error", appUrl ?? "http://localhost:3000"));
+  }
   if (!appUrl || !clientId) {
     return NextResponse.redirect(new URL("/settings?mp=config_error", appUrl ?? "http://localhost:3000"));
   }

@@ -3,9 +3,15 @@ import { processMercadoPagoWebhook } from "@/lib/actions/payments";
 import { prisma } from "@/lib/db/prisma";
 import { addDays } from "date-fns";
 import { getActivePaymentsForReservation } from "@/lib/payments/queries";
+import { toMercadoPagoIso8601 } from "./mp-fetch";
+import { validateAppUrl } from "@/lib/config/env-validation";
 
 function buildMercadoPagoNotificationUrl(paymentId: string) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  const validation = validateAppUrl(appUrl);
+  if (!validation.valid) {
+    console.warn(`[MP Gateway] Invalid NEXT_PUBLIC_APP_URL: ${validation.reason}`);
+  }
   return `${appUrl}/api/webhooks/mercadopago?source_news=webhooks&paymentId=${paymentId}`;
 }
 
@@ -120,6 +126,7 @@ export class MercadoPagoGateway implements PaymentGateway {
     const externalReference = `${reservation.id}:${payment.id}:${Date.now()}`;
     const description = `Reserva ${reservation.property.name} - ${reservation.client.name} (pago parcial)`;
 
+    const now = new Date();
     const response = await fetch(
       "https://api.mercadopago.com/checkout/preferences",
       {
@@ -142,6 +149,9 @@ export class MercadoPagoGateway implements PaymentGateway {
           notification_url: buildMercadoPagoNotificationUrl(payment.id),
           back_urls: buildMercadoPagoBackUrls(payment.id),
           auto_return: "approved",
+          expires: true,
+          expiration_date_from: toMercadoPagoIso8601(now),
+          expiration_date_to: toMercadoPagoIso8601(expirationDate),
         }),
       }
     );

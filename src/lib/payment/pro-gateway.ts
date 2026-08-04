@@ -9,7 +9,10 @@
  * en DB es responsabilidad del lifecycle (slices siguientes).
  */
 
+import { randomUUID } from "crypto";
+
 import { PRO_PRICING } from "@/lib/subscriptions/pricing";
+import { mpFetch } from "@/lib/payment/mp-fetch";
 
 const BASE_URL = "https://api.mercadopago.com";
 
@@ -69,7 +72,7 @@ export class MercadoPagoProGateway implements ProSubscriptionGateway {
       return { planId: envPlanId };
     }
 
-    const response = await fetch(`${BASE_URL}/v1/preapproval_plan`, {
+    const response = await mpFetch(`${BASE_URL}/v1/preapproval_plan`, {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify({
@@ -100,9 +103,12 @@ export class MercadoPagoProGateway implements ProSubscriptionGateway {
     payerEmail: string;
     planId: string;
   }): Promise<{ preapprovalId: string; initPoint: string }> {
-    const response = await fetch(`${BASE_URL}/v1/preapproval`, {
+    const response = await mpFetch(`${BASE_URL}/v1/preapproval`, {
       method: "POST",
-      headers: this.headers(),
+      headers: {
+        ...this.headers(),
+        "X-Idempotency-Key": randomUUID(),
+      },
       body: JSON.stringify({
         preapproval_plan_id: args.planId,
         payer_email: args.payerEmail,
@@ -127,7 +133,7 @@ export class MercadoPagoProGateway implements ProSubscriptionGateway {
   }
 
   async cancelPreapproval(preapprovalId: string): Promise<void> {
-    const response = await fetch(`${BASE_URL}/v1/preapproval/${preapprovalId}`, {
+    const response = await mpFetch(`${BASE_URL}/v1/preapproval/${preapprovalId}`, {
       method: "PUT",
       headers: this.headers(),
       body: JSON.stringify({ status: "cancelled" }),
@@ -142,7 +148,7 @@ export class MercadoPagoProGateway implements ProSubscriptionGateway {
   }
 
   async fetchPreapproval(preapprovalId: string): Promise<MpPreapprovalInfo> {
-    const response = await fetch(`${BASE_URL}/v1/preapproval/${preapprovalId}`, {
+    const response = await mpFetch(`${BASE_URL}/v1/preapproval/${preapprovalId}`, {
       method: "GET",
       headers: this.headers(),
     });

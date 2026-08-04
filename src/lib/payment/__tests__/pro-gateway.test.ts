@@ -381,6 +381,61 @@ describe("fetchPreapproval()", () => {
 });
 
 // =============================================================================
+// createPreapproval() - X-Idempotency-Key
+// =============================================================================
+
+describe("createPreapproval - X-Idempotency-Key", () => {
+  const setupToken = () => {
+    process.env.MERCADOPAGO_PRO_ACCESS_TOKEN = "token-test";
+    process.env.NEXT_PUBLIC_APP_URL = "https://app.example.com";
+  };
+
+  beforeEach(() => {
+    setupToken();
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: "pre-1", init_point: "https://..." }),
+    });
+  });
+
+  it("includes X-Idempotency-Key header in createPreapproval request", async () => {
+    const gateway = new MercadoPagoProGateway();
+    await gateway.createPreapproval({
+      userId: "user-1",
+      payerEmail: "test@example.com",
+      planId: "plan-1",
+    });
+
+    expect(mockFetch).toHaveBeenCalled();
+    const [, options] = mockFetch.mock.calls[0];
+    expect(options.headers["X-Idempotency-Key"]).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+  });
+
+  it("generates a new UUID for each createPreapproval call", async () => {
+    const gateway = new MercadoPagoProGateway();
+    await gateway.createPreapproval({
+      userId: "user-1",
+      payerEmail: "test@example.com",
+      planId: "plan-1",
+    });
+    await gateway.createPreapproval({
+      userId: "user-1",
+      payerEmail: "test@example.com",
+      planId: "plan-1",
+    });
+
+    const [, options1] = mockFetch.mock.calls[0];
+    const [, options2] = mockFetch.mock.calls[1];
+    expect(options1.headers["X-Idempotency-Key"]).not.toBe(
+      options2.headers["X-Idempotency-Key"],
+    );
+  });
+});
+
+// =============================================================================
 // getProGateway() singleton
 // =============================================================================
 
