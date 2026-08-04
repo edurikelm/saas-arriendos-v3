@@ -31,6 +31,9 @@ export async function GET() {
     console.warn(`[MP OAuth] Invalid NEXT_PUBLIC_APP_URL: ${validation.reason}`);
     return NextResponse.redirect(new URL("/settings?mp=config_error", appUrl ?? "http://localhost:3000"));
   }
+  if (!appUrl || !clientId) {
+    return NextResponse.redirect(new URL("/settings?mp=config_error", appUrl ?? "http://localhost:3000"));
+  }
 
   const state = randomUUID();
   const pkce = createPkcePair();
