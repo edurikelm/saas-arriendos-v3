@@ -615,4 +615,53 @@ describe('POST /api/webhooks/mercadopago', () => {
       })
     );
   });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // RED test for issue #200 — no integration iteration without paymentId hint
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  it('does not iterate integrations when no paymentId hint and payment not found by mercadoPagoId', async () => {
+    const secret = 'my-secret-key';
+    process.env.MERCADOPAGO_WEBHOOK_SECRET = secret;
+
+    // Both hint lookup (getPaymentById) and mercadoPagoId lookup return null
+    prismaMock.payment.findFirst.mockReset();
+    prismaMock.payment.findFirst.mockResolvedValue(null);
+    prismaMock.userIntegration.findMany.mockReset();
+    prismaMock.userIntegration.findMany.mockResolvedValue([]);
+
+    const fetchSpy = vi.fn();
+    global.fetch = fetchSpy as any;
+
+    const { POST } = await import('../route');
+
+    const ts = String(Math.floor(Date.now() / 1000));
+    const requestId = 'request-abc';
+    const dataId = 'mp-payment-123';
+    // MP normalizes dataId to lowercase before building the manifest
+    const manifest = buildManifest(dataId.toLowerCase(), requestId, ts);
+    const validSignature = computeSignature(secret, manifest);
+
+    const request = new Request(`https://example.com/api/webhooks/mercadopago?data.id=${dataId}&type=payment`, {
+      method: 'POST',
+      headers: {
+        'x-request-id': requestId,
+        'x-signature': `ts=${ts},v1=${validSignature}`,
+      },
+      body: JSON.stringify({ action: 'payment.updated', data: { id: dataId } }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.warning).toBeDefined();
+
+    // No external MP calls
+    expect(fetchSpy).not.toHaveBeenCalled();
+    // No integration iteration
+    expect(prismaMock.userIntegration.findMany).not.toHaveBeenCalled();
+    // No webhook processing
+    expect(processMercadoPagoWebhookMock).not.toHaveBeenCalled();
+  });
 });
