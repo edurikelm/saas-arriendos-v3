@@ -138,7 +138,9 @@ El webhook intenta matchear el pago en este orden:
 
 **Total por cobrar / Cobros vencidos:** agregan el conjunto COMPLETO filtrado, nunca la página. Se computan en `getCollectionReport` y se retornan en `CollectionReportTotals`. La UI los usa directamente del servidor.
 
-**Filtro `propertyId`:** afecta los 4 KPIs en `/reports` y la serie de ingresos anual (`getYearlySummary`). `status` de reserva es un filtro operativo y no afecta los KPIs financieros.
+**Filtro `propertyId`:** afecta los 4 KPIs en `/reports` y la serie de ingresos anual (`getYearlySummary`).
+
+**Exportaciones (Excel / PDF):** invocan `getReservationsReportForExport` con los filtros efectivos del momento (rango + propiedad) e incluyen **todas las reservas** (PENDING + CONFIRMED + COMPLETED + CANCELLED). No hay filtro de `status` en la UI — el server action sigue aceptando el parámetro, pero la UI ya no lo expone.
 
 **Plan FREE:** en `/reports`, solo el rango rápido `current_month` está habilitado. Los demás (`prev_month`, `last_3`, `last_6`, `year_to_date`, `custom`) están deshabilitados tanto en la UI (`disabled`) como en el handler del cliente.
 

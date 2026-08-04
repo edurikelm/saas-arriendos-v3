@@ -89,7 +89,6 @@ export function ReportsClient({
     to: undefined,
   });
   const [selectedProperty, setSelectedProperty] = useState<string>("all");
-  const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [properties, setProperties] = useState<Property[]>(initialProperties);
   const [exportLoading, setExportLoading] = useState(false);
   const [collectionRows, setCollectionRows] = useState<CollectionReportRow[]>(initialCollectionRows);
@@ -206,7 +205,7 @@ export function ReportsClient({
     } finally {
       setLoading(false);
     }
-  }, [effectiveDateRange, previousDateRange, selectedProperty, selectedStatus, collectionBillingType, collectionClientId, collectionDebtStatus, collectionDueRange, collectionPage, collectionLimit]);
+  }, [effectiveDateRange, previousDateRange, selectedProperty, collectionBillingType, collectionClientId, collectionDebtStatus, collectionDueRange, collectionPage, collectionLimit]);
 
   // Trigger fetch when filters change (not on initial mount — server pre-computed data is used)
   useEffect(() => {
@@ -312,7 +311,6 @@ export function ReportsClient({
       // On-demand: fetch with current filters (ADR-0030 — no SSR/refresh)
       const reservations = await getReservationsReportForExport({
         propertyId: selectedProperty !== "all" ? selectedProperty : undefined,
-        status: selectedStatus !== "all" ? selectedStatus : undefined,
         startDate: effectiveDateRange.from || undefined,
         endDate: effectiveDateRange.to || undefined,
       });
@@ -344,7 +342,6 @@ export function ReportsClient({
       // On-demand: fetch with current filters (ADR-0030 — no SSR/refresh)
       const reservations = await getReservationsReportForExport({
         propertyId: selectedProperty !== "all" ? selectedProperty : undefined,
-        status: selectedStatus !== "all" ? selectedStatus : undefined,
         startDate: effectiveDateRange.from || undefined,
         endDate: effectiveDateRange.to || undefined,
       });
@@ -506,23 +503,6 @@ export function ReportsClient({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-muted-foreground">Estado de Reservas (detalle/exportación)</label>
-              <Select value={selectedStatus} onValueChange={(v) => v && setSelectedStatus(v)}>
-                <SelectTrigger aria-label="Estado de Reservas (detalle/exportación)" className="w-full sm:w-40">
-                  <SelectValue placeholder="Todos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="PENDING">Pendiente</SelectItem>
-                  <SelectItem value="CONFIRMED">Confirmada</SelectItem>
-                  <SelectItem value="COMPLETED">Completada</SelectItem>
-                  <SelectItem value="CANCELLED">Cancelada</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-[10px] text-muted-foreground">No modifica el resumen financiero-operativo.</p>
             </div>
           </div>
         </CardContent>
