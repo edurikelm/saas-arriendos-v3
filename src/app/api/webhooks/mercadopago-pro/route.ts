@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHmac } from "crypto";
 import { applySubscriptionEvent } from "@/lib/subscriptions/lifecycle";
+import { normalizeDataId } from "@/lib/payment/webhook-helpers";
 import { getSubscriptionByPreapprovalId } from "@/lib/subscriptions/queries";
 import { getProGateway } from "@/lib/payment/pro-gateway";
 
@@ -97,7 +98,7 @@ export function verifyMpProWebhookSignature(
     return false;
   }
 
-  const manifest = `id:${dataId};request-id:${requestId};ts:${ts};`;
+  const manifest = `id:${normalizeDataId(dataId)};request-id:${requestId};ts:${ts};`;
   const hmac = createHmac("sha256", secret);
   hmac.update(manifest, "utf-8");
   const computed = hmac.digest("hex");

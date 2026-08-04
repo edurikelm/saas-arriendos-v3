@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHmac } from "crypto";
 import { processMercadoPagoWebhook } from "@/lib/actions/payments";
+import { normalizeDataId } from "@/lib/payment/webhook-helpers";
 
 interface MercadoPagoWebhookPayload {
   id: number;
@@ -99,7 +100,7 @@ export function verifyMercadoPagoSignature(headers: Headers, rawBody: string, re
     return false;
   }
 
-  const manifest = `id:${dataId};request-id:${requestId};ts:${ts};`;
+  const manifest = `id:${normalizeDataId(dataId)};request-id:${requestId};ts:${ts};`;
   const hmac = createHmac("sha256", secret);
   hmac.update(manifest, "utf-8");
   const computedSignature = hmac.digest("hex");
