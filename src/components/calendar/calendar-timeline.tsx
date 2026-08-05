@@ -5,9 +5,6 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameM
 import { es } from "date-fns/locale/es";
 import { ChevronLeft, ChevronRight, Calendar, Home, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { getReservationPaidAmount } from "@/lib/payments/calculations";
 import { channelColors } from "@/lib/calendar/channel-colors";
 
 interface Payment {
@@ -699,103 +696,5 @@ style={{ backgroundColor: "var(--brand-secondary)" }}
         </div>
       </div>
     </div>
-  );
-}
-
-export function ReservationDetailDialog({ reservation, onClose }: {
-  reservation: Reservation;
-  onClose: () => void;
-}) {
-  const status = statusConfig[reservation.status] || statusConfig.PENDING;
-  const StatusIcon = status.icon;
-  const paidAmount = getReservationPaidAmount(reservation.payments);
-  const pendingAmount = Number(reservation.totalPrice) - paidAmount;
-
-  return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="w-[95vw] max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Detalle de Reserva</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="flex items-center gap-4">
-            <div
-              className="h-12 w-12 rounded-xl flex items-center justify-center text-white font-semibold text-lg"
-              style={{ backgroundColor: "var(--brand-secondary)" }}
-            >
-              {reservation.property.name[0]}
-            </div>
-            <div>
-              <h3 className="font-semibold text-lg">{reservation.client.name}</h3>
-              <p className="text-sm text-muted-foreground">{reservation.client.email}</p>
-            </div>
-            <div className="ml-auto">
-              <Badge variant={status.variant} className="text-sm">
-                <StatusIcon className="h-4 w-4 mr-1" />
-                {status.label}
-              </Badge>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-muted/50 rounded-xl">
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Propiedad</p>
-              <p className="font-medium">{reservation.property.name}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Check-in</p>
-              <p className="font-medium">{formatFullDate(reservation.startDate)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Check-out</p>
-              <p className="font-medium">
-                {formatFullDate(reservation.endDate)}
-                <span className="text-xs text-muted-foreground ml-1">
-                  ({getNights(reservation.startDate, reservation.endDate)} noches)
-                </span>
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Total</p>
-              <p className="font-bold text-lg">{formatPrice(reservation.totalPrice)}</p>
-            </div>
-          </div>
-
-          {pendingAmount > 0 && (
-            <div className="flex items-center justify-between p-4 bg-warning/10 rounded-xl">
-              <div>
-                <p className="text-sm font-medium text-warning-foreground">Pago pendiente</p>
-                <p className="text-2xl font-bold text-warning-foreground">{formatPrice(pendingAmount)}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm text-muted-foreground">Pagado</p>
-                <p className="font-medium text-success">{formatPrice(paidAmount)}</p>
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center gap-4 text-sm">
-            <div className={`px-3 py-1.5 rounded-md text-xs font-medium ${reservation.billingType === "DAILY" ? "bg-info/10 text-info-foreground" : "bg-secondary text-secondary-foreground"}`}>
-              {reservation.billingType === "DAILY" ? "Tarifa diaria" : "Tarifa mensual"}
-            </div>
-            <div className={`px-3 py-1.5 rounded-md text-xs font-medium ${reservation.bookingAirbnb ? "bg-success/10 text-success-foreground" : "bg-muted text-muted-foreground"}`}>
-              {reservation.bookingAirbnb ? "Booking Airbnb" : "Directo"}
-            </div>
-            {reservation.unitsBooked > 1 && (
-              <div className="px-3 py-1.5 rounded-md text-xs font-medium bg-muted text-muted-foreground">
-                {reservation.unitsBooked} unidades
-              </div>
-            )}
-          </div>
-
-          {reservation.notes && (
-            <div className="p-4 bg-muted/50 rounded-xl">
-              <p className="text-xs text-muted-foreground mb-1">Notas</p>
-              <p className="text-sm">{reservation.notes}</p>
-            </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }

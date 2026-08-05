@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import type { Payment } from '../reservation-detail-dialog';
+import { PaymentsSection } from '../payments-section';
 
 vi.mock('@/lib/db/prisma', () => ({
   prisma: {
@@ -26,6 +26,7 @@ vi.mock('@/lib/actions/payments', () => ({
   revertPayment: vi.fn(),
   generatePaymentLink: vi.fn(),
   markPaymentAsPaid: vi.fn(),
+  attachReceipt: vi.fn(),
 }));
 
 vi.mock('sonner', () => ({
@@ -36,17 +37,15 @@ vi.mock('@/components/ui/receipt-upload', () => ({
   ReceiptUpload: () => <div data-testid="receipt-upload">ReceiptUpload</div>,
 }));
 
-vi.mock('./add-payment-dialog', () => ({
+vi.mock('@/components/reservations/add-payment-dialog', () => ({
   AddPaymentDialog: () => <div data-testid="add-payment-dialog">AddPaymentDialog</div>,
 }));
 
-vi.mock('../reservation-documents-panel', () => ({
-  ReservationDocumentsPanel: () => <div data-testid="reservation-documents-panel">ReservationDocumentsPanel</div>,
+vi.mock('@/components/reservations/send-payment-link-dialog', () => ({
+  SendPaymentLinkDialog: () => <div data-testid="send-payment-link-dialog">SendPaymentLinkDialog</div>,
 }));
 
-import { ReservationDetailDialog } from '../reservation-detail-dialog';
-
-const createMockPayment = (overrides: Partial<Payment> = {}): Payment => ({
+const createMockPayment = (overrides: Record<string, any> = {}): Record<string, any> => ({
   id: 'payment-1',
   installmentIndex: undefined,
   amount: '50000',
@@ -59,6 +58,8 @@ const createMockPayment = (overrides: Partial<Payment> = {}): Payment => ({
   deletedAt: null,
   receiptUrl: null,
   paymentType: 'RESERVATION',
+  title: null,
+  description: null,
   ...overrides,
 });
 
@@ -80,35 +81,7 @@ const createMockReservation = (overrides: Record<string, any> = {}) => ({
   ...overrides,
 });
 
-describe('ReservationDetailDialog - paymentType separation', () => {
-  it('shows reservation documents panel only for MONTHLY + PRO', () => {
-    const reservation = createMockReservation({
-      billingType: 'MONTHLY',
-    });
-
-    const { rerender } = render(
-      <ReservationDetailDialog
-        reservation={reservation}
-        open={true}
-        onClose={() => {}}
-        plan="PRO"
-      />
-    );
-
-    expect(screen.getByTestId('reservation-documents-panel')).toBeTruthy();
-
-    rerender(
-      <ReservationDetailDialog
-        reservation={reservation}
-        open={true}
-        onClose={() => {}}
-        plan="FREE"
-      />
-    );
-
-    expect(screen.queryByTestId('reservation-documents-panel')).toBeNull();
-  });
-
+describe('PaymentsSection - paymentType separation', () => {
   it('shows "Pagos de reserva" title for DAILY billing', () => {
     const reservation = createMockReservation({
       billingType: 'DAILY',
@@ -118,10 +91,14 @@ describe('ReservationDetailDialog - paymentType separation', () => {
     });
 
     render(
-      <ReservationDetailDialog
-        reservation={reservation}
-        open={true}
-        onClose={() => {}}
+      <PaymentsSection
+        reservationId={reservation.id}
+        totalPrice={reservation.totalPrice}
+        billingType={reservation.billingType}
+        status={reservation.status}
+        payments={reservation.payments}
+        client={reservation.client}
+        propertyName="Test Property"
       />
     );
 
@@ -137,10 +114,14 @@ describe('ReservationDetailDialog - paymentType separation', () => {
     });
 
     render(
-      <ReservationDetailDialog
-        reservation={reservation}
-        open={true}
-        onClose={() => {}}
+      <PaymentsSection
+        reservationId={reservation.id}
+        totalPrice={reservation.totalPrice}
+        billingType={reservation.billingType}
+        status={reservation.status}
+        payments={reservation.payments}
+        client={reservation.client}
+        propertyName="Test Property"
       />
     );
 
@@ -157,10 +138,14 @@ describe('ReservationDetailDialog - paymentType separation', () => {
     });
 
     render(
-      <ReservationDetailDialog
-        reservation={reservation}
-        open={true}
-        onClose={() => {}}
+      <PaymentsSection
+        reservationId={reservation.id}
+        totalPrice={reservation.totalPrice}
+        billingType={reservation.billingType}
+        status={reservation.status}
+        payments={reservation.payments}
+        client={reservation.client}
+        propertyName="Test Property"
       />
     );
 
@@ -176,10 +161,14 @@ describe('ReservationDetailDialog - paymentType separation', () => {
     });
 
     render(
-      <ReservationDetailDialog
-        reservation={reservation}
-        open={true}
-        onClose={() => {}}
+      <PaymentsSection
+        reservationId={reservation.id}
+        totalPrice={reservation.totalPrice}
+        billingType={reservation.billingType}
+        status={reservation.status}
+        payments={reservation.payments}
+        client={reservation.client}
+        propertyName="Test Property"
       />
     );
 
@@ -196,10 +185,14 @@ describe('ReservationDetailDialog - paymentType separation', () => {
     });
 
     render(
-      <ReservationDetailDialog
-        reservation={reservation}
-        open={true}
-        onClose={() => {}}
+      <PaymentsSection
+        reservationId={reservation.id}
+        totalPrice={reservation.totalPrice}
+        billingType={reservation.billingType}
+        status={reservation.status}
+        payments={reservation.payments}
+        client={reservation.client}
+        propertyName="Test Property"
       />
     );
 
@@ -219,17 +212,20 @@ describe('ReservationDetailDialog - paymentType separation', () => {
     });
 
     render(
-      <ReservationDetailDialog
-        reservation={reservation}
-        open={true}
-        onClose={() => {}}
+      <PaymentsSection
+        reservationId={reservation.id}
+        totalPrice={reservation.totalPrice}
+        billingType={reservation.billingType}
+        status={reservation.status}
+        payments={reservation.payments}
+        client={reservation.client}
+        propertyName="Test Property"
       />
     );
 
     // paidAmount should only count RESERVATION COMPLETED payments:
     // p1 ($50k RESERVATION COMPLETED) counts, p2 ($40k EXTRA) and p3 ($30k PENDING) don't.
-    // 200000 total - 50000 paid = 150000 pending (shown in the "Saldo pendiente" row).
-    // "Monto pagado" should reflect RESERVATION COMPLETED only ($50k), excluding the $40k EXTRA.
+    // 200000 total - 50000 paid = 150000 pending (shown in the pending KPI).
     expect(screen.getByText('$150.000')).toBeTruthy();
     expect(screen.getByText('$50.000')).toBeTruthy();
   });

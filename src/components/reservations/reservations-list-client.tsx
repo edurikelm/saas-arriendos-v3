@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Calendar, Plus, X, X as XIcon, Search, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -12,7 +12,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ReservationForm } from "@/components/reservations/reservation-form";
-import { ReservationDetailDialog } from "@/components/reservations/reservation-detail-dialog";
 import { ReservationTable } from "@/components/reservations/reservation-table";
 import { ReservationListItem } from "@/components/reservations/reservation-list-item";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -49,6 +48,7 @@ export function ReservationsListClient({
   plan = "FREE",
 }: ReservationsListClientProps) {
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   // Server-fetched reservations (affected by server-side filters)
   const [serverReservations, setServerReservations] = useState<Reservation[]>(initialData.data);
@@ -62,7 +62,6 @@ export function ReservationsListClient({
   // Dialogs
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
-  const [viewingReservation, setViewingReservation] = useState<Reservation | null>(null);
   const [confirmAction, setConfirmAction] = useState<null | {
     title: string;
     description: string;
@@ -128,16 +127,13 @@ export function ReservationsListClient({
   // Effective view mode: mobile always uses list
   const effectiveViewMode = isMobile ? "list" : viewMode;
 
-  // Open detail dialog from URL param
+  // Deep-link from external systems: /reservations?reservationId=abc123 → redirect to detail page.
+  // The preview-from-list pattern was removed (list always navigates to detail page directly).
   useEffect(() => {
     const reservationId = searchParams.get("reservationId");
     if (!reservationId) return;
-    const target = serverReservations.find((reservation) => reservation.id === reservationId);
-    if (target) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync URL param to UI state
-      setViewingReservation(target);
-    }
-  }, [searchParams, serverReservations]);
+    router.replace(`/reservations/${reservationId}`);
+  }, [searchParams, router]);
 
   // CRUD handlers
   const handleRefresh = useCallback(async () => {
@@ -192,7 +188,6 @@ export function ReservationsListClient({
   const handleDelete = (id: string) => {
     setIsCreateOpen(false);
     setEditingReservation(null);
-    setViewingReservation(null);
     setConfirmAction({
       title: "Eliminar reserva",
       description: "Esta acción no se puede deshacer. Se eliminará la reserva seleccionada del listado.",
@@ -445,10 +440,6 @@ export function ReservationsListClient({
             <div className="overflow-x-auto">
               <ReservationTable
                 reservations={filteredReservations}
-                onView={(id) => {
-                  const res = serverReservations.find((r) => r.id === id);
-                  if (res) setViewingReservation(res);
-                }}
                 onEdit={(id) => {
                   const res = serverReservations.find((r) => r.id === id);
                   if (res) setEditingReservation(res);
@@ -463,7 +454,6 @@ export function ReservationsListClient({
                 <ReservationListItem
                   key={reservation.id}
                   reservation={reservation}
-                  onView={(res) => setViewingReservation(res)}
                   onEdit={(res) => setEditingReservation(res)}
                   onCancel={handleCancel}
                   onDelete={handleDelete}
@@ -512,30 +502,6 @@ export function ReservationsListClient({
           )}
         </DialogContent>
       </Dialog>
-
-      {viewingReservation && (
-        <ReservationDetailDialog
-          reservation={viewingReservation}
-          open={!!viewingReservation}
-          plan={plan as "FREE" | "PRO"}
-          onClose={() => setViewingReservation(null)}
-          onEdit={() => {
-            setViewingReservation(null);
-            setEditingReservation(viewingReservation);
-          }}
-          onCancel={() => {
-            if (!viewingReservation) return;
-            handleCancel(viewingReservation.id, () => setViewingReservation(null));
-          }}
-          onRefresh={async (reservationId) => {
-            const data = await fetchReservations(serverFilters);
-            if (data?.data) {
-              const fresh = data.data.find((r) => r.id === reservationId);
-              if (fresh) setViewingReservation(fresh);
-            }
-          }}
-        />
-      )}
 
       <Dialog open={!!editingReservation} onOpenChange={() => setEditingReservation(null)}>
         <DialogContent className="w-[95vw] max-w-xl gap-0 p-0 overflow-hidden" showCloseButton={false}>

@@ -1,9 +1,8 @@
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
 import {
   CalendarTimeline,
   CalendarMonthGrid,
-  ReservationDetailDialog,
 } from "../calendar-timeline";
 
 const baseProperty = {
@@ -112,53 +111,42 @@ describe("CalendarMonthGrid navigation", () => {
   });
 });
 
-describe("ReservationDetailDialog pills", () => {
-  function renderDialog(overrides: Partial<typeof baseReservation> = {}) {
-    return render(
-      <ReservationDetailDialog
-        reservation={makeRes(overrides)}
-        onClose={() => {}}
+describe("CalendarTimeline onSelectReservation callback", () => {
+  it("calls onSelectReservation with reservation id when clicking a reservation bar", () => {
+    const onSelectReservation = vi.fn();
+    const reservation = makeRes();
+
+    const { container } = render(
+      <CalendarTimeline
+        reservations={[reservation]}
+        currentMonth={currentMonth}
+        onSelectReservation={onSelectReservation}
       />
     );
-  }
 
-  it("renders the billing-type pill (DAILY) with a rectangular radius", () => {
-    renderDialog({ billingType: "DAILY" });
-    const dailyPill = screen
-      .getByText("Tarifa diaria")
-      .closest("div") as HTMLElement | null;
-    expect(dailyPill).toBeTruthy();
-    expect(dailyPill!.className).not.toMatch(/rounded-full/);
-    expect(dailyPill!.className).toMatch(/rounded/);
+    const reservationBar = container.querySelector(
+      "button[title]"
+    ) as HTMLElement | null;
+    expect(reservationBar).toBeTruthy();
+
+    fireEvent.click(reservationBar!);
+    expect(onSelectReservation).toHaveBeenCalledWith(reservation.id);
   });
 
-  it("renders the billing-type pill (MONTHLY) with a rectangular radius", () => {
-    renderDialog({ billingType: "MONTHLY" });
-    const monthlyPill = screen
-      .getByText("Tarifa mensual")
-      .closest("div") as HTMLElement | null;
-    expect(monthlyPill).toBeTruthy();
-    expect(monthlyPill!.className).not.toMatch(/rounded-full/);
-    expect(monthlyPill!.className).toMatch(/rounded/);
-  });
+  it("does not call onSelectReservation when clicking elsewhere", () => {
+    const onSelectReservation = vi.fn();
 
-  it("renders the booking-source pill (Airbnb) with a rectangular radius", () => {
-    renderDialog({ bookingAirbnb: true });
-    const airbnbPill = screen
-      .getByText("Booking Airbnb")
-      .closest("div") as HTMLElement | null;
-    expect(airbnbPill).toBeTruthy();
-    expect(airbnbPill!.className).not.toMatch(/rounded-full/);
-    expect(airbnbPill!.className).toMatch(/rounded/);
-  });
+    render(
+      <CalendarTimeline
+        reservations={[makeRes()]}
+        currentMonth={currentMonth}
+        onSelectReservation={onSelectReservation}
+      />
+    );
 
-  it("renders the booking-source pill (Direct) with a rectangular radius", () => {
-    renderDialog({ bookingAirbnb: false });
-    const directPill = screen
-      .getByText("Directo")
-      .closest("div") as HTMLElement | null;
-    expect(directPill).toBeTruthy();
-    expect(directPill!.className).not.toMatch(/rounded-full/);
-    expect(directPill!.className).toMatch(/rounded/);
+    // Click on the page header (not on a reservation bar)
+    const header = screen.getByText("Casa Norte");
+    fireEvent.click(header);
+    expect(onSelectReservation).not.toHaveBeenCalled();
   });
 });

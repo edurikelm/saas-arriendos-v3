@@ -990,6 +990,32 @@ Layout canónico establecido en `8b77651` (commit del rediseño de `/settings`):
 
 ---
 
+## Detalle de Reserva — patrón ruta dedicada + preview híbrido
+
+`/reservations/[id]` (Server Component, `force-dynamic`) es la **ruta dedicada** para el detail completo. El modal `ReservationPreviewDialog` (`w-[95vw] max-w-2xl`) provee un **preview compacto** + CTA "Ver reserva completa" hacia la ruta.
+
+**Patrón de uso**:
+- **Lista de reservas** (`/reservations`): click → `<Link href="/reservations/{id}">` directo. Sin preview modal (mantiene contexto de lista, sin doble paso).
+- **Calendario** (`/calendar`): click en barra del timeline → `ReservationPreviewDialog` con info esencial (avatar+cliente, propiedad, estancia, total+pendiente, billing type, source, notas) + CTA "Ver reserva completa → /reservations/{id}".
+- **Deep-link** `/reservations?reservationId=...`: redirige a `/reservations/{id}` (no abre preview).
+
+**Preview content** (lo que cabe sin scroll en `max-w-2xl`):
+- Header: avatar circular (`bg-primary/10`), nombre, email + teléfono (clickable), badge status (semántico), badge "Airbnb" si `bookingAirbnb`.
+- Grid 2-col: Propiedad (chip color `property.color || "var(--primary)"`) + Estancia (check-in/out + noches/meses).
+- Total en grande (`text-2xl font-bold tabular-nums`) + panel warning si `pendingAmount > 0`.
+- Chips: BillingType + Source + Units (si `> 1`).
+- Notas (si existen) en panel `bg-muted/50`.
+- **Footer CTA**: `<Link>` con `buttonVariants({ variant: "default", className: "w-full sm:w-auto" })` + `<ArrowRight className="ml-2 size-4" />`.
+
+**Ruta `/reservations/[id]`** — Page Tier 2 (`text-2xl sm:text-3xl font-bold tracking-tight`), 4 secciones en scroll vertical. Acciones del header: `[Editar]` (abre `Dialog` con `ReservationForm`) + `[Cancelar]` (abre `ConfirmDialog` destructivo). Ver CONTEXT.md "Detalle de Reserva" para layout canónico.
+
+**Reglas duras**:
+- **NO** incluir tabla de pagos, gestión de pagos, documentos ni historial en el preview — eso es el detail.
+- **NO** abrir el preview desde la lista (siempre Link directo). El preview es exclusivo del calendario.
+- El preview debe tener un solo CTA primario visible: "Ver reserva completa". No hay acciones destructivas en el preview.
+
+---
+
 ## References
 
 - **Stitch project**: `projects/1529269251022042678` ("RentalPro - Rediseño UI") — fuente visual

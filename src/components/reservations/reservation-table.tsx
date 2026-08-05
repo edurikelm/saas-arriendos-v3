@@ -1,7 +1,9 @@
 "use client";
 
 import { MoreVertical, Eye, Pencil, Ban, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import {
   DropdownMenu,
@@ -77,10 +79,9 @@ function getPaymentTone(paidAmount: number, totalPrice: number): PillTone {
   return "destructive";
 }
 
-function ReservationMobileCard({ reservation, onEdit, onView, onCancel, onDelete }: {
+function ReservationMobileCard({ reservation, onEdit, onCancel, onDelete }: {
   reservation: Reservation;
   onEdit?: (id: string) => void;
-  onView?: (id: string) => void;
   onCancel?: (id: string) => void;
   onDelete?: (id: string) => void;
 }) {
@@ -140,11 +141,9 @@ function ReservationMobileCard({ reservation, onEdit, onView, onCancel, onDelete
       </div>
 
       <div className="mt-3 flex items-center justify-end gap-1 pl-1.5">
-        {onView && (
-          <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:text-foreground" onClick={() => onView(reservation.id)} aria-label="Ver reserva">
-            <Eye className="h-4 w-4" aria-hidden="true" />
-          </Button>
-        )}
+        <Link href={`/reservations/${reservation.id}`} className={buttonVariants({ variant: "ghost", size: "icon-sm" })} aria-label="Ver reserva">
+          <Eye className="h-4 w-4" aria-hidden="true" />
+        </Link>
         {onEdit && (
           <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:text-foreground" onClick={() => onEdit(reservation.id)} aria-label="Editar reserva">
             <Pencil className="h-4 w-4" aria-hidden="true" />
@@ -165,13 +164,13 @@ function ReservationMobileCard({ reservation, onEdit, onView, onCancel, onDelete
   );
 }
 
-export function ReservationTable({ reservations, onEdit, onView, onCancel, onDelete }: {
+export function ReservationTable({ reservations, onEdit, onCancel, onDelete }: {
   reservations: Reservation[];
   onEdit?: (id: string) => void;
-  onView?: (id: string) => void;
   onCancel?: (id: string) => void;
   onDelete?: (id: string) => void;
 }) {
+  const router = useRouter();
   // Reservations arrive pre-sorted from the server (createdAt desc). No client-side sort UI.
   const sorted = reservations;
 
@@ -182,7 +181,6 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
           <ReservationMobileCard
             key={res.id}
             reservation={res}
-            onView={onView}
             onEdit={onEdit}
             onCancel={onCancel}
             onDelete={onDelete}
@@ -291,12 +289,10 @@ export function ReservationTable({ reservations, onEdit, onView, onCancel, onDel
                       <MoreVertical className="h-4 w-4" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      {onView && (
-                        <DropdownMenuItem onClick={() => onView(res.id)}>
-                          <Eye className="mr-1.5 h-4 w-4" />
-                          Ver
-                        </DropdownMenuItem>
-                      )}
+                      <DropdownMenuItem onClick={() => router.push(`/reservations/${res.id}`)}>
+                        <Eye className="mr-1.5 h-4 w-4" />
+                        Ver
+                      </DropdownMenuItem>
                       {onEdit && (
                         <DropdownMenuItem onClick={() => onEdit(res.id)}>
                           <Pencil className="mr-1.5 h-4 w-4" />

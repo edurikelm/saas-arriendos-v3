@@ -2,6 +2,10 @@ import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
 import { ReservationTable } from "../reservation-table";
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+}));
+
 vi.mock("@/lib/reservation-payment", () => ({
   getPaymentStatus: vi.fn(() => ({ label: "Pendiente", tone: "amber" as const })),
 }));

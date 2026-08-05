@@ -34,7 +34,7 @@ export interface PaymentRowActionsProps {
   generatingLinkId?: string | null;
   regeneratingLinkId?: string | null;
   attachingReceiptId?: string | null;
-  /** Internal API — compact cell in modal context (ReservationDetailDialog). */
+  /** Internal API — compact cell in modal context (e.g. dialogs over the list). */
   compact?: boolean;
 }
 

@@ -11,8 +11,9 @@ import { KpiCard } from "@/components/ui/kpi-card";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CalendarTimeline } from "@/components/calendar/calendar-timeline";
-import { ReservationDetailDialog } from "@/components/reservations/reservation-detail-dialog";
+import { ReservationPreviewDialog } from "@/components/reservations/reservation-preview-dialog";
 import { ReservationForm } from "@/components/reservations/reservation-form";
+import type { Reservation } from "@/components/reservations/types";
 import type { CalendarReservation, CalendarExternalBlock } from "@/lib/actions/reservations";
 import type { ReservationInput } from "@/lib/validations/reservation";
 import { createReservation, getCalendarReservations } from "@/lib/actions/reservations";
@@ -46,23 +47,6 @@ interface Client {
   email: string;
 }
 
-interface ReservationDetails {
-  id: string;
-  propertyId: string;
-  clientId: string;
-  property: Property;
-  client: Client;
-  startDate: string;
-  endDate: string;
-  billingType: string;
-  unitsBooked: number;
-  totalPrice: string;
-  status: string;
-  bookingAirbnb: boolean;
-  notes: string | null;
-  payments: Array<{ id: string; amount: string; status: string; method: string; initPoint?: string | null; expiresAt?: string | null }>;
-}
-
 interface CalendarViewProps {
   initialReservations: CalendarReservation[];
   initialExternalBlocks?: CalendarExternalBlock[];
@@ -85,7 +69,7 @@ export function CalendarView({
   const [showExternalBlocks, setShowExternalBlocks] = useState<boolean>(initialShowExternalBlocks);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>("all");
   const [loading, setLoading] = useState(false);
-  const [selectedReservation, setSelectedReservation] = useState<ReservationDetails | null>(null);
+  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
@@ -149,18 +133,6 @@ export function CalendarView({
       }
     } catch (error) {
       console.error("Error fetching reservation:", error);
-    }
-  };
-
-  const handleRefreshReservation = async (id: string) => {
-    try {
-      const res = await fetch(`/api/reservations/${id}`);
-      if (res.ok) {
-        const data = await res.json();
-        setSelectedReservation(data);
-      }
-    } catch (error) {
-      console.error("Error refreshing reservation:", error);
     }
   };
 
@@ -422,11 +394,10 @@ export function CalendarView({
       )}
 
       {selectedReservation && (
-        <ReservationDetailDialog
+        <ReservationPreviewDialog
           reservation={selectedReservation}
           open={!!selectedReservation}
           onClose={() => setSelectedReservation(null)}
-          onRefresh={handleRefreshReservation}
         />
       )}
 

@@ -146,6 +146,25 @@ El webhook intenta matchear el pago en este orden:
 
 **Exportación on-demand (ADR-0030):** `getReservationsReportForExport` se invoca únicamente desde `handleExcelExport` y `handlePDFExport` con los filtros efectivos del momento. Ya no se llama en SSR ni en cada refresh de filtros — las exportaciones se ejecutan bajo demanda cuando el usuario las dispara, sin afectar el tiempo de carga inicial.
 
+### Detalle de Reserva — ruta dedicada + preview híbrido
+
+El detalle completo de una reserva vive en **ruta dedicada** `/reservations/[id]` (Server Component, `force-dynamic`). Los flujos que la consumen:
+
+- **Lista de reservas** (`/reservations`): cada click en acción "Ver" navega directo a `/reservations/{id}` (`<Link>` en columna de acciones). **No** hay preview modal en lista — el contexto de la lista no se necesita en el detail.
+- **Calendario** (`/calendar`): click en una barra del timeline abre `ReservationPreviewDialog` (`max-w-2xl`) con info esencial + botón CTA "Ver reserva completa" → `/reservations/{id}`. El preview es client component, recibe el `Reservation` shape del API `/api/reservations/{id}` (calendar-view.tsx).
+- **Deep-link** `?reservationId=...`: en `/reservations`, redirige a `/reservations/{id}` (no abre preview).
+
+**Shape de datos**: `getReservationById(id)` (en `src/lib/actions/reservations.ts:179`) ya incluye auth + tenant isolation, payments (`deletedAt: null`) y `changes` (últimos 50). Retorna `null` si no existe → la página llama `notFound()` y renderiza `app/(dashboard)/reservations/[id]/not-found.tsx`.
+
+**Ruta `/reservations/[id]`** — Server Component → Client Component (`ReservationDetailClient`) con 4 secciones en scroll vertical:
+1. PageHeader Tier 2 con breadcrumb "Volver a reservas" + acciones (Editar / Cancelar).
+2. Información general (4-col en desktop, 1-col en mobile): Propiedad · Estancia · Cliente · Origen.
+3. Pagos: 3 KpiCards (Total / Pagado / Pendiente) + `<DataTable>` con acciones (generar link, copiar, marcar pagado, comprobante).
+4. Documentos (`<ReservationDocumentsPanel>`) — **solo si `billingType === "MONTHLY"`**.
+5. Historial de cambios (`<details>` collapsible) — list de `ReservationChange` con field + old → new + timestamp.
+
+**Route-specific error boundary**: `app/(dashboard)/reservations/[id]/error.tsx` captura errores de render con CTA "Reintentar" + "Volver a Reservas".
+
 ## Calendario
 
 - Vista por defecto: **Timeline** (no grid). El toggle grid↔timeline está en el header.

@@ -1,9 +1,10 @@
 "use client";
 
 import { formatDate, formatPrice } from "./reservations-utils";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Eye, Pencil, Ban, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { getReservationPaidAmount } from "@/lib/payments/calculations";
 import { getInclusiveMonths } from "@/lib/reservation-dates";
 import type { Reservation } from "@/components/reservations/types";
@@ -95,7 +96,6 @@ const verticalBarClasses: Record<string, string> = {
 
 interface ReservationListItemProps {
   reservation: Reservation;
-  onView: (reservation: Reservation) => void;
   onEdit: (reservation: Reservation) => void;
   onCancel: (id: string) => void;
   onDelete: (id: string) => void;
@@ -103,7 +103,6 @@ interface ReservationListItemProps {
 
 export function ReservationListItem({
   reservation,
-  onView,
   onEdit,
   onCancel,
   onDelete,
@@ -189,10 +188,10 @@ export function ReservationListItem({
         )}
 
         <div className="flex items-center gap-2 mt-4">
-          <Button variant="outline" size="sm" onClick={() => onView(reservation)}>
+          <Link href={`/reservations/${reservation.id}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
             <Eye className="h-4 w-4 mr-1" />
             Ver
-          </Button>
+          </Link>
           <Button variant="outline" size="sm" onClick={() => onEdit(reservation)}>
             <Pencil className="h-4 w-4 mr-1" />
             Editar
