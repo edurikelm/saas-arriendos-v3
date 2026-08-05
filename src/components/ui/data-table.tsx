@@ -34,7 +34,7 @@ function alignClass(align: DataTableHeaderAlign): string {
 
 export function DataTable({ headers, children, emptyState, caption, className, minWidth = "640px" }: DataTableProps) {
   return (
-    <div className={cn("overflow-hidden rounded-md border border-border bg-card", className)}>
+    <div className={cn("overflow-hidden rounded-md border border-t-2 border-t-primary border-border bg-card", className)}>
       <div className="overflow-x-auto">
         <table className="w-full" style={{ minWidth }}>
           {caption && <caption className="sr-only">{caption}</caption>}
