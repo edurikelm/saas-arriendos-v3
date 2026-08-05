@@ -48,3 +48,6 @@ testsprite_tests/
 
 
 testsprite_tests\tmp\config.json
+
+# Impeccable live mode (local helper journal, config, sessions — not project source)
+.impeccable/
