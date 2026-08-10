@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { render } from "@testing-library/react";
 import { OccupancyStrip } from "../occupancy-strip";
 
@@ -22,6 +22,28 @@ function makeRes(overrides: {
     property,
   };
 }
+
+// Mock matchMedia para useMediaQuery hook (OccupancyStrip es Client Component).
+// Default = desktop (matches: false for "(max-width: 639px)").
+beforeEach(() => {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  });
+});
+
+afterEach(() => {
+  Reflect.deleteProperty(window, "matchMedia");
+});
 
 describe("OccupancyStrip pill colors", () => {
   const today = new Date("2026-07-17T00:00:00");

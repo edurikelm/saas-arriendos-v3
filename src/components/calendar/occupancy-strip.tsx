@@ -1,4 +1,9 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
+import { useMediaQuery } from "@/hooks/use-media-query";
+import { cn } from "@/lib/utils";
 
 /**
  * OccupancyStrip — Server Component compartido que renderiza una vista compacta
@@ -22,6 +27,7 @@ import Link from "next/link";
 interface Property {
   id: string;
   name: string;
+  unitsAvailable?: number;
 }
 
 interface Reservation {
@@ -40,8 +46,10 @@ interface OccupancyStripProps {
   reservations: Reservation[];
   /** Todas las propiedades disponibles. Solo se muestran las que tienen reservas en rango (hasta `maxProperties`). */
   properties: Property[];
-  /** Cantidad de días desde `today` a renderizar. Default: 14. */
+  /** Cantidad de días desde `today` a renderizar en desktop. Default: 14. */
   days?: number;
+  /** Cantidad de días en mobile (<640px). Default: 7. Override para tests. */
+  daysMobile?: number;
   /** Máximo de propiedades a renderizar. Default: 6. */
   maxProperties?: number;
   /** Título del header. Default: "Calendario de ocupación". */
@@ -53,7 +61,7 @@ interface OccupancyStripProps {
   /**
    * Si se provee, el título se renderiza como bloque standalone AFUERA del card,
    * junto con un link "Ver todas" que apunta a esta URL (alineado con el patrón
-   * canónico de `/dashboard` sección "Reservas Diarias"). Si se omite, el título
+   * canónico de `/dashboard` sección "Próximas reservas"). Si se omite, el título
    * se mantiene dentro del card (back-compat).
    */
   viewAllHref?: string;
@@ -62,6 +70,9 @@ interface OccupancyStripProps {
 }
 
 const WEEKEND_DAY_OF_WEEK = new Set([0, 6]); // Sun, Sat
+
+const RANGE_OPTIONS = [7, 14, 30] as const;
+type RangeOption = (typeof RANGE_OPTIONS)[number];
 
 function addDays(d: Date, n: number): Date {
   const result = new Date(d);
@@ -114,26 +125,22 @@ function dayLetter(d: Date): string {
 }
 
 /**
- * Construye la línea descriptiva del header: día de semana del primer día,
- * rango, mes(es) y total de días. Si el rango cruza meses, los muestra ambos
- * (ej: "agosto – septiembre 2026"). Si es del mismo mes, muestra solo uno
- * capitalizado (ej: "julio 2026").
+ * Construye la línea descriptiva del header: día de semana del primer día y
+ * fecha del último. Solo fechas — el conteo de días lo muestra el toggle
+ * (7D/14D/30D) y el mes es implícito en las fechas (cross-month se ve solo:
+ * "Miércoles 30 Ago — Viernes 5 Sept").
  */
 function buildRangeLabel(start: Date, end: Date, days: number): string {
   const startWeekday = formatWeekday(start);
   const endWeekday = formatWeekday(end);
-  const sameMonth =
-    start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
-  const monthLabel = sameMonth
-    ? `${formatMonthLong(start)} ${start.getFullYear()}`
-    : `${formatMonthLong(start)} – ${formatMonthLong(end)} ${end.getFullYear()}`;
-  return `${startWeekday} ${formatDayShort(start)} ${formatMonthShort(start)} — ${endWeekday} ${formatDayShort(end)} ${formatMonthShort(end)} · ${days} días · ${monthLabel}`;
+  return `${startWeekday} ${formatDayShort(start)} ${formatMonthShort(start)} — ${endWeekday} ${formatDayShort(end)} ${formatMonthShort(end)}`;
 }
 
 export function OccupancyStrip({
   reservations,
   properties,
   days = 14,
+  daysMobile = 7,
   maxProperties = 6,
   title = "Calendario de ocupación",
   today,
@@ -141,12 +148,24 @@ export function OccupancyStrip({
   viewAllHref,
   viewAllLabel = "Ver todas",
 }: OccupancyStripProps) {
+  // Responsive: reduce el rango en mobile (<640px) para evitar scroll horizontal.
+  const isMobile = useMediaQuery("(max-width: 639px)");
+  // Toggle solo disponible en desktop; mobile mantiene el rango compacto para caber.
+  const [userRange, setUserRange] = useState<RangeOption>(days as RangeOption);
+  const effectiveDays = isMobile ? daysMobile : userRange;
+  // Ancho mínimo: 56px por día + 156px columna sticky de propiedad (mobile) | 224px (desktop).
+  const propertyColumnWidth = isMobile ? 156 : 224;
+  const minWidthPx = effectiveDays * 56 + propertyColumnWidth;
+
   const ref = today ?? new Date();
   ref.setHours(0, 0, 0, 0);
 
   const calendarStart = ref;
-  const calendarEnd = addDays(ref, days - 1);
-  const calendarDays: Date[] = Array.from({ length: days }, (_, i) => addDays(ref, i));
+  const calendarEnd = addDays(ref, effectiveDays - 1);
+  const calendarDays: Date[] = Array.from({ length: effectiveDays }, (_, i) => addDays(ref, i));
+
+  // Índice del día de hoy dentro del rango. -1 si hoy está fuera del rango.
+  const todayIndex = calendarDays.findIndex((day) => isSameDay(day, ref));
 
   const calendarReservations = reservations.filter((reservation) => {
     const start = new Date(reservation.startDate);
@@ -165,7 +184,31 @@ export function OccupancyStrip({
     )
     .slice(0, maxProperties);
 
-  const rangeLabel = buildRangeLabel(calendarStart, calendarEnd, days);
+  const rangeLabel = buildRangeLabel(calendarStart, calendarEnd, effectiveDays);
+
+  // Summary: noches reservadas vs disponibles en el rango.
+  // La capacidad considera unitsAvailable de cada propiedad (default 1 para compat).
+  const totalUnits = properties.reduce(
+    (sum, property) => sum + (property.unitsAvailable ?? 1),
+    0
+  );
+  const totalAvailableNights = totalUnits * effectiveDays;
+  const totalBookedNights = calendarReservations.reduce((sum, reservation) => {
+    const rStart = new Date(reservation.startDate);
+    const rEnd = new Date(reservation.endDate);
+    const visibleStart = rStart < calendarStart ? calendarStart : rStart;
+    const visibleEnd = rEnd > calendarEnd ? calendarEnd : rEnd;
+    const nights = Math.max(
+      0,
+      Math.round((visibleEnd.getTime() - visibleStart.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    );
+    return sum + nights;
+  }, 0);
+  const occupancyPct =
+    totalAvailableNights > 0 ? Math.round((totalBookedNights / totalAvailableNights) * 100) : 0;
+
+  // Posición de la línea anchor de "hoy" en píxeles dentro del inner container.
+  const todayAnchorLeft = `calc(${propertyColumnWidth}px + (${Math.max(0, todayIndex)} / ${effectiveDays}) * (100% - ${propertyColumnWidth}px))`;
 
   return (
     <div>
@@ -178,13 +221,43 @@ export function OccupancyStrip({
             <p className="mt-1 text-[10px] font-medium capitalize text-foreground/70">
               {rangeLabel}
             </p>
+            <p className="mt-1 text-[10px] font-medium tabular-nums text-foreground/70">
+              <span className="font-bold text-foreground">{totalBookedNights}</span>
+              {" de "}
+              {totalAvailableNights}
+              {" noches · "}
+              <span className="font-bold text-foreground">{occupancyPct}%</span>
+              {" de ocupación"}
+            </p>
           </div>
-          <Link
-            href={viewAllHref}
-            className="shrink-0 text-[10px] font-bold uppercase text-primary hover:underline"
-          >
-            {viewAllLabel}
-          </Link>
+          <div className="flex items-center gap-3">
+            {!isMobile && (
+              <div className="flex items-center gap-1 rounded-full border border-border bg-muted p-1">
+                {RANGE_OPTIONS.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setUserRange(option)}
+                    aria-pressed={userRange === option}
+                    className={cn(
+                      "rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors",
+                      userRange === option
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {option}d
+                  </button>
+                ))}
+              </div>
+            )}
+            <Link
+              href={viewAllHref}
+              className="shrink-0 text-[10px] font-bold uppercase text-primary hover:underline"
+            >
+              {viewAllLabel}
+            </Link>
+          </div>
         </div>
       )}
       <div className="overflow-hidden rounded-lg border border-border bg-card">
@@ -200,7 +273,16 @@ export function OccupancyStrip({
           </div>
         )}
         <div className="overflow-x-auto">
-        <div className="min-w-[1000px]">
+        <div style={{ minWidth: `${minWidthPx}px`, position: "relative" }}>
+          {/* Today anchor line — vertical que recorre la grilla marcando el día actual.
+              pointer-events-none para no bloquear clicks en pills. */}
+          {todayIndex >= 0 && (
+            <div
+              className="pointer-events-none absolute top-0 bottom-0 z-10 w-[1.5px] bg-primary"
+              style={{ left: todayAnchorLeft }}
+              aria-hidden="true"
+            />
+          )}
           {/* Day headers */}
           <div className="flex border-b border-border bg-muted">
             <div className="sticky left-0 z-10 flex w-[156px] shrink-0 items-center border-r border-border bg-muted px-3 py-3 sm:w-[224px] sm:px-4">
@@ -210,7 +292,7 @@ export function OccupancyStrip({
             </div>
             <div
               className="grid flex-1"
-              style={{ gridTemplateColumns: `repeat(${days}, minmax(0, 1fr))` }}
+              style={{ gridTemplateColumns: `repeat(${effectiveDays}, minmax(0, 1fr))` }}
             >
               {calendarDays.map((day) => {
                 const isWeekend = WEEKEND_DAY_OF_WEEK.has(day.getDay());
@@ -265,12 +347,12 @@ export function OccupancyStrip({
                     </div>
                     <div
                       className="relative flex-1"
-                      style={{ gridTemplateColumns: `repeat(${days}, minmax(0, 1fr))` }}
+                      style={{ gridTemplateColumns: `repeat(${effectiveDays}, minmax(0, 1fr))` }}
                     >
                       {/* Grid background — empty cells representing slots where events load */}
                       <div
                         className="pointer-events-none absolute inset-0 grid"
-                        style={{ gridTemplateColumns: `repeat(${days}, minmax(0, 1fr))` }}
+                        style={{ gridTemplateColumns: `repeat(${effectiveDays}, minmax(0, 1fr))` }}
                       >
                         {calendarDays.map((day) => {
                           const isWeekend = WEEKEND_DAY_OF_WEEK.has(day.getDay());
@@ -304,8 +386,8 @@ export function OccupancyStrip({
                           daysBetween(calendarStart, visibleStart.toISOString())
                         );
                         const duration = daysBetween(visibleStart, visibleEnd.toISOString()) + 1;
-                        const leftPct = (startOffset / days) * 100;
-                        const widthPct = (duration / days) * 100;
+                        const leftPct = (startOffset / effectiveDays) * 100;
+                        const widthPct = (duration / effectiveDays) * 100;
                         const nights = getNights(reservation.startDate, reservation.endDate);
                         return (
                           <Link
