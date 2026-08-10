@@ -1,15 +1,15 @@
 import Link from "next/link";
-import { Plus, Wallet, Clock, CalendarCheck, TrendingUp } from "lucide-react";
+import { Plus, Wallet, Clock, CalendarCheck, TrendingUp, AlertCircle, RefreshCw } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { KpiCard } from "@/components/ui/kpi-card";
-import { DataTable } from "@/components/ui/data-table";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { classifyCollectionAlerts } from "@/lib/alerts/collection-alerts";
 import { getProperties } from "@/lib/actions/properties";
 import { getReservations } from "@/lib/actions/reservations";
-import { getReservationPaidAmount } from "@/lib/payments/calculations";
 import { ReservationPill } from "@/components/reservations/reservation-pill";
 import { OccupancyStrip } from "@/components/calendar/occupancy-strip";
 import { DashboardCobranzaList, type CobranzaItem } from "./_components/dashboard-cobranza-list";
+import { DashboardReservasTable } from "./_components/dashboard-reservas-table";
 
 interface Property {
   id: string;
@@ -108,18 +108,70 @@ function getReservationStatusPill(
 }
 
 export default async function DashboardPage() {
-  const [reservationsResult, properties] = await Promise.all([
-    getReservations(),
-    getProperties(),
-  ]);
+  // Load principal data defensively. Si getReservations o getProperties lanzan,
+  // la página renderiza un fallback honesto en vez de un Next.js error page.
+  let reservations: Reservation[] = [];
+  let properties: Property[] = [];
+  let dataLoadError: string | null = null;
 
-  const data = {
-    reservations: (reservationsResult as unknown as { data: Reservation[] }).data,
-    properties: properties as unknown as Property[],
-  };
+  try {
+    const [reservationsResult, propertiesResult] = await Promise.all([
+      getReservations(),
+      getProperties(),
+    ]);
+    reservations = (reservationsResult as unknown as { data: Reservation[] }).data ?? [];
+    properties = (propertiesResult as unknown as Property[]) ?? [];
+  } catch (err) {
+    console.error("[dashboard] failed to load initial data", err);
+    dataLoadError = err instanceof Error ? err.message : "No pudimos cargar tus datos.";
+  }
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+
+  // Fallback de error: el dashboard es el home diario — un white-screen destruye
+  // confianza. Renderizamos un Card con mensaje claro + CTA reintentar / soporte.
+  if (dataLoadError) {
+    return (
+      <div className="space-y-6 pb-10">
+        <div>
+          <h1 className="text-xl font-bold text-foreground tracking-tight">Dashboard</h1>
+          <p className="text-xs text-muted-foreground">Sin conexión con el servidor</p>
+        </div>
+        <Card className="ring-1 ring-foreground/10">
+          <CardHeader>
+            <div className="flex items-start gap-3">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-warning/10 text-warning">
+                <AlertCircle className="size-4" />
+              </div>
+              <div className="space-y-1">
+                <CardTitle>No pudimos cargar tus datos</CardTitle>
+                <CardDescription>
+                  Tus datos están seguros. Volvemos a intentar al recargar la página.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              {dataLoadError}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link href="/dashboard" className={buttonVariants({ size: "sm" })}>
+                <RefreshCw className="size-3.5" />
+                Reintentar
+              </Link>
+              <Link href="/support" className={buttonVariants({ variant: "outline", size: "sm" })}>
+                Contactar soporte
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const data = { reservations, properties };
 
   const activeReservations = data.reservations
     .filter((reservation) => {
@@ -232,19 +284,31 @@ export default async function DashboardPage() {
     })),
   ].slice(0, 4);
 
-  // Tabla Reservas Diarias: solo reservas DAILY (mezcla activas + próximas, top 6)
+  // Tabla Próximas reservas: solo reservas DAILY (mezcla activas + próximas, top 6).
+  // Las reservas MONTHLY no aparecen aquí — se gestionan en /reservations.
   const tableReservations = [...activeReservations, ...upcomingReservations]
     .filter((reservation) => reservation.billingType === "DAILY")
     .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
     .slice(0, 6);
+
+  // Subtitle data-driven: prioriza la señal más accionable para el dueño.
+  const overdueAmount = collectionAlerts.vencidos.reduce((sum, a) => sum + a.amount, 0);
+  const subtitleText =
+    overdueCount > 0
+      ? `Tienes ${overdueCount} ${overdueCount === 1 ? "cobro vencido" : "cobros vencidos"} por ${formatCLP(overdueAmount)}`
+      : next7Days > 0
+        ? `Todo al día. ${next7Days} ${next7Days === 1 ? "check-in" : "check-ins"} esta semana.`
+        : upcomingReservations.length > 0
+          ? `Todo al día. ${upcomingReservations.length} ${upcomingReservations.length === 1 ? "reserva en puerta" : "reservas en puerta"}.`
+          : "Sin reservas próximas. Crea una para empezar.";
 
   return (
     <div className="space-y-6 pb-10">
       {/* 1. Page header */}
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-xl font-bold text-foreground">Dashboard</h1>
-          <p className="text-xs text-muted-foreground">Vista consolidada del estado operativo</p>
+          <h1 className="text-xl font-bold text-foreground tracking-tight">Dashboard</h1>
+          <p className="text-xs text-muted-foreground">{subtitleText}</p>
         </div>
         <Link href="/reservations/new" className={buttonVariants({ size: "sm" })}>
           <Plus className="h-3.5 w-3.5" />
@@ -292,30 +356,34 @@ export default async function DashboardPage() {
         />
       </section>
 
-      {/* 3. 3-col grid: Reservas (table) + Cobranza (list) */}
-      <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Reservas table — col-span-2 */}
-        <div className="lg:col-span-2">
+      {/* 3. 2-col grid (desktop): Próximas reservas (table) + Cobros pendientes (list).
+             Cambiamos de 3-col (col-span-2 + col-span-1) a 2-col (col-span-3 + col-span-1)
+             porque la tabla de 6 columnas necesita más ancho que el col-span-2 original
+             ofrecía (~640px). En mobile (col-span-1) la sidebar cae debajo de la tabla. */}
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+        {/* Próximas reservas table — col-span-3 */}
+        <div className="lg:col-span-3">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-              Reservas Diarias
+              Próximas reservas
             </h2>
             <Link href="/reservations" className="text-[10px] font-bold uppercase text-primary hover:underline">
               Ver todas
             </Link>
           </div>
-          <DataTable
-            headers={[
-              "Propiedad",
-              "Cliente",
-              "Estancia",
-              "Llegada/Salida",
-              "Estado",
-              { label: "Monto Total", align: "right" },
-            ]}
-            caption="Reservas diarias"
+          <DashboardReservasTable
+            caption="Próximas reservas"
             emptyState={
-              <p className="text-sm text-muted-foreground">Sin reservas para mostrar</p>
+              <div className="py-6 text-center">
+                <p className="text-sm text-muted-foreground">No hay reservas próximas.</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Las reservas mensuales se gestionan en{" "}
+                  <Link href="/reservations" className="font-medium text-primary hover:underline">
+                    /reservations
+                  </Link>
+                  .
+                </p>
+              </div>
             }
           >
             {tableReservations.map((reservation) => {
@@ -332,9 +400,9 @@ export default async function DashboardPage() {
 
               return (
                 <tr key={reservation.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                  <td className="px-6 py-4 text-xs font-bold text-foreground">{reservation.property.name}</td>
-                  <td className="px-6 py-4 text-xs text-muted-foreground">{reservation.client.name}</td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-3 text-xs font-bold text-foreground">{reservation.property.name}</td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">{reservation.client.name}</td>
+                  <td className="px-4 py-3">
                     <div className="whitespace-nowrap text-xs font-bold text-primary">
                       {formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}
                     </div>
@@ -344,20 +412,20 @@ export default async function DashboardPage() {
                       </span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-xs text-muted-foreground">{arrivalLabel}</td>
-                  <td className="px-6 py-4">
+                  <td className="hidden sm:table-cell px-4 py-3 text-xs text-muted-foreground">{arrivalLabel}</td>
+                  <td className="px-4 py-3">
                     {(() => {
                       const pill = getReservationStatusPill(reservation, today);
                       return <ReservationPill tone={pill.tone} label={pill.label} />;
                     })()}
                   </td>
-                  <td className="px-6 py-4 text-right text-xs font-bold text-foreground">
+                  <td className="px-4 py-3 text-right text-xs font-bold text-foreground tabular-nums">
                     {formatCLP(Number(reservation.totalPrice))}
                   </td>
                 </tr>
               );
             })}
-          </DataTable>
+          </DashboardReservasTable>
         </div>
 
         {/* Cobranza list — col-1 */}

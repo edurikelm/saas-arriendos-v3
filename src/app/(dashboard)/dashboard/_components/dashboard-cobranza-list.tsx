@@ -32,7 +32,7 @@ interface DashboardCobranzaListProps {
   /**
    * Si se provee, el título se renderiza como bloque standalone AFUERA del card,
    * junto con un link "Ver todas" que apunta a esta URL (alineado con el patrón
-   * canónico de `/dashboard` sección "Reservas Diarias"). Si se omite, el título
+   * canónico de `/dashboard` sección "Próximas reservas"). Si se omite, el título
    * se mantiene dentro del card (back-compat).
    */
   viewAllHref?: string;
@@ -56,7 +56,7 @@ export function DashboardCobranzaList({
       {viewAllHref && (
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-            Cobranza Reservas Mensuales
+            Cobros pendientes
           </h2>
           <Link
             href={viewAllHref}
@@ -70,7 +70,7 @@ export function DashboardCobranzaList({
         {viewAllHref ? null : (
           <div className="border-b border-border px-4 py-3">
             <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-              Cobranza Reservas Mensuales
+              Cobros pendientes
             </h2>
           </div>
         )}
