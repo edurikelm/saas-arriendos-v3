@@ -8,19 +8,29 @@ interface DashboardNavbarProps {
   notificationUnreadCount?: number;
   initialNotifications?: RecentNotification[];
   onNotificationsRead?: () => void;
+  /**
+   * Eyebrow label rendered on the left side of the navbar (e.g. role context).
+   * If omitted, the eyebrow is hidden.
+   */
+  eyebrow?: string;
 }
 
 export function DashboardNavbar({
   notificationUnreadCount = 0,
   initialNotifications,
   onNotificationsRead,
+  eyebrow,
 }: DashboardNavbarProps) {
   return (
     <header className="hidden lg:flex sticky top-0 h-16 w-full border-b border-border bg-navbar justify-between items-center px-6 z-50">
-      {/* Izquierda: eyebrow */}
-      <div className="hidden md:flex items-center text-xs text-muted-foreground font-medium uppercase tracking-wider">
-        Panel de Administración
-      </div>
+      {/* Izquierda: eyebrow (role context) */}
+      {eyebrow && (
+        <div className="hidden md:flex items-center text-xs text-muted-foreground font-medium uppercase tracking-wider">
+          {eyebrow}
+        </div>
+      )}
+      {/* Spacer when no eyebrow so search/icons stay right-aligned */}
+      {!eyebrow && <div className="hidden md:block" />}
 
       {/* Centro + Derecha: search + icons */}
       <div className="flex items-center gap-4">

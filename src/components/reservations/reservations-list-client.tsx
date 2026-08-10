@@ -1,9 +1,10 @@
 "use client";
 
+import * as React from "react";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Calendar, Plus, X, X as XIcon, Search, ChevronDown } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -16,6 +17,7 @@ import { ReservationTable } from "@/components/reservations/reservation-table";
 import { ReservationListItem } from "@/components/reservations/reservation-list-item";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Pagination } from "@/components/ui/pagination";
+import { cn } from "@/lib/utils";
 import { usePagination } from "@/hooks/use-pagination";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useReservationFilters } from "@/hooks/use-reservation-filters";
@@ -238,7 +240,7 @@ export function ReservationsListClient({
           {/* Search + Filter Chips */}
           <div className="space-y-4">
             {/* Full Width Search */}
-            <div className="relative w-full">
+            <div className="relative w-full max-w-md">
               <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
               <input
                 value={searchQuery}
@@ -251,17 +253,15 @@ export function ReservationsListClient({
             {/* Filter Chips Row */}
             <div className="flex flex-wrap items-center gap-2">
               {/* Propiedad */}
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
-                    serverFilters.propertyId
-                      ? "bg-primary/10 border-primary/20 text-primary"
-                      : "bg-card border-border text-foreground hover:border-primary"
-                  }`}
-                >
-                  Propiedad
-                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                </DropdownMenuTrigger>
+              <FilterChip
+                label="Propiedad"
+                value={serverFilters.propertyId}
+                valueLabel={properties.find((p) => p.id === serverFilters.propertyId)?.name ?? "—"}
+                valueMaxWidth="max-w-[140px]"
+                clearAriaLabel="Quitar filtro de propiedad"
+                onClear={() => updateServerFilter("propertyId", "")}
+                activeClassName="bg-primary/10 border-primary/20 text-primary hover:bg-primary/10 hover:text-primary"
+              >
                 <DropdownMenuContent className="ring-1 ring-foreground/10">
                   <DropdownMenuItem
                     onClick={() => updateServerFilter("propertyId", "")}
@@ -279,20 +279,25 @@ export function ReservationsListClient({
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
-              </DropdownMenu>
+              </FilterChip>
 
               {/* Estado */}
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
-                    serverFilters.status
-                      ? "bg-primary/10 border-primary/20 text-primary"
-                      : "bg-card border-border text-foreground hover:border-primary"
-                  }`}
-                >
-                  Estado
-                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                </DropdownMenuTrigger>
+              <FilterChip
+                label="Estado"
+                value={serverFilters.status}
+                valueLabel={
+                  serverFilters.status === "PENDING"
+                    ? "Pendiente"
+                    : serverFilters.status === "CONFIRMED"
+                      ? "Confirmada"
+                      : serverFilters.status === "CANCELLED"
+                        ? "Cancelada"
+                        : "Completada"
+                }
+                clearAriaLabel="Quitar filtro de estado"
+                onClear={() => updateServerFilter("status", "")}
+                activeClassName="bg-primary/10 border-primary/20 text-primary hover:bg-primary/10 hover:text-primary"
+              >
                 <DropdownMenuContent className="ring-1 ring-foreground/10">
                   <DropdownMenuItem
                     onClick={() => updateServerFilter("status", "")}
@@ -325,20 +330,17 @@ export function ReservationsListClient({
                     Completada
                   </DropdownMenuItem>
                 </DropdownMenuContent>
-              </DropdownMenu>
+              </FilterChip>
 
               {/* Tipo */}
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
-                    serverFilters.billingType
-                      ? "bg-primary/10 border-primary/20 text-primary"
-                      : "bg-card border-border text-foreground hover:border-primary"
-                  }`}
-                >
-                  Tipo
-                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                </DropdownMenuTrigger>
+              <FilterChip
+                label="Tipo"
+                value={serverFilters.billingType}
+                valueLabel={serverFilters.billingType === "DAILY" ? "Diaria" : "Mensual"}
+                clearAriaLabel="Quitar filtro de tipo"
+                onClear={() => updateServerFilter("billingType", "")}
+                activeClassName="bg-primary/10 border-primary/20 text-primary hover:bg-primary/10 hover:text-primary"
+              >
                 <DropdownMenuContent className="ring-1 ring-foreground/10">
                   <DropdownMenuItem
                     onClick={() => updateServerFilter("billingType", "")}
@@ -359,20 +361,23 @@ export function ReservationsListClient({
                     Mensual
                   </DropdownMenuItem>
                 </DropdownMenuContent>
-              </DropdownMenu>
+              </FilterChip>
 
               {/* Pago */}
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
-                    paymentFilter
-                      ? "bg-primary/10 border-primary/20 text-primary"
-                      : "bg-card border-border text-foreground hover:border-primary"
-                  }`}
-                >
-                  Pago
-                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                </DropdownMenuTrigger>
+              <FilterChip
+                label="Pago"
+                value={paymentFilter}
+                valueLabel={
+                  paymentFilter === "paid"
+                    ? "Pagado"
+                    : paymentFilter === "pending"
+                      ? "Pendiente"
+                      : "Exceso"
+                }
+                clearAriaLabel="Quitar filtro de pago"
+                onClear={() => updatePaymentFilter("")}
+                activeClassName="bg-primary/10 border-primary/20 text-primary hover:bg-primary/10 hover:text-primary"
+              >
                 <DropdownMenuContent className="ring-1 ring-foreground/10">
                   <DropdownMenuItem
                     onClick={() => updatePaymentFilter("")}
@@ -399,7 +404,7 @@ export function ReservationsListClient({
                     Exceso
                   </DropdownMenuItem>
                 </DropdownMenuContent>
-              </DropdownMenu>
+              </FilterChip>
 
               {/* Separator */}
               <div className="h-4 w-px bg-border mx-1" />
@@ -419,9 +424,22 @@ export function ReservationsListClient({
             </div>
           </div>
 
-          {/* Counter */}
-          <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-            Mostrando {((page - 1) * limit) + 1}-{Math.min(page * limit, filteredReservations.length)} de {total} reserva{total !== 1 ? "s" : ""}
+          {/* Counter + Pagination (top) */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Mostrando {((page - 1) * limit) + 1}-{Math.min(page * limit, filteredReservations.length)} de {total} reserva{total !== 1 ? "s" : ""}
+            </div>
+            {total > limit && (
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                total={total}
+                limit={limit}
+                onPageChange={goToPage}
+                onLimitChange={setLimit}
+                showCounter={false}
+              />
+            )}
           </div>
 
           {filteredReservations.length === 0 ? (
@@ -462,10 +480,6 @@ export function ReservationsListClient({
             </div>
           )}
         </>
-      )}
-
-      {total > limit && (
-        <Pagination page={page} totalPages={totalPages} total={total} limit={limit} onPageChange={goToPage} onLimitChange={setLimit} />
       )}
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
@@ -557,6 +571,75 @@ export function ReservationsListClient({
           setConfirmAction(null);
         }}
       />
+    </div>
+  );
+}
+
+/**
+ * A filter chip that shows a DropdownMenu trigger + an inline clear (X) button
+ * as a SIBLING (not nested). Nesting a button inside the DropdownMenuTrigger
+ * would render invalid HTML and make the clear unreachable via keyboard.
+ */
+interface FilterChipProps {
+  label: string;
+  value: string | null;
+  valueLabel?: string;
+  valueMaxWidth?: string;
+  onClear: () => void;
+  clearAriaLabel: string;
+  activeClassName?: string;
+  children: React.ReactNode;
+}
+
+function FilterChip({
+  label,
+  value,
+  valueLabel,
+  valueMaxWidth,
+  onClear,
+  clearAriaLabel,
+  activeClassName,
+  children,
+}: FilterChipProps) {
+  return (
+    <div className="inline-flex items-center gap-0.5">
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          className={cn(
+            buttonVariants({ variant: "outline", size: "sm" }),
+            "h-7 px-2.5 text-xs font-medium gap-1.5",
+            value && activeClassName
+          )}
+        >
+          <span>{label}</span>
+          {value && valueLabel && (
+            <>
+              <span className="text-muted-foreground/60">·</span>
+              <span
+                className={cn("font-bold truncate", valueMaxWidth)}
+              >
+                {valueLabel}
+              </span>
+            </>
+          )}
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+        </DropdownMenuTrigger>
+        {children}
+      </DropdownMenu>
+      {value && (
+        <button
+          type="button"
+          onClick={(e) => {
+            // Prevent the trigger from opening if focus shifts unexpectedly.
+            e.stopPropagation();
+            onClear();
+          }}
+          aria-label={clearAriaLabel}
+          className="-ml-1 inline-flex h-5 w-5 items-center justify-center rounded text-primary/70 hover:bg-primary/15 hover:text-primary transition-colors"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      )}
     </div>
   );
 }

@@ -55,10 +55,16 @@ describe("DashboardNavbar", () => {
     mockNotificationBell.mockClear();
   });
 
-  it("renders the eyebrow text", () => {
-    render(<DashboardNavbar />);
-    const eyebrow = screen.getByText("Panel de Administración");
+  it("renders the eyebrow text when eyebrow prop is provided", () => {
+    render(<DashboardNavbar eyebrow="Panel de Control" />);
+    const eyebrow = screen.getByText("Panel de Control");
     expect(eyebrow).not.toBeNull();
+  });
+
+  it("does NOT render the eyebrow when eyebrow prop is omitted", () => {
+    render(<DashboardNavbar />);
+    expect(screen.queryByText("Panel de Administración")).toBeNull();
+    expect(screen.queryByText("Panel de Control")).toBeNull();
   });
 
   it("renders the search input", () => {

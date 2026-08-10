@@ -40,6 +40,19 @@ const dotClassNames: Record<PillTone, string> = {
  */
 export const reservationPillDotClass: Record<PillTone, string> = dotClassNames;
 
+/**
+ * CSS variable name for a pill tone. Lets consumers compose the variable
+ * into any color-accepting CSS property (e.g. `style={{ borderLeftColor }}`).
+ */
+export const reservationPillToken: Record<PillTone, string> = {
+  success: "success",
+  info: "info",
+  "info-strong": "info",
+  warning: "warning",
+  destructive: "destructive",
+  neutral: "muted-foreground",
+};
+
 export interface ReservationPillProps {
   tone: PillTone;
   label: string;

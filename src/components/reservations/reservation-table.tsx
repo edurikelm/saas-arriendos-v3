@@ -16,7 +16,7 @@ import { getInclusiveMonths } from "@/lib/reservation-dates";
 import { getReservationPaidAmount } from "@/lib/payments/calculations";
 import type { Reservation } from "./types";
 import { formatDate, formatPrice } from "./reservations-utils";
-import { ReservationPill, reservationPillDotClass, type PillTone } from "./reservation-pill";
+import { ReservationPill, reservationPillDotClass, reservationPillToken, type PillTone } from "./reservation-pill";
 
 function getInitials(name: string): string {
   return name
@@ -141,6 +141,11 @@ function ReservationMobileCard({ reservation, onEdit, onCancel, onDelete }: {
       </div>
 
       <div className="mt-3 flex items-center justify-end gap-1 pl-1.5">
+        {reservation.notes && (
+          <p className="mr-auto line-clamp-2 pl-1.5 text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">Notas:</span> {reservation.notes}
+          </p>
+        )}
         <Link href={`/reservations/${reservation.id}`} className={buttonVariants({ variant: "ghost", size: "icon-sm" })} aria-label="Ver reserva">
           <Eye className="h-4 w-4" aria-hidden="true" />
         </Link>
@@ -225,8 +230,11 @@ export function ReservationTable({ reservations, onEdit, onCancel, onDelete }: {
 
             return (
               <tr key={res.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                {/* Huésped */}
-                <td className="px-6 py-5">
+                {/* Status accent + Huésped */}
+                <td
+                  className="relative px-6 py-5"
+                  style={{ borderLeft: `4px solid var(--${reservationPillToken[stateTone]})` }}
+                >
                   <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
                       {getInitials(res.client.name)}

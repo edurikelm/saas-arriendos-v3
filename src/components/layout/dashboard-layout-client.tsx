@@ -93,6 +93,7 @@ export function DashboardLayoutClient({
           notificationUnreadCount={liveNotificationUnreadCount}
           initialNotifications={initialNotifications}
           onNotificationsRead={handleNotificationsRead}
+          eyebrow="Panel de Control"
         />
         <main className="p-4 lg:p-6">{children}</main>
       </div>

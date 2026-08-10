@@ -30,6 +30,36 @@ describe("Pagination", () => {
     ).toBeDefined();
   });
 
+  it("hides the counter when showCounter=false", () => {
+    render(
+      <Pagination
+        page={1}
+        totalPages={5}
+        total={100}
+        limit={20}
+        onPageChange={vi.fn()}
+        showCounter={false}
+      />
+    );
+    expect(screen.queryByText(/Mostrando/)).toBeNull();
+    // Buttons still render
+    expect(screen.getByText("Anterior")).toBeDefined();
+    expect(screen.getByText("Siguiente")).toBeDefined();
+  });
+
+  it("renders counter by default (backward compatible)", () => {
+    render(
+      <Pagination
+        page={1}
+        totalPages={5}
+        total={100}
+        limit={20}
+        onPageChange={vi.fn()}
+      />
+    );
+    expect(screen.getByText(/Mostrando/)).toBeDefined();
+  });
+
   it("previous button is disabled on first page", () => {
     render(
       <Pagination

@@ -19,6 +19,13 @@ interface PaginationProps {
   onPageChange: (page: number) => void;
   onLimitChange?: (limit: number) => void;
   itemLabel?: string;
+  /**
+   * Whether to show the "Mostrando X-Y de Z {itemLabel}" counter on the left.
+   * Set to `false` when the host page already renders its own counter
+   * (avoids duplicating the same information above and below the table).
+   * Defaults to `true` for backward compatibility.
+   */
+  showCounter?: boolean;
 }
 
 function getPageNumbers(currentPage: number, totalPages: number): (number | "ellipsis")[] {
@@ -57,6 +64,7 @@ export function Pagination({
   onPageChange,
   onLimitChange,
   itemLabel = "resultados",
+  showCounter = true,
 }: PaginationProps) {
   if (totalPages <= 1) return null;
 
@@ -66,9 +74,11 @@ export function Pagination({
 
   return (
     <div className="flex items-center justify-between gap-4 py-4">
-      <span className="text-sm text-muted-foreground">
-        Mostrando {startItem}-{endItem} de {total} {itemLabel}
-      </span>
+      {showCounter && (
+        <span className="text-sm text-muted-foreground">
+          Mostrando {startItem}-{endItem} de {total} {itemLabel}
+        </span>
+      )}
       {onLimitChange && (
         <Select
           value={String(limit)}
