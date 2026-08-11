@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
@@ -125,6 +126,7 @@ export function PaymentsTable({
   regeneratingLinkId,
   attachingReceiptId,
   compact = false,
+  emptyState,
 }: {
   payments: Payment[];
   onGenerateLink?: (paymentId: string) => void;
@@ -138,6 +140,7 @@ export function PaymentsTable({
   regeneratingLinkId?: string | null;
   attachingReceiptId?: string | null;
   compact?: boolean;
+  emptyState?: React.ReactNode;
 }) {
   // Auto-detect installment column visibility for the "reservation" variant:
   // if any payment has installment data, show the columns; otherwise hide them.
@@ -170,7 +173,7 @@ export function PaymentsTable({
   );
 
   return (
-    <DataTable headers={headers} caption="Listado de pagos">
+    <DataTable headers={headers} caption="Listado de pagos" emptyState={emptyState}>
       {sortedPayments.length === 0 ? null : sortedPayments.map((payment) => {
         const statusCfg = paymentStatusConfig[payment.status] || paymentStatusConfig.PENDING;
         const isPending = payment.status === "PENDING";

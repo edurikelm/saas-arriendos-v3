@@ -2,6 +2,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { PaymentsSection } from '../payments-section';
 
+const mockRefresh = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: mockRefresh }),
+}));
+
 vi.mock('@/lib/db/prisma', () => ({
   prisma: {
     reservation: { findFirst: vi.fn() },
@@ -228,5 +233,82 @@ describe('PaymentsSection - paymentType separation', () => {
     // 200000 total - 50000 paid = 150000 pending (shown in the pending KPI).
     expect(screen.getByText('$150.000')).toBeTruthy();
     expect(screen.getByText('$50.000')).toBeTruthy();
+  });
+});
+
+describe('PaymentsSection - empty state', () => {
+  it('muestra empty state rico en la tabla de pagos cuando payments está vacío y reserva activa', () => {
+    const reservation = createMockReservation({ status: 'PENDING', payments: [] });
+    render(
+      <PaymentsSection
+        reservationId={reservation.id}
+        totalPrice={reservation.totalPrice}
+        billingType={reservation.billingType}
+        status={reservation.status}
+        payments={reservation.payments}
+        client={reservation.client}
+        propertyName="Test Property"
+      />
+    );
+    expect(screen.getByText('Aún no hay pagos registrados')).toBeTruthy();
+    // El CTA vive SOLO dentro del empty state — el header no lo duplica
+    // cuando no hay pagos (sino "Verificar" se mostraría sin tener nada que verificar).
+    expect(screen.getAllByRole('button', { name: /agregar pago/i })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: /verificar/i })).toBeNull();
+  });
+
+  it('muestra empty state sin CTA cuando la reserva está cancelada y sin pagos', () => {
+    const reservation = createMockReservation({ status: 'CANCELLED', payments: [] });
+    render(
+      <PaymentsSection
+        reservationId={reservation.id}
+        totalPrice={reservation.totalPrice}
+        billingType={reservation.billingType}
+        status={reservation.status}
+        payments={reservation.payments}
+        client={reservation.client}
+        propertyName="Test Property"
+      />
+    );
+    expect(screen.getByText('Esta reserva no tiene pagos registrados.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /agregar pago/i })).toBeNull();
+  });
+
+  it('muestra empty state con CTA cuando la reserva está CONFIRMED sin pagos', () => {
+    // CONFIRMED es activo (mismo tratamiento que PENDING): la reserva ya está
+    // cobrada y se pueden seguir registrando pagos parciales / extras.
+    const reservation = createMockReservation({ status: 'CONFIRMED', payments: [] });
+    render(
+      <PaymentsSection
+        reservationId={reservation.id}
+        totalPrice={reservation.totalPrice}
+        billingType={reservation.billingType}
+        status={reservation.status}
+        payments={reservation.payments}
+        client={reservation.client}
+        propertyName="Test Property"
+      />
+    );
+    expect(screen.getByText('Aún no hay pagos registrados')).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: /agregar pago/i })).toHaveLength(1);
+  });
+
+  it('muestra empty state sin CTA cuando la reserva está COMPLETED sin pagos', () => {
+    // COMPLETED es inactivo (mismo tratamiento que CANCELLED): no se permiten
+    // nuevos pagos sobre una reserva cerrada.
+    const reservation = createMockReservation({ status: 'COMPLETED', payments: [] });
+    render(
+      <PaymentsSection
+        reservationId={reservation.id}
+        totalPrice={reservation.totalPrice}
+        billingType={reservation.billingType}
+        status={reservation.status}
+        payments={reservation.payments}
+        client={reservation.client}
+        propertyName="Test Property"
+      />
+    );
+    expect(screen.getByText('Esta reserva no tiene pagos registrados.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /agregar pago/i })).toBeNull();
   });
 });

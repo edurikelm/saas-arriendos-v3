@@ -299,6 +299,34 @@ describe('PaymentsTable - variant="extra"', () => {
 });
 
 // ────────────────────────────────────────────────────────────────────────────
+// emptyState prop
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('PaymentsTable - emptyState', () => {
+  it('renderiza emptyState cuando payments está vacío y se provee', () => {
+    render(
+      <PaymentsTable
+        payments={[]}
+        variant="reservation"
+        emptyState={<p>No hay pagos todavía</p>}
+      />
+    );
+    expect(screen.getByText('No hay pagos todavía')).toBeTruthy();
+  });
+
+  it('NO renderiza emptyState cuando hay payments aunque se provea (children tiene prioridad)', () => {
+    render(
+      <PaymentsTable
+        payments={[createMockPayment()]}
+        variant="reservation"
+        emptyState={<p>No debería verse</p>}
+      />
+    );
+    expect(screen.queryByText('No debería verse')).toBeNull();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
 // variant="full" — todas las columnas
 // ────────────────────────────────────────────────────────────────────────────
 
