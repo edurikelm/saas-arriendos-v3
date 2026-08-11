@@ -9,6 +9,11 @@ vi.mock('next/link', () => ({
   ),
 }));
 
+// Mock next/navigation (PaymentsSection uses useRouter for post-mutation refresh)
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 // Mock cancelReservation + updateReservation
 vi.mock('@/lib/actions/reservations', () => ({
   cancelReservation: vi.fn(),

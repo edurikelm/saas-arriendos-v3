@@ -266,6 +266,10 @@ export function PaymentsSection({
   };
 
   const isActive = status !== "CANCELLED" && status !== "COMPLETED";
+  // Header derecho (Verificar + Agregar Pago) solo visible cuando hay pagos.
+  // Con payments.length === 0 el CTA vive DENTRO del empty state — así no se
+  // duplica acciones y "Verificar" no aparece sin tener nada que consultar.
+  const showHeaderActions = isActive && payments.length > 0;
 
   return (
     <div className="space-y-6">
@@ -292,88 +296,95 @@ export function PaymentsSection({
       </div>
 
       {/* Tables */}
-      {(reservationPayments.length > 0 || payments.length > 0) && (
-        <div className="space-y-6">
-          {reservationPayments.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-medium">
-                  {billingType === "MONTHLY" ? "Cuotas de arriendo" : "Pagos de reserva"}
-                </p>
-                {isActive && (
-                  <div className="flex gap-2">
-                    {payments.length > 0 && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-[10px] font-bold uppercase tracking-wider border-primary text-primary hover:bg-primary/10"
-                        onClick={handleRefreshPayments}
-                        disabled={isCheckingAllPayments}
-                      >
-                        <RefreshCw className={cn("h-3 w-3 mr-1", isCheckingAllPayments && "animate-spin")} />
-                        {isCheckingAllPayments ? "Verificando..." : "Verificar"}
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      className="h-7 text-[10px] font-bold uppercase tracking-wider"
-                      onClick={() => setShowAddPaymentDialog(true)}
-                    >
-                      <Plus className="h-3 w-3 mr-1" />
-                      Agregar Pago
-                    </Button>
+      <div className="space-y-6">
+        {/* Always render reservation payments section - emptyState handles empty array */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-medium">
+              {billingType === "MONTHLY" ? "Cuotas de arriendo" : "Pagos de reserva"}
+            </p>
+            {showHeaderActions && (
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-[10px] font-bold uppercase tracking-wider border-primary text-primary hover:bg-primary/10"
+                  onClick={handleRefreshPayments}
+                  disabled={isCheckingAllPayments}
+                >
+                  <RefreshCw className={cn("h-3 w-3 mr-1", isCheckingAllPayments && "animate-spin")} />
+                  {isCheckingAllPayments ? "Verificando..." : "Verificar"}
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-7 text-[10px] font-bold uppercase tracking-wider"
+                  onClick={() => setShowAddPaymentDialog(true)}
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Agregar Pago
+                </Button>
+              </div>
+            )}
+          </div>
+          <PaymentsTable
+            payments={reservationPayments}
+            onGenerateLink={handleGenerateLink}
+            onRegenerateLink={handleRegenerateLink}
+            onMarkPaid={handleMarkPaidClick}
+            onDeletePayment={setPaymentToDelete}
+            onAttachReceipt={handleAttachReceiptClick}
+            onSendLink={setSendLinkPayment}
+            variant="reservation"
+            generatingLinkId={generatingLinkId}
+            regeneratingLinkId={regeneratingLinkId}
+            compact
+            emptyState={
+              isActive ? (
+                <div className="flex flex-col items-center gap-3 py-8">
+                  <div className="size-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Wallet className="size-6 text-primary" aria-hidden="true" />
                   </div>
-                )}
-              </div>
-              <PaymentsTable
-                payments={reservationPayments}
-                onGenerateLink={handleGenerateLink}
-                onRegenerateLink={handleRegenerateLink}
-                onMarkPaid={handleMarkPaidClick}
-                onDeletePayment={setPaymentToDelete}
-                onAttachReceipt={handleAttachReceiptClick}
-                onSendLink={setSendLinkPayment}
-                variant="reservation"
-                generatingLinkId={generatingLinkId}
-                regeneratingLinkId={regeneratingLinkId}
-                compact
-              />
-            </div>
-          )}
-
-          {extraPayments.length > 0 && (
-            <div>
-              <div className="mb-3">
-                <p className="text-sm font-medium">Cobros extra</p>
-              </div>
-              <PaymentsTable
-                payments={extraPayments}
-                onGenerateLink={handleGenerateLink}
-                onRegenerateLink={handleRegenerateLink}
-                onMarkPaid={handleMarkPaidClick}
-                onDeletePayment={setPaymentToDelete}
-                onAttachReceipt={handleAttachReceiptClick}
-                onSendLink={setSendLinkPayment}
-                variant="extra"
-                generatingLinkId={generatingLinkId}
-                regeneratingLinkId={regeneratingLinkId}
-                compact
-              />
-            </div>
-          )}
+                  <div className="space-y-1 text-center">
+                    <p className="text-sm font-medium text-foreground">Aún no hay pagos registrados</p>
+                    <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                      Registra el primer pago de arriendo para esta reserva. Podrás elegir entre Mercado Pago, efectivo o transferencia.
+                    </p>
+                  </div>
+                  <Button onClick={() => setShowAddPaymentDialog(true)} size="sm" className="mt-1">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Agregar Pago
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground py-2">
+                  Esta reserva no tiene pagos registrados.
+                </p>
+              )
+            }
+          />
         </div>
-      )}
 
-      {isActive && payments.length === 0 && (
-        <Button
-          size="sm"
-          className="h-8 text-[10px] font-bold uppercase tracking-wider"
-          onClick={() => setShowAddPaymentDialog(true)}
-        >
-          <Plus className="h-3 w-3 mr-1" />
-          Agregar Pago
-        </Button>
-      )}
+        {extraPayments.length > 0 && (
+          <div>
+            <div className="mb-3">
+              <p className="text-sm font-medium">Cobros extra</p>
+            </div>
+            <PaymentsTable
+              payments={extraPayments}
+              onGenerateLink={handleGenerateLink}
+              onRegenerateLink={handleRegenerateLink}
+              onMarkPaid={handleMarkPaidClick}
+              onDeletePayment={setPaymentToDelete}
+              onAttachReceipt={handleAttachReceiptClick}
+              onSendLink={setSendLinkPayment}
+              variant="extra"
+              generatingLinkId={generatingLinkId}
+              regeneratingLinkId={regeneratingLinkId}
+              compact
+            />
+          </div>
+        )}
+      </div>
 
       {/* Mark Paid Modal */}
       <Dialog open={showMarkPaidModal} onOpenChange={setShowMarkPaidModal}>

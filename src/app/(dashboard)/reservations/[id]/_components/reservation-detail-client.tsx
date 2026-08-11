@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Calendar,
   ChevronLeft,
@@ -229,6 +230,12 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
   const [showEditForm, setShowEditForm] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
+  const router = useRouter();
+  // Mismo patrón que PaymentsSection: refrescar el Server Component padre
+  // (`page.tsx` es `force-dynamic`) tras cada mutación que cambia el estado
+  // visible de la reserva, sin recarga dura de la página.
+  const refreshData = useCallback(() => router.refresh(), [router]);
+
   const handleCancel = async () => {
     const result = await cancelReservation(reservation.id, "cancelled_by_user");
     if (result?.error) {
@@ -237,8 +244,7 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
     }
     toast.success("Reserva cancelada");
     setShowCancelConfirm(false);
-    // Refresh the page to show updated state
-    window.location.reload();
+    refreshData();
   };
 
   const nights = reservation.billingType === "MONTHLY"
@@ -516,7 +522,7 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
                 }
                 toast.success("Reserva actualizada");
                 setShowEditForm(false);
-                window.location.reload();
+                refreshData();
               }}
               onCancel={() => setShowEditForm(false)}
             />
