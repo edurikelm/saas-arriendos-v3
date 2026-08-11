@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, Plus, RefreshCw, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -104,6 +105,13 @@ export function PaymentsSection({
   const [paymentToDelete, setPaymentToDelete] = useState<string | null>(null);
   const [sendLinkPayment, setSendLinkPayment] = useState<Payment | null>(null);
 
+  const router = useRouter();
+  // Patrón canónico del repo (CONTEXT.md: page.tsx es `force-dynamic`, no usamos
+  // cache). Cada mutación exitosa contra `payments` re-ejecuta el Server Component
+  // padre para refrescar `payments`/KPIs sin recarga dura de la página.
+  // Equivalente al patrón de /payments/_components/payment-actions.tsx.
+  const refreshData = useCallback(() => router.refresh(), [router]);
+
   const handlePaymentLinkRequest = async (paymentId: string, mode: "generate" | "regenerate") => {
     if (mode === "generate") {
       setGeneratingLinkId(paymentId);
@@ -121,6 +129,7 @@ export function PaymentsSection({
         return;
       }
       toast.success(mode === "generate" ? "Link generado" : "Link regenerado");
+      refreshData();
     } catch {
       toast.error(mode === "generate" ? "Error al generar link" : "Error al regenerar link");
     } finally {
@@ -182,28 +191,40 @@ export function PaymentsSection({
     setShowMarkPaidModal(false);
     setMarkPaidPaymentId(null);
     setReceiptFile(null);
+    refreshData();
   };
 
-  const handleDeletePayment = (paymentId: string) => {
-    toast.success("Pago eliminado", {
-      action: {
-        label: "Deshacer",
-        onClick: async () => {
-          try {
-            const res = await fetch(`/api/payments/${paymentId}`, {
-              method: "PUT",
-            });
-            if (res.ok) {
-              toast.success("Pago restaurado");
+  const handleDeletePayment = async (paymentId: string) => {
+    try {
+      const res = await fetch(`/api/payments/${paymentId}`, { method: "DELETE" });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok || result?.error) {
+        toast.error(result?.error ?? "Error al eliminar pago");
+        return;
+      }
+      toast.success("Pago eliminado", {
+        action: {
+          label: "Deshacer",
+          onClick: async () => {
+            try {
+              const restoreRes = await fetch(`/api/payments/${paymentId}`, {
+                method: "PUT",
+              });
+              if (restoreRes.ok) {
+                toast.success("Pago restaurado");
+                refreshData();
+              }
+            } catch {
+              toast.error("Error al restaurar pago");
             }
-          } catch {
-            toast.error("Error al restaurar pago");
-          }
+          },
         },
-      },
-      duration: 5000,
-    });
-    fetch(`/api/payments/${paymentId}`, { method: "DELETE" });
+        duration: 5000,
+      });
+      refreshData();
+    } catch {
+      toast.error("Error al eliminar pago");
+    }
   };
 
   const handleRefreshPayments = async () => {
@@ -216,6 +237,7 @@ export function PaymentsSection({
         return;
       }
       toast.success("Pagos actualizados");
+      refreshData();
     } catch {
       toast.error("Error al refrescar pagos");
     } finally {
@@ -258,6 +280,7 @@ export function PaymentsSection({
       setShowAttachReceiptModal(false);
       setAttachReceiptPaymentId(null);
       setAttachReceiptFile(null);
+      refreshData();
     } catch {
       toast.error("Error al adjuntar comprobante");
     } finally {
@@ -451,7 +474,7 @@ export function PaymentsSection({
         paidAmount={paidAmount}
         open={showAddPaymentDialog}
         onOpenChange={setShowAddPaymentDialog}
-        onSuccess={() => {}}
+        onSuccess={refreshData}
       />
 
       {/* Confirm Delete */}
