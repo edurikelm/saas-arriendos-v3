@@ -61,6 +61,7 @@ const createMockReservation = (overrides: Record<string, any> = {}) => ({
   status: 'CONFIRMED',
   bookingAirbnb: false,
   notes: 'Test notes',
+  createdAt: '2025-01-01T00:00:00.000Z',
   property: {
     id: 'prop-1',
     name: 'Casa Norte',
@@ -139,7 +140,9 @@ describe('ReservationDetailClient — header v3 (person + metadata row)', () => 
     render(<ReservationDetailClient reservation={reservation} />);
 
     // Property + dates + nights in the same line (flex-wrap)
-    expect(screen.getByText('Casa Norte')).toBeTruthy();
+    // Note: property name also appears in the right-column "Resumen" card,
+    // so we check `>= 1` rather than exact match.
+    expect(screen.getAllByText('Casa Norte').length).toBeGreaterThanOrEqual(1);
     // Nights "5 noches" — end - start = 4 days + 1 = 5 nights
     expect(screen.getByText(/5 noches/)).toBeTruthy();
   });
@@ -225,19 +228,18 @@ describe('ReservationDetailClient — sections', () => {
     });
     render(<ReservationDetailClient reservation={reservation} />);
 
-    // The collapsible is closed by default, so we need to expand it
-    const summary = screen.getByText('Historial de cambios');
-    summary.click();
-    expect(screen.getByText('status')).toBeTruthy();
+    // The history is always visible now (right column), no expand needed.
+    // Use the unique old/new values to verify each change entry is rendered.
+    expect(screen.getByText('CONFIRMED')).toBeTruthy();
+    expect(screen.getByText('prop-new')).toBeTruthy();
+    expect(screen.getByText('prop-old')).toBeTruthy();
   });
 
   it('shows empty history message when no changes', () => {
     const reservation = createMockReservation({ changes: [] });
     render(<ReservationDetailClient reservation={reservation} />);
 
-    const summary = screen.getByText('Historial de cambios');
-    summary.click();
-    expect(screen.getByText('No hay cambios registrados.')).toBeTruthy();
+    expect(screen.getByText('Sin cambios registrados.')).toBeTruthy();
   });
 
   it('renders notes when present', () => {

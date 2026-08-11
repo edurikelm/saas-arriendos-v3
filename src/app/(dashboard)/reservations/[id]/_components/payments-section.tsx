@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, RefreshCw } from "lucide-react";
+import { AlertCircle, CheckCircle2, Plus, RefreshCw, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { KpiCard } from "@/components/ui/kpi-card";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -268,25 +269,26 @@ export function PaymentsSection({
 
   return (
     <div className="space-y-6">
-      {/* KPIs */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Total</p>
-          <p className="text-xl font-bold text-foreground tabular-nums">{formatPrice(Number(totalPrice) + extraTotal)}</p>
-        </div>
-        <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Pagado</p>
-          <p className="text-xl font-bold text-success tabular-nums">{formatPrice(totalPaid)}</p>
-        </div>
-        <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Pendiente</p>
-          <p className={cn(
-            "text-xl font-bold tabular-nums",
-            totalPending > 0 ? "text-warning" : "text-success"
-          )}>
-            {formatPrice(totalPending)}
-          </p>
-        </div>
+      {/* KPIs (KpiCard primitive — DESIGN.md §7) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <KpiCard
+          label="Total"
+          value={formatPrice(Number(totalPrice) + extraTotal)}
+          icon={Wallet}
+          tone="default"
+        />
+        <KpiCard
+          label="Pagado"
+          value={formatPrice(totalPaid)}
+          icon={CheckCircle2}
+          tone="success"
+        />
+        <KpiCard
+          label="Pendiente"
+          value={formatPrice(totalPending)}
+          icon={AlertCircle}
+          tone={totalPending > 0 ? "warning" : "success"}
+        />
       </div>
 
       {/* Tables */}
