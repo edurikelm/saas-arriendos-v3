@@ -7,7 +7,9 @@ import { Eye, Pencil, Ban, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { getReservationPaidAmount } from "@/lib/payments/calculations";
 import { getInclusiveMonths } from "@/lib/reservation-dates";
+import { dateKeyToDayIndex } from "@/lib/domain/timezone";
 import type { Reservation } from "@/components/reservations/types";
+import { getReservationTone, getTemporalStatus } from "./reservation-status";
 
 function getInitials(name: string): string {
   return name
@@ -20,48 +22,14 @@ function getInitials(name: string): string {
 }
 
 function getNights(startDate: string, endDate: string): number {
-  const diff = new Date(endDate).getTime() - new Date(startDate).getTime();
-  return Math.round(diff / (1000 * 60 * 60 * 24)) + 1;
+  // start_date / end_date son date-only en el dominio (CONTEXT.md).
+  const startKey = startDate.slice(0, 10);
+  const endKey = endDate.slice(0, 10);
+  return Math.max(1, dateKeyToDayIndex(endKey) - dateKeyToDayIndex(startKey) + 1);
 }
 
 function getMonths(startDate: string, endDate: string): number {
   return getInclusiveMonths(startDate, endDate);
-}
-
-function getTemporalStatus(startDate: string, endDate: string, billingType: string, status?: string): { label: string; sublabel?: string } {
-  if (status === "CANCELLED") return { label: "Cancelada" };
-  if (status === "COMPLETED") return { label: "Finalizada" };
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-
-  if (today < start) {
-    const daysUntil = Math.ceil((start.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    return { label: "Próxima", sublabel: `En ${daysUntil} días` };
-  }
-  if (today > end) return { label: "Finalizada" };
-  if (billingType === "MONTHLY") {
-    const monthsLeft = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24 * 30));
-    return { label: "Activa", sublabel: `${monthsLeft} meses` };
-  }
-  const nightsLeft = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  return { label: "Activa", sublabel: `${nightsLeft} noches` };
-}
-
-function getReservationTone(status: string, startDate: string, endDate: string): "success" | "info" | "warning" | "destructive" | "neutral" {
-  if (status === "CANCELLED") return "destructive";
-  if (status === "COMPLETED") return "neutral";
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-
-  if (today >= start && today <= end) return "success";
-  if (today < start) return "info";
-  return "neutral";
 }
 
 function getPaymentTone(paidAmount: number, totalPrice: number): "success" | "warning" | "destructive" {

@@ -27,6 +27,13 @@ import { formatDate } from "@/components/reservations/reservations-utils";
 import { ReservationPill, type PillTone } from "@/components/reservations/reservation-pill";
 import { ReservationForm } from "@/components/reservations/reservation-form";
 import { ReservationDocumentsPanel } from "@/components/reservations/reservation-documents-panel";
+import {
+  formatRelativeDay,
+  getReservationTone,
+  getTemporalStatus,
+} from "@/components/reservations/reservation-status";
+import { dateKeyToDayIndex } from "@/lib/domain/timezone";
+import { getInclusiveMonths } from "@/lib/reservation-dates";
 import { PaymentsSection } from "./payments-section";
 
 interface ReservationChange {
@@ -110,8 +117,10 @@ function getInitials(name: string): string {
 }
 
 function getNights(startDate: string, endDate: string): number {
-  const diff = new Date(endDate).getTime() - new Date(startDate).getTime();
-  return Math.round(diff / (1000 * 60 * 60 * 24)) + 1;
+  // start_date / end_date son date-only en el dominio (CONTEXT.md).
+  const startKey = startDate.slice(0, 10);
+  const endKey = endDate.slice(0, 10);
+  return Math.max(1, dateKeyToDayIndex(endKey) - dateKeyToDayIndex(startKey) + 1);
 }
 
 function formatFullDate(dateString: string): string {
@@ -120,50 +129,6 @@ function formatFullDate(dateString: string): string {
     month: "long",
     year: "numeric",
   });
-}
-
-function formatRelativeDay(dateString: string): string {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const target = new Date(dateString);
-  target.setHours(0, 0, 0, 0);
-  const diffDays = Math.round((today.getTime() - target.getTime()) / (1000 * 60 * 60 * 24));
-  if (diffDays === 0) return "Hoy";
-  if (diffDays === 1) return "Ayer";
-  if (diffDays < 7) return `Hace ${diffDays} días`;
-  if (diffDays < 30) return `Hace ${Math.floor(diffDays / 7)} sem`;
-  if (diffDays < 365) return `Hace ${Math.floor(diffDays / 30)} meses`;
-  return `Hace ${Math.floor(diffDays / 365)} año${Math.floor(diffDays / 365) === 1 ? "" : "s"}`;
-}
-
-function getTemporalStatus(
-  startDate: string,
-  endDate: string,
-  billingType: string,
-  status: string,
-): { label: string; sublabel?: string; tone: PillTone } {
-  if (status === "CANCELLED") return { label: "Cancelada", tone: "destructive" };
-  if (status === "COMPLETED") return { label: "Finalizada", tone: "neutral" };
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-
-  if (today < start) {
-    const daysUntil = Math.ceil((start.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    return { label: "Próxima", sublabel: `En ${daysUntil} días`, tone: "info" };
-  }
-  if (today > end) return { label: "Finalizada", tone: "neutral" };
-
-  if (billingType === "MONTHLY") {
-    const monthsLeft = Math.ceil(
-      (end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24 * 30),
-    );
-    return { label: "Activa", sublabel: `${monthsLeft} meses restantes`, tone: "success" };
-  }
-  const nightsLeft = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  return { label: "Activa", sublabel: `${nightsLeft} noches restantes`, tone: "success" };
 }
 
 const FIELD_ICONS: Record<string, LucideIcon> = {
@@ -277,7 +242,7 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
   };
 
   const nights = reservation.billingType === "MONTHLY"
-    ? Math.round((new Date(reservation.endDate).getTime() - new Date(reservation.startDate).getTime()) / (1000 * 60 * 60 * 24 * 30))
+    ? getInclusiveMonths(reservation.startDate, reservation.endDate)
     : getNights(reservation.startDate, reservation.endDate);
 
   const temporal = getTemporalStatus(
@@ -285,6 +250,12 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
     reservation.endDate,
     reservation.billingType,
     reservation.status,
+  );
+
+  const temporalTone = getReservationTone(
+    reservation.status,
+    reservation.startDate,
+    reservation.endDate,
   );
 
   const isEditable = reservation.status !== "CANCELLED" && reservation.status !== "COMPLETED";
@@ -319,7 +290,7 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
                   <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                     Reserva {reservation.id.slice(-6).toUpperCase()}
                   </p>
-                  <ReservationPill tone={temporal.tone} label={temporal.label} />
+                  <ReservationPill tone={temporalTone} label={temporal.label} />
                 </div>
 
                 {/* Primary title */}

@@ -7,6 +7,15 @@ import { classifyCollectionAlerts } from "@/lib/alerts/collection-alerts";
 import { getProperties } from "@/lib/actions/properties";
 import { getReservations } from "@/lib/actions/reservations";
 import { ReservationPill } from "@/components/reservations/reservation-pill";
+import {
+  daysUntilEnd,
+  daysUntilStart,
+  getNights,
+  getReservationTone,
+  getTemporalStatus,
+  labelDaysUntilEnd,
+  labelDaysUntilStart,
+} from "@/components/reservations/reservation-status";
 import { OccupancyStrip } from "@/components/calendar/occupancy-strip";
 import { DashboardCobranzaList, type CobranzaItem } from "./_components/dashboard-cobranza-list";
 import { DashboardReservasTable } from "./_components/dashboard-reservas-table";
@@ -58,11 +67,6 @@ interface Reservation {
   payments: Payment[];
 }
 
-function getNights(startDate: string, endDate: string): number {
-  const diff = new Date(endDate).getTime() - new Date(startDate).getTime();
-  return Math.round(diff / (1000 * 60 * 60 * 24)) + 1;
-}
-
 function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString("es-CL", {
     day: "numeric",
@@ -80,10 +84,6 @@ function formatCLP(amount: number): string {
   }).format(amount);
 }
 
-function daysBetween(from: Date, dateString: string): number {
-  return Math.ceil((new Date(dateString).getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
-}
-
 function startOfMonth(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), 1);
 }
@@ -92,19 +92,6 @@ function addDays(d: Date, n: number): Date {
   const result = new Date(d);
   result.setDate(result.getDate() + n);
   return result;
-}
-
-function getReservationStatusPill(
-  reservation: Reservation,
-  today: Date
-): { tone: "success" | "info" | "neutral"; label: string } {
-  const start = new Date(reservation.startDate);
-  const end = new Date(reservation.endDate);
-  if (reservation.status === "CANCELLED") return { tone: "neutral", label: "Cancelada" };
-  if (reservation.status === "COMPLETED") return { tone: "neutral", label: "Finalizada" };
-  if (start <= today && end >= today) return { tone: "success", label: "Activa" };
-  if (start > today) return { tone: "info", label: "Próxima" };
-  return { tone: "neutral", label: "Finalizada" };
 }
 
 export default async function DashboardPage() {
@@ -127,7 +114,6 @@ export default async function DashboardPage() {
   }
 
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
 
   // Fallback de error: el dashboard es el home diario — un white-screen destruye
   // confianza. Renderizamos un Card con mensaje claro + CTA reintentar / soporte.
@@ -173,17 +159,25 @@ export default async function DashboardPage() {
 
   const data = { reservations, properties };
 
+  // activeReservations: hoy ∈ [start, end] (wall-time SCL per ADR-0020).
+  // Antes el filtro usaba `new Date(startDate) <= today` (con `today` en local midnight),
+  // lo cual era timezone-frágil: en zonas UTC+, una reserva con start_date = hoy
+  // caía en upcomingReservations en lugar de activeReservations.
   const activeReservations = data.reservations
     .filter((reservation) => {
-      const start = new Date(reservation.startDate);
-      const end = new Date(reservation.endDate);
-      return start <= today && end >= today && reservation.status !== "CANCELLED";
+      if (reservation.status === "CANCELLED") return false;
+      const daysToStart = daysUntilStart(reservation.startDate, today);
+      const daysToEnd = daysUntilEnd(reservation.endDate, today);
+      return daysToStart <= 0 && daysToEnd >= 0;
     })
-    .sort((a, b) => new Date(a.endDate).getTime() - new Date(b.endDate).getTime());
+    .sort((a, b) => daysUntilEnd(a.endDate, today) - daysUntilEnd(b.endDate, today));
 
   const upcomingReservations = data.reservations
-    .filter((reservation) => new Date(reservation.startDate) > today && reservation.status !== "CANCELLED")
-    .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+    .filter((reservation) => {
+      if (reservation.status === "CANCELLED") return false;
+      return daysUntilStart(reservation.startDate, today) > 0;
+    })
+    .sort((a, b) => daysUntilStart(a.startDate, today) - daysUntilStart(b.startDate, today));
 
   const allPayments = data.reservations.flatMap((r) =>
     r.payments.filter((p) => !p.deletedAt).map((p) => ({ ...p, reservation: r }))
@@ -232,7 +226,7 @@ export default async function DashboardPage() {
 
   // KPI 3: Próximas Reservas — count + X para esta semana (≤7 días)
   const next7Days = upcomingReservations.filter(
-    (reservation) => daysBetween(today, reservation.startDate) <= 7
+    (reservation) => daysUntilStart(reservation.startDate, today) <= 7
   ).length;
 
   // KPI 4: Ocupación
@@ -387,16 +381,30 @@ export default async function DashboardPage() {
             }
           >
             {tableReservations.map((reservation) => {
-              const start = new Date(reservation.startDate);
-              const end = new Date(reservation.endDate);
-              const isActive = start <= today && end >= today;
+              // Per ADR-0020: status, days restantes y label se calculan en wall-time SCL.
+              // Antes: `start <= today && end >= today` con `today` en local midnight
+              // era timezone-frágil → reserva con start_date = hoy podía caer en
+              // "Llega en 1 día" en zonas UTC+.
+              const daysToStart = daysUntilStart(reservation.startDate, today);
+              const daysToEnd = daysUntilEnd(reservation.endDate, today);
+              const isActive = daysToStart <= 0 && daysToEnd >= 0;
               const nights = getNights(reservation.startDate, reservation.endDate);
-              const remainingDays = isActive
-                ? daysBetween(today, reservation.endDate)
-                : daysBetween(today, reservation.startDate);
               const arrivalLabel = isActive
-                ? `Finaliza en ${remainingDays} ${remainingDays === 1 ? "día" : "días"}`
-                : `Llega en ${remainingDays} ${remainingDays === 1 ? "día" : "días"}`;
+                ? `Finaliza ${labelDaysUntilEnd(reservation.endDate, today)}`
+                : `Llega ${labelDaysUntilStart(reservation.startDate, today)}`;
+              const statusLabel = getTemporalStatus(
+                reservation.startDate,
+                reservation.endDate,
+                reservation.billingType,
+                reservation.status,
+                today,
+              ).label;
+              const statusTone = getReservationTone(
+                reservation.status,
+                reservation.startDate,
+                reservation.endDate,
+                today,
+              );
 
               return (
                 <tr key={reservation.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
@@ -414,10 +422,7 @@ export default async function DashboardPage() {
                   </td>
                   <td className="hidden sm:table-cell px-4 py-3 text-xs text-muted-foreground">{arrivalLabel}</td>
                   <td className="px-4 py-3">
-                    {(() => {
-                      const pill = getReservationStatusPill(reservation, today);
-                      return <ReservationPill tone={pill.tone} label={pill.label} />;
-                    })()}
+                    <ReservationPill tone={statusTone} label={statusLabel} />
                   </td>
                   <td className="px-4 py-3 text-right text-xs font-bold text-foreground tabular-nums">
                     {formatCLP(Number(reservation.totalPrice))}

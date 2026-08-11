@@ -4,6 +4,12 @@ import Link from "next/link";
 import { useState } from "react";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
+import {
+  BUSINESS_TIME_ZONE,
+  dateKeyToDayIndex,
+  getDateKeyInTz,
+} from "@/lib/domain/timezone";
+import { getReservationTone, getNights } from "@/components/reservations/reservation-status";
 
 /**
  * OccupancyStrip — Server Component compartido que renderiza una vista compacta
@@ -88,13 +94,25 @@ function isSameDay(a: Date, b: Date): boolean {
   );
 }
 
-function daysBetween(from: Date, dateString: string): number {
-  return Math.ceil((new Date(dateString).getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
+/**
+ * Extrae el dateKey (`YYYY-MM-DD`) en `America/Santiago` de un Date o string
+ * ISO. El string ISO del backend es UTC midnight — se interpreta como
+ * date-only del dominio, no como el "día anterior" en SCL.
+ */
+function toDateKey(value: Date | string): string {
+  if (typeof value === "string") {
+    const m = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return value.slice(0, 10);
+  }
+  return getDateKeyInTz(value, BUSINESS_TIME_ZONE);
 }
 
-function getNights(startDate: string, endDate: string): number {
-  const diff = new Date(endDate).getTime() - new Date(startDate).getTime();
-  return Math.round(diff / (1000 * 60 * 60 * 24)) + 1;
+/**
+ * Diferencia en días calendario entre dos dateKeys. Reemplaza al patrón
+ * `Math.ceil((new Date(b) - new Date(a)) / día)` que era timezone-frágil.
+ */
+function dayIndexDiff(fromKey: string, toKey: string): number {
+  return dateKeyToDayIndex(toKey) - dateKeyToDayIndex(fromKey);
 }
 
 function formatDayShort(d: Date): string {
@@ -158,7 +176,16 @@ export function OccupancyStrip({
   const minWidthPx = effectiveDays * 56 + propertyColumnWidth;
 
   const ref = today ?? new Date();
-  ref.setHours(0, 0, 0, 0);
+  // `ref` se mantiene como Date para formateo (formatDayShort etc.).
+  // Para comparaciones day-level usamos `refKey` en wall-time SCL (ADR-0020),
+  // lo cual evita el bug de timezone donde `new Date(startDate)` (UTC midnight)
+  // no se comparaba correctamente contra `ref` (local midnight) en zonas UTC+.
+  const refKey = getDateKeyInTz(ref, BUSINESS_TIME_ZONE);
+  // calendarStart/End como dateKey para comparaciones day-level.
+  const calendarStartKey = refKey;
+  const calendarEndKey = dateKeyToDayIndex(refKey)
+    ? getDateKeyInTz(addDays(ref, effectiveDays - 1), BUSINESS_TIME_ZONE)
+    : refKey;
 
   const calendarStart = ref;
   const calendarEnd = addDays(ref, effectiveDays - 1);
@@ -168,14 +195,13 @@ export function OccupancyStrip({
   const todayIndex = calendarDays.findIndex((day) => isSameDay(day, ref));
 
   const calendarReservations = reservations.filter((reservation) => {
-    const start = new Date(reservation.startDate);
-    const end = new Date(reservation.endDate);
-    return (
-      start <= calendarEnd &&
-      end >= calendarStart &&
-      reservation.status !== "CANCELLED" &&
-      reservation.billingType === "DAILY"
-    );
+    if (reservation.status === "CANCELLED" || reservation.billingType !== "DAILY") {
+      return false;
+    }
+    // Comparación por dateKey (timezone-safe).
+    const startKey = toDateKey(reservation.startDate);
+    const endKey = toDateKey(reservation.endDate);
+    return startKey <= calendarEndKey && endKey >= calendarStartKey;
   });
 
   const calendarProperties = properties
@@ -194,14 +220,14 @@ export function OccupancyStrip({
   );
   const totalAvailableNights = totalUnits * effectiveDays;
   const totalBookedNights = calendarReservations.reduce((sum, reservation) => {
-    const rStart = new Date(reservation.startDate);
-    const rEnd = new Date(reservation.endDate);
-    const visibleStart = rStart < calendarStart ? calendarStart : rStart;
-    const visibleEnd = rEnd > calendarEnd ? calendarEnd : rEnd;
-    const nights = Math.max(
-      0,
-      Math.round((visibleEnd.getTime() - visibleStart.getTime()) / (1000 * 60 * 60 * 24)) + 1
-    );
+    const startKey = toDateKey(reservation.startDate);
+    const endKey = toDateKey(reservation.endDate);
+    // Clip al rango visible del calendario (todo por dateKey).
+    const visStartKey = startKey < calendarStartKey ? calendarStartKey : startKey;
+    const visEndKey = endKey > calendarEndKey ? calendarEndKey : endKey;
+    // Convención "Última Noche" (CONTEXT.md): end_date es la última noche, no
+    // el día de check-out → cálculo inclusivo end-start+1.
+    const nights = Math.max(0, dayIndexDiff(visStartKey, visEndKey) + 1);
     return sum + nights;
   }, 0);
   const occupancyPct =
@@ -373,19 +399,18 @@ export function OccupancyStrip({
                       </div>
                       {/* Reservation pills */}
                       {propReservations.map((reservation) => {
-                        const rStart = new Date(reservation.startDate);
-                        const rEnd = new Date(reservation.endDate);
+                        // Comparación por dateKey (timezone-safe) per ADR-0020.
+                        // Antes: `rStart <= ref && rEnd >= ref` con UTC midnight vs
+                        // local midnight — en zonas UTC+1, una reserva con
+                        // start_date = hoy caía como "no activa" cuando debería estarlo.
+                        const startKey = toDateKey(reservation.startDate);
+                        const endKey = toDateKey(reservation.endDate);
                         const isActive =
-                          rStart <= ref &&
-                          rEnd >= ref &&
-                          reservation.status !== "CANCELLED";
-                        const visibleStart = rStart < calendarStart ? calendarStart : rStart;
-                        const visibleEnd = rEnd > calendarEnd ? calendarEnd : rEnd;
-                        const startOffset = Math.max(
-                          0,
-                          daysBetween(calendarStart, visibleStart.toISOString())
-                        );
-                        const duration = daysBetween(visibleStart, visibleEnd.toISOString()) + 1;
+                          getReservationTone(reservation.status, reservation.startDate, reservation.endDate, ref) === "success";
+                        const visStartKey = startKey < calendarStartKey ? calendarStartKey : startKey;
+                        const visEndKey = endKey > calendarEndKey ? calendarEndKey : endKey;
+                        const startOffset = Math.max(0, dayIndexDiff(calendarStartKey, visStartKey));
+                        const duration = Math.max(1, dayIndexDiff(visStartKey, visEndKey) + 1);
                         const leftPct = (startOffset / effectiveDays) * 100;
                         const widthPct = (duration / effectiveDays) * 100;
                         const nights = getNights(reservation.startDate, reservation.endDate);

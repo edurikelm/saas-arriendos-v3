@@ -8,6 +8,7 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { getNights } from "@/components/reservations/reservation-status";
 
 const styles = StyleSheet.create({
   page: {
@@ -167,22 +168,21 @@ function formatCLP(amount: number | string): string {
   }).format(Number(amount));
 }
 
+// Fechas formateadas en wall-time America/Santiago (ADR-0020) para que el
+// comprobante refleje el día calendario que el dueño vio en la UI,
+// independientemente del timezone del servidor (Vercel corre UTC).
+const TZ_SCL = { timeZone: "America/Santiago" } as const;
+
 function formatDate(date: Date | string | null | undefined): string {
   if (!date) return "—";
   const d = typeof date === "string" ? new Date(date) : date;
-  return format(d, "dd 'de' MMMM 'de' yyyy", { locale: es });
+  return format(d, "dd 'de' MMMM 'de' yyyy", { locale: es, ...TZ_SCL });
 }
 
 function formatDateTime(date: Date | string | null | undefined): string {
   if (!date) return "—";
   const d = typeof date === "string" ? new Date(date) : date;
-  return format(d, "dd/MM/yyyy HH:mm", { locale: es });
-}
-
-function getNights(startDate: Date | string, endDate: Date | string): number {
-  const start = typeof startDate === "string" ? new Date(startDate) : startDate;
-  const end = typeof endDate === "string" ? new Date(endDate) : endDate;
-  return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  return format(d, "dd/MM/yyyy HH:mm", { locale: es, ...TZ_SCL });
 }
 
 export interface PaymentReceiptData {

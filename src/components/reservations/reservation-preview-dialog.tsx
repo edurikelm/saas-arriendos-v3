@@ -8,6 +8,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { getReservationPaidAmount, getReservationPendingAmount } from "@/lib/payments/calculations";
 import { getInclusiveMonths } from "@/lib/reservation-dates";
+import { getNights } from "@/components/reservations/reservation-status";
 import type { Reservation } from "@/components/reservations/types";
 
 interface ReservationPreviewDialogProps {
@@ -38,11 +39,6 @@ function formatPrice(price: string | number): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(Number(price));
-}
-
-function getNights(startDate: string, endDate: string): number {
-  const diff = new Date(endDate).getTime() - new Date(startDate).getTime();
-  return Math.round(diff / (1000 * 60 * 60 * 24)) + 1;
 }
 
 function getInitials(name: string): string {

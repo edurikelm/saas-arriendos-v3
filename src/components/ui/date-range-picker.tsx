@@ -13,6 +13,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { BUSINESS_TIME_ZONE, getDateKeyInTz } from "@/lib/domain/timezone"
 
 interface DateRangePickerProps {
   date: { from: Date | undefined; to: Date | undefined }
@@ -29,18 +30,18 @@ export function DateRangePicker({
   blockedDates = [],
   mode = "range",
 }: DateRangePickerProps) {
-  const normalizeDate = (d: Date) => {
-    const n = new Date(d);
-    n.setHours(0, 0, 0, 0);
-    return n.getTime();
-  };
+  // Comparación por dateKey en wall-time SCL (ADR-0020). Antes: `new Date(blocked)`
+  // + `setHours(0,0,0,0)` era timezone-frágil — en zonas UTC+ un string
+  // "2026-08-11" (UTC midnight) se comparaba contra local midnight del día
+  // seleccionado, fallando el match aunque fueran "el mismo día calendario en SCL".
+  const blockedKeys = React.useMemo(
+    () => new Set(blockedDates.map((b) => b.slice(0, 10))),
+    [blockedDates],
+  );
 
   const isBlocked = (d: Date) => {
-    return blockedDates.some(blocked => {
-      const b = new Date(blocked);
-      b.setHours(0, 0, 0, 0);
-      return b.getTime() === normalizeDate(d);
-    });
+    const dayKey = getDateKeyInTz(d, BUSINESS_TIME_ZONE);
+    return blockedKeys.has(dayKey);
   };
 
   return (

@@ -18,6 +18,7 @@ import type { CalendarReservation, CalendarExternalBlock } from "@/lib/actions/r
 import type { ReservationInput } from "@/lib/validations/reservation";
 import { createReservation, getCalendarReservations } from "@/lib/actions/reservations";
 import { computeConflictDates } from "@/lib/calendar/conflicts";
+import { nowKeyInBusinessTz } from "@/lib/domain/timezone";
 
 function parseCalendarDate(dateString: string): Date {
   const [year, month, day] = dateString.slice(0, 10).split("-").map(Number);
@@ -178,7 +179,11 @@ export function CalendarView({
     const totalUnits = properties.reduce((sum, p) => sum + p.unitsAvailable, 0);
     const occupancyRate = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0;
 
-    const todayKey = today.toISOString().slice(0, 10);
+    // Hoy en wall-time SCL (ADR-0020). Antes: `today.toISOString().slice(0, 10)`
+    // reinterpretaba local midnight como UTC — en zonas UTC+, "Hoy" podía caer
+    // en el día anterior en SCL, dejando `arrivalsToday`/`departuresToday` en 0
+    // cuando había reservas que llegaban/salían ese día.
+    const todayKey = nowKeyInBusinessTz();
     const arrivalsToday = dailyReservations.filter((r) => {
       if (r.status === "CANCELLED") return false;
       return r.startDate.slice(0, 10) === todayKey;

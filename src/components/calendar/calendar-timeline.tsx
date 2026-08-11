@@ -6,6 +6,7 @@ import { es } from "date-fns/locale/es";
 import { ChevronLeft, ChevronRight, Calendar, Home, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { channelColors } from "@/lib/calendar/channel-colors";
+import { getNights } from "@/components/reservations/reservation-status";
 
 interface Payment {
   id: string;
@@ -58,11 +59,6 @@ function formatPrice(price: string | number): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(Number(price));
-}
-
-function getNights(startDate: string, endDate: string): number {
-  const diff = parseCalendarDate(endDate).getTime() - parseCalendarDate(startDate).getTime();
-  return Math.round(diff / (1000 * 60 * 60 * 24)) + 1;
 }
 
 function formatDate(dateString: string): string {
