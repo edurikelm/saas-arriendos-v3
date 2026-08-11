@@ -57,13 +57,14 @@ describe("PaymentsTableClient", () => {
     expect(screen.getByText("Monto")).toBeTruthy();
   });
 
-  it("abre MarkPaidDialog al click en Marcar pagado", async () => {
+  it("abre MarkPaidDialog al click en Marcar como pagado", async () => {
     render(<PaymentsTableClient payments={[createMockPayment()]} />);
 
-    const markPaidBtn = screen.getByRole("button", { name: /marcar pagado/i });
+    const markPaidBtn = screen.getByRole("button", { name: /marcar como pagado/i });
     await userEvent.click(markPaidBtn);
 
-    expect(screen.getByText("Marcar como pagado")).toBeTruthy();
+    // El botón sigue en el DOM + aparece el título del dialog → >= 2 ocurrencias.
+    expect(screen.getAllByText("Marcar como pagado").length).toBeGreaterThanOrEqual(2);
   });
 
   it("muestra mensaje cuando no hay pagos", () => {
@@ -135,15 +136,9 @@ describe("PaymentsTableClient - handleDeletePayment", () => {
       />
     );
 
-    // Open dropdown and click delete
-    const moreBtn = screen.getAllByRole("button").find(
-      (b) => b.getAttribute("aria-label")?.startsWith("Más acciones para")
-    );
-    expect(moreBtn).toBeTruthy();
-    await userEvent.click(moreBtn!);
-
-    const deleteItem = await screen.findByText("Eliminar pago");
-    await userEvent.click(deleteItem);
+    // Con 1 secundaria destructiva, el delete es inline (icon-only, no dropdown).
+    const deleteBtn = screen.getByRole("button", { name: /eliminar.*pago/i });
+    await userEvent.click(deleteBtn);
 
     expect(confirmSpy).toHaveBeenCalledWith(
       "¿Eliminar este pago? El cliente aún no verá este cobro."
@@ -163,15 +158,9 @@ describe("PaymentsTableClient - handleDeletePayment", () => {
       />
     );
 
-    // Open dropdown and click delete
-    const moreBtn = screen.getAllByRole("button").find(
-      (b) => b.getAttribute("aria-label")?.startsWith("Más acciones para")
-    );
-    expect(moreBtn).toBeTruthy();
-    await userEvent.click(moreBtn!);
-
-    const deleteItem = await screen.findByText("Eliminar pago");
-    await userEvent.click(deleteItem);
+    // Delete inline (1 secundaria destructiva → icon-only button, no dropdown).
+    const deleteBtn = screen.getByRole("button", { name: /eliminar.*pago/i });
+    await userEvent.click(deleteBtn);
 
     await waitFor(() => {
       expect(deletePayment).toHaveBeenCalledWith("payment-1");
@@ -200,14 +189,9 @@ describe("PaymentsTableClient - handleDeletePayment", () => {
       />
     );
 
-    const moreBtn = screen.getAllByRole("button").find(
-      (b) => b.getAttribute("aria-label")?.startsWith("Más acciones para")
-    );
-    expect(moreBtn).toBeTruthy();
-    await userEvent.click(moreBtn!);
-
-    const deleteItem = await screen.findByText("Eliminar pago");
-    await userEvent.click(deleteItem);
+    // Delete inline (1 secundaria destructiva → icon-only button, no dropdown).
+    const deleteBtn = screen.getByRole("button", { name: /eliminar.*pago/i });
+    await userEvent.click(deleteBtn);
 
     await waitFor(() => {
       expect(deletePayment).toHaveBeenCalled();

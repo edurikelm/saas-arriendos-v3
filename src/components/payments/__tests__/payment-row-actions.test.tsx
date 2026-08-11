@@ -68,9 +68,12 @@ describe("PaymentRowActions — MP PENDING sin link", () => {
       />
     );
 
-    // installmentIndex=3, installmentLabel=undefined → aria-label = "Más acciones para cuota 3"
-    const trigger = screen.getByRole("button", { name: /más acciones para cuota 3/i });
-    expect(trigger).toBeTruthy();
+    // Con 1 secundaria, la acción se inline (no dropdown). El primary
+    // (Marcar como pagado) y la secundaria inline (Eliminar) tienen
+    // aria-label con contexto del pago via title tooltip.
+    // installmentIndex=3 → "Marcar como pagado (pago manual)" es el label del primary.
+    const primaryBtn = screen.getByRole("button", { name: /marcar como pagado/i });
+    expect(primaryBtn).toBeTruthy();
   });
 });
 
@@ -168,7 +171,7 @@ describe("PaymentRowActions — MP PENDING con link expirado", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("PaymentRowActions — CASH PENDING", () => {
-  it('muestra botón "Marcar pagado" para CASH PENDING', async () => {
+  it('muestra botón "Marcar como pagado" para CASH PENDING', async () => {
     const { PaymentRowActions } = await renderComponent();
     const payment = createMockPayment({
       status: "PENDING",
@@ -178,7 +181,7 @@ describe("PaymentRowActions — CASH PENDING", () => {
 
     render(<PaymentRowActions payment={payment} onMarkPaid={vi.fn()} />);
 
-    expect(screen.getByRole("button", { name: /marcar pagado/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /marcar como pagado/i })).toBeTruthy();
   });
 
   it("no muestra Generar/Regenerar/Copiar para CASH", async () => {
@@ -193,6 +196,24 @@ describe("PaymentRowActions — CASH PENDING", () => {
     expect(screen.queryByRole("button", { name: /generar/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /copiar/i })).toBeNull();
   });
+
+  it("muestra Eliminar inline (icon-only) cuando hay 1 secundaria destructiva", async () => {
+    const { PaymentRowActions } = await renderComponent();
+    const payment = createMockPayment({
+      status: "PENDING",
+      method: "CASH",
+    });
+
+    render(
+      <PaymentRowActions payment={payment} onMarkPaid={vi.fn()} onDeletePayment={vi.fn()} />
+    );
+
+    // Primary visible con texto, secundaria inline icon-only con tooltip.
+    expect(screen.getByRole("button", { name: /marcar como pagado/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /eliminar.*pago/i })).toBeTruthy();
+    // No debe haber trigger de dropdown (1 secundaria → inline, no dropdown).
+    expect(screen.queryByRole("button", { name: /más acciones/i })).toBeNull();
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -200,7 +221,7 @@ describe("PaymentRowActions — CASH PENDING", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("PaymentRowActions — COMPLETED MERCADO_PAGO downloadReceipt", () => {
-  it("muestra Descargar comprobante PDF como acción secundaria cuando hay receiptUrl (imagen)", async () => {
+  it("muestra Descargar PDF inline (icon-only) cuando hay 1 secundaria en COMPLETED con receipt", async () => {
     const { PaymentRowActions } = await renderComponent();
     const payment = createMockPayment({
       status: "COMPLETED",
@@ -210,9 +231,11 @@ describe("PaymentRowActions — COMPLETED MERCADO_PAGO downloadReceipt", () => {
 
     render(<PaymentRowActions payment={payment} />);
 
-    // Ver comprobante es primaria, Descargar PDF en menú
+    // Primary visible (Ver comprobante), secundaria inline icon-only (Descargar PDF).
+    // 1 secundaria → inline, no dropdown.
     expect(screen.getByRole("button", { name: /ver comprobante/i })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /más acciones/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /descargar.*comprobante/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /más acciones/i })).toBeNull();
   });
 
   it("muestra Descargar comprobante PDF como acción primaria cuando NO hay receiptUrl", async () => {
@@ -318,10 +341,10 @@ describe("PaymentRowActions — COMPLETED sin comprobante", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// aria-label contextual en trigger "Más acciones"
+// aria-label contextual en botón inline (1 secundaria → inline, no dropdown)
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("PaymentRowActions — aria-label contextual", () => {
+describe("PaymentRowActions — aria-label contextual (botón inline)", () => {
   it("incluye installmentLabel en aria-label si existe", async () => {
     const { PaymentRowActions } = await renderComponent();
     const payment = createMockPayment({
@@ -338,8 +361,10 @@ describe("PaymentRowActions — aria-label contextual", () => {
       />
     );
 
+    // Con 1 secundaria (delete), la acción se inline icon-only.
+    // El aria-label debe incluir el contexto de la cuota para screen readers.
     expect(
-      screen.getByRole("button", { name: /más acciones para cuota 2 \/ 3/i })
+      screen.getByRole("button", { name: /eliminar pago.*cuota 2 \/ 3/i })
     ).toBeTruthy();
   });
 
@@ -361,7 +386,7 @@ describe("PaymentRowActions — aria-label contextual", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: /más acciones para cuota 2/i })
+      screen.getByRole("button", { name: /eliminar pago.*cuota 2/i })
     ).toBeTruthy();
   });
 
@@ -385,7 +410,7 @@ describe("PaymentRowActions — aria-label contextual", () => {
 
     // Amount formatted as CLP pesos: "$ 75.000"
     expect(
-      screen.getByRole("button", { name: /pago de \$[\d.]+/i })
+      screen.getByRole("button", { name: /eliminar pago.*pago de \$[\d.]+/i })
     ).toBeTruthy();
   });
 });
@@ -395,7 +420,32 @@ describe("PaymentRowActions — aria-label contextual", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("PaymentRowActions — menú con acciones secundarias", () => {
-  it("renderiza trigger Más acciones cuando secondaryActions tiene elementos (MP con link)", async () => {
+  it("renderiza trigger Más acciones cuando hay 2+ secundarias (MP con link + onSendLink)", async () => {
+    const { PaymentRowActions } = await renderComponent();
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + 7);
+    const payment = createMockPayment({
+      status: "PENDING",
+      method: "MERCADO_PAGO",
+      initPoint: "https://www.mercadopago.com.ar/checkout/test",
+      expiresAt: futureDate.toISOString(),
+    });
+
+    render(
+      <PaymentRowActions
+        payment={payment}
+        onMarkPaid={vi.fn()}
+        onSendLink={vi.fn()}
+      />
+    );
+
+    // Primary = "copy" (link vigente), secondary = ["markPaid", "sendLink"]
+    // → 2 secundarias → dropdown se mantiene.
+    expect(screen.getByRole("button", { name: /copiar link/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /más acciones/i })).toBeTruthy();
+  });
+
+  it("NO renderiza dropdown cuando hay solo 1 secundaria (MP con link, sin sendLink)", async () => {
     const { PaymentRowActions } = await renderComponent();
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + 7);
@@ -414,12 +464,15 @@ describe("PaymentRowActions — menú con acciones secundarias", () => {
       />
     );
 
-    // "Copiar link" es la acción primaria; secondaryActions = ["markPaid", "delete"]
+    // Primary = "copy", secondary = ["markPaid"] (delete falla por MERCADO_PAGO)
+    // → 1 secundaria → inline, no dropdown.
     expect(screen.getByRole("button", { name: /copiar link/i })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /más acciones/i })).toBeTruthy();
+    // El "marcar como pagado" queda como botón secundario inline (icon-only).
+    expect(screen.getByRole("button", { name: /marcar como pagado/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /más acciones/i })).toBeNull();
   });
 
-  it("renderiza trigger Más acciones para CASH PENDING con delete disponible", async () => {
+  it("renderiza inline (no dropdown) cuando hay solo 1 secundaria destructiva (CASH PENDING)", async () => {
     const { PaymentRowActions } = await renderComponent();
     const payment = createMockPayment({
       status: "PENDING",
@@ -434,9 +487,10 @@ describe("PaymentRowActions — menú con acciones secundarias", () => {
       />
     );
 
-    // Primary = "markPaid", secondary = ["delete"]
-    expect(screen.getByRole("button", { name: /marcar pagado/i })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /más acciones/i })).toBeTruthy();
+    // Primary = "markPaid", secondary = ["delete"] → inline, no dropdown.
+    expect(screen.getByRole("button", { name: /marcar como pagado/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /eliminar.*pago/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /más acciones/i })).toBeNull();
   });
 
   it("renderiza Más acciones cuando secondary incluye sendLink (MP PENDING)", async () => {

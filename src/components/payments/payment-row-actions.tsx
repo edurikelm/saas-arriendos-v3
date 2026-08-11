@@ -13,13 +13,16 @@ import {
   Send,
   Paperclip,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Payment } from "./payments-table";
 
@@ -52,11 +55,146 @@ function formatAmount(amount: string | number): string {
   }).format(Number(amount));
 }
 
+// ─── Action config ──────────────────────────────────────────────────────────
+// Single source of truth for every action's icon, label, and side-effect.
+// Used by both the primary button, the inline secondary button, and the
+// dropdown items — keeps visual labels consistent across surfaces.
+
+type ActionId =
+  | "generate"
+  | "regenerate"
+  | "copy"
+  | "sendLink"
+  | "markPaid"
+  | "delete"
+  | "viewReceipt"
+  | "downloadReceipt"
+  | "attachReceipt";
+
+interface ActionConfig {
+  icon: LucideIcon;
+  iconClassName?: string;
+  label: string;
+  /** Short label for inline secondary button (used as title tooltip). */
+  tooltip: string;
+  /** Render separator before this action in the dropdown menu. */
+  separatorBefore?: boolean;
+  /** Destructive action — render in destructive tone. */
+  destructive?: boolean;
+  /** Determines if the action is async (shows spinner while in flight). */
+  hasLoadingState?: boolean;
+}
+
+const ACTION_CONFIG: Record<ActionId, ActionConfig> = {
+  generate: {
+    icon: ExternalLink,
+    label: "Generar link",
+    tooltip: "Generar link de pago",
+    hasLoadingState: true,
+  },
+  regenerate: {
+    icon: RefreshCw,
+    label: "Regenerar link",
+    tooltip: "Regenerar link de pago (el anterior expiró)",
+    hasLoadingState: true,
+  },
+  copy: {
+    icon: Copy,
+    label: "Copiar link",
+    tooltip: "Copiar link al portapapeles",
+  },
+  sendLink: {
+    icon: Send,
+    label: "Enviar link",
+    tooltip: "Enviar link por WhatsApp o email",
+  },
+  markPaid: {
+    icon: Check,
+    label: "Marcar como pagado",
+    tooltip: "Marcar como pagado (pago manual)",
+  },
+  delete: {
+    icon: Trash2,
+    label: "Eliminar pago",
+    tooltip: "Eliminar este pago",
+    separatorBefore: true,
+    destructive: true,
+  },
+  viewReceipt: {
+    icon: FileText,
+    label: "Ver comprobante",
+    tooltip: "Ver comprobante",
+  },
+  downloadReceipt: {
+    icon: FileDown,
+    label: "Descargar comprobante PDF",
+    tooltip: "Descargar comprobante en PDF",
+  },
+  attachReceipt: {
+    icon: Paperclip,
+    label: "Adjuntar comprobante",
+    tooltip: "Adjuntar comprobante",
+    hasLoadingState: true,
+  },
+};
+
+/** Returns true when the action is currently mid-flight for this payment. */
+function isActionLoading(
+  action: ActionId,
+  payment: Payment,
+  state: { generatingLinkId?: string | null; regeneratingLinkId?: string | null; attachingReceiptId?: string | null },
+): boolean {
+  if (!ACTION_CONFIG[action].hasLoadingState) return false;
+  if (action === "generate") return state.generatingLinkId === payment.id;
+  if (action === "regenerate") return state.regeneratingLinkId === payment.id;
+  if (action === "attachReceipt") return state.attachingReceiptId === payment.id;
+  return false;
+}
+
+/** Runs the side-effect for the given action. */
+function runAction(
+  action: ActionId,
+  payment: Payment,
+  callbacks: Pick<PaymentRowActionsProps, "onGenerateLink" | "onRegenerateLink" | "onMarkPaid" | "onDeletePayment" | "onAttachReceipt" | "onSendLink">,
+): void {
+  switch (action) {
+    case "generate": callbacks.onGenerateLink?.(payment.id); break;
+    case "regenerate": callbacks.onRegenerateLink?.(payment.id); break;
+    case "copy":
+      if (payment.initPoint) {
+        navigator.clipboard.writeText(payment.initPoint);
+        toast.success("Link copiado al portapapeles");
+      }
+      break;
+    case "sendLink": callbacks.onSendLink?.(payment); break;
+    case "markPaid": callbacks.onMarkPaid?.(payment.id); break;
+    case "delete": callbacks.onDeletePayment?.(payment.id); break;
+    case "viewReceipt":
+      if (payment.receiptUrl) window.open(payment.receiptUrl, "_blank");
+      break;
+    case "downloadReceipt":
+      window.open(`/api/payments/${payment.id}/receipt`, "_blank");
+      break;
+    case "attachReceipt": callbacks.onAttachReceipt?.(payment.id); break;
+  }
+}
+
+/** Builds a short hint describing which payment (cuota / monto). */
+function buildContextHint(payment: Payment): string {
+  if (payment.installmentLabel) return `cuota ${payment.installmentLabel}`;
+  if (payment.installmentIndex != null) return `cuota ${payment.installmentIndex}`;
+  return `pago de ${formatAmount(payment.amount)}`;
+}
+
 /** Builds the label for the "More actions" trigger, describing which payment. */
 function buildAriaLabel(payment: Payment): string {
-  if (payment.installmentLabel) return `Más acciones para cuota ${payment.installmentLabel}`;
-  if (payment.installmentIndex != null) return `Más acciones para cuota ${payment.installmentIndex}`;
-  return `Más acciones para pago de ${formatAmount(payment.amount)}`;
+  return `Más acciones para ${buildContextHint(payment)}`;
+}
+
+/** Builds the label for the inline secondary icon-only button. */
+function buildInlineSecondaryLabel(action: ActionId, payment: Payment): string {
+  const cfg = ACTION_CONFIG[action];
+  return `${cfg.label} · ${buildContextHint(payment)}`;
 }
 
 export function PaymentRowActions({
@@ -77,6 +215,9 @@ export function PaymentRowActions({
   const isMercadoPago = payment.method === "MERCADO_PAGO";
   const isExpired = isPaymentExpired(payment);
 
+  const callbacks = { onGenerateLink, onRegenerateLink, onMarkPaid, onDeletePayment, onAttachReceipt, onSendLink };
+  const loadingState = { generatingLinkId, regeneratingLinkId, attachingReceiptId };
+
   // ── Action eligibility ────────────────────────────────────────────────────
   const canGenerateLink = isPending && isMercadoPago && !payment.initPoint && onGenerateLink;
   const canCopyLink = isPending && isMercadoPago && payment.initPoint && !isExpired;
@@ -90,277 +231,170 @@ export function PaymentRowActions({
   const canSendLink = isPending && isMercadoPago && payment.initPoint && onSendLink;
 
   // ── Primary action ───────────────────────────────────────────────────────
-  const primaryAction:
-    | "generate"
-    | "regenerate"
-    | "copy"
-    | "markPaid"
-    | "viewReceipt"
-    | "downloadReceipt"
-    | null =
-    canGenerateLink
-      ? "generate"
-      : canRegenerateLink
-        ? "regenerate"
-        : canCopyLink
-          ? "copy"
-          : canMarkPaid
-            ? "markPaid"
-            : canViewReceipt
-              ? "viewReceipt"
-              : canDownloadReceipt
-                ? "downloadReceipt"
+  const primaryAction: ActionId | null = canGenerateLink
+    ? "generate"
+    : canRegenerateLink
+      ? "regenerate"
+      : canCopyLink
+        ? "copy"
+        : canMarkPaid
+          ? "markPaid"
+          : canViewReceipt
+            ? "viewReceipt"
+            : canDownloadReceipt
+              ? "downloadReceipt"
+              : canAttachReceipt
+                ? "attachReceipt"
                 : null;
 
   // ── Secondary actions ─────────────────────────────────────────────────────
-  const secondaryActions = [
-    canMarkPaid && primaryAction !== "markPaid" ? "markPaid" : null,
-    canDelete ? "delete" : null,
-    canViewReceipt && primaryAction !== "viewReceipt" ? "viewReceipt" : null,
-    canDownloadReceipt && primaryAction !== "downloadReceipt" ? "downloadReceipt" : null,
-    canAttachReceipt ? "attachReceipt" : null,
-    canSendLink ? "sendLink" : null,
-  ].filter(Boolean) as Array<
-    "markPaid" | "delete" | "viewReceipt" | "downloadReceipt" | "attachReceipt" | "sendLink"
-  >;
+  const allSecondary: ActionId[] = [];
+  if (canMarkPaid && primaryAction !== "markPaid") allSecondary.push("markPaid");
+  if (canDelete) allSecondary.push("delete");
+  if (canViewReceipt && primaryAction !== "viewReceipt") allSecondary.push("viewReceipt");
+  if (canDownloadReceipt && primaryAction !== "downloadReceipt") allSecondary.push("downloadReceipt");
+  if (canAttachReceipt && primaryAction !== "attachReceipt") allSecondary.push("attachReceipt");
+  if (canSendLink) allSecondary.push("sendLink");
 
-  // ── UX: promote single secondary action to primary when primary is absent ──
-  // e.g. COMPLETED without receiptUrl → "Adjuntar comprobante" becomes visible
+  // ── UX rule: 1 secondary → inline button, 2+ → dropdown ────────────────
+  // The single-secondary inline button is icon-only with a tooltip. This
+  // avoids the "3-dot menu with one item" pattern that wastes visual real
+  // estate without any benefit. Two or more secondaries keep the dropdown
+  // because inlining three+ icon-only buttons crowds the row.
+  const inlineSecondary = primaryAction && allSecondary.length === 1 ? allSecondary[0] : null;
+  const dropdownSecondary = primaryAction && allSecondary.length >= 2 ? allSecondary : [];
+
+  // ── UX rule: when primary is absent but a single secondary exists, promote it ──
   const effectivePrimary =
-    primaryAction ?? (secondaryActions.length === 1 ? secondaryActions[0] : null);
-  const effectiveSecondary =
-    primaryAction
-      ? secondaryActions
-      : secondaryActions.filter((a) => a !== effectivePrimary);
+    primaryAction ?? (allSecondary.length === 1 ? allSecondary[0] : null);
+  const dropdownOnly =
+    !primaryAction && allSecondary.length >= 2 ? allSecondary : [];
 
-  // ── Button / menu sizes ──────────────────────────────────────────────────
-  const btnSize = compact ? "size-6" : "size-7";
-  const btnVariant = "ghost";
-  const btnClassName = compact ? "h-6 px-1.5 text-[10px]" : "h-7 px-2 text-xs";
+  // ── Size tokens ──────────────────────────────────────────────────────────
+  const btnHeight = compact ? "h-6" : "h-7";
+  const btnText = compact ? "text-[10px]" : "text-xs";
+  const iconSize = compact ? "size-3" : "size-3.5";
+  const iconBtnSize = compact ? "size-6" : "size-7";
 
-  // ── Render primary action button ──────────────────────────────────────────
-  const renderPrimaryButton = () => {
-    if (!effectivePrimary) return null;
-
-    if (effectivePrimary === "generate") {
-      return (
-        <Button
-          size="sm"
-          variant="outline"
-          className={btnClassName}
-          aria-label={compact ? "Generar link" : undefined}
-          disabled={generatingLinkId === payment.id}
-          onClick={() => onGenerateLink?.(payment.id)}
-        >
-          {generatingLinkId === payment.id ? (
-            <Loader2 className="mr-0.5 size-3 animate-spin" />
-          ) : (
-            <ExternalLink className="mr-0.5 size-3" />
-          )}
-          {compact ? "Generar" : "Generar link"}
-        </Button>
-      );
-    }
-
-    if (effectivePrimary === "regenerate") {
-      return (
-        <Button
-          size="sm"
-          variant="outline"
-          className={btnClassName}
-          aria-label={compact ? "Regenerar link" : undefined}
-          disabled={regeneratingLinkId === payment.id}
-          onClick={() => onRegenerateLink?.(payment.id)}
-        >
-          {regeneratingLinkId === payment.id ? (
-            <Loader2 className="mr-0.5 size-3 animate-spin" />
-          ) : (
-            <RefreshCw className="mr-0.5 size-3" />
-          )}
-          {compact ? "Regenerar" : "Regenerar link"}
-        </Button>
-      );
-    }
-
-    if (effectivePrimary === "copy") {
-      return (
-        <Button
-          size="sm"
-          variant="outline"
-          className={btnClassName}
-          aria-label={compact ? "Copiar link" : undefined}
-          onClick={() => {
-            navigator.clipboard.writeText(payment.initPoint!);
-            toast.success("Link copiado al portapapeles");
-          }}
-        >
-          <Copy className="mr-0.5 size-3" />
-          {compact ? "Copiar" : "Copiar link"}
-        </Button>
-      );
-    }
-
-    if (effectivePrimary === "markPaid") {
-      return (
-        <Button
-          size="sm"
-          variant="outline"
-          className={btnClassName}
-          aria-label={compact ? "Marcar pagado" : undefined}
-          onClick={() => onMarkPaid?.(payment.id)}
-        >
-          <Check className="mr-0.5 size-3" />
-          {compact ? "Marcar pagado" : "Marcar pagado"}
-        </Button>
-      );
-    }
-
-    if (effectivePrimary === "viewReceipt") {
-      return (
-        <Button
-          size="sm"
-          variant="ghost"
-          className={btnClassName}
-          aria-label={compact ? "Ver comprobante" : undefined}
-          onClick={() => window.open(payment.receiptUrl!, "_blank")}
-        >
-          <FileText className="mr-0.5 size-3" />
-          {compact ? "Ver comp." : "Ver comprobante"}
-        </Button>
-      );
-    }
-
-    if (effectivePrimary === "downloadReceipt") {
-      return (
-        <Button
-          size="sm"
-          variant="outline"
-          className={btnClassName}
-          aria-label={compact ? "Descargar comprobante" : undefined}
-          onClick={() => window.open(`/api/payments/${payment.id}/receipt`, "_blank")}
-        >
-          <FileDown className="mr-0.5 size-3" />
-          {compact ? "Comprobante" : "Descargar comprobante"}
-        </Button>
-      );
-    }
-
-    if (effectivePrimary === "attachReceipt") {
-      return (
-        <Button
-          size="sm"
-          variant="outline"
-          className={btnClassName}
-          aria-label={compact ? "Adjuntar comprobante" : undefined}
-          disabled={attachingReceiptId === payment.id}
-          onClick={() => onAttachReceipt?.(payment.id)}
-        >
-          {attachingReceiptId === payment.id ? (
-            <Loader2 className="mr-0.5 size-3 animate-spin" />
-          ) : (
-            <Paperclip className="mr-0.5 size-3" />
-          )}
-          {compact ? "Adjuntar" : "Adjuntar comprobante"}
-        </Button>
-      );
-    }
-
-    return null;
+  // ── Primary button (outlined with text + icon) ───────────────────────────
+  const renderPrimaryButton = (action: ActionId) => {
+    const cfg = ACTION_CONFIG[action];
+    const loading = isActionLoading(action, payment, loadingState);
+    const Icon = loading ? Loader2 : cfg.icon;
+    return (
+      <Button
+        key={action}
+        size="sm"
+        variant="outline"
+        className={cn(btnHeight, "px-2", btnText)}
+        title={cfg.tooltip}
+        aria-label={cfg.tooltip}
+        disabled={loading}
+        onClick={() => runAction(action, payment, callbacks)}
+      >
+        <Icon className={cn(iconSize, "mr-0.5", loading && "animate-spin")} />
+        {cfg.label}
+      </Button>
+    );
   };
 
-  // ── Render menu item ──────────────────────────────────────────────────────
-  const renderMenuItem = (action: (typeof effectiveSecondary)[number]) => {
-    if (action === "markPaid") {
-      return (
-        <DropdownMenuItem onClick={() => onMarkPaid?.(payment.id)}>
-          <Check className="size-3.5 shrink-0" />
-          Marcar como pagado
-        </DropdownMenuItem>
-      );
-    }
-
-    if (action === "delete") {
-      return (
-        <DropdownMenuItem
-          variant="destructive"
-          onClick={() => onDeletePayment?.(payment.id)}
-        >
-          <Trash2 className="size-3.5 shrink-0" />
-          Eliminar pago
-        </DropdownMenuItem>
-      );
-    }
-
-    if (action === "viewReceipt") {
-      return (
-        <DropdownMenuItem onClick={() => window.open(payment.receiptUrl!, "_blank")}>
-          <FileText className="size-3.5 shrink-0" />
-          Ver comprobante
-        </DropdownMenuItem>
-      );
-    }
-
-    if (action === "downloadReceipt") {
-      return (
-        <DropdownMenuItem
-          onClick={() => window.open(`/api/payments/${payment.id}/receipt`, "_blank")}
-        >
-          <FileDown className="size-3.5 shrink-0" />
-          Descargar comprobante PDF
-        </DropdownMenuItem>
-      );
-    }
-
-    if (action === "sendLink") {
-      return (
-        <DropdownMenuItem onClick={() => onSendLink?.(payment)}>
-          <Send className="size-3.5 shrink-0" />
-          Enviar link
-        </DropdownMenuItem>
-      );
-    }
-
-    if (action === "attachReceipt") {
-      return (
-        <DropdownMenuItem
-          disabled={attachingReceiptId === payment.id}
-          onClick={() => onAttachReceipt?.(payment.id)}
-        >
-          <Paperclip className="size-3.5 shrink-0" />
-          {attachingReceiptId === payment.id ? "Adjuntando..." : "Adjuntar comprobante"}
-        </DropdownMenuItem>
-      );
-    }
-
-    return null;
+  // ── Inline secondary button (icon-only, ghost) ───────────────────────────
+  const renderInlineSecondary = (action: ActionId) => {
+    const cfg = ACTION_CONFIG[action];
+    const loading = isActionLoading(action, payment, loadingState);
+    const Icon = loading ? Loader2 : cfg.icon;
+    const label = buildInlineSecondaryLabel(action, payment);
+    return (
+      <Button
+        key={action}
+        variant="ghost"
+        className={cn(
+          iconBtnSize,
+          "p-0",
+          cfg.destructive && "text-muted-foreground hover:text-destructive hover:bg-destructive/10",
+        )}
+        title={label}
+        aria-label={label}
+        disabled={loading}
+        onClick={() => runAction(action, payment, callbacks)}
+      >
+        <Icon className={cn(iconSize, loading && "animate-spin")} />
+      </Button>
+    );
   };
+
+  // ── Dropdown menu item ───────────────────────────────────────────────────
+  const renderDropdownItem = (action: ActionId, isLast: boolean) => {
+    const cfg = ACTION_CONFIG[action];
+    const loading = isActionLoading(action, payment, loadingState);
+    const Icon = loading ? Loader2 : cfg.icon;
+    const showSeparator = cfg.separatorBefore && !isLast;
+    return (
+      <div key={action}>
+        {showSeparator && <DropdownMenuSeparator />}
+        <DropdownMenuItem
+          variant={cfg.destructive ? "destructive" : "default"}
+          disabled={loading}
+          onClick={() => runAction(action, payment, callbacks)}
+        >
+          <Icon className={cn("size-3.5 shrink-0", loading && "animate-spin")} />
+          {loading && action === "attachReceipt" ? "Adjuntando..." : cfg.label}
+        </DropdownMenuItem>
+      </div>
+    );
+  };
+
+  // ── Compose ──────────────────────────────────────────────────────────────
+  const hasNothing =
+    !effectivePrimary && !inlineSecondary && dropdownSecondary.length === 0 && dropdownOnly.length === 0;
 
   return (
     <div className="flex items-center justify-end gap-1">
-      {renderPrimaryButton()}
-      {effectiveSecondary.length > 0 && (
+      {effectivePrimary && renderPrimaryButton(effectivePrimary)}
+      {inlineSecondary && renderInlineSecondary(inlineSecondary)}
+      {dropdownSecondary.length > 0 && (
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
               <Button
-                variant={btnVariant}
-                className={btnSize}
+                variant="ghost"
+                className={cn(iconBtnSize, "p-0 text-muted-foreground hover:text-foreground")}
                 aria-label={buildAriaLabel(payment)}
+                title={buildAriaLabel(payment)}
               >
-                <MoreHorizontal className={compact ? "size-3" : "size-3.5"} />
+                <MoreHorizontal className={iconSize} />
               </Button>
             }
           />
           <DropdownMenuContent align="end" className="w-48">
-            {effectiveSecondary.map((action) => (
-              <div key={action}>{renderMenuItem(action)}</div>
-            ))}
+            {dropdownSecondary.map((action, idx) =>
+              renderDropdownItem(action, idx === dropdownSecondary.length - 1),
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       )}
-      {!effectivePrimary && effectiveSecondary.length === 0 && (
-        <span className="text-muted-foreground text-[10px]">—</span>
+      {dropdownOnly.length > 0 && (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                className={cn(iconBtnSize, "p-0 text-muted-foreground hover:text-foreground")}
+                aria-label={buildAriaLabel(payment)}
+                title={buildAriaLabel(payment)}
+              >
+                <MoreHorizontal className={iconSize} />
+              </Button>
+            }
+          />
+          <DropdownMenuContent align="end" className="w-48">
+            {dropdownOnly.map((action, idx) =>
+              renderDropdownItem(action, idx === dropdownOnly.length - 1),
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       )}
+      {hasNothing && <span className="text-muted-foreground text-[10px]">—</span>}
     </div>
   );
 }
