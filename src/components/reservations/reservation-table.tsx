@@ -16,7 +16,7 @@ import { getInclusiveMonths } from "@/lib/reservation-dates";
 import { getReservationPaidAmount } from "@/lib/payments/calculations";
 import type { Reservation } from "./types";
 import { formatDate, formatPrice } from "./reservations-utils";
-import { ReservationPill, reservationPillDotClass, reservationPillToken, type PillTone } from "./reservation-pill";
+import { ReservationPill, reservationPillDotClass, type PillTone } from "./reservation-pill";
 
 function getInitials(name: string): string {
   return name
@@ -230,11 +230,8 @@ export function ReservationTable({ reservations, onEdit, onCancel, onDelete }: {
 
             return (
               <tr key={res.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                {/* Status accent + Huésped */}
-                <td
-                  className="relative px-6 py-5"
-                  style={{ borderLeft: `4px solid var(--${reservationPillToken[stateTone]})` }}
-                >
+                {/* Huésped */}
+                <td className="px-6 py-5">
                   <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
                       {getInitials(res.client.name)}
