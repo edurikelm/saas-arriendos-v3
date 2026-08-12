@@ -392,13 +392,15 @@ export default async function DashboardPage() {
               const arrivalLabel = isActive
                 ? `Finaliza ${labelDaysUntilEnd(reservation.endDate, today)}`
                 : `Llega ${labelDaysUntilStart(reservation.startDate, today)}`;
-              const statusLabel = getTemporalStatus(
+              const temporalStatus = getTemporalStatus(
                 reservation.startDate,
                 reservation.endDate,
                 reservation.billingType,
                 reservation.status,
                 today,
-              ).label;
+              );
+              const statusLabel = temporalStatus.label;
+              const statusSublabel = temporalStatus.sublabel;
               const statusTone = getReservationTone(
                 reservation.status,
                 reservation.startDate,
@@ -408,7 +410,14 @@ export default async function DashboardPage() {
 
               return (
                 <tr key={reservation.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                  <td className="px-4 py-3 text-xs font-bold text-foreground">{reservation.property.name}</td>
+                  <td className="px-4 py-3">
+                    <Link
+                      href={`/reservations/${reservation.id}`}
+                      className="text-xs font-bold text-foreground hover:text-primary hover:underline"
+                    >
+                      {reservation.property.name}
+                    </Link>
+                  </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">{reservation.client.name}</td>
                   <td className="px-4 py-3">
                     <div className="whitespace-nowrap text-xs font-bold text-primary">
@@ -422,7 +431,14 @@ export default async function DashboardPage() {
                   </td>
                   <td className="hidden sm:table-cell px-4 py-3 text-xs text-muted-foreground">{arrivalLabel}</td>
                   <td className="px-4 py-3">
-                    <ReservationPill tone={statusTone} label={statusLabel} />
+                    <div className="flex flex-col items-start gap-1">
+                      <ReservationPill tone={statusTone} label={statusLabel} />
+                      {statusSublabel && (
+                        <span className="text-[9px] text-muted-foreground">
+                          {statusSublabel}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-right text-xs font-bold text-foreground tabular-nums">
                     {formatCLP(Number(reservation.totalPrice))}
