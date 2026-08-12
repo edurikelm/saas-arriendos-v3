@@ -148,8 +148,9 @@ describe('ReservationDetailClient — header v3 (person + metadata row)', () => 
     // Note: property name also appears in the right-column "Resumen" card,
     // so we check `>= 1` rather than exact match.
     expect(screen.getAllByText('Casa Norte').length).toBeGreaterThanOrEqual(1);
-    // Nights "5 noches" — end - start = 4 days + 1 = 5 nights
-    expect(screen.getByText(/5 noches/)).toBeTruthy();
+    // Nights "5 noches" — end - start = 4 days + 1 = 5 nights.
+    // Aparece en el resumen del timeline y en el chip de metadata (intencional).
+    expect(screen.getAllByText(/5 noches/).length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows months instead of nights for MONTHLY reservation', () => {
@@ -160,8 +161,8 @@ describe('ReservationDetailClient — header v3 (person + metadata row)', () => 
     });
     render(<ReservationDetailClient reservation={reservation} />);
 
-    // 3 months
-    expect(screen.getByText(/3 meses/)).toBeTruthy();
+    // 3 months — aparece en el resumen del timeline y en el chip de metadata.
+    expect(screen.getAllByText(/3 meses/).length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders Editar + Cancelar buttons in header for editable reservations', () => {
