@@ -463,3 +463,49 @@ describe('PaymentsTable - concept badge variant', () => {
     expect(badge).toBeTruthy();
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// compact=true — mobile dot instead of Estado column
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('PaymentsTable - compact mode', () => {
+  it('renderiza dot semántico en lugar de columna Estado cuando compact=true', () => {
+    const payment = createMockPayment({ status: 'PENDING' });
+
+    render(<PaymentsTable payments={[payment]} variant="reservation" compact />);
+
+    // No debe haber columna "Estado" en el thead
+    expect(screen.queryByText('Estado')).toBeNull();
+
+    // Debe haber un dot con aria-label
+    const dot = screen.getByLabelText('Pendiente');
+    expect(dot).toBeTruthy();
+  });
+
+  it('renderiza columna Estado con Badge cuando compact=false', () => {
+    const payment = createMockPayment({ status: 'PENDING' });
+
+    render(<PaymentsTable payments={[payment]} variant="full" compact={false} />);
+
+    expect(screen.getByText('Estado')).toBeTruthy();
+    expect(screen.getByText('Pendiente')).toBeTruthy();
+  });
+
+  it('dot usa bg-success para status COMPLETED', () => {
+    const payment = createMockPayment({ status: 'COMPLETED' });
+
+    render(<PaymentsTable payments={[payment]} variant="reservation" compact />);
+
+    const dot = screen.getByLabelText('Pagado');
+    expect(dot).toBeTruthy();
+  });
+
+  it('dot usa bg-destructive para status FAILED', () => {
+    const payment = createMockPayment({ status: 'FAILED' });
+
+    render(<PaymentsTable payments={[payment]} variant="reservation" compact />);
+
+    const dot = screen.getByLabelText('Fallido');
+    expect(dot).toBeTruthy();
+  });
+});

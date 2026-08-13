@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import { PaymentsSection } from '../payments-section';
 
 const mockRefresh = vi.fn();
@@ -251,9 +251,9 @@ describe('PaymentsSection - empty state', () => {
       />
     );
     expect(screen.getByText('Aún no hay pagos registrados')).toBeTruthy();
-    // El CTA vive SOLO dentro del empty state — el header no lo duplica
-    // cuando no hay pagos (sino "Verificar" se mostraría sin tener nada que verificar).
-    expect(screen.getAllByRole('button', { name: /agregar pago/i })).toHaveLength(1);
+    // "Agregar Pago" aparece en el header + empty state (2×). "Verificar" no aparece
+    // cuando no hay pagos (nada que verificar).
+    expect(screen.getAllByRole('button', { name: /agregar pago/i })).toHaveLength(2);
     expect(screen.queryByRole('button', { name: /verificar/i })).toBeNull();
   });
 
@@ -290,7 +290,8 @@ describe('PaymentsSection - empty state', () => {
       />
     );
     expect(screen.getByText('Aún no hay pagos registrados')).toBeTruthy();
-    expect(screen.getAllByRole('button', { name: /agregar pago/i })).toHaveLength(1);
+    // "Agregar Pago" aparece en el header + empty state (2×).
+    expect(screen.getAllByRole('button', { name: /agregar pago/i })).toHaveLength(2);
   });
 
   it('muestra empty state sin CTA cuando la reserva está COMPLETED sin pagos', () => {
@@ -310,6 +311,98 @@ describe('PaymentsSection - empty state', () => {
     );
     expect(screen.getByText('Esta reserva no tiene pagos registrados.')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /agregar pago/i })).toBeNull();
+  });
+});
+
+describe('PaymentsSection - status filter', () => {
+  it('muestra 3 filter pills: Todos, Pendientes, Pagados', () => {
+    const reservation = createMockReservation({
+      status: 'CONFIRMED',
+      payments: [
+        createMockPayment({ id: 'p1', amount: '50000', status: 'PENDING', paymentType: 'RESERVATION' }),
+        createMockPayment({ id: 'p2', amount: '50000', status: 'COMPLETED', paymentType: 'RESERVATION' }),
+      ],
+    });
+
+    render(
+      <PaymentsSection
+        reservationId={reservation.id}
+        totalPrice={reservation.totalPrice}
+        billingType={reservation.billingType}
+        status={reservation.status}
+        payments={reservation.payments}
+        client={reservation.client}
+        propertyName="Test Property"
+      />
+    );
+
+    expect(screen.getByRole('button', { name: /^todos$/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^pendientes$/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^pagados$/i })).toBeTruthy();
+  });
+
+  it('muestra solo pagos pendientes cuando se filtra por "Pendientes"', async () => {
+    const reservation = createMockReservation({
+      status: 'CONFIRMED',
+      payments: [
+        createMockPayment({ id: 'p1', amount: '50000', status: 'PENDING', paymentType: 'RESERVATION' }),
+        createMockPayment({ id: 'p2', amount: '50000', status: 'COMPLETED', paymentType: 'RESERVATION' }),
+        createMockPayment({ id: 'p3', amount: '50000', status: 'PENDING', paymentType: 'RESERVATION' }),
+      ],
+    });
+
+    render(
+      <PaymentsSection
+        reservationId={reservation.id}
+        totalPrice={reservation.totalPrice}
+        billingType={reservation.billingType}
+        status={reservation.status}
+        payments={reservation.payments}
+        client={reservation.client}
+        propertyName="Test Property"
+      />
+    );
+
+    // Click "Pendientes" wrapped in act() for state update
+    const pendientesBtn = screen.getByRole('button', { name: /^pendientes$/i });
+    await act(async () => {
+      pendientesBtn.click();
+    });
+
+    // Count rows within the reservation table (first table, identified by caption)
+    const table = screen.getByRole('table', { name: /listado de pagos/i });
+    const { getAllByRole } = within(table);
+    const rows = getAllByRole('row');
+    // First row is thead, remaining are tbody data rows
+    const dataRows = rows.slice(1);
+    expect(dataRows.length).toBe(2);
+  });
+
+  it('muestra todos los pagos cuando se filtra por "Todos" (default)', () => {
+    const reservation = createMockReservation({
+      status: 'CONFIRMED',
+      payments: [
+        createMockPayment({ id: 'p1', amount: '50000', status: 'PENDING', paymentType: 'RESERVATION' }),
+        createMockPayment({ id: 'p2', amount: '50000', status: 'COMPLETED', paymentType: 'RESERVATION' }),
+        createMockPayment({ id: 'p3', amount: '50000', status: 'FAILED', paymentType: 'RESERVATION' }),
+      ],
+    });
+
+    render(
+      <PaymentsSection
+        reservationId={reservation.id}
+        totalPrice={reservation.totalPrice}
+        billingType={reservation.billingType}
+        status={reservation.status}
+        payments={reservation.payments}
+        client={reservation.client}
+        propertyName="Test Property"
+      />
+    );
+
+    // Default filter is "Todos" — all 3 payments visible
+    const rows = document.querySelectorAll('tbody tr');
+    expect(rows.length).toBe(3);
   });
 });
 

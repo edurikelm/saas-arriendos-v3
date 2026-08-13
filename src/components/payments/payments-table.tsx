@@ -6,6 +6,7 @@ import { es } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableHeader } from "@/components/ui/data-table";
 import { PaymentRowActions } from "./payment-row-actions";
+import { cn } from "@/lib/utils";
 
 /**
  * Variantes explícitas de la tabla de pagos.
@@ -120,6 +121,7 @@ export function PaymentsTable({
   onMarkPaid,
   onDeletePayment,
   onAttachReceipt,
+  onUploadReceipt,
   onSendLink,
   variant,
   generatingLinkId,
@@ -134,6 +136,7 @@ export function PaymentsTable({
   onMarkPaid?: (paymentId: string) => void;
   onDeletePayment?: (paymentId: string) => void;
   onAttachReceipt?: (paymentId: string) => void;
+  onUploadReceipt?: (paymentId: string, file: File) => Promise<{ error?: string }>;
   onSendLink?: (payment: Payment) => void;
   variant: PaymentsTableVariant;
   generatingLinkId?: string | null;
@@ -164,7 +167,7 @@ export function PaymentsTable({
     ...(showInstallmentColumns ? ["Vencimiento"] : []),
     "Fecha Pago",
     "Medio",
-    "Estado",
+    ...(compact ? [] : ["Estado"]),
     { label: "Acciones", align: "right" },
   ];
 
@@ -219,9 +222,27 @@ export function PaymentsTable({
               </td>
             )}
             <td className="px-6 py-4">
-              <p className="text-xs font-bold text-foreground tabular-nums">
-                {formatAmount(payment.amount)}
-              </p>
+              <div className="flex items-center justify-end gap-1.5">
+                {compact && (
+                  <span
+                    className={cn(
+                      "size-2 rounded-full shrink-0",
+                      payment.status === "PENDING" && "bg-warning",
+                      payment.status === "COMPLETED" && "bg-success",
+                      payment.status === "FAILED" && "bg-destructive",
+                    )}
+                    title={`${statusCfg.label}${payment.overdueDays && payment.overdueDays > 0 ? ` · Vencido hace ${payment.overdueDays} días` : ""}`}
+                    aria-label={
+                      payment.overdueDays && payment.overdueDays > 0
+                        ? `${statusCfg.label} · Vencido hace ${payment.overdueDays} días`
+                        : statusCfg.label
+                    }
+                  />
+                )}
+                <p className="text-xs font-bold text-foreground tabular-nums">
+                  {formatAmount(payment.amount)}
+                </p>
+              </div>
             </td>
             {showInstallmentColumns && (
               <td className="px-6 py-4">
@@ -240,23 +261,25 @@ export function PaymentsTable({
                 {payment.method === "MERCADO_PAGO" ? "Mercado Pago" : payment.method === "CASH" ? "Efectivo" : payment.method === "TRANSFER" ? "Transferencia" : "—"}
               </p>
             </td>
-            <td className="px-6 py-4 align-middle">
-              <div className="flex flex-col gap-1">
-                <Badge variant={statusCfg.variant} className="h-5 text-[11px] font-medium w-fit">
-                  {statusCfg.label}
-                </Badge>
-                {isPending && payment.overdueDays != null && payment.overdueDays > 0 && (
-                  <p className="text-[10px] text-destructive">
-                    Vencido hace {payment.overdueDays} {payment.overdueDays === 1 ? "día" : "días"}
-                  </p>
-                )}
-                {isPending && isMercadoPago && isExpired && (
-                  <Badge variant="destructive" className="h-5 text-[11px] font-medium w-fit">
-                    Expirado
+            {!compact && (
+              <td className="px-6 py-4 align-middle">
+                <div className="flex flex-col gap-1">
+                  <Badge variant={statusCfg.variant} className="h-5 text-[11px] font-medium w-fit">
+                    {statusCfg.label}
                   </Badge>
-                )}
-              </div>
-            </td>
+                  {isPending && payment.overdueDays != null && payment.overdueDays > 0 && (
+                    <p className="text-[10px] text-destructive">
+                      Vencido hace {payment.overdueDays} {payment.overdueDays === 1 ? "día" : "días"}
+                    </p>
+                  )}
+                  {isPending && isMercadoPago && isExpired && (
+                    <Badge variant="destructive" className="h-5 text-[11px] font-medium w-fit">
+                      Expirado
+                    </Badge>
+                  )}
+                </div>
+              </td>
+            )}
             <td className="px-6 py-4 text-right">
               <PaymentRowActions
                 payment={payment}
@@ -265,6 +288,7 @@ export function PaymentsTable({
                 onMarkPaid={onMarkPaid}
                 onDeletePayment={onDeletePayment}
                 onAttachReceipt={onAttachReceipt}
+                onUploadReceipt={onUploadReceipt}
                 onSendLink={onSendLink}
                 generatingLinkId={generatingLinkId}
                 regeneratingLinkId={regeneratingLinkId}

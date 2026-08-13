@@ -95,8 +95,24 @@ export function PaymentsSection({
   client,
   propertyName,
 }: PaymentsSectionProps) {
-  const reservationPayments = payments.filter((p) => p.paymentType !== "EXTRA");
-  const extraPayments = payments.filter((p) => p.paymentType === "EXTRA");
+  type FilterStatus = "all" | "pending" | "paid";
+  const [statusFilter, setStatusFilter] = useState<FilterStatus>("all");
+
+  const FILTER_OPTIONS: Array<{ value: FilterStatus; label: string }> = [
+    { value: "all", label: "Todos" },
+    { value: "pending", label: "Pendientes" },
+    { value: "paid", label: "Pagados" },
+  ];
+
+  function applyStatusFilter<T extends { status: string }>(payments: T[], filter: FilterStatus): T[] {
+    if (filter === "all") return payments;
+    if (filter === "pending") return payments.filter((p) => p.status === "PENDING" || p.status === "FAILED");
+    if (filter === "paid") return payments.filter((p) => p.status === "COMPLETED");
+    return payments;
+  }
+
+  const reservationPayments = applyStatusFilter(payments.filter((p) => p.paymentType !== "EXTRA"), statusFilter);
+  const extraPayments = applyStatusFilter(payments.filter((p) => p.paymentType === "EXTRA"), statusFilter);
   const paidAmount = getReservationPaidAmount(payments);
   const pendingAmount = getReservationPendingAmount(payments, Number(totalPrice));
   const extraTotal = extraPayments.reduce((sum, p) => sum + Number(p.amount), 0);
@@ -116,10 +132,6 @@ export function PaymentsSection({
   const [isCheckingAllPayments, setIsCheckingAllPayments] = useState(false);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [showAttachReceiptModal, setShowAttachReceiptModal] = useState(false);
-  const [attachReceiptPaymentId, setAttachReceiptPaymentId] = useState<string | null>(null);
-  const [attachReceiptFile, setAttachReceiptFile] = useState<File | null>(null);
-  const [isAttachingReceipt, setIsAttachingReceipt] = useState(false);
   const [paymentToDelete, setPaymentToDelete] = useState<string | null>(null);
   const [sendLinkPayment, setSendLinkPayment] = useState<Payment | null>(null);
 
@@ -263,54 +275,46 @@ export function PaymentsSection({
     }
   };
 
-  const handleAttachReceiptClick = (paymentId: string) => {
-    setAttachReceiptPaymentId(paymentId);
-    setAttachReceiptFile(null);
-    setShowAttachReceiptModal(true);
-  };
+  const handleUploadReceipt = async (
+    paymentId: string,
+    file: File,
+  ): Promise<{ error?: string }> => {
+    // 1. Subir a /api/upload
+    const uploadFormData = new FormData();
+    uploadFormData.append("file", file);
+    uploadFormData.append("folder", "rentalpro/receipts");
 
-  const handleConfirmAttachReceipt = async () => {
-    if (!attachReceiptPaymentId || !attachReceiptFile) return;
-
-    setIsAttachingReceipt(true);
+    let url: string;
     try {
-      const uploadFormData = new FormData();
-      uploadFormData.append("file", attachReceiptFile);
-      uploadFormData.append("folder", "rentalpro/receipts");
-
       const uploadRes = await fetch("/api/upload", {
         method: "POST",
         body: uploadFormData,
       });
       const uploadResult = await uploadRes.json();
       if (uploadResult.error) {
-        toast.error(uploadResult.error);
-        return;
+        return { error: uploadResult.error };
       }
-
-      const result = await attachReceipt(attachReceiptPaymentId, uploadResult.url);
-      if (result?.error) {
-        toast.error(result.error);
-        return;
-      }
-
-      toast.success("Comprobante adjuntado");
-      setShowAttachReceiptModal(false);
-      setAttachReceiptPaymentId(null);
-      setAttachReceiptFile(null);
-      refreshData();
+      url = uploadResult.url;
     } catch {
-      toast.error("Error al adjuntar comprobante");
-    } finally {
-      setIsAttachingReceipt(false);
+      return { error: "Error al subir comprobante" };
     }
+
+    // 2. Adjuntar a payment
+    const result = await attachReceipt(paymentId, url);
+    if (result?.error) {
+      return { error: result.error };
+    }
+
+    // 3. Refrescar datos (el Popover cierra y muestra toast al retornar)
+    refreshData();
+    return {};
   };
 
   const isActive = status !== "CANCELLED" && status !== "COMPLETED";
-  // Header derecho (Verificar + Agregar Pago) solo visible cuando hay pagos.
-  // Con payments.length === 0 el CTA vive DENTRO del empty state — así no se
-  // duplica acciones y "Verificar" no aparece sin tener nada que consultar.
-  const showHeaderActions = isActive && payments.length > 0;
+  // "Agregar Pago" visible siempre que la reserva sea activa (incluso sin pagos).
+  // "Verificar" solo cuando hay pagos (no hay nada que verificar con 0 pagos).
+  const showHeaderActions = isActive;
+  const showHeaderVerify = isActive && payments.length > 0;
 
   return (
     <div className="space-y-6">
@@ -347,21 +351,48 @@ export function PaymentsSection({
       <div className="space-y-6">
         {/* Always render reservation payments section - emptyState handles empty array */}
         <div>
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-medium">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3">
+            <p className="text-sm font-bold text-foreground">
               {billingType === "MONTHLY" ? "Cuotas de arriendo" : "Pagos de reserva"}
             </p>
+
+            {/* Filter pills — centrado entre título y acciones */}
+            <div className="flex items-center gap-1 rounded-full border border-border bg-muted p-1">
+              {FILTER_OPTIONS.map((opt) => {
+                const isActive = statusFilter === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setStatusFilter(opt.value)}
+                    aria-pressed={isActive}
+                    className={cn(
+                      "rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors",
+                      isActive
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Acciones */}
             {showHeaderActions && (
               <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleRefreshPayments}
-                  disabled={isCheckingAllPayments}
-                >
-                  <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", isCheckingAllPayments && "animate-spin")} />
-                  {isCheckingAllPayments ? "Verificando..." : "Verificar"}
-                </Button>
+                {showHeaderVerify && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleRefreshPayments}
+                    disabled={isCheckingAllPayments}
+                  >
+                    <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", isCheckingAllPayments && "animate-spin")} />
+                    {isCheckingAllPayments ? "Verificando..." : "Verificar"}
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   variant="default"
@@ -379,7 +410,7 @@ export function PaymentsSection({
             onRegenerateLink={handleRegenerateLink}
             onMarkPaid={handleMarkPaidClick}
             onDeletePayment={setPaymentToDelete}
-            onAttachReceipt={handleAttachReceiptClick}
+            onUploadReceipt={handleUploadReceipt}
             onSendLink={setSendLinkPayment}
             variant="reservation"
             generatingLinkId={generatingLinkId}
@@ -422,7 +453,7 @@ export function PaymentsSection({
               onRegenerateLink={handleRegenerateLink}
               onMarkPaid={handleMarkPaidClick}
               onDeletePayment={setPaymentToDelete}
-              onAttachReceipt={handleAttachReceiptClick}
+              onUploadReceipt={handleUploadReceipt}
               onSendLink={setSendLinkPayment}
               variant="extra"
               generatingLinkId={generatingLinkId}
@@ -469,24 +500,6 @@ export function PaymentsSection({
           <div className="flex gap-2 justify-end">
             <Button size="sm" variant="ghost" onClick={() => setShowMarkPaidModal(false)} disabled={isUploading}>Cancelar</Button>
             <Button size="sm" onClick={handleConfirmMarkPaid} disabled={isUploading}>{isUploading ? "Subiendo..." : "Confirmar"}</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Attach Receipt Modal */}
-      <Dialog open={showAttachReceiptModal} onOpenChange={setShowAttachReceiptModal}>
-        <DialogContent className="w-[95vw] max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Adjuntar Comprobante</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <ReceiptUpload onFileSelect={setAttachReceiptFile} />
-          </div>
-          <div className="flex gap-2 justify-end">
-            <Button size="sm" variant="ghost" onClick={() => setShowAttachReceiptModal(false)}>Cancelar</Button>
-            <Button size="sm" onClick={handleConfirmAttachReceipt} disabled={!attachReceiptFile || isAttachingReceipt}>
-              {isAttachingReceipt ? "Subiendo..." : "Subir"}
-            </Button>
           </div>
         </DialogContent>
       </Dialog>

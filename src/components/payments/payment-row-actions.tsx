@@ -25,6 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Payment } from "./payments-table";
+import { AttachReceiptPopover } from "./attach-receipt-popover";
 
 export interface PaymentRowActionsProps {
   payment: Payment;
@@ -33,6 +34,8 @@ export interface PaymentRowActionsProps {
   onMarkPaid?: (paymentId: string) => void;
   onDeletePayment?: (paymentId: string) => void;
   onAttachReceipt?: (paymentId: string) => void;
+  /** Upload receipt file — used by <AttachReceiptPopover> when attachReceipt is the primary action. */
+  onUploadReceipt?: (paymentId: string, file: File) => Promise<{ error?: string }>;
   onSendLink?: (payment: Payment) => void;
   generatingLinkId?: string | null;
   regeneratingLinkId?: string | null;
@@ -155,7 +158,7 @@ function isActionLoading(
 function runAction(
   action: ActionId,
   payment: Payment,
-  callbacks: Pick<PaymentRowActionsProps, "onGenerateLink" | "onRegenerateLink" | "onMarkPaid" | "onDeletePayment" | "onAttachReceipt" | "onSendLink">,
+  callbacks: Pick<PaymentRowActionsProps, "onGenerateLink" | "onRegenerateLink" | "onMarkPaid" | "onDeletePayment" | "onAttachReceipt" | "onSendLink" | "onUploadReceipt">,
 ): void {
   switch (action) {
     case "generate": callbacks.onGenerateLink?.(payment.id); break;
@@ -204,6 +207,7 @@ export function PaymentRowActions({
   onMarkPaid,
   onDeletePayment,
   onAttachReceipt,
+  onUploadReceipt,
   onSendLink,
   generatingLinkId,
   regeneratingLinkId,
@@ -215,7 +219,7 @@ export function PaymentRowActions({
   const isMercadoPago = payment.method === "MERCADO_PAGO";
   const isExpired = isPaymentExpired(payment);
 
-  const callbacks = { onGenerateLink, onRegenerateLink, onMarkPaid, onDeletePayment, onAttachReceipt, onSendLink };
+  const callbacks = { onGenerateLink, onRegenerateLink, onMarkPaid, onDeletePayment, onAttachReceipt, onSendLink, onUploadReceipt };
   const loadingState = { generatingLinkId, regeneratingLinkId, attachingReceiptId };
 
   // ── Action eligibility ────────────────────────────────────────────────────
@@ -253,7 +257,9 @@ export function PaymentRowActions({
   if (canDelete) allSecondary.push("delete");
   if (canViewReceipt && primaryAction !== "viewReceipt") allSecondary.push("viewReceipt");
   if (canDownloadReceipt && primaryAction !== "downloadReceipt") allSecondary.push("downloadReceipt");
-  if (canAttachReceipt && primaryAction !== "attachReceipt") allSecondary.push("attachReceipt");
+  // Option C: when onUploadReceipt is provided, attachReceipt is handled by the Popover
+  // as the primary action — do NOT add it to the dropdown.
+  if (canAttachReceipt && primaryAction !== "attachReceipt" && !onUploadReceipt) allSecondary.push("attachReceipt");
   if (canSendLink) allSecondary.push("sendLink");
 
   // ── UX rule: 1 secondary → inline button, 2+ → dropdown ────────────────
@@ -350,7 +356,16 @@ export function PaymentRowActions({
 
   return (
     <div className="flex items-center justify-end gap-1">
-      {effectivePrimary && renderPrimaryButton(effectivePrimary)}
+      {effectivePrimary && effectivePrimary === "attachReceipt" && onUploadReceipt ? (
+        <AttachReceiptPopover
+          triggerLabel={ACTION_CONFIG.attachReceipt.label}
+          triggerTooltip={ACTION_CONFIG.attachReceipt.tooltip}
+          compact={compact}
+          onSubmit={(file) => onUploadReceipt(payment.id, file)}
+        />
+      ) : (
+        effectivePrimary && renderPrimaryButton(effectivePrimary)
+      )}
       {inlineSecondary && renderInlineSecondary(inlineSecondary)}
       {dropdownSecondary.length > 0 && (
         <DropdownMenu>
