@@ -351,37 +351,40 @@ export function PaymentsSection({
       <div className="space-y-6">
         {/* Always render reservation payments section - emptyState handles empty array */}
         <div>
-          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3">
-            <p className="text-sm font-bold text-foreground">
-              {billingType === "MONTHLY" ? "Cuotas de arriendo" : "Pagos de reserva"}
-            </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+            {/* Lado izquierdo: título + pills como una unidad semántica
+                (título = nombre de la tabla; pills = filtros de la tabla) */}
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-sm font-bold text-foreground">
+                {billingType === "MONTHLY" ? "Cuotas de arriendo" : "Pagos de reserva"}
+              </p>
 
-            {/* Filter pills — centrado entre título y acciones */}
-            <div className="flex items-center gap-1 rounded-full border border-border bg-muted p-1">
-              {FILTER_OPTIONS.map((opt) => {
-                const isActive = statusFilter === opt.value;
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setStatusFilter(opt.value)}
-                    aria-pressed={isActive}
-                    className={cn(
-                      "rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors",
-                      isActive
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    {opt.label}
-                  </button>
-                );
-              })}
+              <div className="flex items-center gap-1 rounded-full border border-border bg-muted p-1">
+                {FILTER_OPTIONS.map((opt) => {
+                  const isActive = statusFilter === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setStatusFilter(opt.value)}
+                      aria-pressed={isActive}
+                      className={cn(
+                        "rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors",
+                        isActive
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* Acciones */}
+            {/* Lado derecho: acciones agrupadas */}
             {showHeaderActions && (
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
                 {showHeaderVerify && (
                   <Button
                     size="sm"
