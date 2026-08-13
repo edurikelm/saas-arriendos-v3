@@ -351,7 +351,7 @@ export function PaymentsSection({
       <div className="space-y-6">
         {/* Always render reservation payments section - emptyState handles empty array */}
         <div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
             {/* Lado izquierdo: título + pills como una unidad semántica
                 (título = nombre de la tabla; pills = filtros de la tabla) */}
             <div className="flex flex-wrap items-center gap-3">
@@ -359,6 +359,7 @@ export function PaymentsSection({
                 {billingType === "MONTHLY" ? "Cuotas de arriendo" : "Pagos de reserva"}
               </p>
 
+              {/* Filter pills — agrupados con el título */}
               <div className="flex items-center gap-1 rounded-full border border-border bg-muted p-1">
                 {FILTER_OPTIONS.map((opt) => {
                   const isActive = statusFilter === opt.value;
@@ -382,9 +383,9 @@ export function PaymentsSection({
               </div>
             </div>
 
-            {/* Lado derecho: acciones agrupadas */}
+            {/* Acciones */}
             {showHeaderActions && (
-              <div className="flex items-center gap-2">
+              <div className="flex gap-2">
                 {showHeaderVerify && (
                   <Button
                     size="sm"
