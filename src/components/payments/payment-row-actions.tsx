@@ -231,7 +231,10 @@ export function PaymentRowActions({
   const canDelete = isPending && !isMercadoPago && onDeletePayment;
   const canViewReceipt = Boolean(payment.receiptUrl);
   const canDownloadReceipt = isCompleted && isMercadoPago;
-  const canAttachReceipt = isCompleted && !payment.receiptUrl && onAttachReceipt;
+  // La acción es elegible si hay un handler (viejo callback o nuevo Popover).
+  // Si solo hay onUploadReceipt (nuevo), el Popover se renderiza como primary.
+  // Si solo hay onAttachReceipt (viejo), el dropdown item lo invoca.
+  const canAttachReceipt = isCompleted && !payment.receiptUrl && (onAttachReceipt || onUploadReceipt);
   const canSendLink = isPending && isMercadoPago && payment.initPoint && onSendLink;
 
   // ── Primary action ───────────────────────────────────────────────────────
