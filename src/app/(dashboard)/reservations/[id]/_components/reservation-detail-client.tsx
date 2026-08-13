@@ -7,13 +7,11 @@ import {
   ArrowDownToLine,
   Ban,
   CalendarRange,
-  Check,
   ChevronLeft,
   DoorOpen,
   FileText,
   Home,
   Mail,
-  MapPin,
   MoreVertical,
   Pencil,
   Phone,
@@ -36,7 +34,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { cancelReservation } from "@/lib/actions/reservations";
-import { formatDate } from "@/components/reservations/reservations-utils";
 import { ReservationPill, type PillTone } from "@/components/reservations/reservation-pill";
 import { ReservationForm } from "@/components/reservations/reservation-form";
 import { ReservationDocumentsPanel } from "@/components/reservations/reservation-documents-panel";
@@ -118,16 +115,6 @@ interface ReservationDetailClientProps {
   };
 }
 
-const PROPERTY_TYPE_LABELS: Record<string, string> = {
-  HOUSE: "Casa",
-  APARTMENT: "Departamento",
-  CABIN: "Cabaña",
-  HOSTEL: "Hostel",
-  HOTEL: "Hotel",
-  OFFICE: "Oficina",
-  COMMERCIAL: "Local comercial",
-};
-
 function getInitials(name: string): string {
   return name
     .split(" ")
@@ -142,15 +129,6 @@ function getNights(startDate: string, endDate: string): number {
   const startKey = startDate.slice(0, 10);
   const endKey = endDate.slice(0, 10);
   return Math.max(1, dateKeyToDayIndex(endKey) - dateKeyToDayIndex(startKey) + 1);
-}
-
-function formatPrice(amount: number | string): string {
-  return new Intl.NumberFormat("es-CL", {
-    style: "currency",
-    currency: "CLP",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(Number(amount));
 }
 
 function formatDayMonth(dateString: string): string {
@@ -295,74 +273,7 @@ function StaySection({
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Snapshot de propiedad (sidebar)
-// ─────────────────────────────────────────────────────────────────────────
-
-function PropertySnapshot({ property }: { property: Property }) {
-  const color = property.color || "var(--primary)";
-  const typeLabel = property.type ? PROPERTY_TYPE_LABELS[property.type] ?? property.type : null;
-  const price =
-    property.dailyPrice && Number(property.dailyPrice) > 0
-      ? `${formatPrice(property.dailyPrice)} / noche`
-      : property.monthlyPrice && Number(property.monthlyPrice) > 0
-        ? `${formatPrice(property.monthlyPrice)} / mes`
-        : null;
-
-  return (
-    <Card className="ring-1 ring-foreground/10">
-      <CardContent className="p-4 space-y-3">
-        <div className="flex items-center gap-2">
-          <span
-            className="size-2.5 shrink-0 rounded-sm"
-            style={{ backgroundColor: color }}
-            aria-hidden="true"
-          />
-          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-            Propiedad
-          </p>
-        </div>
-        <h3 className="text-sm font-bold text-foreground line-clamp-1">{property.name}</h3>
-
-        <div className="space-y-1.5 text-xs">
-          {typeLabel && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <DoorOpen className="size-3.5 shrink-0" aria-hidden="true" />
-              <span>{typeLabel}</span>
-            </div>
-          )}
-          {typeof property.unitsAvailable === "number" && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <MapPin className="size-3.5 shrink-0" aria-hidden="true" />
-              <span>
-                {property.unitsAvailable}{" "}
-                {property.unitsAvailable === 1 ? "unidad" : "unidades"} disponibles
-              </span>
-            </div>
-          )}
-          {price && (
-            <div className="flex items-center gap-2 font-mono text-foreground/80">
-              <Wallet className="size-3.5 shrink-0" aria-hidden="true" />
-              <span className="tabular-nums">{price}</span>
-            </div>
-          )}
-        </div>
-
-        <Link
-          href={`/properties/${property.id}`}
-          className={cn(
-            buttonVariants({ variant: "outline", size: "sm" }),
-            "w-full justify-center text-xs",
-          )}
-        >
-          Ver propiedad
-        </Link>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// Change timeline (sidebar)
+// Change timeline (sidebar — rendered inside a collapsible <details>)
 // ─────────────────────────────────────────────────────────────────────────
 
 function ChangeTimeline({ changes }: { changes: ReservationChange[] }) {
@@ -477,7 +388,6 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
   );
 
   const isEditable = reservation.status !== "CANCELLED" && reservation.status !== "COMPLETED";
-  const reservationCode = reservation.id.slice(-6).toUpperCase();
   const sourceLabel = reservation.bookingAirbnb ? "Airbnb" : "Directo";
   const billingLabel = reservation.billingType === "MONTHLY" ? "Mensual" : "Diario";
   const propertyColor = reservation.property.color || "var(--primary)";
@@ -558,21 +468,13 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
           {/* HERO BAND ────────────────────────────────────────────────── */}
           <Card className="ring-1 ring-foreground/10 p-0">
             <CardContent className="p-6 sm:p-8 space-y-6">
-              {/* Eyebrow row: reservation code + status pill */}
-              <div className="flex flex-wrap items-center gap-3">
+              {/* Eyebrow row: pill + sublabel (el código completo ya está en la URL) */}
+              <div className="flex flex-wrap items-center gap-2">
                 <ReservationPill tone={temporalTone} label={temporal.label} />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                  Reserva {reservationCode}
-                </span>
                 {temporal.sublabel && (
-                  <>
-                    <span aria-hidden="true" className="text-muted-foreground/40">
-                      ·
-                    </span>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      {temporal.sublabel}
-                    </span>
-                  </>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    · {temporal.sublabel}
+                  </span>
                 )}
               </div>
 
@@ -604,6 +506,12 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
                         <Phone className="size-3.5" aria-hidden="true" />
                         <span>{reservation.client.phone}</span>
                       </a>
+                    )}
+                    {reservation.client.rut && (
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="text-muted-foreground/60">·</span>
+                        <span>RUT {reservation.client.rut}</span>
+                      </span>
                     )}
                   </div>
                 </div>
@@ -693,61 +601,24 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
         </div>
 
         {/* ─── RIGHT COLUMN ──────────────────────────────────────────── */}
-        <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
-          <PropertySnapshot property={reservation.property} />
-
-          {/* Reservation metadata (sin duplicar info del hero) */}
-          <Card>
-            <CardContent className="p-5 space-y-4">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Datos de la reserva
-              </p>
-              <dl className="space-y-3 text-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <dt className="text-muted-foreground">ID</dt>
-                  <dd className="font-mono text-xs text-foreground/70">
-                    {reservation.id.slice(-8).toUpperCase()}
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <dt className="text-muted-foreground">Creada</dt>
-                  <dd className="text-foreground tabular-nums text-xs">
-                    {formatDate(reservation.createdAt)}
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <dt className="text-muted-foreground">Origen</dt>
-                  <dd className="inline-flex items-center gap-1.5 text-foreground">
-                    <Check className="size-3 text-success" aria-hidden="true" />
-                    <span>{sourceLabel}</span>
-                  </dd>
-                </div>
-                {reservation.client.rut && (
-                  <div className="flex items-center justify-between gap-3">
-                    <dt className="text-muted-foreground">RUT cliente</dt>
-                    <dd className="font-mono text-xs text-foreground/70">
-                      {reservation.client.rut}
-                    </dd>
-                  </div>
-                )}
-              </dl>
-            </CardContent>
-          </Card>
-
-          {/* Historial de cambios */}
-          <Card>
-            <CardContent className="p-5">
-              <div className="flex items-baseline justify-between mb-4">
-                <h2 className="text-sm font-bold text-foreground">Historial de cambios</h2>
+        <aside className="lg:sticky lg:top-20 lg:self-start">
+          {/* Historial de cambios — colapsable para no saturar la vista */}
+          <details className="rounded-lg ring-1 ring-border">
+            <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 select-none">
+              <span className="text-sm font-bold text-foreground">Historial de cambios</span>
+              <span className="flex items-center gap-2">
                 {reservation.changes.length > 0 && (
                   <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground tabular-nums">
                     {reservation.changes.length}
                   </span>
                 )}
-              </div>
+                <ChevronLeft className="size-4 text-muted-foreground transition-transform duration-200 open:rotate-[-90deg]" />
+              </span>
+            </summary>
+            <div className="border-t border-border px-4 py-3">
               <ChangeTimeline changes={reservation.changes} />
-            </CardContent>
-          </Card>
+            </div>
+          </details>
         </aside>
       </div>
 

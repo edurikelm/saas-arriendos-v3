@@ -29,6 +29,7 @@ import { SendPaymentLinkDialog } from "@/components/reservations/send-payment-li
 import { ReceiptUpload } from "@/components/ui/receipt-upload";
 import { PaymentsTable } from "@/components/payments/payments-table";
 import { getReservationPaidAmount, getReservationPendingAmount } from "@/lib/payments/calculations";
+import { isOverdueInBusinessTz, nowKeyInBusinessTz } from "@/lib/domain/timezone";
 import { format } from "date-fns";
 
 interface Payment {
@@ -69,6 +70,22 @@ function formatPrice(price: string | number): string {
   }).format(Number(price));
 }
 
+/** Pagos pendientes (RESERVATION, no EXTRA) cuya fecha de vencimiento ya pasó.
+ *  Usa `isOverdueInBusinessTz` (ADR-0020) para evitar sensibilidad a la zona
+ *  del servidor (Vercel corre en UTC, negocio opera en America/Santiago). */
+function getOverdueAmount(payments: Payment[]): number {
+  const nowKey = nowKeyInBusinessTz();
+  return payments
+    .filter(
+      (p) =>
+        p.status === "PENDING" &&
+        !p.deletedAt &&
+        (p.paymentType ?? "RESERVATION") !== "EXTRA" &&
+        isOverdueInBusinessTz(p.dueDate, nowKey),
+    )
+    .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+}
+
 export function PaymentsSection({
   reservationId,
   totalPrice,
@@ -87,6 +104,7 @@ export function PaymentsSection({
   const extraPendingAmount = Math.max(extraTotal - extraPaidAmount, 0);
   const totalPaid = paidAmount + extraPaidAmount;
   const totalPending = pendingAmount + extraPendingAmount;
+  const overdueAmount = getOverdueAmount(payments);
 
   const [generatingLinkId, setGeneratingLinkId] = useState<string | null>(null);
   const [regeneratingLinkId, setRegeneratingLinkId] = useState<string | null>(null);
@@ -297,9 +315,8 @@ export function PaymentsSection({
   return (
     <div className="space-y-6">
       {/* KPIs (KpiCard primitive — DESIGN.md §7).
-            Mobile: 3 columnas en una fila (compacta), para no apilar 3 cards
-            verticalmente antes del resto del detail. */}
-      <div className="grid grid-cols-3 sm:grid-cols-3 gap-3 sm:gap-4">
+            Mobile: 2×2 grid para no usar filas de 4 cards muy estrechas. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         <KpiCard
           label="Total"
           value={formatPrice(Number(totalPrice) + extraTotal)}
@@ -318,6 +335,12 @@ export function PaymentsSection({
           icon={AlertCircle}
           tone={totalPending > 0 ? "warning" : "success"}
         />
+        <KpiCard
+          label="Vencido"
+          value={formatPrice(overdueAmount)}
+          icon={AlertCircle}
+          tone={overdueAmount > 0 ? "destructive" : "default"}
+        />
       </div>
 
       {/* Tables */}
@@ -332,20 +355,19 @@ export function PaymentsSection({
               <div className="flex gap-2">
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="h-7 text-[10px] font-bold uppercase tracking-wider border-primary text-primary hover:bg-primary/10"
+                  variant="ghost"
                   onClick={handleRefreshPayments}
                   disabled={isCheckingAllPayments}
                 >
-                  <RefreshCw className={cn("h-3 w-3 mr-1", isCheckingAllPayments && "animate-spin")} />
+                  <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", isCheckingAllPayments && "animate-spin")} />
                   {isCheckingAllPayments ? "Verificando..." : "Verificar"}
                 </Button>
                 <Button
                   size="sm"
-                  className="h-7 text-[10px] font-bold uppercase tracking-wider"
+                  variant="default"
                   onClick={() => setShowAddPaymentDialog(true)}
                 >
-                  <Plus className="h-3 w-3 mr-1" />
+                  <Plus className="h-4 w-4 mr-1.5" />
                   Agregar Pago
                 </Button>
               </div>

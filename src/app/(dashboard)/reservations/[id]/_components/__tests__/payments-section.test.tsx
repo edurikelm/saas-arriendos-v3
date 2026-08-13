@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { PaymentsSection } from '../payments-section';
 
 const mockRefresh = vi.fn();
@@ -310,5 +310,179 @@ describe('PaymentsSection - empty state', () => {
     );
     expect(screen.getByText('Esta reserva no tiene pagos registrados.')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /agregar pago/i })).toBeNull();
+  });
+});
+
+describe('PaymentsSection - overdue KPI', () => {
+  it('muestra KPI "Vencido" cuando hay pagos pendientes con dueDate pasada', () => {
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const reservation = createMockReservation({
+      status: 'PENDING',
+      payments: [
+        createMockPayment({
+          id: 'p1',
+          amount: '50000',
+          status: 'PENDING',
+          paymentType: 'RESERVATION',
+          dueDate: yesterday.toISOString(),
+        }),
+      ],
+    });
+
+    render(
+      <PaymentsSection
+        reservationId={reservation.id}
+        totalPrice={reservation.totalPrice}
+        billingType={reservation.billingType}
+        status={reservation.status}
+        payments={reservation.payments}
+        client={reservation.client}
+        propertyName="Test Property"
+      />
+    );
+
+    // El KPI Vencido es un group con aria-label="Vencido"; buscamos el span de valor
+    // dentro de ese group para ser específicos y no chocar con la tabla de pagos.
+    const vencidoCard = screen.getByRole('group', { name: 'Vencido' });
+    expect(vencidoCard).toBeTruthy();
+    expect(within(vencidoCard).getByText('$50.000')).toBeTruthy();
+  });
+
+  it('muestra $0 en KPI Vencido cuando no hay pagos vencidos', () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const reservation = createMockReservation({
+      status: 'PENDING',
+      payments: [
+        createMockPayment({
+          id: 'p1',
+          amount: '50000',
+          status: 'PENDING',
+          paymentType: 'RESERVATION',
+          dueDate: tomorrow.toISOString(),
+        }),
+      ],
+    });
+
+    render(
+      <PaymentsSection
+        reservationId={reservation.id}
+        totalPrice={reservation.totalPrice}
+        billingType={reservation.billingType}
+        status={reservation.status}
+        payments={reservation.payments}
+        client={reservation.client}
+        propertyName="Test Property"
+      />
+    );
+
+    // Vencido muestra $0 cuando no hay pagos vencidos
+    const vencidoCard = screen.getByRole('group', { name: 'Vencido' });
+    expect(within(vencidoCard).getByText('$0')).toBeTruthy();
+  });
+
+  it('no cuenta como vencido un pago con dueDate null', () => {
+    const reservation = createMockReservation({
+      status: 'PENDING',
+      payments: [
+        createMockPayment({
+          id: 'p1',
+          amount: '50000',
+          status: 'PENDING',
+          paymentType: 'RESERVATION',
+          dueDate: null,
+        }),
+      ],
+    });
+
+    render(
+      <PaymentsSection
+        reservationId={reservation.id}
+        totalPrice={reservation.totalPrice}
+        billingType={reservation.billingType}
+        status={reservation.status}
+        payments={reservation.payments}
+        client={reservation.client}
+        propertyName="Test Property"
+      />
+    );
+
+    // Sin dueDate no hay forma de saber si está vencido → KPI debe ser $0
+    const vencidoCard = screen.getByRole('group', { name: 'Vencido' });
+    expect(within(vencidoCard).getByText('$0')).toBeTruthy();
+  });
+
+  it('no cuenta como vencido un pago EXTRA con dueDate pasada', () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const reservation = createMockReservation({
+      status: 'PENDING',
+      payments: [
+        createMockPayment({
+          id: 'p1',
+          amount: '50000',
+          status: 'PENDING',
+          paymentType: 'EXTRA',
+          title: 'Limpieza',
+          dueDate: yesterday.toISOString(),
+        }),
+      ],
+    });
+
+    render(
+      <PaymentsSection
+        reservationId={reservation.id}
+        totalPrice={reservation.totalPrice}
+        billingType={reservation.billingType}
+        status={reservation.status}
+        payments={reservation.payments}
+        client={reservation.client}
+        propertyName="Test Property"
+      />
+    );
+
+    // Los EXTRAs no cuentan para el saldo del arriendo → KPI Vencido = $0
+    const vencidoCard = screen.getByRole('group', { name: 'Vencido' });
+    expect(within(vencidoCard).getByText('$0')).toBeTruthy();
+  });
+
+  it('no cuenta como vencido un pago soft-deleted', () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const reservation = createMockReservation({
+      status: 'PENDING',
+      payments: [
+        createMockPayment({
+          id: 'p1',
+          amount: '50000',
+          status: 'PENDING',
+          paymentType: 'RESERVATION',
+          dueDate: yesterday.toISOString(),
+          deletedAt: '2025-01-01T00:00:00.000Z',
+        }),
+      ],
+    });
+
+    render(
+      <PaymentsSection
+        reservationId={reservation.id}
+        totalPrice={reservation.totalPrice}
+        billingType={reservation.billingType}
+        status={reservation.status}
+        payments={reservation.payments}
+        client={reservation.client}
+        propertyName="Test Property"
+      />
+    );
+
+    // Soft-deleted se excluye (auditoría) → KPI Vencido = $0
+    const vencidoCard = screen.getByRole('group', { name: 'Vencido' });
+    expect(within(vencidoCard).getByText('$0')).toBeTruthy();
   });
 });

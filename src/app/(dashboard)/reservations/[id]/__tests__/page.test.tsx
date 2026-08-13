@@ -131,13 +131,16 @@ describe('ReservationDetailClient — header v3 (person + metadata row)', () => 
     expect(screen.getByText('sintel@example.com')).toBeTruthy();
   });
 
-  it('renders reservation ID short code as eyebrow', () => {
-    const reservation = createMockReservation();
+  it('renders temporal status pill label in eyebrow (no reservation code shown)', () => {
+    const reservation = createMockReservation({ status: 'CONFIRMED' });
     render(<ReservationDetailClient reservation={reservation} />);
 
-    // Last 6 chars uppercase. Mock id is "res-1" → "ES-1" (only 5 chars, but it should not throw)
-    // The eyebrow text should include "Reserva"
-    expect(screen.getAllByText(/Reserva/).length).toBeGreaterThan(0);
+    // After Tier-1 eyebrow compacting: the eyebrow shows the pill label (temporal.status)
+    // but no "Reserva XXXXXX" code — the code lives in the URL dropdown.
+    // temporal.label for CONFIRMED + 2025 dates is "CONFIRMED"-derived; we verify the pill is present.
+    // The pill label text includes the status word.
+    const pillLabels = screen.getAllByText(/confirm/i);
+    expect(pillLabels.length).toBeGreaterThan(0);
   });
 
   it('renders metadata row with property name and dates inline', () => {
