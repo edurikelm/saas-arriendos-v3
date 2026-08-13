@@ -296,8 +296,10 @@ export function PaymentsSection({
 
   return (
     <div className="space-y-6">
-      {/* KPIs (KpiCard primitive — DESIGN.md §7) */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+      {/* KPIs (KpiCard primitive — DESIGN.md §7).
+            Mobile: 3 columnas en una fila (compacta), para no apilar 3 cards
+            verticalmente antes del resto del detail. */}
+      <div className="grid grid-cols-3 sm:grid-cols-3 gap-3 sm:gap-4">
         <KpiCard
           label="Total"
           value={formatPrice(Number(totalPrice) + extraTotal)}

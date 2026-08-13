@@ -262,8 +262,10 @@ export function CalendarView({
         </div>
       </div>
 
-      {/* 2. KPI Grid (4 cards estilo Stitch) */}
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* 2. KPI Grid (4 cards estilo Stitch).
+            Mobile: 2 columnas (2x2 grid) para reducir altura antes del timeline,
+            que es la sección accionable prioritaria del calendario. */}
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
         <KpiCard
           label="Ocupación Media"
           value={`${calendarKpis.occupancyRate}%`}

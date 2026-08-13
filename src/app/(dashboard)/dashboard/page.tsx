@@ -3,6 +3,7 @@ import { Plus, Wallet, Clock, CalendarCheck, TrendingUp, AlertCircle, RefreshCw 
 import { buttonVariants } from "@/components/ui/button";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { classifyCollectionAlerts } from "@/lib/alerts/collection-alerts";
 import { getProperties } from "@/lib/actions/properties";
 import { getReservations } from "@/lib/actions/reservations";
@@ -280,10 +281,45 @@ export default async function DashboardPage() {
 
   // Tabla Próximas reservas: solo reservas DAILY (mezcla activas + próximas, top 6).
   // Las reservas MONTHLY no aparecen aquí — se gestionan en /reservations.
+  //
+  // Orden de filas (jerarquía descendente):
+  //   1) Reservas que LLEGAN HOY (`daysToStart === 0`) — la señal más accionable
+  //      del día; van arriba con highlight visual. Entre ellas, las que terminan
+  //      antes primero (la atención puede ser check-in + check-out el mismo día).
+  //   2) Reservas activas (`daysToStart < 0`, ya están en curso), ordenadas por
+  //      fecha de salida ascendente (las que terminan antes primero).
+  //   3) Reservas próximas (futuras), ordenadas por días faltantes ascendente.
+  // Las comparaciones son en wall-time SCL per ADR-0020 — no se reinterpretan
+  // fechas como UTC. Este sort es SOLO para la tabla — los KPIs
+  // (activeReservations, upcomingReservations) siguen el cómputo original arriba.
   const tableReservations = [...activeReservations, ...upcomingReservations]
     .filter((reservation) => reservation.billingType === "DAILY")
-    .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
-    .slice(0, 6);
+    .map((reservation) => {
+      const daysToStart = daysUntilStart(reservation.startDate, today);
+      const daysToEnd = daysUntilEnd(reservation.endDate, today);
+      const isActive = daysToStart <= 0 && daysToEnd >= 0;
+      const isArrivingToday = daysToStart === 0;
+      return { reservation, isActive, isArrivingToday, daysToStart, daysToEnd };
+    })
+    .sort((a, b) => {
+      if (a.isArrivingToday !== b.isArrivingToday) {
+        return a.isArrivingToday ? -1 : 1;
+      }
+      if (a.isArrivingToday && b.isArrivingToday) {
+        // Entre las que llegan hoy, las que terminan antes primero (puede haber
+        // check-out el mismo día).
+        return a.daysToEnd - b.daysToEnd;
+      }
+      if (a.isActive !== b.isActive) {
+        return a.isActive ? -1 : 1;
+      }
+      if (a.isActive && b.isActive) {
+        return a.daysToEnd - b.daysToEnd;
+      }
+      return a.daysToStart - b.daysToStart;
+    })
+    .slice(0, 6)
+    .map((entry) => entry.reservation);
 
   // Subtitle data-driven: prioriza la señal más accionable para el dueño.
   const overdueAmount = collectionAlerts.vencidos.reduce((sum, a) => sum + a.amount, 0);
@@ -310,8 +346,11 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
-      {/* 2. KPI Grid (4 cards estilo Stitch) */}
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* 2. KPI Grid (4 cards estilo Stitch).
+            Mobile: 2 columnas (2x2 grid) para reducir la altura antes de "Próximas
+            reservas", que es la sección accionable prioritaria del dashboard.
+            Tablet/Desktop: 4 columnas. */}
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
         <KpiCard
           label="Ingresos Mensuales"
           value={formatCLP(monthlyIncome)}
@@ -388,10 +427,46 @@ export default async function DashboardPage() {
               const daysToStart = daysUntilStart(reservation.startDate, today);
               const daysToEnd = daysUntilEnd(reservation.endDate, today);
               const isActive = daysToStart <= 0 && daysToEnd >= 0;
+              // "Llega hoy" = el huésped hace check-in HOY (start_date = hoy en SCL),
+              // sin importar cuándo termina. Esto es operativamente distinto de
+              // "Activa" (huésped ya está durmiendo) y es la señal más urgente para
+              // el dueño: preparar check-in, llaves, limpieza. La lógica de
+              // activeReservations / upcomingReservations arriba NO se altera — los
+              // KPIs siguen considerando la reserva como activa (ocupa unidades hoy),
+              // pero en la tabla la destacamos por encima del resto.
+              const isArrivingToday = daysToStart === 0;
               const nights = getNights(reservation.startDate, reservation.endDate);
-              const arrivalLabel = isActive
-                ? `Finaliza ${labelDaysUntilEnd(reservation.endDate, today)}`
-                : `Llega ${labelDaysUntilStart(reservation.startDate, today)}`;
+              const arrivalLabel = isArrivingToday
+                ? "Llega hoy"
+                : isActive
+                  ? `Finaliza ${labelDaysUntilEnd(reservation.endDate, today)}`
+                  : `Llega ${labelDaysUntilStart(reservation.startDate, today)}`;
+              // Codificamos DOS dimensiones semánticas con atributos visuales distintos
+              // para que el dueño pueda escanear tanto la dirección (llega vs sale)
+              // como la urgencia (hoy vs pronto vs lejano) sin ambigüedad:
+              //
+              //   DIRECCIÓN → color
+              //     llegadas (check-in)    → primary  (teal)
+              //     salidas  (check-out)   → warning  (naranja)
+              //
+              //   URGENCIA → peso
+              //     hoy                    → font-bold
+              //     1-2 días               → font-medium
+              //     ≥3 días                → normal   (sin bold/medium)
+              //
+              // Reutilizado por el <td> Llegada/Salida (desktop) y el mini-label bajo
+              // el nombre de propiedad (mobile, cuando la columna está oculta).
+              const arrivalTone = isArrivingToday
+                ? "font-bold text-primary"
+                : isActive
+                  ? daysToEnd === 0
+                    ? "font-bold text-warning"
+                    : daysToEnd <= 2
+                      ? "font-medium text-warning"
+                      : "text-muted-foreground"
+                  : daysToStart <= 2
+                    ? "font-medium text-primary"
+                    : "text-muted-foreground";
               const temporalStatus = getTemporalStatus(
                 reservation.startDate,
                 reservation.endDate,
@@ -409,18 +484,38 @@ export default async function DashboardPage() {
               );
 
               return (
-                <tr key={reservation.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                <tr
+                  key={reservation.id}
+                  data-testid={isArrivingToday ? "reservation-arriving-today" : undefined}
+                  className="border-b last:border-0 hover:bg-muted/30 transition-colors"
+                >
                   <td className="px-4 py-3">
-                    <Link
-                      href={`/reservations/${reservation.id}`}
-                      className="text-xs font-bold text-foreground hover:text-primary hover:underline"
-                    >
-                      {reservation.property.name}
-                    </Link>
+                    <div className="flex flex-col gap-1">
+                      <Link
+                        href={`/reservations/${reservation.id}`}
+                        className="text-xs font-bold text-foreground hover:text-primary hover:underline"
+                      >
+                        {reservation.property.name}
+                      </Link>
+                      {/* Mini-label mobile: muestra el mismo arrivalLabel que la columna
+                          Llegada/Salida en desktop (que está oculta en <sm). El color
+                          sigue arrivalTone, así la jerarquía de urgencia se conserva. */}
+                      <span
+                        className={cn(
+                          "sm:hidden w-fit text-[10px] uppercase tracking-wider",
+                          arrivalTone
+                        )}
+                        aria-label={arrivalLabel}
+                      >
+                        {arrivalLabel}
+                      </span>
+                    </div>
                   </td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">{reservation.client.name}</td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
+                    {reservation.client.name}
+                  </td>
                   <td className="px-4 py-3">
-                    <div className="whitespace-nowrap text-xs font-bold text-primary">
+                    <div className="whitespace-nowrap text-xs font-bold text-foreground tabular-nums">
                       {formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}
                     </div>
                     <div className="mt-1">
@@ -429,7 +524,14 @@ export default async function DashboardPage() {
                       </span>
                     </div>
                   </td>
-                  <td className="hidden sm:table-cell px-4 py-3 text-xs text-muted-foreground">{arrivalLabel}</td>
+                  <td
+                    className={cn(
+                      "hidden sm:table-cell px-4 py-3 text-xs",
+                      arrivalTone
+                    )}
+                  >
+                    {arrivalLabel}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-col items-start gap-1">
                       <ReservationPill tone={statusTone} label={statusLabel} />
