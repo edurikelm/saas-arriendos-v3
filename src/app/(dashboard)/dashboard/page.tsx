@@ -340,7 +340,7 @@ export default async function DashboardPage() {
           <h1 className="text-xl font-bold text-foreground tracking-tight">Dashboard</h1>
           <p className="text-xs text-muted-foreground">{subtitleText}</p>
         </div>
-        <Link href="/reservations/new" className={buttonVariants({ size: "sm" })}>
+        <Link href="/reservations?create=true" className={buttonVariants({ size: "sm" })}>
           <Plus className="h-3.5 w-3.5" />
           Nueva Reserva
         </Link>

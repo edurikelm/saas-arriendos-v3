@@ -62,7 +62,13 @@ export function ReservationsListClient({
   const isMobile = useMediaQuery("(max-width: 767px)");
 
   // Dialogs
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  // Modal de creación: inicialización lazy desde URL para soportar deep-link
+  // `/reservations?create=true` sin setState-in-effect. La URL se limpia en el
+  // effect de abajo; si el usuario abre el modal manualmente después, el botón
+  // local sigue funcionando normalmente.
+  const [isCreateOpen, setIsCreateOpen] = useState(
+    () => searchParams.get("create") === "true"
+  );
   const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
   const [confirmAction, setConfirmAction] = useState<null | {
     title: string;
@@ -135,6 +141,24 @@ export function ReservationsListClient({
     const reservationId = searchParams.get("reservationId");
     if (!reservationId) return;
     router.replace(`/reservations/${reservationId}`);
+  }, [searchParams, router]);
+
+  // Deep-link: /reservations?create=true → limpia la URL para evitar reabrir el
+  // modal al refrescar. El state inicial ya se setea vía useState lazy arriba,
+  // así este effect solo hace side-effect de URL (sin setState).
+  //
+  // Edge case documentado: si la URL trae `?create=true` junto con otros params
+  // (ej. `?reservationId=abc`), este effect corre antes que el de `reservationId`
+  // y limpia solo `create`, preservando los demás. En ese caso el modal abre y
+  // luego la navegación a `/reservations/{id}` se ejecuta desde el effect de
+  // arriba (orden de declaración de hooks). Si en el futuro se quiere
+  // priorizar `create` sobre `reservationId`, reordernar los effects.
+  useEffect(() => {
+    if (searchParams.get("create") !== "true") return;
+    const cleaned = new URLSearchParams(searchParams.toString());
+    cleaned.delete("create");
+    const next = cleaned.toString();
+    router.replace(next ? `/reservations?${next}` : "/reservations", { scroll: false });
   }, [searchParams, router]);
 
   // CRUD handlers
