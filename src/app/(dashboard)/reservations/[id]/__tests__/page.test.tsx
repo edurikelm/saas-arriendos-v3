@@ -102,16 +102,19 @@ describe('ReservationDetailClient — header v3 (person + metadata row)', () => 
     const reservation = createMockReservation();
     render(<ReservationDetailClient reservation={reservation} />);
 
-    // The h1 must contain the client name
-    const h1 = screen.getByRole('heading', { level: 1 });
-    expect(h1.textContent).toContain('Juan Pérez');
+    // h1 aparece en dos lugares (mobile header + desktop summary card).
+    // Ambos deben contener el nombre del cliente.
+    const h1s = screen.getAllByRole('heading', { level: 1 });
+    expect(h1s.length).toBeGreaterThanOrEqual(1);
+    expect(h1s[0].textContent).toContain('Juan Pérez');
   });
 
   it('renders client email below the name', () => {
     const reservation = createMockReservation();
     render(<ReservationDetailClient reservation={reservation} />);
 
-    expect(screen.getByText('juan@example.com')).toBeTruthy();
+    // Email aparece en mobile header y desktop summary card.
+    expect(screen.getAllByText('juan@example.com').length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders client phone when present', () => {
@@ -128,7 +131,8 @@ describe('ReservationDetailClient — header v3 (person + metadata row)', () => 
     render(<ReservationDetailClient reservation={reservation} />);
 
     expect(screen.queryByText('+56912345678')).toBeNull();
-    expect(screen.getByText('sintel@example.com')).toBeTruthy();
+    // Email aparece en mobile header y desktop summary card.
+    expect(screen.getAllByText('sintel@example.com').length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders temporal status pill label in eyebrow (no reservation code shown)', () => {

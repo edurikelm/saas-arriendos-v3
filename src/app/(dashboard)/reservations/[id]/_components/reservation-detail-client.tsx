@@ -5,16 +5,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowDownToLine,
+  ArrowRight,
   Ban,
   CalendarRange,
   ChevronLeft,
   DoorOpen,
   FileText,
   Home,
-  Mail,
   MoreVertical,
   Pencil,
-  Phone,
   StickyNote,
   Tag,
   User as UserIcon,
@@ -143,6 +142,30 @@ function formatDayMonth(dateString: string): string {
   });
 }
 
+/** Devuelve solo el día del mes como string ("17") desde una fecha date-only. */
+function getDayNumber(dateString: string): string {
+  const key = dateString.slice(0, 10);
+  const [y, m, d] = key.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d, 12));
+  return date.toLocaleDateString("es-CL", {
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** Devuelve el mes abreviado ("ago") desde una fecha date-only. */
+function getMonthShort(dateString: string): string {
+  const key = dateString.slice(0, 10);
+  const [y, m, d] = key.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d, 12));
+  return date
+    .toLocaleDateString("es-CL", {
+      month: "short",
+      timeZone: "UTC",
+    })
+    .replace(/\.$/, "");
+}
+
 function formatLongDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString("es-CL", {
     day: "numeric",
@@ -182,94 +205,11 @@ function FieldLabel({ field }: { field: string }) {
   return <span className="font-medium text-foreground">{labels[field] ?? field}</span>;
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// Fechas de la estancia — card escaneable: check-in / check-out con duración
-// ─────────────────────────────────────────────────────────────────────────
-
 function formatWeekday(dateString: string): string {
   const key = dateString.slice(0, 10);
   const [y, m, d] = key.split("-").map(Number);
   const date = new Date(Date.UTC(y, m - 1, d, 12));
   return date.toLocaleDateString("es-CL", { weekday: "long", timeZone: "UTC" });
-}
-
-function StaySection({
-  startDate,
-  endDate,
-  billingType,
-  nights,
-  status,
-}: {
-  startDate: string;
-  endDate: string;
-  billingType: string;
-  nights: number;
-  status: string;
-}) {
-  const isMonthly = billingType === "MONTHLY";
-  const durationLabel = isMonthly
-    ? `${nights} ${nights === 1 ? "mes" : "meses"}`
-    : `${nights} ${nights === 1 ? "noche" : "noches"}`;
-
-  // Tono del divisor central según estado (semántico, sutil).
-  const connectorTone =
-    status === "CANCELLED"
-      ? "bg-destructive/30"
-      : status === "COMPLETED"
-        ? "bg-muted-foreground/30"
-        : "bg-primary/40";
-
-  return (
-    <div className="p-5">
-      {/* Header: title + duration en la misma línea */}
-      <div className="flex items-baseline justify-between gap-3 mb-4">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-          Estancia
-        </p>
-        <span className="text-xs font-bold uppercase tracking-wider text-foreground tabular-nums">
-          {durationLabel}
-        </span>
-      </div>
-
-      {/* Date range: check-in | connector | check-out */}
-      <div className="grid grid-cols-[1fr_auto_1fr] gap-3 sm:gap-5 items-stretch">
-        {/* Check-in */}
-        <div className="flex flex-col">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-            Check-in
-          </span>
-          <span className="mt-1 text-2xl font-bold text-foreground tabular-nums leading-none">
-            {formatDayMonth(startDate)}
-          </span>
-          <span className="mt-1 text-xs text-muted-foreground capitalize">
-            {formatWeekday(startDate)}
-          </span>
-        </div>
-
-        {/* Connector with dot — minimal visual link */}
-        <div className="flex flex-col items-center justify-center pt-4">
-          <div className="flex items-center">
-            <div className={cn("h-px w-6 sm:w-8", connectorTone)} />
-            <div className={cn("size-2 rounded-full mx-1", connectorTone.replace("/30", "/60").replace("/40", ""))} />
-            <div className={cn("h-px w-6 sm:w-8", connectorTone)} />
-          </div>
-        </div>
-
-        {/* Check-out */}
-        <div className="flex flex-col items-end text-right">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-            Check-out
-          </span>
-          <span className="mt-1 text-2xl font-bold text-foreground tabular-nums leading-none">
-            {formatDayMonth(endDate)}
-          </span>
-          <span className="mt-1 text-xs text-muted-foreground capitalize">
-            {formatWeekday(endDate)}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -333,6 +273,278 @@ function ChangeTimeline({ changes }: { changes: ReservationChange[] }) {
         );
       })}
     </ol>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Reservation summary card (compact — sidebar right column, 320-340px)
+// ─────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────
+// Mobile reservation header — solo visible en mobile/tablet (<lg)
+// Provee contexto inmediato (cliente + fechas) arriba sin esperar al scroll
+// ─────────────────────────────────────────────────────────────────────────
+
+function MobileReservationHeader({
+  client,
+  startDate,
+  endDate,
+  nights,
+  billingType,
+  temporal,
+  temporalTone,
+}: {
+  client: Client;
+  startDate: string;
+  endDate: string;
+  nights: number;
+  billingType: string;
+  temporal: { label: string; sublabel?: string | null };
+  temporalTone: PillTone;
+}) {
+  const isMonthly = billingType === "MONTHLY";
+  const durationLabel = isMonthly
+    ? `${nights} ${nights === 1 ? "mes" : "meses"}`
+    : `${nights} ${nights === 1 ? "noche" : "noches"}`;
+
+  return (
+    <div className="lg:hidden mb-6 rounded-lg ring-1 ring-border bg-card p-4">
+      {/* Top row: avatar + name + email + status pill */}
+      <div className="flex items-start gap-3 mb-3">
+        <div
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary"
+          aria-hidden="true"
+        >
+          {getInitials(client.name)}
+        </div>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-base font-bold tracking-tight text-foreground leading-tight">
+            {client.name}
+          </h1>
+          <p className="text-[10px] text-muted-foreground truncate mt-0.5">
+            {client.email}
+          </p>
+        </div>
+        <div className="shrink-0 pt-0.5">
+          <ReservationPill tone={temporalTone} label={temporal.label} />
+        </div>
+      </div>
+
+      {/* Dates row: icon + inline dates + duration */}
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <CalendarRange className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <span className="font-bold text-foreground tabular-nums">
+            {getDayNumber(startDate)} {getMonthShort(startDate)}
+          </span>
+          <ArrowRight className="size-3 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+          <span className="font-bold text-foreground tabular-nums">
+            {getDayNumber(endDate)} {getMonthShort(endDate)}
+          </span>
+        </div>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground shrink-0">
+          {durationLabel}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function ReservationSummaryCard({
+  client,
+  startDate,
+  endDate,
+  billingType,
+  nights,
+  status,
+  bookingAirbnb,
+  unitsBooked,
+  propertyName,
+  propertyColor,
+  temporal,
+  temporalTone,
+}: {
+  client: Client;
+  startDate: string;
+  endDate: string;
+  billingType: string;
+  nights: number;
+  status: string;
+  bookingAirbnb: boolean;
+  unitsBooked: number;
+  propertyName: string;
+  propertyColor: string;
+  temporal: { label: string; sublabel?: string | null };
+  temporalTone: PillTone;
+}) {
+  const isMonthly = billingType === "MONTHLY";
+  const durationLabel = isMonthly
+    ? `${nights} ${nights === 1 ? "mes" : "meses"}`
+    : `${nights} ${nights === 1 ? "noche" : "noches"}`;
+
+  const sourceLabel = bookingAirbnb ? "Airbnb" : "Directo";
+  const billingLabel = billingType === "MONTHLY" ? "Mensual" : "Diario";
+
+  // Tono del conector central según estado (semántico, sutil).
+  const connectorTone =
+    status === "CANCELLED"
+      ? "bg-destructive/30"
+      : status === "COMPLETED"
+        ? "bg-muted-foreground/30"
+        : "bg-primary/40";
+  // Tono del ícono arrow que indica dirección temporal Desde → Hasta.
+  const arrowTone =
+    status === "CANCELLED"
+      ? "text-destructive/60"
+      : status === "COMPLETED"
+        ? "text-muted-foreground/60"
+        : "text-primary/70";
+
+  return (
+    <div className="rounded-lg ring-1 ring-border bg-card">
+      <div className="p-4 space-y-4">
+        {/* Eyebrow row: pill + sublabel */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <ReservationPill tone={temporalTone} label={temporal.label} />
+          {temporal.sublabel && (
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              · {temporal.sublabel}
+            </span>
+          )}
+        </div>
+
+        {/* Identity: avatar + name + contact */}
+        <div className="flex items-start gap-3">
+          <div
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary"
+            aria-hidden="true"
+          >
+            {getInitials(client.name)}
+          </div>
+          <div className="min-w-0 flex-1 space-y-1">
+            <h1 className="text-lg font-bold tracking-tight text-foreground leading-tight">
+              {client.name}
+            </h1>
+            <div className="space-y-0.5">
+              <a
+                href={`mailto:${client.email}`}
+                className="block text-xs text-muted-foreground hover:text-foreground transition-colors truncate"
+              >
+                {client.email}
+              </a>
+              {client.phone && (
+                <a
+                  href={`tel:${client.phone}`}
+                  className="block text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {client.phone}
+                </a>
+              )}
+              {client.rut && (
+                <span className="block text-xs text-muted-foreground">
+                  RUT {client.rut}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div className="border-t border-border" />
+
+        {/* Estancia — dual date tiles with prominent day number */}
+        <div className="space-y-3">
+          <div className="flex items-baseline justify-between gap-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Estancia
+            </p>
+            <span className="text-xs font-bold uppercase tracking-wider text-foreground tabular-nums">
+              {durationLabel}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            {/* Desde */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Desde
+              </span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-[1.75rem] font-bold text-foreground tabular-nums tracking-tight leading-none">
+                  {getDayNumber(startDate)}
+                </span>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-sm font-semibold text-foreground leading-none">
+                    {getMonthShort(startDate)}
+                  </span>
+                  <span className="text-[10px] font-medium text-muted-foreground leading-none">
+                    {formatWeekday(startDate).slice(0, 3)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Hasta */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Hasta
+              </span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-[1.75rem] font-bold text-foreground tabular-nums tracking-tight leading-none">
+                  {getDayNumber(endDate)}
+                </span>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-sm font-semibold text-foreground leading-none">
+                    {getMonthShort(endDate)}
+                  </span>
+                  <span className="text-[10px] font-medium text-muted-foreground leading-none">
+                    {formatWeekday(endDate).slice(0, 3)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Temporal direction arrow — refuerza la semántica Desde → Hasta */}
+          <div className="flex items-center gap-2 pt-0.5">
+            <div className={cn("h-px flex-1", connectorTone)} />
+            <ArrowRight className={cn("size-3", arrowTone)} aria-hidden="true" />
+            <div className={cn("h-px flex-1", connectorTone)} />
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div className="border-t border-border" />
+
+        {/* Metadata chips */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-1.5">
+            <span
+              className="size-2.5 shrink-0 rounded-sm"
+              style={{ backgroundColor: propertyColor }}
+              aria-hidden="true"
+            />
+            <span className="text-xs font-bold text-foreground">
+              {propertyName}
+            </span>
+          </div>
+          <div className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs text-muted-foreground">
+            <DoorOpen className="size-3.5" aria-hidden="true" />
+            <span className="tabular-nums">
+              {unitsBooked} {unitsBooked === 1 ? "unidad" : "unidades"}
+            </span>
+          </div>
+          <div className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs text-muted-foreground">
+            <Tag className="size-3.5" aria-hidden="true" />
+            <span>{sourceLabel}</span>
+            <span className="text-muted-foreground/40" aria-hidden="true">
+              /
+            </span>
+            <span>{billingLabel}</span>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -462,104 +674,22 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
         )}
       </div>
 
+      {/* Mobile header — solo visible en <lg, oculta en desktop donde
+          el ReservationSummaryCard del sidebar ya provee este contexto */}
+      <MobileReservationHeader
+        client={reservation.client}
+        startDate={reservation.startDate}
+        endDate={reservation.endDate}
+        nights={nights}
+        billingType={reservation.billingType}
+        temporal={temporal}
+        temporalTone={temporalTone}
+      />
+
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_340px] gap-6">
         {/* ─── LEFT COLUMN ────────────────────────────────────────────── */}
         <div className="space-y-6 min-w-0">
-          {/* HERO BAND ────────────────────────────────────────────────── */}
-          <Card className="ring-1 ring-foreground/10 p-0">
-            <CardContent className="p-6 sm:p-8 space-y-6">
-              {/* Eyebrow row: pill + sublabel (el código completo ya está en la URL) */}
-              <div className="flex flex-wrap items-center gap-2">
-                <ReservationPill tone={temporalTone} label={temporal.label} />
-                {temporal.sublabel && (
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                    · {temporal.sublabel}
-                  </span>
-                )}
-              </div>
-
-              {/* Identity: avatar + name + contact */}
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                <div
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary"
-                  aria-hidden="true"
-                >
-                  {getInitials(reservation.client.name)}
-                </div>
-                <div className="min-w-0 flex-1 space-y-1">
-                  <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-                    {reservation.client.name}
-                  </h1>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                    <a
-                      href={`mailto:${reservation.client.email}`}
-                      className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors"
-                    >
-                      <Mail className="size-3.5" aria-hidden="true" />
-                      <span className="truncate">{reservation.client.email}</span>
-                    </a>
-                    {reservation.client.phone && (
-                      <a
-                        href={`tel:${reservation.client.phone}`}
-                        className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors"
-                      >
-                        <Phone className="size-3.5" aria-hidden="true" />
-                        <span>{reservation.client.phone}</span>
-                      </a>
-                    )}
-                    {reservation.client.rut && (
-                      <span className="inline-flex items-center gap-1.5">
-                        <span className="text-muted-foreground/60">·</span>
-                        <span>RUT {reservation.client.rut}</span>
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Estancia: check-in / check-out con duración */}
-              <div className="rounded-lg bg-muted/30 ring-1 ring-border overflow-hidden">
-                <StaySection
-                  startDate={reservation.startDate}
-                  endDate={reservation.endDate}
-                  billingType={reservation.billingType}
-                  nights={nights}
-                  status={reservation.status}
-                />
-              </div>
-
-              {/* Metadata chips: property + units + source + billing */}
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-1.5">
-                  <span
-                    className="size-2.5 shrink-0 rounded-sm"
-                    style={{ backgroundColor: propertyColor }}
-                    aria-hidden="true"
-                  />
-                  <span className="text-xs font-bold text-foreground">
-                    {reservation.property.name}
-                  </span>
-                </div>
-                <div className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs text-muted-foreground">
-                  <DoorOpen className="size-3.5" aria-hidden="true" />
-                  <span className="tabular-nums">
-                    {reservation.unitsBooked}{" "}
-                    {reservation.unitsBooked === 1 ? "unidad" : "unidades"}
-                  </span>
-                </div>
-                <div className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs text-muted-foreground">
-                  <Tag className="size-3.5" aria-hidden="true" />
-                  <span>{sourceLabel}</span>
-                  <span className="text-muted-foreground/40" aria-hidden="true">
-                    /
-                  </span>
-                  <span>{billingLabel}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Sección 1: Pagos */}
+          {/* Sección 1: Pagos (prioridad — sin hero band encima) */}
           <section>
             <h2 className="text-sm font-bold text-foreground mb-3">Detalle de pagos</h2>
             <PaymentsSection
@@ -601,7 +731,25 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
         </div>
 
         {/* ─── RIGHT COLUMN ──────────────────────────────────────────── */}
-        <aside className="lg:sticky lg:top-20 lg:self-start">
+        <aside className="lg:sticky lg:top-20 lg:self-start space-y-4">
+          {/* ReservationSummaryCard — hero compactado para sidebar (solo desktop) */}
+          <div className="hidden lg:block">
+            <ReservationSummaryCard
+              client={reservation.client}
+              startDate={reservation.startDate}
+              endDate={reservation.endDate}
+              billingType={reservation.billingType}
+              nights={nights}
+              status={reservation.status}
+              bookingAirbnb={reservation.bookingAirbnb}
+              unitsBooked={reservation.unitsBooked}
+              propertyName={reservation.property.name}
+              propertyColor={propertyColor}
+              temporal={temporal}
+              temporalTone={temporalTone}
+            />
+          </div>
+
           {/* Historial de cambios — colapsable para no saturar la vista */}
           <details className="rounded-lg ring-1 ring-border">
             <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 select-none">
