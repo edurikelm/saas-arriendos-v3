@@ -505,11 +505,10 @@ function ReservationSummaryCard({
             </div>
           </div>
 
-          {/* Temporal direction arrow — refuerza la semántica Desde → Hasta */}
+          {/* Temporal direction arrow — al final del bloque de fechas */}
           <div className="flex items-center gap-2 pt-0.5">
             <div className={cn("h-px flex-1", connectorTone)} />
-            <ArrowRight className={cn("size-3", arrowTone)} aria-hidden="true" />
-            <div className={cn("h-px flex-1", connectorTone)} />
+            <ArrowRight className={cn("size-3 shrink-0", arrowTone)} aria-hidden="true" />
           </div>
         </div>
 
@@ -734,6 +733,7 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
         <aside className="lg:sticky lg:top-20 lg:self-start space-y-4">
           {/* ReservationSummaryCard — hero compactado para sidebar (solo desktop) */}
           <div className="hidden lg:block">
+            <h2 className="text-sm font-bold text-foreground mb-3">Resumen</h2>
             <ReservationSummaryCard
               client={reservation.client}
               startDate={reservation.startDate}
