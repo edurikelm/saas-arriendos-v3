@@ -505,10 +505,11 @@ function ReservationSummaryCard({
             </div>
           </div>
 
-          {/* Temporal direction arrow — al final del bloque de fechas */}
+          {/* Temporal direction arrow — refuerza la semántica Desde → Hasta */}
           <div className="flex items-center gap-2 pt-0.5">
             <div className={cn("h-px flex-1", connectorTone)} />
-            <ArrowRight className={cn("size-3 shrink-0", arrowTone)} aria-hidden="true" />
+            <ArrowRight className={cn("size-3", arrowTone)} aria-hidden="true" />
+            <div className={cn("h-px flex-1", connectorTone)} />
           </div>
         </div>
 
