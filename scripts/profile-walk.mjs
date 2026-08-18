@@ -39,7 +39,6 @@ const prisma = new PrismaClient({
 });
 
 // Counters
-let queryCount = 0;
 const queries = [];
 
 prisma.$on("query", (e) => {

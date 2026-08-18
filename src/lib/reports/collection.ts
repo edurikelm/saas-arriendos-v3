@@ -168,7 +168,6 @@ export function buildCollectionReportRows(
   reservations: CollectionReservationInput[],
   options?: BuildCollectionOptions
 ): CollectionReportRow[] {
-  const now = options?.now ?? new Date();
   // Cache del "hoy" en zona de negocio (ADR-0020) para usar en
   // comparaciones day-level. Evita recalcular `nowKeyInBusinessTz()` por
   // cada pago/reserva en el loop.

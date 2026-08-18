@@ -5,17 +5,6 @@ import { History, User } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-interface PlanChangedDetails {
-  before?: string;
-  after?: string;
-}
-
-interface OwnerCreatedDetails {
-  email?: string;
-  name?: string;
-  plan?: string;
-}
-
 interface ActionLogDetails {
   before?: string;
   after?: string;

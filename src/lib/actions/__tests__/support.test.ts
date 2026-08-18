@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { redirect } from "next/navigation";
 import type { SessionUser } from "@/lib/auth/session";
 
 const prismaMocks = vi.hoisted(() => ({

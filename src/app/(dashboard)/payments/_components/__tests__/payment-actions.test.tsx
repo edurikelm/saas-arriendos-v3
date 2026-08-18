@@ -21,7 +21,7 @@ vi.mock("@/lib/actions/payments", () => ({
 }));
 
 import { PaymentsTableClient } from "../payment-actions";
-import { generatePaymentLink, attachReceipt, deletePayment, restorePayment } from "@/lib/actions/payments";
+import { generatePaymentLink, deletePayment, restorePayment } from "@/lib/actions/payments";
 
 const createMockPayment = (): Payment => ({
   id: "payment-1",

@@ -56,7 +56,7 @@ export function ClientsTable({ initialData, kpis }: ClientsTableProps) {
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
 
-  const { page, limit, goToPage, setLimit, range } = usePagination({
+  const { page, limit, goToPage, setLimit } = usePagination({
     total,
     totalPages,
     defaultPage: initialData.page,

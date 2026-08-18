@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createHmac } from 'crypto';
 
 import { buildManifest, computeSignature, prismaMock, getMercadoPagoTokenMock, processMercadoPagoWebhookMock } from '../../__tests__/helpers';
 

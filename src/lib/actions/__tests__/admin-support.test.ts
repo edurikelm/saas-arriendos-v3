@@ -41,12 +41,10 @@ vi.mock("@/lib/db/prisma", () => {
 });
 
 import { getSuperAdminSession, getSession } from "@/lib/auth/session";
-import { requireSuperAdmin } from "@/lib/auth/guards";
 import { prisma } from "@/lib/db/prisma";
 
 const mockGetSession = getSuperAdminSession as ReturnType<typeof vi.fn>;
 const mockGetSessionFn = getSession as ReturnType<typeof vi.fn>;
-const mockRequireSuperAdmin = requireSuperAdmin as ReturnType<typeof vi.fn>;
 
 const mockPrisma = prisma as unknown as {
   supportTicket: {

@@ -31,7 +31,6 @@ describe("CancelSubscriptionDialog", () => {
   });
 
   it("renderiza correctamente cuando open=true: muestra titulo + lista de features + botones", async () => {
-    const user = userEvent.setup();
     render(
       <CancelSubscriptionDialog
         open={true}

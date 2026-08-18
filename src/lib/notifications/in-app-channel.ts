@@ -28,6 +28,7 @@ export class InAppChannel implements NotificationChannel {
     intent: NotificationIntent,
     _recipient: NotificationRecipient,
   ): Promise<DispatchResult> {
+    void _recipient;
     try {
       // Check for existing notification with this key (dedup)
       const existing = await prisma.notification.findUnique({

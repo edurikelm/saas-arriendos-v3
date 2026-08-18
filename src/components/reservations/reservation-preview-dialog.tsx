@@ -1,12 +1,12 @@
 "use client";
 
-import { Mail, Phone, Home, CalendarDays, FileText, ArrowRight } from "lucide-react";
+import { Mail, Phone, CalendarDays, FileText, ArrowRight } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { getReservationPaidAmount, getReservationPendingAmount } from "@/lib/payments/calculations";
+import { getReservationPendingAmount } from "@/lib/payments/calculations";
 import { getInclusiveMonths } from "@/lib/reservation-dates";
 import { getNights } from "@/components/reservations/reservation-status";
 import type { Reservation } from "@/components/reservations/types";
@@ -60,7 +60,6 @@ export function ReservationPreviewDialog({
   const nights = reservation.billingType === "MONTHLY"
     ? getInclusiveMonths(reservation.startDate, reservation.endDate)
     : getNights(reservation.startDate, reservation.endDate);
-  const paidAmount = getReservationPaidAmount(reservation.payments);
   const pendingAmount = getReservationPendingAmount(reservation.payments, Number(reservation.totalPrice));
 
   return (

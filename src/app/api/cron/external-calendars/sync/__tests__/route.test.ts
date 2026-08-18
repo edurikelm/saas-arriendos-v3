@@ -35,8 +35,6 @@ describe("GET /api/cron/external-calendars/sync", () => {
     const { prisma } = await import("@/lib/db/prisma");
     vi.mocked(prisma.externalCalendar.findMany).mockResolvedValue([]);
 
-    const { syncExternalCalendarPipeline } = await import("@/lib/ical/sync");
-
     // Manually test the auth logic
     const auth = undefined;
     const expected = `Bearer ${process.env.ICAL_CRON_SECRET}`;

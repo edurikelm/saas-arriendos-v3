@@ -175,7 +175,7 @@ export function CalendarView({
       return start <= monthEnd && end >= monthStart;
     });
 
-    const occupiedUnits = activeThisMonth.reduce((sum, r) => sum + 1, 0);
+    const occupiedUnits = activeThisMonth.reduce((sum) => sum + 1, 0);
     const totalUnits = properties.reduce((sum, p) => sum + p.unitsAvailable, 0);
     const occupancyRate = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0;
 

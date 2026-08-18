@@ -89,7 +89,7 @@ export function ReportsClient({
     to: undefined,
   });
   const [selectedProperty, setSelectedProperty] = useState<string>("all");
-  const [properties, setProperties] = useState<Property[]>(initialProperties);
+  const [properties] = useState<Property[]>(initialProperties);
   const [exportLoading, setExportLoading] = useState(false);
   const [collectionRows, setCollectionRows] = useState<CollectionReportRow[]>(initialCollectionRows);
   const [collectionBillingType, setCollectionBillingType] = useState<"GENERAL" | "DAILY" | "MONTHLY">("GENERAL");
@@ -382,16 +382,7 @@ export function ReportsClient({
 
   // Usar totales del servidor (conjunto completo, no paginado) para los KPIs de cobranza
   const totalToCollect = collectionTotals.totalToCollect;
-  const pendingInvoices = collectionTotals.pendingInvoices;
   const totalOverdue = collectionTotals.totalOverdue;
-
-  const occupancySublabel = useMemo(() => {
-    if (occupancyRate === 0) return "Sin datos de ocupación";
-    if (occupancyRate >= 85) return "Alta demanda";
-    if (occupancyRate >= 60) return "Demanda estable";
-    if (occupancyRate >= 30) return "Demanda moderada";
-    return "Baja demanda";
-  }, [occupancyRate]);
 
   const rangeLabel = (() => {
     if (effectiveDateRange.from && effectiveDateRange.to) {

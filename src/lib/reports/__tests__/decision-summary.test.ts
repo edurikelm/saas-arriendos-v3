@@ -24,10 +24,6 @@ import {
   buildDecisionSummary,
   clipNightsToRange,
   type DecisionSummaryInput,
-  type ReportDecisionSummary,
-  type DecisionByPropertyEntry,
-  type DecisionByBillingTypeEntry,
-  type DecisionActivity,
 } from "@/lib/reports/decision-summary";
 import { getReservationPaidAmount } from "@/lib/payments/calculations";
 

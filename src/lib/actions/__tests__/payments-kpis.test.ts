@@ -1,13 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { SessionUser } from '@/lib/auth/session';
 
-/**
- * Cast helper para mocks de Prisma con campos extra (ej. `reservation` via include)
- * o campos faltantes (description, paymentType, title, installmentIndex, etc.).
- * El tipo generado de Prisma es estricto; los tests usan mocks parciales intencionalmente.
- */
-const mockAsAny = <T>(data: T): any => data;
-
 vi.mock('@/lib/db/prisma', () => ({
   prisma: {
     payment: {

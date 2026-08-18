@@ -4,8 +4,6 @@ export const ticketPriorityEnum = z.enum(["LOW", "MEDIUM", "HIGH"]);
 export const ticketCategoryEnum = z.enum(["RESERVATIONS", "PAYMENTS", "PROPERTIES", "ACCOUNT", "OTHER"]);
 export const affectedEntityTypeEnum = z.enum(["RESERVATION", "PAYMENT", "PROPERTY"]);
 
-const allowedImageTypes = ["image/jpeg", "image/png", "image/webp"];
-
 const imageFileNameRegex = /\.(jpg|jpeg|png|webp)$/i;
 
 export const supportAttachmentSchema = z.object({

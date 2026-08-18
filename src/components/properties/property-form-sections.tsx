@@ -6,11 +6,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { propertySchema, type PropertyInput } from "@/lib/validations/property";
 import { useState } from "react";
 import { Upload, X, Info, Box, CircleDollarSign, Image as ImageIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CurrencyInput } from "@/components/ui/currency-input";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   Select,
@@ -45,10 +43,9 @@ export function PropertyFormSections({
   id,
   initialData,
   onSubmit,
-  onCancel,
   onSubmittingChange,
 }: PropertyFormSectionsProps) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [mainImage, setMainImage] = useState<string | null>(initialData?.mainImage || null);
   const [images, setImages] = useState<string[]>(initialData?.images || []);

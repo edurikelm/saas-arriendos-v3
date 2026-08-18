@@ -70,7 +70,7 @@ describe("MercadoPagoSettings", () => {
       sandboxMode: false,
     });
 
-    const { container } = render(<MercadoPagoSettings />);
+    render(<MercadoPagoSettings />);
 
     await waitFor(() => {
       expect(screen.getByText("No conectado")).toBeDefined();

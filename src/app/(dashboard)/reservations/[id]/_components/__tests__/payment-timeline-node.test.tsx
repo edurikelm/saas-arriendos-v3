@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { PaymentTimelineNode } from "../payment-timeline-node";
 
 vi.mock("sonner", () => ({

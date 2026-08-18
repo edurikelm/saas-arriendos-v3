@@ -68,14 +68,6 @@ function formatDate(dateString: string): string {
   });
 }
 
-function formatFullDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("es-CL", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
-
 function parseCalendarDate(dateString: string): Date {
   const [year, month, day] = dateString.slice(0, 10).split("-").map(Number);
   return new Date(year, month - 1, day);
@@ -95,14 +87,6 @@ function isReservationActive(res: Reservation): boolean {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return start <= today && end >= today;
-}
-
-function isReservationUpcoming(res: Reservation): boolean {
-  if (res.status === "CANCELLED") return false;
-  const start = parseCalendarDate(res.startDate);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return start > today;
 }
 
 function getReservationsInDay(reservations: Reservation[], date: Date): Reservation[] {
@@ -464,7 +448,6 @@ export function CalendarTimeline({ reservations, externalBlocks = [], currentMon
                       const isCancelled = res.status === "CANCELLED";
                       const ended = isReservationEnded(res);
                       const active = !isCancelled && !ended && isReservationActive(res);
-                      const upcoming = !isCancelled && !ended && isReservationUpcoming(res);
 
                       // Stitch-style alternation: active (solid brand-secondary) vs upcoming (light brand-secondary/10)
                       // Usa brand-secondary en vez de primary para no chocar con el botón "Nueva Reserva"

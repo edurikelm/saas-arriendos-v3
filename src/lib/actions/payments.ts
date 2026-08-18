@@ -19,8 +19,6 @@ import {
   sumPendingPaymentsForOwner,
   countPendingPaymentsForOwner,
   markPaymentCompleted,
-  markPaymentStatus,
-  revertPaymentToPending,
   getAllPaymentsForReservation,
   getActivePaymentsForReservation,
   getPaymentById,

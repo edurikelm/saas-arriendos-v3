@@ -18,8 +18,6 @@ import {
   isEligibleCashPayment,
   buildMonthlyCollectedCash,
   buildAnnualCollectedCash,
-  type MonthlyCollectedCash,
-  type AnnualCollectedCash,
   type CashPaymentInput,
 } from "@/lib/reports/revenue-series";
 import { BUSINESS_TIME_ZONE } from "@/lib/domain/timezone";

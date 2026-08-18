@@ -94,11 +94,9 @@ export function NotificationList({ initialNotifications }: NotificationListProps
 }
 
 function NotificationRow({
-  id: _id,
   title,
   body,
   link,
-  type: _type,
   createdAt,
   isRead,
 }: {

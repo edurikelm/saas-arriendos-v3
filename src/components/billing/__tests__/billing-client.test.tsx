@@ -68,7 +68,6 @@ describe("BillingClient", () => {
   });
 
   it("renderiza FREE cuando subscription es null: muestra 'Activar PRO' + badge FREE", async () => {
-    const user = userEvent.setup();
     render(<BillingClient subscription={null} usage={baseUsage} />);
 
     // Badge FREE

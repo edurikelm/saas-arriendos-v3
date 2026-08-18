@@ -239,7 +239,6 @@ describe("AdminUserDetailPage", () => {
         properties = 0,
         clients = 0,
         reservations = 0,
-        payments = 0,
         completedPayments = 0,
         hasMpIntegration = false,
         isMpConnected = false,

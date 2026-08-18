@@ -1,4 +1,4 @@
-import { BUSINESS_TIME_ZONE, daysFromNowInBusinessTz } from "@/lib/domain/timezone";
+import { daysFromNowInBusinessTz } from "@/lib/domain/timezone";
 
 export type ReservationStatus = "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED" | string;
 

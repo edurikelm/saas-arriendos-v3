@@ -28,7 +28,6 @@ export function ModelDistributionCard({
   collectedCash,
   cashSharePercentage,
   outstandingBalance,
-  occupancyRate,
   occupiedNightUnits,
   capacityNightUnits,
   reservationCount,

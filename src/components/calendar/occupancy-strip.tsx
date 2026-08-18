@@ -125,12 +125,6 @@ function formatMonthShort(d: Date): string {
     .replace(".", "");
 }
 
-function formatMonthLong(d: Date): string {
-  return d
-    .toLocaleDateString("es-CL", { month: "long", timeZone: "America/Santiago" })
-    .replace(".", "");
-}
-
 function formatWeekday(d: Date): string {
   return d.toLocaleDateString("es-CL", { weekday: "long", timeZone: "America/Santiago" });
 }
@@ -148,7 +142,7 @@ function dayLetter(d: Date): string {
  * (7D/14D/30D) y el mes es implícito en las fechas (cross-month se ve solo:
  * "Miércoles 30 Ago — Viernes 5 Sept").
  */
-function buildRangeLabel(start: Date, end: Date, days: number): string {
+function buildRangeLabel(start: Date, end: Date): string {
   const startWeekday = formatWeekday(start);
   const endWeekday = formatWeekday(end);
   return `${startWeekday} ${formatDayShort(start)} ${formatMonthShort(start)} — ${endWeekday} ${formatDayShort(end)} ${formatMonthShort(end)}`;
@@ -210,7 +204,7 @@ export function OccupancyStrip({
     )
     .slice(0, maxProperties);
 
-  const rangeLabel = buildRangeLabel(calendarStart, calendarEnd, effectiveDays);
+  const rangeLabel = buildRangeLabel(calendarStart, calendarEnd);
 
   // Summary: noches reservadas vs disponibles en el rango.
   // La capacidad considera unitsAvailable de cada propiedad (default 1 para compat).

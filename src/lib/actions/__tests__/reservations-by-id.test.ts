@@ -208,7 +208,6 @@ describe('getReservationById', () => {
   it('payments con deletedAt no aparecen en el response', async () => {
     const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);
-    const now = new Date();
     // Simula que Prisma con where: { deletedAt: null } retorna solo el pago activo.
     // El código ya no hace .filter() en JS — la base de datos filtra.
     mockPrisma.reservation.findFirst.mockResolvedValue({

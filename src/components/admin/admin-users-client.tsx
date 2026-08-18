@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { useRouter } from "next/navigation";
 import { Users, Trash2, Search, Plus, ChevronDown, ChevronUp, X, Download, Ban, CheckCircle, XCircle, UserPlus, Sparkles, UserRound } from "lucide-react";
 import { DataTable } from "@/components/ui/data-table";
 import { KpiCard } from "@/components/ui/kpi-card";
@@ -114,7 +113,6 @@ function getInitials(name: string | null, email: string): string {
 import Link from "next/link";
 
 export function AdminUsersClient({ initialUsers, initialTotal, kpis }: AdminUsersClientProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [users, setUsers] = useState<User[]>(initialUsers);
   const [total, setTotal] = useState(initialTotal);
@@ -131,26 +129,12 @@ export function AdminUsersClient({ initialUsers, initialTotal, kpis }: AdminUser
   const [createdFrom, setCreatedFrom] = useState(searchParams.get("createdFrom") || "");
   const [createdTo, setCreatedTo] = useState(searchParams.get("createdTo") || "");
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const [userStats] = useState<UserStats | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [createForm, setCreateForm] = useState({ email: "", password: "", name: "", plan: "FREE" as "FREE" | "PRO" });
   const [creating, setCreating] = useState(false);
   const [confirmEmail, setConfirmEmail] = useState("");
-
-  const updateURL = useCallback(() => {
-    const params = new URLSearchParams();
-    if (search) params.set("search", search);
-    if (planFilter !== "all") params.set("plan", planFilter);
-    if (noProperties) params.set("noProperties", "true");
-    if (noReservations) params.set("noReservations", "true");
-    if (mpDisconnected) params.set("mpDisconnected", "true");
-    if (pendingPayments) params.set("pendingPayments", "true");
-    if (overduePayments) params.set("overduePayments", "true");
-    if (createdFrom) params.set("createdFrom", createdFrom);
-    if (createdTo) params.set("createdTo", createdTo);
-    router.push(`/admin/users?${params.toString()}`, { scroll: false });
-  }, [search, planFilter, noProperties, noReservations, mpDisconnected, pendingPayments, overduePayments, createdFrom, createdTo, router]);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -203,21 +187,6 @@ export function AdminUsersClient({ initialUsers, initialTotal, kpis }: AdminUser
   };
 
   const hasActiveFilters = search || planFilter !== "all" || noProperties || noReservations || mpDisconnected || pendingPayments || overduePayments || createdFrom || createdTo;
-
-  const handleSelectUser = async (user: User) => {
-    setSelectedUser(user);
-    try {
-      const res = await fetch(`/api/admin/users?userId=${user.id}`);
-      if (!res.ok) {
-        toast.error("Error al cargar datos del usuario");
-        return;
-      }
-      const data = await res.json();
-      setUserStats(data);
-    } catch {
-      toast.error("Error de conexión");
-    }
-  };
 
   const handleUpdatePlan = async (userId: string, plan: string) => {
     try {

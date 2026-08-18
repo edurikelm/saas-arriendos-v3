@@ -241,7 +241,6 @@ export async function POST(request: Request) {
     console.log(`Mercado Pago webhook via ${source}: action=${action}, paymentId=${paymentId}`);
 
       if (action === "payment" || action.startsWith("payment.")) {
-      const { prisma } = await import("@/lib/db/prisma");
       const { getMercadoPagoToken } = await import("@/lib/actions/mercado-pago");
       const { getPaymentById, getPaymentByMercadoPagoId } = await import("@/lib/payments/queries");
 

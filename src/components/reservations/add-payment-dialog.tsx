@@ -40,9 +40,6 @@ interface AddPaymentDialogProps {
   onSuccess?: () => void;
 }
 
-type PaymentMethod = "MERCADO_PAGO" | "CASH" | "TRANSFER";
-type PaymentType = "RESERVATION" | "EXTRA";
-
 function formatAmount(amount: number): string {
   return new Intl.NumberFormat("es-CL", {
     style: "currency",

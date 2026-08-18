@@ -12,7 +12,6 @@ import {
   computeTrend,
   selectTopDebtors,
   computeGroupedByPropertyFromSummary,
-  type GroupedPropertyExport,
 } from "@/lib/reports/trend";
 import type { DecisionByPropertyEntry, ReportDecisionSummary } from "@/lib/reports/decision-summary";
 
