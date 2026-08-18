@@ -1,0 +1,475 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-18T00:00:00.000Z",
+  "title": "Design System: RentalPro",
+  "extensions": {
+    "colorMeta": {
+      "verdigris": {
+        "role": "primary",
+        "displayName": "Verdigris",
+        "canonical": "oklch(0.7227 0.1920 149.5793)",
+        "description": "Brand primary. Active states, primary KPIs, table accent strip.",
+        "tonalRamp": [
+          "oklch(0.20 0.05 149)",
+          "oklch(0.32 0.09 149)",
+          "oklch(0.45 0.13 149)",
+          "oklch(0.58 0.16 149)",
+          "oklch(0.72 0.19 149)",
+          "oklch(0.82 0.16 149)",
+          "oklch(0.92 0.10 149)",
+          "oklch(0.97 0.04 149)"
+        ]
+      },
+      "calm-sea": {
+        "role": "semantic-success",
+        "displayName": "Calm Sea",
+        "canonical": "oklch(0.65 0.16 150)",
+        "description": "Success state — CONFIRMED, COMPLETED, healthy KPIs.",
+        "tonalRamp": [
+          "oklch(0.20 0.05 150)",
+          "oklch(0.32 0.09 150)",
+          "oklch(0.45 0.13 150)",
+          "oklch(0.55 0.15 150)",
+          "oklch(0.65 0.16 150)",
+          "oklch(0.78 0.14 150)",
+          "oklch(0.90 0.10 150)",
+          "oklch(0.96 0.04 150)"
+        ]
+      },
+      "amber-hour": {
+        "role": "semantic-warning",
+        "displayName": "Amber Hour",
+        "canonical": "oklch(0.78 0.16 75)",
+        "description": "Warning state — vencimientos hoy, saldos pendientes, atención.",
+        "tonalRamp": [
+          "oklch(0.20 0.05 75)",
+          "oklch(0.35 0.10 75)",
+          "oklch(0.50 0.13 75)",
+          "oklch(0.65 0.15 75)",
+          "oklch(0.78 0.16 75)",
+          "oklch(0.86 0.13 75)",
+          "oklch(0.93 0.08 75)",
+          "oklch(0.97 0.03 75)"
+        ]
+      },
+      "coastal-mist": {
+        "role": "semantic-info",
+        "displayName": "Coastal Mist",
+        "canonical": "oklch(0.65 0.13 200)",
+        "description": "Info state — próximos 7 días, próximo check-in, DAILY/MONTHLY.",
+        "tonalRamp": [
+          "oklch(0.20 0.05 200)",
+          "oklch(0.32 0.09 200)",
+          "oklch(0.45 0.11 200)",
+          "oklch(0.55 0.13 200)",
+          "oklch(0.65 0.13 200)",
+          "oklch(0.78 0.11 200)",
+          "oklch(0.90 0.07 200)",
+          "oklch(0.96 0.03 200)"
+        ]
+      },
+      "coral-warning": {
+        "role": "semantic-destructive",
+        "displayName": "Coral Warning",
+        "canonical": "oklch(0.6368 0.2078 25.3313)",
+        "description": "Destructive state — vencidos, CANCELLED, errores. Same value in dark mode.",
+        "tonalRamp": [
+          "oklch(0.20 0.07 25)",
+          "oklch(0.32 0.12 25)",
+          "oklch(0.45 0.17 25)",
+          "oklch(0.55 0.19 25)",
+          "oklch(0.64 0.21 25)",
+          "oklch(0.74 0.17 25)",
+          "oklch(0.86 0.10 25)",
+          "oklch(0.95 0.04 25)"
+        ]
+      },
+      "deep-tide": {
+        "role": "neutral-foreground",
+        "displayName": "Deep Tide",
+        "canonical": "#131f1a",
+        "description": "Foreground canónico en light mode.",
+        "tonalRamp": [
+          "#0a0f0c",
+          "#131f1a",
+          "#26302e",
+          "#3a4541",
+          "#5b6661",
+          "#7d8783",
+          "#a8b1ad",
+          "#d4d9d6"
+        ]
+      },
+      "sea-glass": {
+        "role": "neutral-background-light",
+        "displayName": "Sea Glass",
+        "canonical": "oklch(0.978 0.004 160)",
+        "description": "Background de página en light mode. Tinte verde apenas perceptible.",
+        "tonalRamp": [
+          "oklch(0.30 0.005 160)",
+          "oklch(0.45 0.005 160)",
+          "oklch(0.60 0.005 160)",
+          "oklch(0.75 0.005 160)",
+          "oklch(0.88 0.005 160)",
+          "oklch(0.94 0.004 160)",
+          "oklch(0.97 0.004 160)",
+          "oklch(0.99 0.003 160)"
+        ]
+      },
+      "midnight-harbor": {
+        "role": "neutral-background-dark",
+        "displayName": "Midnight Harbor",
+        "canonical": "#051424",
+        "description": "Background de página en dark mode.",
+        "tonalRamp": [
+          "#020812",
+          "#051424",
+          "#0a1f33",
+          "#102a44",
+          "#1a3a59",
+          "#264e72",
+          "#3a6a8e",
+          "#5a85a8"
+        ]
+      },
+      "white-sail": {
+        "role": "neutral-surface-light",
+        "displayName": "White Sail",
+        "canonical": "oklch(1.0000 0 0)",
+        "description": "Surface de card, popover, navbar y sidebar en light mode.",
+        "tonalRamp": [
+          "#e6e6e6",
+          "#f0f0f0",
+          "#f7f7f7",
+          "#fbfbfb",
+          "#ffffff",
+          "#ffffff",
+          "#ffffff",
+          "#ffffff"
+        ]
+      },
+      "hull-dark": {
+        "role": "neutral-surface-dark",
+        "displayName": "Hull Dark",
+        "canonical": "#0d1c2d",
+        "description": "Surface de card, popover, navbar y sidebar en dark mode.",
+        "tonalRamp": [
+          "#06121e",
+          "#0d1c2d",
+          "#15293f",
+          "#1f3854",
+          "#2b4a6a",
+          "#3d6083",
+          "#57799d",
+          "#7a93b6"
+        ]
+      },
+      "driftwood": {
+        "role": "neutral-surface-muted",
+        "displayName": "Driftwood",
+        "canonical": "oklch(0.9670 0.0029 264.5419)",
+        "description": "Superficie muted — table headers, filter pill container.",
+        "tonalRamp": [
+          "oklch(0.40 0.005 264)",
+          "oklch(0.55 0.005 264)",
+          "oklch(0.70 0.005 264)",
+          "oklch(0.83 0.005 264)",
+          "oklch(0.92 0.005 264)",
+          "oklch(0.96 0.003 264)",
+          "oklch(0.98 0.003 264)",
+          "oklch(0.99 0.002 264)"
+        ]
+      },
+      "slate-whisper": {
+        "role": "neutral-foreground-muted",
+        "displayName": "Slate Whisper",
+        "canonical": "#64748b",
+        "description": "Texto apagado — iconos inactivos, metadata, labels secundarios.",
+        "tonalRamp": [
+          "#1e293b",
+          "#334155",
+          "#475569",
+          "#64748b",
+          "#94a3b8",
+          "#cbd5e1",
+          "#e2e8f0",
+          "#f1f5f9"
+        ]
+      },
+      "sea-mist": {
+        "role": "neutral-border",
+        "displayName": "Sea Mist",
+        "canonical": "oklch(0.9276 0.0058 264.5313)",
+        "description": "Border canónico (1px). También input.",
+        "tonalRamp": [
+          "oklch(0.30 0.006 264)",
+          "oklch(0.45 0.006 264)",
+          "oklch(0.60 0.006 264)",
+          "oklch(0.75 0.006 264)",
+          "oklch(0.85 0.006 264)",
+          "oklch(0.92 0.006 264)",
+          "oklch(0.96 0.005 264)",
+          "oklch(0.99 0.003 264)"
+        ]
+      },
+      "mint-light": {
+        "role": "accent",
+        "displayName": "Mint Light",
+        "canonical": "oklch(0.9505 0.0507 163.0508)",
+        "description": "Acento neutral cálido. Active state del sidebar admin.",
+        "tonalRamp": [
+          "oklch(0.30 0.02 163)",
+          "oklch(0.45 0.03 163)",
+          "oklch(0.60 0.04 163)",
+          "oklch(0.75 0.05 163)",
+          "oklch(0.88 0.05 163)",
+          "oklch(0.95 0.05 163)",
+          "oklch(0.98 0.04 163)",
+          "oklch(0.99 0.02 163)"
+        ]
+      },
+      "sand": {
+        "role": "project-neutral",
+        "displayName": "Sand",
+        "canonical": "oklch(0.97 0.02 200)",
+        "description": "Acento neutral cálido reservado. Sin uso activo hoy.",
+        "tonalRamp": [
+          "oklch(0.30 0.01 200)",
+          "oklch(0.45 0.015 200)",
+          "oklch(0.60 0.018 200)",
+          "oklch(0.75 0.02 200)",
+          "oklch(0.88 0.02 200)",
+          "oklch(0.94 0.02 200)",
+          "oklch(0.97 0.02 200)",
+          "oklch(0.99 0.015 200)"
+        ]
+      },
+      "deep-lagoon": {
+        "role": "project-secondary",
+        "displayName": "Deep Lagoon",
+        "canonical": "oklch(0.72 0.15 195)",
+        "description": "Marca secundaria reservada. Sin uso activo hoy.",
+        "tonalRamp": [
+          "oklch(0.20 0.05 195)",
+          "oklch(0.32 0.08 195)",
+          "oklch(0.45 0.11 195)",
+          "oklch(0.58 0.13 195)",
+          "oklch(0.72 0.15 195)",
+          "oklch(0.82 0.13 195)",
+          "oklch(0.92 0.08 195)",
+          "oklch(0.97 0.03 195)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Page titles (<h1>). Three tiers: text-xl (data-heavy), text-2xl/3xl (settings, detail), text-3xl (forms)."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Section titles (<h2>) within a page."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Card titles, modal headers, field group labels."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Default running text. Tables use text-xs for density."
+      },
+      "label": {
+        "displayName": "Label (10px Whisper)",
+        "purpose": "DataTable headers, KpiCard labels, filter pills, ReservationPill labels, navbar eyebrow. The unifying micro-typography signature."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Reservation IDs, receipt hashes, technical data. Preloaded via next/font/google but no active use today."
+      }
+    },
+    "shadows": [
+      {
+        "name": "floating-dialog",
+        "value": "shadow-lg (per Tailwind — built on token shadow-lg var)",
+        "purpose": "DialogContent — the only shadow authorized for modals."
+      },
+      {
+        "name": "floating-dropdown",
+        "value": "shadow-md (per Tailwind)",
+        "purpose": "DropdownMenuContent, PopoverContent — emerged from background feedback."
+      },
+      {
+        "name": "property-card-hover",
+        "value": "shadow-lg on hover (only when card has image)",
+        "purpose": "Exception in property-card.tsx — only with image, otherwise ring-primary/50."
+      },
+      {
+        "name": "marketing-elevation",
+        "value": "shadow-lg / shadow-2xl / shadow-primary/20 (multiple)",
+        "purpose": "Marketing surfaces only (landing, pricing). NOT for product."
+      }
+    ],
+    "motion": [
+      {
+        "name": "default-transition",
+        "value": "transition-colors (100ms implicit)",
+        "purpose": "Default hover/focus state changes. Color only, no movement."
+      },
+      {
+        "name": "sidebar-slide",
+        "value": "duration-300 (300ms)",
+        "purpose": "Sidebar open/close and overlay reveal."
+      },
+      {
+        "name": "dialog-variants",
+        "value": "data-open: animate-in fade-in-0 zoom-in-95; data-closed: animate-out fade-out-0 zoom-out-95; data-[side=bottom]: slide-in-from-top-2",
+        "purpose": "Dialog/modal enter/exit (per globals.css keyframes rentalpro-dialog-*)."
+      },
+      {
+        "name": "row-hover",
+        "value": "transition-colors",
+        "purpose": "Table row hover bg-muted/30 feedback."
+      }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px", "purpose": "Sidebar fixed→relative, 2-col tables." },
+      { "name": "md", "value": "768px", "purpose": "2-col forms." },
+      { "name": "lg", "value": "1024px", "purpose": "Sidebar always visible, 3-col layouts, 4-up KPI grids." },
+      { "name": "xl", "value": "1280px", "purpose": "Available." },
+      { "name": "2xl", "value": "1536px", "purpose": "Available." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Default action button. Background Verdigris, white text. Used for primary CTAs (Guardar Cambios, Crear Reserva, Pagar).",
+      "html": "<button class=\"ds-btn-primary\">Guardar Cambios</button>",
+      "css": ".ds-btn-primary { background-color: var(--primary); color: var(--primary-foreground); border: none; border-radius: var(--radius); padding: 10px 16px; font-family: 'DM Sans', sans-serif; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: background-color 100ms; } .ds-btn-primary:hover { background-color: oklch(0.65 0.19 149); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent); }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Secondary action. Transparent background with border. Used for Cancelar, Filtrar, secondary CTAs.",
+      "html": "<button class=\"ds-btn-outline\"><span class=\"ds-btn-icon\">⊟</span> Filtrar</button>",
+      "css": ".ds-btn-outline { background-color: transparent; color: var(--foreground); border: 1px solid var(--input); border-radius: var(--radius); padding: 10px 16px; font-family: 'DM Sans', sans-serif; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: background-color 100ms; display: inline-flex; align-items: center; gap: 8px; } .ds-btn-outline:hover { background-color: var(--accent); } .ds-btn-outline:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent); } .ds-btn-icon { width: 16px; height: 16px; display: inline-flex; }"
+    },
+    {
+      "name": "Card (default)",
+      "kind": "card",
+      "refersTo": "card-default",
+      "description": "Surface container for settings sections, forms, detail panels. Ring-1 hierarchy — no shadow.",
+      "html": "<div class=\"ds-card\"><h3 class=\"ds-card-title\">Mi Tarjeta</h3><p class=\"ds-card-desc\">Una breve descripción.</p><div class=\"ds-card-content\">Contenido principal aquí.</div></div>",
+      "css": ".ds-card { background-color: var(--card); border-radius: calc(var(--radius) + 4px); padding: 16px; box-shadow: 0 0 0 1px color-mix(in oklch, var(--foreground) 10%, transparent); font-family: 'DM Sans', sans-serif; } .ds-card-title { font-size: 1rem; font-weight: 500; color: var(--foreground); margin: 0 0 4px 0; line-height: 1.4; } .ds-card-desc { font-size: 0.875rem; color: var(--muted-foreground); margin: 0 0 16px 0; line-height: 1.5; } .ds-card-content { font-size: 0.875rem; color: var(--foreground); }"
+    },
+    {
+      "name": "Success Badge",
+      "kind": "chip",
+      "refersTo": "badge-success",
+      "description": "Status badge for CONFIRMED reservations, COMPLETED payments, healthy KPIs. Background Calm Sea, white text.",
+      "html": "<span class=\"ds-badge-success\">Pagado</span>",
+      "css": ".ds-badge-success { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; background-color: var(--success); color: var(--success-foreground); border-radius: calc(var(--radius) - 4px); font-family: 'DM Sans', sans-serif; font-size: 0.75rem; font-weight: 500; line-height: 1; white-space: nowrap; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input-default",
+      "description": "Default text field. Border Sea Mist, focus ring Verdigris. Used for forms across product.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Buscar propiedad...\" />",
+      "css": ".ds-input { height: 32px; width: 100%; background-color: transparent; color: var(--foreground); border: 1px solid var(--input); border-radius: var(--radius); padding: 8px 10px; font-family: 'DM Sans', sans-serif; font-size: 0.875rem; line-height: 1.5; box-sizing: border-box; transition: border-color 100ms, box-shadow 100ms; } .ds-input::placeholder { color: var(--muted-foreground); } .ds-input:focus-visible { outline: none; border-color: var(--ring); box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent); } .ds-input[aria-invalid='true'] { border-color: var(--destructive); box-shadow: 0 0 0 3px color-mix(in oklch, var(--destructive) 20%, transparent); }"
+    },
+    {
+      "name": "DataTable",
+      "kind": "custom",
+      "refersTo": "data-table",
+      "description": "The signature table primitive. Border-t-2 Verdigris accent strip is the identity marker — every table in the product has it. Headers use the 10px Whisper typography.",
+      "html": "<div class=\"ds-datatable-wrap\"><table class=\"ds-datatable\"><thead><tr><th>Cliente</th><th>Propiedad</th><th style=\"text-align:right\">Monto</th></tr></thead><tbody><tr><td>María Pérez</td><td>Depto Las Condes</td><td style=\"text-align:right\">$1.234.567</td></tr></tbody></table></div>",
+      "css": ".ds-datatable-wrap { overflow: hidden; border-radius: calc(var(--radius) - 2px); background-color: var(--card); box-shadow: 0 0 0 1px var(--border), inset 0 2px 0 0 var(--primary); } .ds-datatable { width: 100%; border-collapse: collapse; font-family: 'DM Sans', sans-serif; font-variant-numeric: tabular-nums; } .ds-datatable thead { border-bottom: 1px solid var(--border); background-color: color-mix(in oklch, var(--muted) 50%, transparent); } .ds-datatable th { padding: 16px 24px; font-size: 0.625rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted-foreground); text-align: left; } .ds-datatable tbody { font-size: 0.75rem; color: var(--foreground); } .ds-datatable tbody tr { border-bottom: 1px solid var(--border); transition: background-color 100ms; } .ds-datatable tbody tr:last-child { border-bottom: none; } .ds-datatable tbody tr:hover { background-color: color-mix(in oklch, var(--muted) 30%, transparent); } .ds-datatable td { padding: 12px 24px; }"
+    },
+    {
+      "name": "KpiCard",
+      "kind": "custom",
+      "refersTo": "kpi-card",
+      "description": "The signature KPI primitive. Single voice — no variants. Label is the 10px Whisper, value uses tabular-nums, icon container uses tone at 10% opacity.",
+      "html": "<div class=\"ds-kpi-card\"><div class=\"ds-kpi-row\"><span class=\"ds-kpi-label\">Ingresos mensuales</span><div class=\"ds-kpi-icon\"><span class=\"ds-kpi-icon-inner\">$</span></div></div><div class=\"ds-kpi-value\">$1.234.567</div><div class=\"ds-kpi-indicator\">↑ +12% vs mes anterior</div></div>",
+      "css": ".ds-kpi-card { background-color: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; font-family: 'DM Sans', sans-serif; } .ds-kpi-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; } .ds-kpi-label { font-size: 0.625rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted-foreground); } .ds-kpi-icon { width: 36px; height: 36px; border-radius: calc(var(--radius) + 4px); background-color: color-mix(in oklch, var(--primary) 10%, transparent); color: var(--primary); display: flex; align-items: center; justify-content: center; } .ds-kpi-icon-inner { font-size: 1rem; font-weight: 700; } .ds-kpi-value { font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--foreground); line-height: 1.1; } .ds-kpi-indicator { font-size: 0.625rem; font-weight: 500; color: var(--success); margin-top: 4px; }"
+    },
+    {
+      "name": "ReservationPill (info-strong)",
+      "kind": "chip",
+      "refersTo": "reservation-pill-success",
+      "description": "Inline status pill used ONLY in the reservations table. Supports a sublabel (e.g., 'En 3 días') below the main label — what <Badge> cannot do. Sample tone: info-strong (today/tomorrow).",
+      "html": "<span class=\"ds-pill-info-strong\"><span class=\"ds-pill-dot\"></span>HOY</span>",
+      "css": ".ds-pill-info-strong { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid color-mix(in oklch, var(--info) 30%, transparent); background-color: color-mix(in oklch, var(--info) 25%, transparent); color: var(--info); border-radius: calc(var(--radius) - 2px); font-family: 'DM Sans', sans-serif; font-size: 0.5625rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; line-height: 1; } .ds-pill-dot { width: 6px; height: 6px; border-radius: 9999px; background-color: currentColor; flex-shrink: 0; }"
+    },
+    {
+      "name": "FilterPill (segmented control)",
+      "kind": "custom",
+      "refersTo": "filter-pill-active",
+      "description": "Compact segmented control for inline state filters. Container in bg-muted, active pill in Verdigris with white text — no shadow, the teal provides the contrast.",
+      "html": "<div class=\"ds-pill-container\"><button class=\"ds-pill ds-pill-active\">TODOS</button><button class=\"ds-pill\">ACTIVOS</button><button class=\"ds-pill\">VENCIDOS</button></div>",
+      "css": ".ds-pill-container { display: inline-flex; align-items: center; gap: 4px; padding: 4px; background-color: var(--muted); border: 1px solid var(--border); border-radius: 9999px; } .ds-pill { border: none; background: transparent; color: var(--muted-foreground); padding: 4px 12px; border-radius: 9999px; font-family: 'DM Sans', sans-serif; font-size: 0.625rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; transition: color 100ms; } .ds-pill:hover { color: var(--foreground); } .ds-pill-active { background-color: var(--primary); color: var(--primary-foreground); } .ds-pill-active:hover { color: var(--primary-foreground); }"
+    },
+    {
+      "name": "Dialog (floating)",
+      "kind": "custom",
+      "refersTo": "dialog-content",
+      "description": "Modal dialog. The ONLY product surface authorized to use shadow-lg. W-[95vw] for mobile-first, max-w-{size} for desktop cap.",
+      "html": "<div class=\"ds-dialog-backdrop\"><div class=\"ds-dialog\"><h2 class=\"ds-dialog-title\">Confirmar acción</h2><p class=\"ds-dialog-body\">¿Estás seguro de que quieres continuar?</p><div class=\"ds-dialog-actions\"><button class=\"ds-btn-outline\">Cancelar</button><button class=\"ds-btn-primary\">Confirmar</button></div></div></div>",
+      "css": ".ds-dialog-backdrop { position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.1); backdrop-filter: blur(2px); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; } .ds-dialog { background-color: var(--popover); color: var(--popover-foreground); border-radius: calc(var(--radius) + 4px); padding: 16px; width: 95vw; max-width: 512px; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1), 0 0 0 1px color-mix(in oklch, var(--foreground) 10%, transparent); font-family: 'DM Sans', sans-serif; font-size: 0.875rem; } .ds-dialog-title { font-size: 1.125rem; font-weight: 500; color: var(--foreground); margin: 0 0 8px 0; line-height: 1.3; } .ds-dialog-body { color: var(--foreground); margin: 0 0 16px 0; line-height: 1.5; } .ds-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Working Harbor",
+    "overview": "RentalPro no es una app turística ni una vitrina de marketing. Es el puerto operativo donde un property manager en LATAM llega cada mañana a revisar qué barcos (reservas) zarpan hoy, qué muelles (propiedades) están libres, qué contenedores (pagos) siguen sin cobrar y qué merece atención antes de que el día se descontrole. La identidad visual nace de esa metáfora: agua en reposo, manifests en lugar de fuegos artificiales, equipo de navegación confiable en lugar de gadgets decorativos. El sistema se llama Ocean Breeze porque comparte dos cosas con la brisa marina: presencia constante sin estridencia, y la cualidad de hacer que un espacio denso se sienta aireado. La paleta dominante es Verdigris — un verde-teal ligeramente desplazado hacia el verde puro, no un cyan frío. La jerarquía no se gana con sombras. Se gana con dos píxeles de acento (border-t-2 border-t-primary en cada tabla), diez píxeles de whisper (text-[10px] font-bold uppercase tracking-wider en cada label), y números tabulares (tabular-nums en cada KPI). El sistema es plano por defecto — las superficies flotantes son las únicas que se levantan.",
+    "keyCharacteristics": [
+      "Plano por defecto, flotante solo cuando emerge.",
+      "Verdigris como canal de navegación — su rareza es el punto.",
+      "Status como lenguaje completo vía tokens semánticos.",
+      "10px whisper para labels — la firma micro-tipográfica.",
+      "Números tabulares siempre — las cifras no deberían respirar entre renders.",
+      "Mobile-first en modales, desktop-first en densidad."
+    ],
+    "rules": [
+      { "name": "The Calm Water Rule", "section": "elevation", "body": "Las superficies en reposo son planas. La jerarquía se gana con border, bg-muted, ring-1 ring-foreground/10, o el border-t-2 border-t-primary. Un shadow aparece solo cuando una superficie emerge (Dialog, Dropdown, Tooltip, Sheet) o cuando el usuario interactúa (hover:shadow-lg en property card con imagen)." },
+      { "name": "The Marketing/Product Split", "section": "elevation", "body": "Las superficies de marketing (landing, pricing) tienen permiso de elevación completa. Producto permanece plano salvo en componentes flotantes. Única excepción consciente al Calm Water Rule." },
+      { "name": "The Status Color Doctrine", "section": "colors", "body": "Cada estado del dominio se mapea a exactamente un token semántico: CONFIRMED → success, VENCE HOY → warning, VENCIDO → destructive, próximos 7 días → info. La UI no inventa estados intermedios." },
+      { "name": "The Verdigris Rarity Rule", "section": "colors", "body": "Verdigris aparece en ≤10% del área visible de cualquier pantalla. Su función es señalar navegación activa o resultado primario; si ocupa más, deja de señalar y empieza a decorar." },
+      { "name": "The 10px Whisper Rule", "section": "typography", "body": "Toda label, header de tabla, KPI label y pill usa text-[10px] font-bold uppercase tracking-wider. Es el único patrón tipográfico que se repite en 4+ primitives. Su función: comprimir metadata sin sacrificar escaneabilidad." },
+      { "name": "The Tabular Truth Rule", "section": "typography", "body": "Cualquier cifra lleva tabular-nums. Las cifras alineadas verticalmente son la base de la sensación 'tabla de cuentas' — sin esto, los números bailan entre renders y la confianza visual se rompe." },
+      { "name": "The Two-Tier Heading Rule", "section": "typography", "body": "Los <h1> cambian de tamaño según la densidad del contenido de la página, no según el dispositivo. Cuando el dato es la hero, el h1 compite con el KpiCard; cuando hay más aire, el h1 crece." },
+      { "name": "The Two-Pixel Accent Rule", "section": "shapes", "body": "Toda tabla del producto lleva un accent strip superior de 2 píxeles en Verdigris vía border-t-2 border-t-primary. Es el único lugar del producto donde se permite un borde más grueso." },
+      { "name": "The Soft Edge Rule", "section": "shapes", "body": "Ningún borde mide más de 2 píxeles. Ninguna esquina es completamente viva (rounded-none prohibido salvo casos extremos justificados). Por defecto, todo borde es 1px y todo radio es ≥4px." },
+      { "name": "The Row Isolation Rule", "section": "components", "body": "Las filas de <DataTable> no deben tener onClick que navegue. Solo los botones o links específicos de la columna de acciones navegan al detalle. Previene selección accidental, doble-trigger, y problemas de accesibilidad." },
+      { "name": "The One KPI Voice Rule", "section": "components", "body": "Existe un solo primitive de KPI: <KpiCard>. Si necesitas algo 'diferente', es una señal de que el KPI no calza — replantéalo, no inventes un primitive paralelo." }
+    ],
+    "dos": [
+      "Do usar <DataTable> para toda tabla de datos del producto. El wrapper externo ya provee framing — no envolver de nuevo en <Card> ni en <div className='overflow-x-auto'>.",
+      "Do usar <KpiCard> como primitive único para KPIs.",
+      "Do usar <Badge variant='success|warning|info|destructive'> para todo estado del dominio.",
+      "Do usar <ReservationPill> solo dentro de la tabla de reservas. Para badges de estado en otros contextos, usar <Badge variant>.",
+      "Do usar text-[10px] font-bold uppercase tracking-wider para labels de sección, headers de tabla, KPI labels y filter pills.",
+      "Do usar tabular-nums en cualquier cifra (monto, contador, porcentaje, fecha corta).",
+      "Do usar border-border o ring-1 ring-foreground/10 para jerarquía en producto.",
+      "Do usar la utility channelColors de @/lib/calendar/channel-colors para marcadores de canal externo.",
+      "Do usar bg-primary/10 + text-primary para active state del sidebar owner; bg-sidebar-accent + text-sidebar-accent-foreground para el admin.",
+      "Do usar text-muted-foreground para texto apagado y bg-muted para superficies apagadas.",
+      "Do usar w-[95vw] + max-w-{size} en todo DialogContent. El único w-[92vw] legítimo es el de <ConfirmDialog>.",
+      "Do usar style={{ backgroundColor: property.color || 'var(--primary)' }} como fallback del color de propiedad."
+    ],
+    "donts": [
+      "Don't envolver <DataTable> en <Card>. El primitive ya tiene su framing con el accent strip superior.",
+      "Don't usar shadow-* en <Card>, tablas, filas, inputs, botones sobre superficie plana, avatares, header, navbar o sidebar.",
+      "Don't crear un nuevo primitive de KPI. Si KpiCard no cubre el caso, replantéalo.",
+      "Don't usar hex hardcodeado (bg-emerald-500, text-red-600, bg-amber-100, bg-blue-500, bg-green-50, etc.) en componentes UI. Excepciones: validación Zod del color picker, paleta de opciones del color picker, PDF generation library, tests.",
+      "Don't usar bg-amber-50 border-amber-200 ni similares para alert-boxes. Usar bg-warning/10 border-warning/20 text-warning-foreground.",
+      "Don't usar shadow-sm en filter pills activos. El bg-primary teal provee contraste suficiente.",
+      "Don't usar onClick que navegue en <tr> de tabla. Solo el botón/link de la columna de acciones navega.",
+      "Don't duplicar token values entre el frontmatter YAML y la prosa. El frontmatter es normativo.",
+      "Don't usar rounded-none salvo en casos extremos justificados.",
+      "Don't generalizar las reglas de marketing al producto. shadow-lg/2xl/primary/20 en landing/pricing son estética deliberada; en producto son drift."
+    ]
+  }
+}

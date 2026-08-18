@@ -49,5 +49,8 @@ testsprite_tests/
 
 testsprite_tests\tmp\config.json
 
-# Impeccable live mode (local helper journal, config, sessions — not project source)
-.impeccable/
+# Impeccable live mode (sessions, annotations, server state) and critique outputs
+# are local-only ephemeral state. design.json IS project source — it's the sidecar
+# that the live panel renders components from. Keep that one tracked.
+.impeccable/critique/
+.impeccable/live/
