@@ -79,8 +79,8 @@ export function BillingClient({ subscription, usage }: BillingClientProps) {
                 </p>
               )}
               {isCancelled && subscription?.currentPeriodEnd && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 p-4">
-                  <p className="text-sm text-amber-900 dark:text-amber-200">
+                <div className="rounded-lg border border-warning/20 bg-warning/10 p-4">
+                  <p className="text-sm text-warning">
                     Tu plan sigue activo hasta el{" "}
                     {new Date(subscription.currentPeriodEnd).toLocaleDateString("es-CL", {
                       day: "2-digit",
@@ -118,8 +118,8 @@ export function BillingClient({ subscription, usage }: BillingClientProps) {
 
             {isPro && (
               <>
-                <div className="rounded-lg border border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/20 p-4">
-                  <p className="text-sm text-green-900 dark:text-green-400">
+                <div className="rounded-lg border border-success/20 bg-success/10 p-4">
+                  <p className="text-sm text-success">
                     Tienes acceso completo a las funciones PRO: iCal, documentos, propiedades
                     ilimitadas.
                   </p>
@@ -209,7 +209,7 @@ function FeatureRow({
         <Check
           className={
             included
-              ? "size-4 text-green-600 dark:text-green-500"
+              ? "size-4 text-success"
               : "size-4 text-muted-foreground/30"
           }
         />

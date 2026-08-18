@@ -96,14 +96,14 @@ export function CancelSubscriptionDialog({
 
         <div className="space-y-4">
           {/* Lista de features que perderas */}
-          <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 p-4">
-            <p className="text-sm font-medium text-amber-900 dark:text-amber-200 mb-2">
+          <div className="rounded-lg border border-warning/20 bg-warning/10 p-4">
+            <p className="text-sm font-medium text-warning mb-2">
               Funciones que perderás al bajar a FREE:
             </p>
-            <ul className="space-y-1.5 text-sm text-amber-900 dark:text-amber-200">
+            <ul className="space-y-1.5 text-sm text-warning">
               {LOST_FEATURES.map((feature) => (
                 <li key={feature} className="flex items-start gap-2">
-                  <span className="mt-1 size-1.5 rounded-full bg-amber-600 shrink-0" />
+                  <span className="mt-1 size-1.5 rounded-full bg-warning shrink-0" />
                   <span>{feature}</span>
                 </li>
               ))}
