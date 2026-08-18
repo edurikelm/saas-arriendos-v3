@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Download, RefreshCw, Trash2, Plus, AlertCircle, CheckCircle2, Clock, XCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -103,7 +103,7 @@ function AddCalendarDialog({ propertyId, onCreated }: { propertyId: string; onCr
     register,
     handleSubmit,
     setValue,
-    watch,
+    control,
     reset,
     formState: { errors },
   } = useForm<CreateExternalCalendarInput>({
@@ -111,7 +111,7 @@ function AddCalendarDialog({ propertyId, onCreated }: { propertyId: string; onCr
     defaultValues: { propertyId, channel: "AIRBNB", name: "", feedUrl: "" },
   });
 
-  const channel = watch("channel");
+  const channel = useWatch({ control, name: "channel" });
 
   const onSubmit = (data: CreateExternalCalendarInput) => {
     startTransition(async () => {

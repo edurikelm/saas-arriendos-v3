@@ -133,7 +133,6 @@ export function AddPaymentDialog({
     handleSubmit,
     control,
     reset,
-    watch,
     formState: { isSubmitting },
   } = useForm<AddPaymentFormValues>({
     resolver: zodResolver(schema),
@@ -158,7 +157,7 @@ export function AddPaymentDialog({
 
   const isExtra = paymentType === "EXTRA";
   const showPaidAtAndReceipt = method !== "MERCADO_PAGO";
-  const watchedAmount = watch("amount");
+  const watchedAmount = useWatch({ control, name: "amount" });
 
   const handleMaxClick = (onChange: (val: string) => void) => {
     onChange(formatCurrencyInput(String(pendingAmount)));
