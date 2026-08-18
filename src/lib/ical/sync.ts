@@ -6,7 +6,8 @@ export type SyncResult =
   | { ok: false; error: string; kind: "FETCH_ERROR" | "PARSE_ERROR" | "NOT_FOUND" };
 
 export async function syncExternalCalendarPipeline(
-  externalCalendarId: string
+  externalCalendarId: string,
+  options?: { now?: Date }
 ): Promise<SyncResult> {
   // 1. Load ExternalCalendar with isActive: true
   const calendar = await prisma.externalCalendar.findUnique({
@@ -62,7 +63,7 @@ export async function syncExternalCalendarPipeline(
   }
 
   // 3. Parse iCal
-  const parseResult = parseIcal(text);
+  const parseResult = parseIcal(text, { now: options?.now });
   if (!parseResult.ok) {
     await prisma.externalCalendar.update({
       where: { id: externalCalendarId },
@@ -79,7 +80,7 @@ export async function syncExternalCalendarPipeline(
   const existingUids = new Set(existingBlocks.map((b) => b.externalUid));
   const feedUids = new Set(parseResult.events.map((e) => e.uid));
 
-  const now = new Date();
+  const now = options?.now ?? new Date();
 
   // Upsert blocks from feed
   for (const event of parseResult.events) {

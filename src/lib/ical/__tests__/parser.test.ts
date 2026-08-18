@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { parseIcal } from "../parser";
 
+// Fixed "now" keeps tests independent of wall-clock time.
+// Window is [-30d, +18m] from `now`, so all fixtures below must fall
+// within [2026-07-02, 2027-02-01] for these tests to pass.
+const TEST_NOW = new Date("2026-08-01");
+
 const FIXTURE_SIMPLE_ICAL = `BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Test//Test//ES
@@ -61,7 +66,7 @@ END:VCALENDAR`;
 describe("parseIcal", () => {
   describe("basic parsing", () => {
     it("parsea VEVENT simple con fechas UTC", () => {
-      const result = parseIcal(FIXTURE_SIMPLE_ICAL);
+      const result = parseIcal(FIXTURE_SIMPLE_ICAL, { now: TEST_NOW });
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.events).toHaveLength(1);
@@ -71,7 +76,7 @@ describe("parseIcal", () => {
     });
 
     it("parsea evento all-day con DTEND exclusivo (resta 1 día)", () => {
-      const result = parseIcal(FIXTURE_ALL_DAY);
+      const result = parseIcal(FIXTURE_ALL_DAY, { now: TEST_NOW });
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.events).toHaveLength(1);
@@ -85,7 +90,7 @@ describe("parseIcal", () => {
     });
 
     it("parsea múltiples VEVENTs", () => {
-      const result = parseIcal(FIXTURE_MULTIPLE_EVENTS);
+      const result = parseIcal(FIXTURE_MULTIPLE_EVENTS, { now: TEST_NOW });
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.events).toHaveLength(2);
@@ -124,7 +129,7 @@ DTSTART:20260715
 DTEND:20260718
 END:VEVENT
 END:VCALENDAR`;
-      const result = parseIcal(folded);
+      const result = parseIcal(folded, { now: TEST_NOW });
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.events).toHaveLength(1);
@@ -141,7 +146,7 @@ DTSTART:20260715T120000Z
 SUMMARY:Sin DTEND
 END:VEVENT
 END:VCALENDAR`;
-      const result = parseIcal(noEnd);
+      const result = parseIcal(noEnd, { now: TEST_NOW });
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.events).toHaveLength(1);
@@ -158,7 +163,7 @@ DTSTART:20260715
 DTEND:20260718
 END:VEVENT
 END:VCALENDAR`;
-      const result = parseIcal(noSummary);
+      const result = parseIcal(noSummary, { now: TEST_NOW });
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.events).toHaveLength(1);

@@ -31,6 +31,11 @@ SUMMARY:Bloqueo 2
 END:VEVENT
 END:VCALENDAR`;
 
+// Fixed "now" keeps the parser's [-30d, +18m] window deterministic.
+// With TEST_NOW=2026-08-01, the fixture dates (Jul 15-25) all fall inside
+// the window so the parser returns both events.
+const TEST_NOW = new Date("2026-08-01");
+
 const mockCalendar = {
   id: "cal-1",
   userId: "user-1",
@@ -94,7 +99,7 @@ describe("syncExternalCalendarPipeline", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     const { syncExternalCalendarPipeline } = await import("../sync");
-    const result = await syncExternalCalendarPipeline("cal-1");
+    const result = await syncExternalCalendarPipeline("cal-1", { now: TEST_NOW });
 
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -121,7 +126,7 @@ describe("syncExternalCalendarPipeline", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     const { syncExternalCalendarPipeline } = await import("../sync");
-    const result = await syncExternalCalendarPipeline("cal-1");
+    const result = await syncExternalCalendarPipeline("cal-1", { now: TEST_NOW });
 
     expect(result.ok).toBe(true);
     expect(mockPrisma.externalChannelBlock.updateMany).toHaveBeenCalledWith({
