@@ -1,1028 +1,527 @@
-# RentalPro - Design System
+---
+name: RentalPro
+description: SaaS B2B de gestión de arriendos para property managers en LATAM
 
-> **Status**: Ocean Breeze — Fase 1 + Fase 2 cerradas (issues #173, #174, #175, #176) · 2026-07-09
-> **Source of truth visual**: Stitch project `projects/1529269251022042678`
-> **Tokens runtime**: `src/app/globals.css` (autoritativo — si hay drift, gana `globals.css`)
-> **Migración**: Fase 1 en `f19d424` (#173). Fase 2 cerrada el 2026-07-06 en commits `7fb0892`, `a4bd6c5`, `da9ad0a`, `54bbe28`, `b260fcf`, `2694d9f` (#174, #175, #176).
+colors:
+  # Primary
+  verdigris: "oklch(0.7227 0.1920 149.5793)"
+  verdigris-deep: "#2DBE85"
+
+  # Semantic
+  calm-sea: "oklch(0.65 0.16 150)"
+  amber-hour: "oklch(0.78 0.16 75)"
+  coastal-mist: "oklch(0.65 0.13 200)"
+  coral-warning: "oklch(0.6368 0.2078 25.3313)"
+
+  # Neutral — Foreground
+  deep-tide: "#131f1a"
+
+  # Neutral — Background
+  sea-glass: "oklch(0.978 0.004 160)"
+  midnight-harbor: "#051424"
+
+  # Neutral — Card / Surface
+  white-sail: "oklch(1.0000 0 0)"
+  hull-dark: "#0d1c2d"
+
+  # Neutral — Muted
+  driftwood: "oklch(0.9670 0.0029 264.5419)"
+  slate-whisper: "#64748b"
+
+  # Border
+  sea-mist: "oklch(0.9276 0.0058 264.5313)"
+
+  # Accent
+  mint-light: "oklch(0.9505 0.0507 163.0508)"
+
+  # Project-specific
+  sand: "oklch(0.97 0.02 200)"
+  deep-lagoon: "oklch(0.72 0.15 195)"
+
+typography:
+  display:
+    fontFamily: "DM Sans, sans-serif"
+    fontSize: "1.5rem"
+    fontWeight: 700
+    lineHeight: 1.1
+  headline:
+    fontFamily: "DM Sans, sans-serif"
+    fontSize: "1.125rem"
+    fontWeight: 500
+    lineHeight: 1.3
+  title:
+    fontFamily: "DM Sans, sans-serif"
+    fontSize: "1rem"
+    fontWeight: 500
+    lineHeight: 1.4
+  body:
+    fontFamily: "DM Sans, sans-serif"
+    fontSize: "0.875rem"
+    fontWeight: 400
+    lineHeight: 1.5
+  label:
+    fontFamily: "DM Sans, sans-serif"
+    fontSize: "0.625rem"
+    fontWeight: 700
+    letterSpacing: "0.05em"
+    textTransform: "uppercase"
+  mono:
+    fontFamily: "IBM Plex Mono, monospace"
+    fontSize: "0.75rem"
+    fontWeight: 400
+
+rounded:
+  sm: "4px"
+  md: "6px"
+  lg: "8px"
+  xl: "12px"
+  full: "9999px"
+
+spacing:
+  xs: "4px"
+  sm: "8px"
+  md: "12px"
+  base: "16px"
+  lg: "24px"
+  xl: "32px"
+
+components:
+  button-primary:
+    backgroundColor: "{colors.verdigris}"
+    textColor: "{colors.white-sail}"
+    rounded: "{rounded.lg}"
+    padding: "10px 16px"
+  button-outline:
+    backgroundColor: "transparent"
+    textColor: "{colors.deep-tide}"
+    rounded: "{rounded.lg}"
+    padding: "10px 16px"
+  button-ghost:
+    backgroundColor: "transparent"
+    textColor: "{colors.deep-tide}"
+    rounded: "{rounded.lg}"
+    padding: "10px 16px"
+  button-destructive:
+    backgroundColor: "{colors.coral-warning}"
+    textColor: "{colors.white-sail}"
+    rounded: "{rounded.lg}"
+    padding: "10px 16px"
+  card-default:
+    backgroundColor: "{colors.white-sail}"
+    rounded: "{rounded.xl}"
+    padding: "16px"
+  card-sm:
+    backgroundColor: "{colors.white-sail}"
+    rounded: "{rounded.lg}"
+    padding: "12px"
+  badge-default:
+    backgroundColor: "{colors.driftwood}"
+    textColor: "{colors.deep-tide}"
+    rounded: "{rounded.sm}"
+    padding: "2px 8px"
+  badge-success:
+    backgroundColor: "{colors.calm-sea}"
+    textColor: "{colors.white-sail}"
+    rounded: "{rounded.sm}"
+    padding: "2px 8px"
+  badge-warning:
+    backgroundColor: "{colors.amber-hour}"
+    textColor: "{colors.white-sail}"
+    rounded: "{rounded.sm}"
+    padding: "2px 8px"
+  badge-info:
+    backgroundColor: "{colors.coastal-mist}"
+    textColor: "{colors.white-sail}"
+    rounded: "{rounded.sm}"
+    padding: "2px 8px"
+  badge-destructive:
+    backgroundColor: "{colors.coral-warning}"
+    textColor: "{colors.white-sail}"
+    rounded: "{rounded.sm}"
+    padding: "2px 8px"
+  input-default:
+    backgroundColor: "transparent"
+    textColor: "{colors.deep-tide}"
+    rounded: "{rounded.lg}"
+    padding: "8px 10px"
+  kpi-card:
+    backgroundColor: "{colors.white-sail}"
+    rounded: "{rounded.lg}"
+    padding: "16px"
+  data-table:
+    backgroundColor: "{colors.white-sail}"
+    rounded: "{rounded.md}"
+    padding: "0"
+  filter-pill-active:
+    backgroundColor: "{colors.verdigris}"
+    textColor: "{colors.white-sail}"
+    rounded: "{rounded.full}"
+    padding: "4px 12px"
+  filter-pill-inactive:
+    backgroundColor: "transparent"
+    textColor: "{colors.slate-whisper}"
+    rounded: "{rounded.full}"
+    padding: "4px 12px"
+  reservation-pill-success:
+    backgroundColor: "{colors.calm-sea}"
+    textColor: "{colors.deep-tide}"
+    rounded: "{rounded.md}"
+    padding: "4px 8px"
+  dialog-content:
+    backgroundColor: "{colors.white-sail}"
+    textColor: "{colors.deep-tide}"
+    rounded: "{rounded.xl}"
+    padding: "16px"
+---
+
+# Design System: RentalPro
 
 ## Overview
 
-RentalPro es un SaaS de gestión de arriendos de propiedades. Este documento establece las reglas de diseño para mantener consistencia visual en toda la aplicación. **"Ocean Breeze"** es el tema vigente desde la migración cerrada en `6a214aa`. Inspirado en Linear, Stripe Dashboard y Vercel. Denso-pero-limpio, minimalista, B2B. Sin decoración, sin ilustraciones, sin gradientes en cards de contenido.
+**Creative North Star: "The Working Harbor"**
 
-> **Nota sobre paleta de colores**: la tabla "Light Mode (Ocean Breeze)" debajo documenta los valores semánticos del preset tweakcn aplicados durante Fase 1. El runtime actual (`globals.css`) ha sido **recalibrado** en commits posteriores (alineación con `tweakcn` definitivo + dark mode a hex Stitch). Si necesitas los valores exactos runtime, consulta `src/app/globals.css:5-50` (light) y `:78-130` (dark). La semántica se conserva; cambia la calibración fina.
+RentalPro no es una app turística ni una vitrina de marketing. Es el puerto operativo donde un property manager en LATAM llega cada mañana a revisar qué barcos (reservas) zarpan hoy, qué muelles (propiedades) están libres, qué contenedores (pagos) siguen sin cobrar y qué merece atención antes de que el día se descontrole. La identidad visual nace de esa metáfora: agua en reposo, manifests en lugar de fuegos artificiales, equipo de navegación confiable en lugar de gadgets decorativos.
+
+El sistema se llama **Ocean Breeze** porque comparte dos cosas con la brisa marina: presencia constante sin estridencia, y la cualidad de hacer que un espacio denso se sienta aireado. La paleta dominante es **Verdigris** — un verde-teal ligeramente desplazado hacia el verde puro (`hue 149.58°`), no un cyan frío. Esa decisión importa: Verde-azul frío gritaría "tech"; el matiz cálido hacia verde respira "operación de confianza, dinero que entra, equilibrio de cuenta". Es el color de la moneda en una libreta, no de un dashboard de trading.
+
+La jerarquía no se gana con sombras. Se gana con **dos píxeles de acento** (`border-t-2 border-t-primary` en cada tabla), **diez píxeles de whisper** (`text-[10px] font-bold uppercase tracking-wider` en cada label), y **números tabulares** (`tabular-nums` en cada KPI). El sistema es plano por defecto — las superficies flotantes (Dialog, Dropdown, Tooltip) son las únicas que se levantan. Esto invierte la jerarquía tradicional de SaaS: en vez de "todo tiene shadow suave", el producto dice "todo reposa, lo urgente emerge".
+
+El modo de la app es **Operate**. No persuade, no entretiene, no educa — opera. El visitante abre la app para actuar: cobrar, cancelar, registrar, revisar. Cada decisión de diseño prioriza escaneabilidad sobre expresión. La marca vive en detalles precisos, no en饰面装饰. Esta es la decisión fundacional y es no-negociable.
+
+**Key Characteristics:**
+- **Plano por defecto, flotante solo cuando emerge.** Las superficies en reposo usan `ring-1 ring-foreground/10` o `border-b`. Las sombras son prerrogativa de Dialog, Dropdown y similares.
+- **Verdigris como canal de navegación.** El verde-teal aparece en active states, KPIs primarios, accent strip de tablas, y nunca como decoración ambiental. Su rareza es el punto.
+- **Status como lenguaje completo.** Cada estado del dominio (CONFIRMED, VENCIDO, COBRADO, CANCELLED) tiene un token semántico dedicado. La UI nunca adivina: usa `success`/`warning`/`info`/`destructive` por mapeo de dominio, no por estética.
+- **10px whisper para labels.** DataTable headers, KpiCard labels, filter pills y reservation pills usan el mismo micro-ritmo tipográfico. Esa repetición es la firma.
+- **Números tabulares siempre.** Cualquier cifra (monto, fecha, contador, porcentaje) usa `tabular-nums`. Las cifras no deberían "respirar" entre renders.
+- **Mobile-first en modales, desktop-first en densidad.** Modales son `w-[95vw]` para asegurar legibilidad en mobile; tablas son densas en desktop y scrolleables horizontalmente.
 
 ---
 
-## Color Palette
+## Colors
 
-### Light Mode (Ocean Breeze)
+La paleta es de baja saturación en neutros (gris-verdoso apenas perceptible, no gris puro) y saturación media-alta en el eje semántico. La excepción es el eje de marca (Verdigris), que es deliberadamente vivo para que active states destaquen sin gritar. **No hay colores de "data" sueltos** — los charts heredan la rampa teal del primary (`--chart-1` a `--chart-5` son verdes descendientes), no una paleta arcoíris.
 
-| Token | Value (oklch) | hex equivalente | Usage |
-|-------|---------------|-----------------|-------|
-| `--background` | `0.9751 0.0127 244.25` | `#F8FAFC` | Fondo principal (off-white con tinte azul sutil) |
-| `--foreground` | `0.3729 0.0306 259.73` | `#3D4666` | Texto principal (slate blue oscuro) |
-| `--card` | `1.0000 0 0` | `#FFFFFF` | Cards y contenedores |
-| `--card-foreground` | `0.3729 0.0306 259.73` | `#3D4666` | Texto en cards |
-| `--primary` | `0.7227 0.1920 149.58` | `#2DBE85` | Botones primarios, CTAs (teal vibrante) |
-| `--primary-foreground` | `1.0000 0 0` | `#FFFFFF` | Texto sobre primary |
-| `--secondary` | `0.9514 0.0250 236.82` | `#EAF0F4` | Elementos secundarios |
-| `--secondary-foreground` | `0.4461 0.0263 256.80` | `#5C6685` | Texto sobre secondary |
-| `--muted` | `0.9670 0.0029 264.54` | `#F5F6FA` | Fondos apagados |
-| `--muted-foreground` | `0.5510 0.0234 264.36` | `#6F7897` | Texto apagado |
-| `--accent` | `0.9505 0.0507 163.05` | `#E0F3EC` | Highlights, hover states (pale mint) |
-| `--accent-foreground` | `0.3729 0.0306 259.73` | `#3D4666` | Texto sobre accent |
-| `--border` | `0.9276 0.0058 264.53` | `#DEE1EB` | Bordes |
-| `--input` | `0.9276 0.0058 264.53` | `#DEE1EB` | Inputs |
-| `--ring` | `0.7227 0.1920 149.58` | `#2DBE85` | Focus rings (mismo que primary) |
+### Primary
+- **Verdigris** (`oklch(0.7227 0.1920 149.5793)`): Color de marca. Usado en active state del sidebar owner, accent strip superior de tablas (`border-t-2`), icon container de KpiCard primario, fondo de filter pills activos, texto de link primario. **Su rol es señalar navegación activa y resultado positivo, no decoración.** En dark mode se mantiene como `Verdigris Deep` (`#2DBE85`).
 
-### Dark Mode (Ocean Breeze)
+### Semantic
+- **Calm Sea** (`oklch(0.65 0.16 150)`): Estado de éxito — reservas CONFIRMED, pagos COMPLETED, KPIs de cobranza ≥85%, sublabel positivo en indicadores.
+- **Amber Hour** (`oklch(78% 0.16 75)`): Estado de advertencia — pagos que vencen hoy, reservas con saldo pendiente, KPIs "por cobrar". No es danger; es atención.
+- **Coastal Mist** (`oklch(65% 0.13 200)`): Estado informativo — próximos 7 días, próximo check-in, duración DAILY/MONTHLY. Diferencia DAILY vs MONTHLY por label, no por color.
+- **Coral Warning** (`oklch(63.68% 0.2078 25.33)`): Estado destructivo — pagos vencidos, reservas CANCELLED, errores, confirmación destructiva. El único color que carga peso emocional.
 
-| Token | Value (oklch) | hex equivalente | Usage |
-|-------|---------------|-----------------|-------|
-| `--background` | `0.2077 0.0398 265.75` | `#15192B` | Fondo principal (azul oscuro) |
-| `--foreground` | `0.8717 0.0093 258.34` | `#D4D6DE` | Texto principal |
-| `--card` | `0.2795 0.0368 260.03` | `#1F2236` | Cards y contenedores |
-| `--card-foreground` | `0.8717 0.0093 258.34` | `#D4D6DE` | Texto en cards |
-| `--primary` | `0.7729 0.1535 163.22` | `#3DDFB5` | Botones primarios (mint más claro en dark) |
-| `--primary-foreground` | `0.2077 0.0398 265.75` | `#15192B` | Texto sobre primary |
-| `--border` | `0.4461 0.0263 256.80` | `#5C6685` | Bordes |
-| `--ring` | `0.7729 0.1535 163.22` | `#3DDFB5` | Focus rings |
+### Neutral
+- **Deep Tide** (`#131f1a`): Foreground canónico en light mode — texto principal. Nunca sobre fondo blanco puro: usar `--card` (que es `--white-sail`) para contraste sutil.
+- **Slate Whisper** (`#64748b`): Texto secundario. Iconos inactivos del sidebar, labels de metadata, placeholders. **Nunca para superficies** — solo texto.
+- **Sea Glass** (`oklch(97.8% 0.004 160)`): Fondo de página en light mode. Tiene un tinte verde apenas perceptible (no es gris puro) — esa es la firma.
+- **Midnight Harbor** (`#051424`): Fondo de página en dark mode. Negro-azul muy oscuro, no negro puro.
+- **White Sail** (`oklch(100% 0 0)`): Superficie de card, popover, navbar y sidebar en light mode. Puro blanco sobre fondo `Sea Glass` para jerarquía sin shadow.
+- **Hull Dark** (`#0d1c2d`): Superficie de card, popover, navbar y sidebar en dark mode. No negro: azul oscuro de casco de barco.
+- **Driftwood** (`oklch(96.7% 0.0029 264.54)`): Superficie muted — `bg-muted`, fondo de tabla headers (`bg-muted/50`), fondo del filter pill container. Para superficies secundarias, no para texto apagado.
+- **Sea Mist** (`oklch(92.76% 0.0058 264.53)`): Border canónico. También `--input`. Línea de un píxel, nunca más gruesa; la jerarquía vertical/horizontal se construye con combinaciones de este color, no con grosor.
 
-### Semantic Tokens (Project-specific)
+### Accent
+- **Mint Light** (`oklch(95.05% 0.0507 163.05)`): Acento neutral cálido. Active state del sidebar admin, fondo `bg-accent` para hovers en componentes no-primarios. Usar con moderación — su rol es "second voice", no "alternative primary".
 
-Estos tokens cubren los 4 estados canónicos del dominio. **Calibrados en `511c9cf` para igualar la viveza de Tailwind por defecto**.
+### Project-specific
+- **Sand** (`oklch(97% 0.02 200)`): Acento neutral cálido (`--beige`). Para zonas que necesitan calidez sin salirse del sistema (e.g., futuras pantallas de marketplace). Sin uso activo hoy; reservado.
+- **Deep Lagoon** (`oklch(72% 0.15 195)`): Marca secundaria (`--brand-secondary`). Reservado para diferenciación cuando el contexto lo demande (e.g., badges de plan, comparativas FREE vs PRO). Sin uso activo hoy.
 
-| Concepto | Token | Light | Dark |
-|----------|-------|-------|------|
-| Pagado, CONFIRMED, sin alertas | `--success` | `0.65 0.16 150` | `0.70 0.17 150` |
-| (foreground para texto sobre bg-success) | `--success-foreground` | `0.30 0.10 150` | `0.85 0.15 150` |
-| Vence hoy, saldo pendiente, atención | `--warning` | `0.78 0.16 75` | `0.78 0.17 75` |
-| (foreground) | `--warning-foreground` | `0.30 0.10 60` | `0.85 0.15 75` |
-| Próximos 7 días, próximo check-in, info | `--info` | `0.65 0.13 230` | `0.70 0.15 230` |
-| (foreground) | `--info-foreground` | `0.30 0.12 210` | `0.85 0.12 210` |
-| Vencido, CANCELLED, errores | `--destructive` | `0.6368 0.2078 25.3313` | `0.6368 0.2078 25.3313` |
-| (foreground) | `--destructive-foreground` | `1.0000 0 0` | `0.2077 0.0398 265.75` |
+### Named Rules
 
-**Mapeo semántico (regla de uso)**:
+**The Status Color Doctrine.** Cada estado del dominio se mapea a exactamente un token semántico, sin excepciones: CONFIRMED → `success`, VENCE HOY → `warning`, VENCIDO → `destructive`, próximos 7 días → `info`. La UI no inventa estados intermedios — si la semántica no cabe en los cuatro, se usa `secondary` o `outline`. Esta regla cubre badges, icon containers, KpiCard `tone`, borders de alert-boxes, y color de texto en sublabels. **El `ReservationPill` es la única excepción tipográfica legítima:** usa los mismos tokens pero renderiza como pill inline porque admite sublabel debajo del label principal, lo que `<Badge>` no soporta nativamente.
 
-| Estado de dominio | Token |
-|-------------------|-------|
-| Reserva CONFIRMED | `success` |
-| Pago COMPLETED | `success` |
-| KPI "ocupación ≥85%" | `success` |
-| Pago vence hoy | `warning` |
-| Reserva con saldo | `warning` |
-| KPI "por cobrar" | `warning` |
-| Próximos 7 días | `info` |
-| Próximo check-in | `info` |
-| Duración DAILY/MONTHLY | `info` (diferenciación por label, no por color) |
-| Pago vencido | `destructive` |
-| Reserva CANCELLED | `destructive` |
-| KPI crítico | `destructive` |
-
-### Project-specific tokens (Ocean Breeze additions)
-
-| Token | Light oklch | Dark oklch | Uso |
-|-------|-------------|------------|-----|
-| `--navbar` | `0.99 0.005 244` | `0.23 0.03 260` | Background navbar superior |
-| `--navbar-foreground` | `0.3729 0.0306 259.73` | `0.8717 0.0093 258.34` | Texto navbar |
-| `--beige` | `0.97 0.02 200` | `0.30 0.02 200` | Acento neutral cálido |
-| `--brand-secondary` | `0.72 0.15 195` | `0.72 0.15 195` | Acento de marca alternativo |
-
-### Sidebar Palette
-
-| Token | Light | Dark |
-|-------|-------|------|
-| `--sidebar` | `0.9514 0.0250 236.82` | `0.2795 0.0368 260.03` |
-| `--sidebar-foreground` | `0.3729 0.0306 259.73` | `0.8717 0.0093 258.34` |
-| `--sidebar-primary` | `0.7227 0.1920 149.58` | `0.7729 0.1535 163.22` |
-| `--sidebar-accent` | `0.9505 0.0507 163.05` | `0.3729 0.0306 259.73` |
-| `--sidebar-border` | `0.9276 0.0058 264.53` | `0.4461 0.0263 256.80` |
-
-> **IMPORTANTE**: El sidebar usa `bg-sidebar` y `text-sidebar-foreground`. **Nunca** `bg-slate-900` o cualquier hex hardcodeado.
-
-### Chart tokens (5 gradiente teal)
-
-| Token | Uso |
-|-------|-----|
-| `--chart-1` | Principal (teal vibrante) |
-| `--chart-2` | Verde medio |
-| `--chart-3` | Teal oscuro |
-| `--chart-4` | Teal profundo |
-| `--chart-5` | Teal muy oscuro |
-
-> **Estado actual**: la app no usa Recharts ni capa `<Chart>` propia (audit 2026-07-06, 0 matches). Estos tokens quedan disponibles para futura implementación.
+**The Verdigris Rarity Rule.** Verdigris aparece en ≤10% del área visible de cualquier pantalla. Su función es señalar navegación activa o resultado primario; si ocupa más, deja de señalar y empieza a decorar. Los `bg-primary/10` y `text-primary` para active state son la única excepción a esta regla de rareza — el 10% sigue siendo rareza cuando el fondo apenas se ve.
 
 ---
 
 ## Typography
 
-### Font Families
+**Display Font:** DM Sans (with `sans-serif` fallback)
+**Body Font:** DM Sans (with `sans-serif` fallback) — DM Sans cubre todos los pesos de la jerarquía
+**Label/Mono Font:** IBM Plex Mono (preloaded, sin uso activo hoy; reservado para IDs técnicos, tokens, hashes de receipt)
 
-```css
---font-sans: DM Sans, sans-serif;        /* body + headings (weight variation only) */
---font-serif: Lora, serif;               /* solo marketing (landing) */
---font-mono: IBM Plex Mono, monospace;   /* precios, fechas, IDs, tokens */
-```
+### Hierarchy
 
-### Estado de carga en `layout.tsx`
+- **Display** (`font-weight: 700`, `text-xl` a `text-3xl` según Tier, `leading-tight`): Títulos de página (`<h1>`). Tres tiers explícitos: Tier 1 `text-xl font-bold` para páginas data-heavy (dashboard, payments, clients); Tier 2 `text-2xl sm:text-3xl font-bold tracking-tight` para settings y detail; Tier 3 `text-3xl font-bold` para forms donde el form es la hero.
+- **Headline** (`font-weight: 500`, `text-lg`, `leading-snug`): Títulos de sección (`<h2>`) dentro de una página. Separadores entre bloques.
+- **Title** (`font-weight: 500`, `text-base` o `text-sm` para cards compactas): Títulos de card, headers de modal, labels de field group.
+- **Body** (`font-weight: 400`, `text-sm`, `leading-normal`): Texto corrido por defecto. Tabla body usa `text-xs` para densidad.
+- **Label** (`font-weight: 700`, `text-[10px]`, `letter-spacing: 0.05em`, `text-transform: uppercase`): El "10px whisper". Headers de DataTable, KpiCard labels, filter pills, ReservationPill labels, eyebrow text del navbar. Es la firma tipográfica unificadora — ver Named Rules.
+- **Mono** (`font-weight: 400`, `text-xs`, `IBM Plex Mono`): IDs de reserva, hashes de receipt, importes en contexto técnico. **Hoy sin uso activo en producto** — precargado vía `next/font/google` para evitar flash si se introduce.
 
-| Font | Cargada en `layout.tsx` | Notas |
-|------|------------------------|-------|
-| DM Sans | ✅ Sí (`next/font/google`) | Única en uso intensivo en producto |
-| Lora | ✅ Sí (`next/font/google`) | Declarada en tokens `--font-serif`. **Sin uso activo** en UI — disponible para futuros componentes marketing/landing. |
-| IBM Plex Mono | ✅ Sí (`next/font/google`, weight 400) | Declarada en tokens `--font-mono`. **Sin uso activo** en UI — disponible para IDs, tokens, datos numéricos si se requiere. |
+### Named Rules
 
-Las tres fuentes se inyectan vía CSS variables en el `<html>` (layout.tsx:44) y están disponibles globalmente vía `font-serif` / `font-mono`. Hoy el producto solo usa DM Sans — Lora y Mono están precargadas para no introducir flash si se activan.
+**The 10px Whisper Rule.** Toda label, header de tabla, KPI label y pill activo/inactivo usa `text-[10px] font-bold uppercase tracking-wider` (con variantes `text-muted-foreground` para apagado y `text-primary-foreground` para activo). Es el único patrón tipográfico que se repite en 4+ primitives. Su función: comprimir metadata al tamaño más pequeño legible sin sacrificar escaneabilidad, porque el uppercase + tracking-wider aumenta perceptivamente la altura de x. **No usar este patrón en contenido corrido** — para párrafos, body.
 
-### Scale (DM Sans)
+**The Tabular Truth Rule.** Cualquier cifra (monto en CLP, contador de reservas, porcentaje de ocupación, fecha absoluta corta) lleva `tabular-nums`. Las cifras alineadas verticalmente son la base de la sensación "tabla de cuentas" — sin esto, los números bailan entre renders y la confianza visual se rompe. Aplicar a `<td>` con datos numéricos, `<KpiCard value>`, y `text-foreground/70 text-xs font-mono` cuando la cifra es técnica (ID, hash).
 
-| Element | Size | Weight | Line Height |
-|---------|------|--------|-------------|
-| Section Title (h2) | `text-lg` | `font-medium` (500) | `leading-snug` |
-| Card Title | `text-base` / `text-sm` (sm cards) | `font-medium` (500) | `leading-snug` |
-| Body | `text-sm` | `font-normal` (400) | `leading-normal` |
-| Small/Labels | `text-xs` | `font-medium` (500) | `leading-none` |
-| Muted Text | `text-sm` / `text-xs` | (inherit) | (inherit) |
-| Button | `text-sm` / `text-[0.8rem]` (sm) | `font-medium` (500) | (auto) |
-
-### Page Title tiers (h1)
-
-El tamaño del `<h1>` escala con la **densidad visual del contenido** de la página. La regla implícita es: cuando el dato es la hero (tabla/lista densa), el h1 compite visualmente con el `<KpiCard>` (que también usa `text-xl font-bold tabular-nums`). Cuando la página tiene más aire (cards, settings, forms), el h1 puede crecer.
-
-| Tier | Tamaño | Uso | Ejemplos |
-|------|--------|-----|----------|
-| **Tier 1** | `text-xl font-bold` | Páginas data-heavy con tabla/lista como contenido primario. | `/dashboard`, `/admin`, `/admin/users`, `/admin/support`, `/payments`, `/clients`, `/support` |
-| **Tier 2** | `text-2xl sm:text-3xl font-bold` | Settings y detail con cards o secciones, más aire visual. | `/settings`, `/properties` (cards), `/admin/users/[id]` |
-| **Tier 3** | `text-3xl font-bold` | Forms (create/edit). El form es la hero. | `/properties/new`, `/properties/[id]/edit`, `/properties/[id]` |
-
-**Convención adicional**: agregar `tracking-tight` en Tier 1 compensa ópticamente el tamaño menor del header en páginas densas. Aplicado en `/payments` y `/clients`. Opcional pero recomendado para consistencia.
-
-**Color**: `text-foreground` siempre en Tiers 1 y 2. Tier 3 puede omitirlo (default del navegador) o usar `text-foreground` por consistencia.
-
-### Reglas de uso
-
-- **Jerarquía por tamaño y peso, NO por color**. El diseño Ocean Breeze no usa color como diferenciador de heading.
-- **Body siempre `text-sm`** por defecto.
-- **Form labels**: `text-sm font-medium`.
-- **Muted text**: `text-muted-foreground`.
-- **Datos numéricos** (precios, fechas, IDs): `font-mono text-foreground/70 text-xs` cuando se quiere señalar "data técnica".
-
----
-
-## Spacing
-
-Base: `0.25rem` (4px). Per `globals.css:75` → `--spacing: 0.25rem`.
-
-| Token | Value | Usage |
-|-------|-------|-------|
-| `px-1` | 4px | Espaciado mínimo |
-| `px-2` | 8px | Inputs padding |
-| `px-2.5` | 10px | Buttons padding |
-| `px-3` | 12px | Sidebar items |
-| `px-4` | 16px | Card padding, page margins |
-| `px-6` | 24px | Section gaps |
-| `gap-1` | 4px | Icon-text spacing |
-| `gap-2` | 8px | Between elements |
-| `gap-3` | 12px | Between sections |
-| `gap-4` | 16px | Between cards |
-| `gap-6` | 24px | Major sections |
-
-### Responsive spacing
-
-- **Mobile** (`<640px`): `p-4`
-- **Desktop** (`≥640px`): `p-6`
-
----
-
-## Border Radius
-
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--radius` | `0.5rem` (8px) | Base |
-| `--radius-sm` | `calc(0.5rem - 4px)` = 4px | Badges |
-| `--radius-md` | `calc(0.5rem - 2px)` = 6px | Buttons sm, inputs |
-| `--radius-lg` | `0.5rem` = 8px | Default buttons, cards |
-| `--radius-xl` | `calc(0.5rem + 4px)` = 12px | Modals, large containers |
-
-### Usage
-
-- **Buttons**: `rounded-lg` (8px)
-- **Inputs**: `rounded-lg` (8px)
-- **Cards**: `rounded-xl` (12px) (vía `card.tsx`)
-- **Badges**: `rounded-4xl` (pill)
-- **Modals/Dialogs**: `rounded-xl` (12px)
-
----
-
-## Shadows — REGLA ESTRICTA
-
-> **"Sombras solo en componentes flotantes. El resto usa bordes."**
-> Esta es la regla más violada del codebase antes de Ocean Breeze. Toda adición de `shadow-*` en componentes no-flotantes es drift.
-
-### Dónde SÍ se permiten shadows
-
-- `DialogContent` (`src/components/ui/dialog.tsx`) — `shadow-lg`
-- `DropdownMenuContent` — `shadow-md`
-- `PopoverContent` — `shadow-md`
-- `TooltipContent` — shadow sutil
-- `SheetContent` — `shadow-lg`
-- Hover intencional de `<Card>` con imagen (`property-card.tsx`) — `hover:shadow-lg`
-
-### Dónde NO se permiten shadows
-
-- Cualquier `<Card>` no-flotante → usar `ring-1 ring-foreground/10` para jerarquía.
-- Cualquier `<table>` o fila de tabla → `border-y`.
-- Avatares → `ring-1 ring-foreground/10`, NO `shadow-lg`.
-- Inputs → `border`, focus `ring-3 ring-ring/50`.
-- Botones sobre superficie plana → `border` opcional, NO shadow.
-- Header/Navbar/Sidebar → `border-b`/`border-r`, NO shadow.
-
-### Excepciones documentadas
-
-- `src/app/globals.css:400-407` define `.card-hover` con `transform: translateY(-2px) + shadow`. Es **solo para landing** (`landing-page.tsx`). No generalizar.
-- Landing page mantiene `shadow-lg`/`shadow-2xl`/`shadow-primary/20` como estética marketing intencional.
-
----
-
-## Conventions nuevas (Ocean Breeze)
-
-### 1. Tablas → usar `<DataTable>` primitive
-
-Primitive cerrado en `src/components/ui/data-table.tsx` (commit `7fb0892`, issue #176). Toda tabla del producto DEBE pasar por este primitive.
-
-```tsx
-<DataTable
-  headers={["Cliente", "Teléfono", "Reservas", "Acciones"]}
-  caption="Lista de clientes"
-  emptyState={<>No hay clientes</>}
->
-  {rows.map((row) => (
-    <tr key={row.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-      {/* ... */}
-    </tr>
-  ))}
-</DataTable>
-```
-
-**API** (`data-table.tsx:4-10`):
-- `headers: string[]` — array de labels para el `<thead>`. Renderiza con `text-[10px] font-bold uppercase tracking-wider text-muted-foreground` y fondo `bg-muted/50`.
-- `children: ReactNode` — las filas (`<tr>`). Si está vacío y `emptyState` está definido, se renderiza el empty state centrado.
-- `emptyState?: ReactNode` — contenido (típicamente `<p>` + acción opcional) que se muestra cuando no hay filas.
-- `caption?: string` — accesible (`<caption className="sr-only">`).
-- `className?: string` — se mergea con `overflow-hidden rounded-md border border-border bg-card`.
-
-El wrapper externo aplica `overflow-x-auto` automáticamente. **No** envolver de nuevo en `<div className="overflow-x-auto">`.
-
-**Tipografía por defecto** (NO requiere configuración en celdas individuales):
-
-| Elemento | Tamaño | Clase Tailwind | Dónde |
-|----------|--------|----------------|-------|
-| Header (`<th>`) | 10px | `text-[10px] font-bold uppercase tracking-wider text-muted-foreground` | `data-table.tsx:23` |
-| Body (`<tbody>`) | 12px | `text-xs` | `data-table.tsx:30` |
-| Empty state (`<td>`) | 14px | `text-sm text-muted-foreground` | `data-table.tsx:34` |
-
-**Regla**: no especificar `text-xs` en celdas individuales — el `<tbody>` ya lo provee. Si una celda necesita más peso visual (ej: monto destacado), agregar solo `font-bold` o `font-medium`, no cambiar el tamaño. El padding recomendado es `px-4 py-3` (compacto) o `px-6 py-4` (holgado) según densidad.
-
-### Alineación de headers por columna
-
-El primitive acepta headers en dos formas (backward-compatible):
-
-```tsx
-// Forma simple — string, alineación por default = "left"
-<DataTable headers={["Cliente", "Propiedad", "Estado"]} />
-
-// Forma extendida — objeto con label + align opcional
-<DataTable
-  headers={[
-    "Cliente",
-    "Propiedad",
-    { label: "Monto", align: "right" },
-    { label: "Estado", align: "center" },
-  ]}
-/>
-```
-
-**Cuándo usar cada align**:
-- `left` (default) — datos textuales (nombres, descripciones, fechas absolutas)
-- `right` — números/montos (Monto, Total, Pagado), acciones de fila
-- `center` — estados cortos (badges), contadores pequeños
-
-**Regla crítica**: la alineación del `<th>` DEBE coincidir con la alineación del `<td>` de la misma columna. Si una celda usa `text-right`, el header correspondiente debe usar `align: "right"`. La desalineación es visible sobre todo en dark mode.
-
-**Type exportado**: `DataTableHeader = string | { label: string; align?: "left" | "right" | "center" }` (`data-table.tsx:5-8`). Si construyes el array dinámicamente, anotarlo como `DataTableHeader[]` para que TypeScript no infiera tipos widen.
-
-**Tablas migradas a `<DataTable>`** (cerradas en #176):
-
-- `clients-table.tsx`
-- `reservation-table.tsx`
-- `reports/page.tsx`
-- `admin/users/[id]/page.tsx`
-- `admin-users-client.tsx`
-- `admin/support/admin-support-list.tsx`
-
-**Patrón de page wrapping** (ver CONTEXT.md:283-285):
-
-```tsx
-<Card className="ring-1 ring-foreground/10 overflow-hidden">
-  <CardHeader>
-    <CardTitle>Título</CardTitle>
-    <CardDescription>Descripción</CardDescription>
-  </CardHeader>
-  <CardContent>
-    <DataTable headers={[...]}>{...}</DataTable>
-  </CardContent>
-</Card>
-```
-
-### 2. Modales → `w-[95vw]` + `max-w-{size}`
-
-```tsx
-<DialogContent className="w-[95vw] max-w-lg">
-  {/* ... */}
-</DialogContent>
-```
-
-**Modales migrados a `w-[95vw]`** (cerrados en commit `da9ad0a`, #176):
-
-- `calendar-view.tsx:420`, `calendar-timeline.tsx:716` — `w-[95vw] max-w-2xl`
-- `properties-client.tsx:314, 341` — `w-[95vw] max-w-2xl p-0 gap-0 overflow-hidden flex flex-col`
-- `properties/new/page.tsx:44` — `w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto`
-- `properties/[id]/_components/RevealTokenDialog.tsx:117` — `w-[95vw] max-w-md`
-
-**Excepción consciente**: `confirm-dialog.tsx:39` usa `w-[92vw]` (no `95vw`). Es un diálogo de confirmación destructiva donde la jerarquía visual exige menos espacio. Documentado. No migrar.
-
-**Patrón full-screen modal** (sin padding interno, contenido custom): usado en reservation-detail-dialog, reservation-form, reservations-list-client. Ejemplo:
-
-```tsx
-<DialogContent className="w-[95vw] max-w-2xl gap-0 p-0 overflow-hidden" showCloseButton={false}>
-  {/* contenido custom full-bleed */}
-</DialogContent>
-```
-
-### 3. Status badges → siempre `<Badge variant>`
-
-```tsx
-import { Badge } from "@/components/ui/badge";
-
-<Badge variant="success">Pagado</Badge>
-<Badge variant="warning">Vence hoy</Badge>
-<Badge variant="destructive">Vencido</Badge>
-<Badge variant="info">Próximo</Badge>
-<Badge variant="secondary">Inactivo</Badge>
-```
-
-**Variantes disponibles** (per `badge.tsx:13-21`):
-- `default`, `secondary`, `destructive`, `success`, `warning`, `info`, `outline`, `ghost`.
-
-**Reglas**:
-- Todo badge que indique estado DEBE usar uno de los 4 tokens semánticos (`success`/`warning`/`info`/`destructive`).
-- En estilos inline cuando se necesita fondo + texto: `bg-success/10 text-success-foreground`.
-- **Prohibido**: hex hardcodeado (`bg-emerald-500`, `text-red-600`, `bg-amber-100`, etc.).
-
-**Excepción documentada**: chrome `bg-zinc-*` del `reservation-table.tsx` es estética dark/Notion-like intencional. No migrar.
-
-### 4. Hex fallback de `property.color` → `var(--primary)`
-
-`property.color` es **data del usuario** (color elegido por el owner al crear la propiedad). Permanece como hex arbitrario en BD y se renderiza vía `style={{ backgroundColor: ... }}`. El único punto donde se aplica convención es el **fallback** cuando la propiedad no tiene color:
-
-```tsx
-style={{ backgroundColor: reservation.property.color || "var(--primary)" }}
-```
-
-**Antes**: `|| "#6366F1"` (indigo Tailwind v3) o `|| "#3B82F6"` (azul Tailwind v3).
-**Ahora**: `|| "var(--primary)"` (teal Ocean Breeze). Harmonizado en commit `54bbe28` (#176).
-
-Aplica en todos los puntos donde se renderiza el color de propiedad como chip/barra: reservation table, reservation-detail-dialog, calendar-timeline.
-
-**Instancias legítimas de hex** (NO migrar):
-- `src/lib/validations/property.ts:11` — `z.string().default("#3B82F6")` — default de validación Zod (capa datos, no UI).
-- `src/lib/actions/properties.ts:86` y `src/components/properties/property-form.tsx:33,73` — paleta default del color picker (input de usuario). El picker sigue mostrando opciones de color hex porque es data arbitraria.
-- Tests (`__tests__/*.tsx`) — mock data, no producción.
-
-### 5. External channel markers (Calendar)
-
-Cerrado en commit `5bc608e` (#174) con la utility `src/lib/calendar/channel-colors.ts`:
-
-```ts
-import { channelColors } from "@/lib/calendar/channel-colors";
-
-const { dotClass, labelClass } = channelColors[block.channel];
-return (
-  <>
-    <span className={cn("size-2 rounded-full", dotClass)} />
-    <span className={labelClass}>{channelLabel(block.channel)}</span>
-  </>
-);
-```
-
-| Channel | Dot class | Label class |
-|---------|-----------|-------------|
-| AIRBNB | `bg-info` | `text-info` |
-| BOOKING_COM | `bg-primary` | `text-primary` |
-| VRBO | `bg-accent` | `text-accent` |
-| OTHER | `bg-muted-foreground` | `text-muted-foreground` |
-
-**NO** usar `bg-blue-500` / `bg-rose-500` / `bg-indigo-500` como antes. Consumir siempre la utility para que un cambio de paleta se propague atómicamente. Test de regresión: `src/lib/calendar/__tests__/channel-colors.test.ts`.
-
-### 6. Filters y searchbars → texto visible, no iconos solos
-
-```tsx
-// ✅ Correcto
-<Button variant="outline">
-  <Filter />
-  Filtrar
-</Button>
-
-// ❌ Incorrecto
-<Button variant="outline" size="icon">
-  <Filter />
-</Button>
-```
-
-Excepción: si es un toggle binario conocido (mostrar/ocultar filtros), el icono solo es aceptable **acompañado de label accesible** (`aria-label`).
-
-### 7. KPIs → `<KpiCard>` (primitive único)
-
-Todo KPI del producto usa el primitive `<KpiCard>` (`src/components/ui/kpi-card.tsx`). NO hay otras variantes. ADR-0024 documenta la consolidación.
-
-**Estructura**:
-
-```tsx
-<KpiCard
-  label="Ingresos mensuales"
-  value={formatCLP(amount)}
-  icon={Wallet}
-  tone="success"
-  indicator={{ text: "+12% vs mes anterior", variant: "positive" }}
-  progressBar={{ value: 64 }}
-/>
-```
-
-**Slots**:
-- `label` (string, requerido): `text-[10px] font-bold uppercase tracking-wider text-muted-foreground`.
-- `value` (string | number, requerido): `text-xl font-bold tabular-nums`.
-- `icon` (LucideIcon, opcional): contenedor `size-9 rounded-xl bg-{tone}/10 text-{tone}` en esquina superior derecha. NO se renderiza si no se pasa.
-- `tone` (`"default" | "success" | "info" | "warning" | "destructive"`, default `"default"`): afecta color del icon container y, solo si es `"warning"` o `"destructive"`, también el color del value text.
-- `indicator` ({ text, variant }, opcional): texto pequeño con ícono (TrendingUp / AlertTriangle) bajo el value. Variants: `"positive" | "warning" | "neutral"`.
-- `progressBar` ({ value: 0-100 }, opcional): barra de progreso `h-1 rounded-full bg-muted` con fill `bg-primary`.
-- `unit` (string, opcional): unidad pequeña al lado del value (ej: `%`, `CLP`).
-- `sublabel` (string, opcional): texto auxiliar pequeño bajo el value (ej: `detail` de admin pages).
-
-**Reglas duras**:
-- NO hex (`bg-orange-50`, `text-blue-600`, etc.) — siempre semantic tokens.
-- NO `shadow-*` — el primitive usa `rounded-lg border border-border` para jerarquía.
-- NO status dot — la decisión de eliminar el status dot fue parte de la consolidación (ADR-0024).
-- NO diferentes primitives en la misma página. Si ves `StitchKpiCard`, `MetricCard` o `ExecutiveKpiCard` en código, es drift.
-
-### 8. Filter pills (segmented control compacto)
-
-Patrón para filtros de estado inline en headers de sección (3–7 opciones). Replica el mockup Stitch de `code.html` usando semantic tokens.
-
-**Estructura**:
-
-```tsx
-<div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3">
-  <h2 className="text-sm font-bold text-foreground">Mis Tickets de Soporte</h2>
-  <div className="flex items-center gap-1 rounded-full border border-border bg-muted p-1">
-    {options.map((opt) => {
-      const isActive = active === opt.value;
-      return (
-        <button
-          key={opt.value}
-          onClick={() => setActive(opt.value)}
-          className={cn(
-            "rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors",
-            isActive
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:text-foreground"
-          )}
-        >
-          {opt.label}
-        </button>
-      );
-    })}
-  </div>
-  <Link href="/new" className={buttonVariants({ variant: "default", size: "sm" })}>
-    <Plus className="mr-2 h-4 w-4" />
-    Nuevo Ticket
-  </Link>
-</div>
-```
-
-**Tokens**:
-
-| Slot | Clases |
-|---|---|
-| Container | `flex items-center gap-1 rounded-full border border-border bg-muted p-1` |
-| Pill activo | `rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground` |
-| Pill inactivo | `rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground` (sin fondo) |
-
-**Reglas duras**:
-- **NO** `shadow-*` en el pill activo — el `bg-primary` teal provee suficiente contraste visual. El mockup original usa `shadow-sm` pero fue removido por violar DESIGN.md (no shadows en superficies planas).
-- **NO** `bg-{tone}` en pills inactivos — fondo transparente para que se vea el `bg-muted` del container (evita "doble fondo").
-- **NO** usar `text-sm font-medium` — el patrón canónico es `text-[10px] font-bold uppercase tracking-wider`.
-- **NO** `rounded-md` en pills individuales — siempre `rounded-full`.
-
-**Layout del row**: usar 3 children directos en `flex justify-between` con `gap-3`. En desktop: `[título] [filtros] [acción]` donde el filtro queda centrado geométricamente entre título y acción. En mobile (`flex-col`): apila verticalmente en orden título → filtros → acción.
-
-### 9. Row click isolation en tablas (NO `onClick` en `<tr>`)
-
-Regla explícita: las filas de `<DataTable>` **no deben tener `onClick` que navegue**. Solo los botones o links específicos de la columna de acciones navegan al detalle.
-
-**Razón**: previene conflictos con:
-- Selección de texto accidental al arrastrar el mouse sobre una fila.
-- Doble-trigger entre el row click y el action button.
-- Accesibilidad: lectores de pantalla anuncian correctamente el link, no la fila entera.
-- Móvil: tap impreciso puede activar la fila cuando el usuario quería scroll horizontal.
-
-**Patrón canónico**:
-
-```tsx
-<tr
-  key={ticket.id}
-  className="border-b last:border-0 hover:bg-muted/30 transition-colors"
->
-  {/* celdas sin onClick */}
-  <td className="px-6 py-5 text-right">
-    <Link
-      href={`/support/${ticket.id}`}
-      className="inline-flex p-1.5 text-muted-foreground hover:text-foreground transition-colors"
-      aria-label="Ver ticket"
-    >
-      <Eye className="size-4" />
-    </Link>
-  </td>
-</tr>
-```
-
-**Reglas duras**:
-- **NO** `onClick` en `<tr>`.
-- **NO** `cursor-pointer` en `<tr>`.
-- **NO** `e.stopPropagation()` en el link/botón de acción (no hay handler padre que detener).
-- `hover:bg-muted/30` en `<tr>` es aceptable como feedback visual pasivo, pero sin `cursor-pointer`.
-
-**Excepción documentada**: si una pantalla requiere explícitamente "click anywhere para abrir", debe ser una decisión conscious y documentada con `aria-label` que cubra toda el área. Hoy no hay excepciones activas en `/support`, `/admin/support`, ni en las tablas migradas a `<DataTable>`.
+**The Two-Tier Heading Rule.** Los `<h1>` cambian de tamaño según la densidad del contenido de la página, no según el dispositivo. La regla implícita es: cuando el dato es la hero (tabla densa, lista, KPIs), el h1 compite visualmente con el `<KpiCard>` (también `text-xl font-bold tabular-nums`). Cuando la página tiene más aire (forms, settings, detail), el h1 puede crecer. Esta es una decisión de peso visual, no de responsive.
 
 ---
 
 ## Layout
 
+El sistema es **desktop-first en densidad, mobile-first en modales**. Las vistas de producto asumen ≥1024px para layouts de 2-3 columnas (KPIs grid, listas+detail); mobile colapsa a 1 columna pero preserva la jerarquía. Los modales son universales: `w-[95vw]` con `max-w-*` desktop.
+
+### Grid & Container
+
+| Property | Value |
+|----------|-------|
+| Page padding (mobile) | `p-4` (16px) |
+| Page padding (desktop ≥640px) | `p-6` (24px) |
+| Content max-width | Sin límite (full width, dashboard pattern) |
+| Card grid (KPIs / lists) | `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3` o `lg:grid-cols-4` para KPI rows |
+| Gap entre cards | `gap-4 lg:gap-6` (16px mobile, 24px desktop) |
+| Gap entre sections | `gap-6` (24px) |
+| Gap entre elements | `gap-2` (8px) |
+
 ### Sidebar
 
-Layout estructural compartido por los dos sidebars:
+Layout estructural compartido por owner y admin:
 
 | Property | Value |
 |----------|-------|
-| Width | `w-64` (256px) |
-| Background | `bg-sidebar` (NO hardcoded slate, blanco en light / `#0d1c2d` en dark) |
+| Width (expandido) | `w-64` (256px) |
+| Width (admin colapsado) | `lg:w-16` (64px) |
+| Background | `bg-sidebar` — token propio, NO hardcoded slate/white |
 | Border | `border-r border-sidebar-border` |
-| Icon size (nav) | `h-5 w-5` (20px) |
-| Layout item | `flex items-center gap-3 px-3 py-2 rounded text-sm transition-colors` |
-| Mobile | `fixed`, overlay con `bg-black/50` |
-| Hover bg (todos los elementos) | `hover:bg-muted` (gray neutral, NO tinte teal) |
+| Logo div | `h-16 flex items-center px-6 border-b border-border` |
+| Nav item | `flex items-center gap-3 px-3 py-2 rounded text-sm transition-colors` |
+| Hover bg | `hover:bg-muted` (gris neutral, **no tinte teal**) |
+| Icon size | `h-5 w-5` (20px) para nav; `h-4 w-4` (16px) para iconos auxiliares |
 
-**Sin shadows**. Si se necesita jerarquía activa: background tint + font weight.
+Active state del owner sidebar: `bg-primary/10 text-primary font-medium` (teal al 10% con texto teal). El admin usa `bg-sidebar-accent text-sidebar-accent-foreground font-medium` (pale mint con texto oscuro). Son dos patrones intencionales, no drift — el owner prioriza el canal de marca, el admin prioriza neutralidad.
 
-#### Owner sidebar (`dashboard-sidebar.tsx`)
-
-| Estado | Tipografía | Background | Font weight |
-|--------|------------|------------|-------------|
-| Inactivo | `text-muted-foreground` (#64748B slate-500, matchea code.html) | transparent | default |
-| Inactivo hover | (heredada) | `bg-muted` (pale gray neutral) | default |
-| **Activo** | `text-primary` (#2DBE85 teal) | `bg-primary/10` (teal al 10%) | `font-medium` |
-
-#### Admin sidebar (`dashboard-sidebar-admin.tsx`)
-
-| Estado | Tipografía | Background | Font weight |
-|--------|------------|------------|-------------|
-| Inactivo | `text-muted-foreground` | transparent | default |
-| Inactivo hover | (heredada) | `bg-muted` | default |
-| **Activo** | `text-sidebar-accent-foreground` (#131f1a) | `bg-sidebar-accent` (pale mint) | `font-medium` |
-
-**Diferencia entre sidebars**: el owner usa teal accent (`bg-primary/10`) para el active state porque matchea `code.html` (Stitch reference). El admin usa el token `bg-sidebar-accent` directamente (pale mint bg + dark text). Son dos patrones intencionales, NO son drift.
-
-#### Reglas de uso de tokens de sidebar
-
-| Token | Cuándo usar | Cuándo NO usar |
-|-------|-------------|----------------|
-| `bg-sidebar` | Background del container del sidebar | Para hover ni para active |
-| `bg-sidebar-accent` | Active state del admin sidebar | Para hover (drift corregido — usar `bg-muted`) |
-| `text-sidebar-foreground` | Color base del container (texto e iconos inactivos del shell) | Para nav links (usar `text-muted-foreground`) |
-| `text-muted-foreground` | Tipografía de nav links inactivos (slate-500) | Para active state (usar `text-primary` o `text-sidebar-accent-foreground`) |
-| `bg-muted` | Hover bg de todos los elementos del sidebar | Para active state |
-| `bg-primary/10` + `text-primary` | Active state del owner sidebar | En admin sidebar (usa `bg-sidebar-accent`) |
-
-**Iconografía**: `h-5 w-5` (20px) para nav. `h-4 w-4` (16px) para iconos auxiliares (theme toggle, logout, dropdown trigger). `h-5 w-5` para mobile close button.
-
-### Page Layout
-
-| Property | Value |
-|----------|-------|
-| Page Padding (mobile) | `p-4` |
-| Page Padding (desktop) | `p-6` |
-| Content Max Width | Sin límite (full width) |
-| Card Grid Gap | `gap-4 lg:gap-6` |
-| Card Grid | `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3` |
+User footer del sidebar (avatar + nombre + rol/plan + trigger ⋮ → dropdown): avatar `h-8 w-8 rounded-full bg-muted border border-border`, contenido interior `bg-primary text-primary-foreground` (owner) o `bg-sidebar-accent text-sidebar-accent-foreground` (admin). Trigger `p-1 text-muted-foreground/60 hover:text-foreground`. El theme picker (Claro / Oscuro / Sistema) vive exclusivamente aquí — NO en navbar.
 
 ### Navbar
 
 | Property | Value |
 |----------|-------|
 | Height | `h-16` (64px) |
-| Border | `border-b` |
-| Background | `bg-navbar` (token propio, distinto del fondo) |
+| Border | `border-b border-border` (sin shadow) |
+| Background | `bg-navbar` — token propio, distinto del fondo de página |
 | Sticky | `sticky top-0 z-30` |
+| Padding | `px-6` |
+| Eyebrow text | `text-xs text-muted-foreground font-medium uppercase tracking-wider` |
+| Search | `bg-background border-none rounded py-1.5 pl-9 pr-4 text-xs w-64` |
 
-**Sin shadows**. `border-b` provee la separación.
+### Responsive Breakpoints
 
-### User Footer (sidebar)
-
-Patrón compartido por owner y admin sidebars: avatar + nombre + rol/plan + trigger sutil → dropdown con [Tema] + [Cerrar sesión].
-
-| Slot | Owner | Admin |
-|------|-------|-------|
-| Avatar bg | `bg-primary text-primary-foreground` | `bg-sidebar-accent text-sidebar-accent-foreground` (matchea active state del admin) |
-| Nombre | `text-xs font-bold text-foreground` | mismo |
-| Rol/Plan label | `text-[10px] text-muted-foreground truncate` (slate-500) | mismo |
-| Trigger | `p-1 text-muted-foreground/60 hover:text-foreground transition-colors` (icono ⋮ `h-4 w-4`) | mismo |
-| Dropdown trigger(s) | ⋮ (avatar decorativo) | avatar + ⋮ (avatar es trigger cuando colapsado) |
-| Dropdown items | Tema (Claro / Oscuro / Sistema) + Cerrar sesión | mismo |
-
-**Importante — Colapsado (solo admin)**: cuando el admin colapsa el sidebar (`lg:w-16`), el trigger ⋮ se oculta. El avatar pasa a ser trigger del dropdown con `side="right"` para abrir hacia afuera del sidebar. Esto preserva accesibilidad al logout sin importar el estado.
-
-**Importante — `text-muted-foreground` para texto apagado**: usar `text-muted`/`bg-muted` solo para superficies. Para texto secundario (rol, plan, labels), siempre `text-muted-foreground`. Mezclarlos hace el texto invisible (mismo color que el fondo).
-
-**Theme picker centralizado**: el theme picker (3 opciones: Claro / Oscuro / Sistema) vive exclusivamente en el footer del sidebar. NO en el navbar — esto evita duplicación y mantiene la opción "Sistema" accesible (que un toggle binario no ofrece).
+| Breakpoint | Value | Uso |
+|------------|-------|-----|
+| `sm` | 640px | Sidebar fixed→relative, tablas 2 columnas |
+| `md` | 768px | Forms 2 columnas |
+| `lg` | 1024px | Sidebar siempre visible, layouts de 3 columnas, KPI grids 4-up |
+| `xl` | 1280px | Disponible, sin uso específico |
+| `2xl` | 1536px | Disponible, sin uso específico |
 
 ---
 
-## Iconography
+## Elevation & Depth
 
-### Lucide React Icons
+El producto es **plano por defecto**. La jerarquía se construye con bordes (`border`, `border-b`, `ring-1 ring-foreground/10`), con `bg-muted` para superficies secundarias, y con el `border-t-2 border-t-primary` que sirve de acento de marca en cada tabla. Las sombras (`shadow-*`) son **prerrogativa exclusiva de superficies flotantes** — el resto usa el lenguaje plano.
 
-| Context | Size |
-|---------|------|
-| Sidebar nav | `h-5 w-5` |
-| Buttons (default) | `size-4` (16px) |
-| Buttons (sm) | `size-3.5` (14px) |
-| Buttons (xs) | `size-3` (12px) |
-| Form icons | `h-4 w-4` (16px) |
-| Card actions | `h-4 w-4` (16px) |
-| Navbar icons | `h-5 w-5` (20px) |
+### Shadow Vocabulary (producto)
 
-### Reglas
+Las sombras permitidas en producto son solo estas, en estos contextos:
 
-- Siempre `shrink-0` para evitar distorsión.
-- `pointer-events-none` cuando el icono no es clickeable.
-- En buttons: `[*_svg:not([class*='size-'])]:size-4` aplica tamaño por defecto.
+- **Floating dialog** (`shadow-lg`): `DialogContent` — único shadow autorizado para modales.
+- **Dropdown/Popover** (`shadow-md`): `DropdownMenuContent`, `PopoverContent` — feedback de "emergió del fondo".
+- **Tooltip** (shadow sutil propio del primitive): `TooltipContent`.
+- **Sheet** (`shadow-lg`): `SheetContent` (primitive no creado aún; reservado para futura implementación).
+- **Property card hover** (`hover:shadow-lg`): Excepción consciente en `property-card.tsx` cuando hay imagen. **Solo con imagen** — sin imagen, `hover:ring-primary/50` mantiene el lenguaje plano.
 
----
+### Marketing Surfaces (excepción consciente)
 
-## Form Elements
+Las páginas de marketing (`landing-page.tsx`, `pricing-page.tsx`) usan `shadow-lg`, `shadow-2xl`, y `shadow-primary/20` como estética deliberada. **Estas son superficies de persuasión**, no de operación, y tienen permiso de elevación completa. No generalizar al producto.
 
-### Label
+### Named Rules
 
-| Property | Value |
-|----------|-------|
-| Font Size | `text-sm` |
-| Font Weight | `font-medium` |
-| Gap | `gap-2` |
-| Line Height | `leading-none` |
+**The Calm Water Rule.** Las superficies en reposo son planas — sin shadow, sin glow, sin gradient. La jerarquía se gana con `border` (1px, color `Sea Mist`), `bg-muted` (superficies secundarias), `ring-1 ring-foreground/10` (sobre card), o el `border-t-2 border-t-primary` que es la firma. Un shadow aparece solo cuando una superficie emerge (Dialog, Dropdown, Tooltip, Sheet) o cuando el usuario interactúa (`hover:shadow-lg` en property card con imagen). **No se introduce shadow decorativo en producto nuevo.**
 
-### Textarea
-
-- Min Height: `min-h-16`
-- Padding: `px-2.5 py-2`
-- Border Radius: `rounded-lg`
-
-### Focus States (siempre)
-
-```
-focus-visible:border-ring
-focus-visible:ring-3
-focus-visible:ring-ring/50
-```
-
-### Error States (siempre)
-
-```
-aria-invalid:border-destructive
-aria-invalid:ring-3
-aria-invalid:ring-destructive/20
-```
+**The Marketing/Product Split.** Las superficies de marketing (landing, pricing) y las de producto (dashboard, listas, formularios, settings) tienen reglas distintas. Marketing puede usar sombras libremente como vehículo persuasivo. Producto debe permanecer plano salvo en componentes flotantes. Esta es la única excepción consciente al `The Calm Water Rule` y aplica solo a las páginas públicas de captación.
 
 ---
 
-## Animations
+## Shapes
 
-### Transitions
+El lenguaje de formas es **radios suaves y bordes finos**. No hay bordes gruesos, no hay esquinas vivas, no hay formas con filo. Las únicas formas "completas" son pills (filter pills, badges con `rounded-full`) y avatares circulares.
 
-- **Default duration**: `duration-100` (100ms)
-- **Sidebar slide**: `duration-300`
-- **Hover transitions**: `transition-colors`
+### Radius Scale
 
-### Variants (Dialogs)
+| Token | Value | Uso |
+|-------|-------|-----|
+| `--radius-sm` | 4px | Badges con `rounded-md` (per primitive), reservation pills |
+| `--radius-md` | 6px | Buttons size `sm`, inputs |
+| `--radius-lg` | 8px (default) | Buttons default, `<KpiCard>`, settings cards |
+| `--radius-xl` | 12px | `<Card>` primitive default, modales, dialog content |
+| `--radius-full` | 9999px | Filter pills activos/inactivos, avatares, badges pill (`rounded-4xl`) |
 
-```css
-data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95
-data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95
-data-[side=bottom]:slide-in-from-top-2
-```
+### Border & Stroke
 
-(Ver `globals.css:220-275` para keyframes `rentalpro-dialog-*`.)
+- **Border width canónico:** 1px (`border`). No usar `border-2` excepto en el accent de tablas (`border-t-2 border-t-primary`).
+- **Border color canónico:** `Sea Mist` (`border-border`). Para emphasis, `border-foreground/10` vía ring es preferible sobre borde más grueso.
+- **Dividers:** `border-y` en filas de tabla (per `<DataTable>` convention). `border-b` en navbar y sections.
+- **No dashed borders** excepto en dropzones (e.g., `ReceiptUpload`) donde `border-2 border-dashed` es semántico, no decorativo.
 
----
+### Recurring Silhouettes
 
-## Responsive Breakpoints
+- **Tables:** `rounded-md border border-t-2 border-t-primary border-border bg-card` — el accent strip de 2px en teal es la firma.
+- **Cards:** `rounded-xl bg-card ring-1 ring-foreground/10` (default) o `rounded-lg` (settings, donde la jerarquía quiere ser más íntima).
+- **Pills:** `rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider` — fondo `bg-muted` para container, `bg-primary text-primary-foreground` para activo.
+- **Avatares:** `rounded-full` con `border border-border`. Contenido interior circular sin borde.
+- **Status indicators (dots):** `size-2 rounded-full` con `bg-{tone}` semántico.
 
-| Breakpoint | Value | Usage |
-|------------|-------|-------|
-| `sm` | 640px | Tables, cards |
-| `lg` | 1024px | Sidebar, layout |
-| `xl` | 1280px | (available) |
-| `2xl` | 1536px | (available) |
+### Named Rules
 
----
+**The Two-Pixel Accent Rule.** Toda tabla del producto (vía `<DataTable>` o `<table>` raw en pricing) lleva un accent strip superior de 2 píxeles en `Verdigris`: `border-t-2 border-t-primary`. Es el único lugar del producto donde se permite un borde más grueso, y su función es señalizar "esto es una tabla de datos del sistema, no decoración". **No se aplica el accent en tablas dentro de cards** — el card ya jerarquiza, sumar el accent satura. Solo en tablas top-level de página.
 
-## Dark Mode Implementation
-
-Toggle con clase `.dark` en `<html>`. Implementación: `@/components/providers/theme-provider` con `useTheme()`. Anti-flash script inline en `layout.tsx` head. Ver `docs/adr/0014-theme-architecture.md` para detalles completos.
-
----
-
-## Checklist de Migración Ocean Breeze
-
-### Fase 1 (cerrada en `f19d424` — issue #173)
-
-- [x] Tokens `globals.css` migrados a oklch Ocean Breeze
-- [x] Tipografía: `--font-sans: DM Sans` cargada
-- [x] Tokens semánticos (`success`/`warning`/`info`/`destructive`) calibrados
-- [x] `<Badge>` con variantes semánticas
-- [x] `<MetricCard>` con `tone` variants
-- [x] Refactor dashboard, reservations, forms (5 files), settings, reservation detail dialog
-- [x] `f19d424` — cleanup residual hex
-
-### Fase 2 (cerrada el 2026-07-06 — issues #174, #175, #176)
-
-- [x] **#174** — Calendar tokenizado (timeline + view) + layout cleanup + fonts cargadas
-  - `5bc608e` — drop CalendarGrid view, remove property.color from calendar
-  - `ced81d5` — Stitch replication: page header + KPIs + 2-card layout
-  - `748ec55`, `815dac4`, `eb5f2aa`, `1abbf6f` — dashboard calendar + dark mode
-  - `62085c2` — load DM Sans italic axis
-  - `5fcc8f7` — sidebar structure, `52dde38`, `1fbcdd3`, `7c8b2d2` — text/shell color alignment
-  - `7e76886`, `5a47634` — sidebar/navbar text contrast
-  - `ad1bf2e`, `bad99c2`, `83c89d8`, `c3fcb91` — dark mode palette + button contrast
-  - `6661bb5`, `adf63c2` — sidebar/header link colors
-  - `1d20d73`, `3893afe`, `57d2020`, `b0d7a59`, `a2b1bcf`, `dd0f6fe`, `5f8363a`, `065ba1f`, `f324cff` — Reservas Stitch replication
-  - `4bf5cd5`, `6c595e6`, `fa1dc93`, `1b9d02c` — modal/dashboard cleanups
-- [x] **#175** — Admin refactor (status badges, plan badges, health badges, KPIs)
-  - `2694d9f` — migrate admin support list to DataTable
-  - Badges semánticos y hex removidos en admin
-- [x] **#176** — `<DataTable>` primitive + 6 tablas migradas + 4 modales con `w-[95vw]` + hex fallback + nueva ruta `/payments`
-  - `7fb0892` — DataTable primitive + test
-  - `a4bd6c5` — migrate clients + reservations tables
-  - `da9ad0a` — `w-[95vw]` en 4 modales
-  - `54bbe28` — hex fallback property.color → `var(--primary)`
-  - `b260fcf` — nueva ruta `/payments` (page + filters + table + extended server action)
-  - `177`, `178`, `179`, `180`, `181` — payments work derivado (issues posteriores a #176)
-  - `9d17ca8` — remove old `payments-table.tsx` duplicado
-
-### Inconsistencias resueltas (audit 2026-07-09)
-
-- ✅ `dashboard-sidebar.tsx` — `shadow-xl backdrop-blur-xl` eliminados
-- ✅ `dashboard-navbar.tsx` — `shadow-sm`/`shadow-xs` eliminados (usa `border-b`)
-- ✅ `layout.tsx` — Lora + IBM Plex Mono cargadas vía `next/font/google`
-- ✅ `admin/*` — hex en badges migrados a tokens semánticos
-- ✅ `calendar-timeline.tsx` + `calendar-view.tsx` — `bg-zinc-*` y `#6366F1` eliminados
-- ✅ `clients-table.tsx` + `reservation-table.tsx` — usan `<DataTable>` + `<Card>` wrapper
-- ✅ Los 4 `DialogContent` problemáticos ahora usan `w-[95vw]`
-- ✅ Hex fallback `var(--primary)` propagado
-- ✅ `/payments` route existe con rediseño completo (KPIs + filtros + tabla reusable)
-
-### Drift menor conocido (no es bug — es decisión)
-
-- `src/lib/validations/property.ts` y `src/lib/actions/properties.ts` — `#3B82F6` es el **default de la paleta del color picker**, no un fallback de render. Permanece.
-- `src/components/properties/property-form.tsx:33,73` — paleta del color picker (input de usuario).
-- Tests con `color: "#3B82F6"` en mocks — sin acción.
+**The Soft Edge Rule.** Ningún borde mide más de 2 píxeles. Ninguna esquina es completamente viva (`rounded-none` está prohibido). Los únicos lugares donde se usa `rounded-none` son casos extremos (e.g., inputs de búsqueda dentro de navbar que se "funden" con el fondo). Por defecto, todo borde es 1px y todo radio es ≥4px.
 
 ---
 
-## Patrones establecidos (post Fase 2)
+## Components
 
-Primitivas y patrones creados durante la Fase 2 que **deben usarse** en futuras pantallas.
+Catálogo de los componentes centrales del sistema. Los signatures (DataTable, KpiCard, ReservationPill, FilterPill) son los que definen la identidad visual de RentalPro.
 
-### Primitivas UI (`src/components/ui/`)
+### Buttons
 
-| Primitive | Ubicación | Propósito |
-|-----------|-----------|-----------|
-| `<DataTable>` | `data-table.tsx` | Toda tabla del producto (ver sección 1) |
-| `<KpiCard>` | `kpi-card.tsx` | Primitive único de KPI del producto (ver sección 7). Usado en `/dashboard`, `/reports`, `/payments`, `/calendar`, `/admin`, `/admin/users`, `/admin/users/[id]`, `/support`, `/clients` |
-| `<CurrencyInput>` | `currency-input.tsx` | Input numérico formateado CLP con `Intl.NumberFormat`. Usado en property-form |
-| `<ReceiptUpload>` | `receipt-upload.tsx` | Upload de comprobantes de pago (Cloudinary) |
+Variantes: `default` (primary), `outline`, `secondary`, `ghost`, `destructive`, `link`. Tamaños: `default` (h-8 px-2.5), `sm` (h-7), `xs` (h-6), `lg` (h-10), `icon` variants.
 
-### Patrones de página
+- **Shape:** `rounded-lg` (8px) en todos los tamaños; `icon` variants también.
+- **Primary:** Fondo `bg-primary` (Verdigris), texto `text-primary-foreground`, `text-sm font-medium`. En dark mode, fondo `#2DBE85`.
+- **Hover/Focus:** `transition-colors` (default), `focus-visible:ring-3 focus-visible:ring-ring/50`. Sin translate, sin scale — la jerarquía de hover es por color, no por movimiento.
+- **Outline:** Fondo `transparent`, `border border-input`, hover `bg-accent`.
+- **Destructive:** Fondo `bg-destructive` (Coral Warning), texto `text-destructive-foreground`. Solo para acciones destructivas (Cancelar reserva, Eliminar propiedad). Confirmaciones destructivas siempre van en `ConfirmDialog`.
 
-#### `/payments` (referencia de rediseño denso)
+### Cards
 
-Layout canónico establecido en `7618e78`:
+- **Default (`<Card>`):** `rounded-xl bg-card ring-1 ring-foreground/10 py-4 px-4`. Variante `sm`: `rounded-lg py-3 px-3`. Slots: `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`.
+- **Cuándo usar:** Settings (secciones de configuración), forms completos, secciones de detail sin tabla, integración MercadoPago.
+- **Cuándo NO usar:** Alrededor de `<DataTable>` (rompe el framing del primitive), como contenedor genérico de página, alrededor de `<KpiCard>` (el primitive ya provee su framing).
 
-```
-┌─────────────────────────────────────────────────┐
-│ PageHeader: título + acción principal           │
-├─────────────────────────────────────────────────┤
-│ <PaymentsKpis>  ← grid 4 KPIs ejecutivos       │
-├─────────────────────────────────────────────────┤
-│ <Card>                                           │
-│   <CardHeader> filtros chip + count             │
-│   <CardContent>                                  │
-│     <PaymentsTable> ← primitive reusable       │
-│   </CardContent>                                 │
-│ </Card>                                          │
-└─────────────────────────────────────────────────┘
-```
+### Badges
 
-#### `/reports` (referencia de sección con chart)
+Variantes semánticas: `default`, `secondary`, `destructive`, `success`, `warning`, `info`, `outline`, `ghost`, `link`. Para badges de estado, **siempre** una de las 4 semánticas (`success`/`warning`/`info`/`destructive`) o `secondary` para "inactivo".
 
-Layout canónico establecido en `8fcb505..c7268f3`:
+- **Shape:** `h-5 w-fit rounded-md px-2 py-0.5 text-xs font-medium`.
+- **Status variants:** Fondo del token semántico (`bg-success`, `bg-warning`, etc.) + texto `text-{tone}-foreground`. En estilos inline: `bg-success/10 text-success-foreground border-success/20`.
+- **Regla:** Todo badge que indique estado del dominio usa token semántico. Excepción: `outline` y `ghost` para badges no-estado (tags de plan, categorías).
 
-```
-┌─────────────────────────────────────────────────┐
-│ Header: "Resumen Ejecutivo"                      │
-├─────────────────────────────────────────────────┤
-│ [4 KPIs ejecutivos]                              │
-├─────────────────────────────────────────────────┤
-│ Distribución por Modelo (SVG rings)              │
-├─────────────────────────────────────────────────┤
-│ Resumen Operativo por Propiedad (progress bars) │
-├─────────────────────────────────────────────────┤
-│ Histórico de Ingresos (vertical bar chart)      │
-├─────────────────────────────────────────────────┤
-│ Cobranza (tabla con badges semánticos)          │
-└─────────────────────────────────────────────────┘
-```
+### Inputs
 
-#### `ReservationPill` (estado temporal inline)
+- **Shape:** `h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base`.
+- **Focus:** `focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50`. El ring es 3px al 50% de opacidad, no sólido.
+- **Error:** `aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20`.
+- **Disabled:** `disabled:opacity-50 disabled:cursor-not-allowed`.
 
-Para celdas de tabla donde se muestra el estado temporal de una reserva (Próxima/Activa/Finalizada/Cancelada), se usa un pill **inline** (no `<Badge>`) con clases semánticas. Definido en `src/components/reservations/reservation-table.tsx:18-45`:
+### DataTable (signature)
 
-```tsx
-type PillTone = "success" | "info" | "info-strong" | "warning" | "destructive" | "neutral";
+Primitive único para tablas de datos del producto. API: `headers[]` (string u objeto con `{label, align?}`), `children` (filas `<tr>`), `emptyState?`, `caption?`, `className?`, `minWidth?` (default "640px").
 
-const toneClassNames: Record<PillTone, string> = {
-  success: "border-success/20 bg-success/10 text-success",
-  info: "border-info/20 bg-info/10 text-info",
-  "info-strong": "border-info/30 bg-info/25 text-info",
-  warning: "border-warning/25 bg-warning/10 text-warning",
-  destructive: "border-destructive/25 bg-destructive/10 text-destructive",
-  neutral: "border-muted bg-muted text-muted-foreground",
-};
-```
+- **Wrapper:** `overflow-hidden rounded-md border border-t-2 border-t-primary border-border bg-card`.
+- **`<thead>`:** `border-b bg-muted/50`.
+- **`<th>`:** `px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-muted-foreground` (The 10px Whisper en acción).
+- **`<tbody>`:** `text-xs` — **no** especificar `text-xs` en celdas individuales; el primitive lo provee.
+- **Empty state:** `px-6 py-10 text-center text-sm text-muted-foreground`.
+- **Filas:** `<tr>` sin `onClick` (The Row Isolation Rule). Hover `hover:bg-muted/30 transition-colors`.
+- **Alineación:** Headers y celdas de la misma columna deben coincidir en `align`. Para números/montos: `align: "right"`. Para badges cortos: `align: "center"`.
 
-**Regla**: usar `ReservationPill` solo dentro de la tabla de reservas. Para otros estados puntuales (pagos, propiedades, etc.) usar `<Badge variant>`. La razón de ser un primitive distinto: el pill admite un `sublabel` (ej. "En 5 días", "3 noches") debajo del label principal, lo que `<Badge>` no soporta nativamente.
+### KpiCard (signature)
 
-#### `/support` (referencia de KPIs + filter pills + row click isolation)
+Primitive único para KPIs del producto. API: `label`, `value`, `unit?`, `icon?`, `tone?` (`default`/`success`/`info`/`warning`/`destructive`), `indicator?` (`{text, variant}`), `progressBar?` (`{value}`), `sublabel?`.
 
-Layout canónico establecido en la sesión `/support` (commit post-Fase 2):
+- **Container:** `rounded-lg border border-border bg-card p-4`. Sin shadow.
+- **Label:** `text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1`.
+- **Value:** `text-xl font-bold tabular-nums`. Color: `text-foreground` por defecto; cambia a `text-{tone}` solo si `tone` es `warning` o `destructive` (señalización de atención).
+- **Icon container (opcional):** `size-9 rounded-xl bg-{tone}/10 text-{tone}` en esquina superior derecha. Sin container si no se pasa icon.
+- **Indicator (opcional):** `text-[10px] font-medium mt-1` con TrendingUp (positive) o AlertTriangle (warning/neutral).
+- **ProgressBar (opcional):** `h-1 rounded-full bg-muted` con fill `bg-primary`.
+- **Regla:** No shadow, no status dot (eliminado en ADR-0024). Una sola variante en producto — no coexisten con otros KPI primitives.
 
-```
-┌─────────────────────────────────────────────────┐
-│ PageHeader: "Ayuda y Soporte" + subtítulo        │
-├─────────────────────────────────────────────────┤
-│ [3 KpiCard vertical] ← KpiCard (sección 7)      │
-├─────────────────────────────────────────────────┤
-│ [título]      [filter pills]      [acción]       │
-│ ← flex justify-between → (sección 8)            │
-├─────────────────────────────────────────────────┤
-│ <DataTable /> ← directo, sin Card                │
-│   filas sin onClick (sección 9)                │
-└─────────────────────────────────────────────────┘
-```
+### ReservationPill (signature)
 
-#### `/admin` (Consola Super Admin — dashboard global)
+Pill inline para estado temporal de reservas en la tabla de reservas. **Solo se usa dentro de `reservation-table.tsx`** — para pagos, propiedades y otros contextos, usar `<Badge variant>`.
 
-Layout canónico replicando el mockup Stitch `code.html` (Consola de Super Administrador):
+- **Tones:** `success` (Activa, Finalizada), `info` (Próxima ≤7 días), `info-strong` (Hoy/Mañana), `warning` (Vence hoy), `destructive` (Cancelada, Vencida), `neutral` (Inactiva).
+- **Shape:** `inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[9px] font-bold uppercase tracking-tight`.
+- **Dot:** `h-1.5 w-1.5 rounded-full` con clase `bg-{tone}`.
+- **Por qué existe:** `<Badge>` no soporta `sublabel` (e.g., "Activa · 3 noches" debajo del label principal). El pill sí.
 
-```
-┌─────────────────────────────────────────────────┐
-│ [título "Panel de Control Global"] [Ver usuarios]│
-│ ← flex justify-between + subtítulo             │
-├─────────────────────────────────────────────────┤
-│ [4 KpiCard] ← grid-cols-1 sm:2 lg:4 (sección 7) │
-│   Propiedades · Propietarios · Ingresos · Tickets│
-├─────────────────────────────────────────────────┤
-│ grid lg:grid-cols-3 gap-6                        │
-│ ┌──────────────────────────┐ ┌────────────────┐ │
-│ │ col-span-2               │ │ col-span-1     │ │
-│ │ [título + "Ver todas"]   │ │ <Card>         │ │
-│ │ <DataTable /> directo    │ │ Actividad      │ │
-│ │ (Últimos Propietarios)   │ │ Reciente       │ │
-│ │                          │ │ (timeline)     │ │
-│ └──────────────────────────┘ └────────────────┘ │
-└─────────────────────────────────────────────────┘
-```
+### FilterPill (signature)
 
-**Reglas específicas de `/admin`**:
+Segmented control compacto para filtros de estado inline en headers de sección (3-7 opciones).
 
-- **KPIs con `<KpiCard>`** (sección 7): "Tickets de Soporte" usa `tone="destructive"` solo cuando hay pendientes (`pendingSupportTickets > 0`), si no `tone="default"`. Ingresos con formato CLP compacto (`$1.5M` / `$800K`).
-- **Tabla izquierda**: `<DataTable>` directo (sin `<Card>`) con header standalone (`[título] [Ver todas]`) encima. Columnas con `align` explícito (`Propiedades`/`Reservas` centrados, `Fecha Registro` a la derecha). Plan badges con `<Badge className="rounded-md">` (ADR-0016). Filas sin `onClick` (sección 9).
-- **Panel de actividad (derecha)**: `<Card>` con timeline. Cada item tiene conector vertical (`absolute left-4 top-8 bottom-[-24px] w-px bg-border`, omitido en el último) + icono circular `size-8 rounded-full` con tono semántico por tipo:
-  - `OWNER_REGISTERED` → `bg-primary/10 text-primary`
-  - `SUPPORT_TICKET` → `bg-warning/10 text-warning` (o `bg-destructive/10 text-destructive` si prioridad `HIGH`)
-  - `PAYMENT_COMPLETED` → `bg-info/10 text-info`
-- **Fuente de datos**: `getSystemActivity()` (super-admin.ts) hace merge de registros de propietarios + tickets + pagos completados, ordenado desc. NO usa hex; siempre tokens semánticos.
+- **Container:** `flex items-center gap-1 rounded-full border border-border bg-muted p-1`.
+- **Pill activo:** `rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground`. **Sin shadow** — el `bg-primary` teal provee contraste suficiente.
+- **Pill inactivo:** `rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground` (fondo transparente).
+- **Layout del row:** 3 children directos en `flex justify-between gap-3` — `[título] [filtros] [acción]`.
 
-Establece los patrones descritos en las secciones 7, 8 y 9 de este documento. Aplicable a futuras páginas owner-facing con KPIs + filter pills + action list.
+### Dialog (floating)
 
-### Reglas para futuros rediseños
+Primitive para modales. **Único lugar del producto donde se permite shadow.**
 
-1. **Las tablas NO se envuelven en `<Card>`**. El `<DataTable>` primitive ya provee su propio framing con `rounded-md border border-border bg-card` (ver `data-table.tsx:14`). Patrón canónico: `PageHeader` + barra de filtros + `<DataTable>` directo. Para tablas dentro de secciones (ej: tabs en `/admin/users/[id]`, secciones en `/dashboard`, secciones en `/reports`): título/descripción como bloque standalone encima + `<DataTable>` directo. Ver CONTEXT.md sección "Card wrapping en páginas de tabla".
-2. **Toda página de filtros** debe tener filtros colapsables con `Ocultar`/`Mostrar` (ver CONTEXT.md:296-297) cuando hay más de 3 controles. Para filtros inline de estado (3–7 opciones) en headers de sección, usar el patrón segmented control de la sección 8.
-3. **Toda KPI** debe usar el primitive único `<KpiCard>` (sección 7). NO otros KPI variants.
-4. **Todo estado** debe usar `<Badge variant>` o `ReservationPill` (solo en tabla de reservas). No reinventar pills inline.
-5. **Todo color hex** debe pasar por tokens semánticos. Excepciones documentadas arriba.
-6. **Filas de tabla NO navegan**: el `<tr>` no debe tener `onClick`. Solo el botón/link de la columna de acciones navega. Ver sección 9.
-7. **Filtros pills activos NO usan `shadow-sm`**: el `bg-primary` teal provee contraste suficiente. Ver sección 8.
+- **Overlay:** `bg-black/10 backdrop-blur-xs`.
+- **DialogContent:** `rounded-xl bg-popover p-4 text-sm ring-1 ring-foreground/10 shadow-lg w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto`.
+- **`w-[95vw]` + `max-w-{size}`** es la convención canónica. Tamaños usados: `max-w-sm`, `max-w-md`, `max-w-lg`, `max-w-xl`, `max-w-2xl`.
+- **Excepción:** `<ConfirmDialog>` usa `w-[92vw] max-w-md` — la jerarquía visual de confirmación destructiva exige menos espacio. No migrar.
 
-### Cuándo SÍ usar `<Card>`
+### DropdownMenu & Popover (floating)
 
-- KPIs — `<KpiCard>` tiene su propio framing (`rounded-lg border border-border bg-card p-4`). NO envolver en `<Card>`.
-- Settings (secciones de `/settings`)
-- Forms completos (crear propiedad, editar reserva, etc.)
-- Secciones de detalle sin tabla (ej: `Marketplace`, `Propiedades` tab en `/admin/users/[id]` cuando solo es metadata)
-- Integración de Mercado Pago (`MercadoPagoSettings`)
+- **DropdownMenuContent:** `rounded-lg bg-popover shadow-md ring-1 ring-foreground/10`.
+- **PopoverContent:** `rounded-lg bg-popover shadow-md ring-1 ring-foreground/10 w-72 p-2.5`.
+- **Regla:** Ambos emergen con `shadow-md` — feedback de "salió del fondo".
 
-### Cuándo NO usar `<Card>`
+### Tooltip (floating)
 
-- Alrededor de `<DataTable>` o `<table>` raw (rompe el framing del primitive)
-- Como contenedor genérico de página (el `bg-background` ya provee el canvas)
+- **TooltipContent:** `rounded-md bg-foreground px-3 py-1.5 text-xs text-background` con arrow `size-2.5`.
+- **Cuándo usar:** Para icon-buttons que requieren label accesible (sidebar toggle, copy button). NO para botones que ya tienen texto visible.
+
+### Sidebar Nav (signature)
+
+Dos variantes intencionales (owner vs admin) — ver sección Layout.
+
+- **Owner active state:** `bg-primary/10 text-primary font-medium`. El teal al 10% preserva el lenguaje plano (sin shadow) y permite que el teal del texto sea el verdadero indicador.
+- **Admin active state:** `bg-sidebar-accent text-sidebar-accent-foreground font-medium`. Pale mint con texto oscuro — más neutro, prioriza lectura sobre marca.
+- **User footer:** Avatar + nombre + rol/plan + trigger ⋮ → dropdown con [Tema] + [Cerrar sesión]. El theme picker vive solo aquí, no en navbar.
 
 ---
 
-#### `/settings` (referencia de página de configuración)
+## Do's and Don'ts
 
-Layout canónico establecido en `8b77651` (commit del rediseño de `/settings`):
+Guardrails consolidados. Las reglas validadas por el audit de uso real viven aquí; las reglas contextuales (por página, por flujo) viven en surface briefs, no en el sistema global.
 
-```
-┌─────────────────────────────────────────────────────────┐
-│ PageHeader: título + descripción                       │
-├─────────────────────────────────────────────────────────┤
-│ <div max-w-6xl>                                         │
-│   <grid grid-cols-1 md:grid-cols-2 gap-6 items-start>   │
-│     Columna 1: <ProfileForm />                          │
-│       ├─ Card Perfil (avatar + nombre + email + tel)    │
-│       ├─ Card Empresa                                   │
-│       ├─ Card Preferencias                              │
-│       └─ Botón Guardar Cambios (footer derecha)         │
-│     Columna 2:                                          │
-│       ├─ <NotificationSettings /> (Card 2 toggles)      │
-│       └─ <MercadoPagoSettings /> (Card OAuth)           │
-└─────────────────────────────────────────────────────────┘
-```
+### Do
 
-**Reglas específicas de `/settings`** (cierre `8b77651`):
+- **Do** usar `<DataTable>` para toda tabla de datos del producto. El wrapper externo ya provee framing (`overflow-hidden rounded-md border border-t-2 border-t-primary border-border bg-card`) — no envolver de nuevo en `<Card>` ni en `<div className="overflow-x-auto">`.
+- **Do** usar `<KpiCard>` como primitive único para KPIs. Si necesitas algo "diferente", es una señal de que el KPI no calza — replantéalo, no inventes un primitive paralelo.
+- **Do** usar `<Badge variant="success|warning|info|destructive">` para todo estado del dominio. El mapeo es: CONFIRMED → success, VENCE HOY → warning, VENCIDO → destructive, próximos 7 días → info. No inventar tokens intermedios.
+- **Do** usar `<ReservationPill>` solo dentro de la tabla de reservas. Para badges de estado en otros contextos, usar `<Badge variant>`.
+- **Do** usar `text-[10px] font-bold uppercase tracking-wider` para labels de sección, headers de tabla, KPI labels, y filter pills. Es la firma — su repetición es lo que hace el sistema coherente.
+- **Do** usar `tabular-nums` en cualquier cifra (monto, contador, porcentaje, fecha corta). Las cifras sin esto "bailan" entre renders.
+- **Do** usar `border-border` o `ring-1 ring-foreground/10` para jerarquía en producto. Las sombras son prerrogativa de Dialog, Dropdown, Tooltip, Sheet, y `property-card` hover con imagen.
+- **Do** usar la utility `channelColors` de `@/lib/calendar/channel-colors` para marcadores de canal externo en el calendario. Los channels son semantic tokens, no colores hardcodeados.
+- **Do** usar `bg-primary/10` + `text-primary` para active state del sidebar owner; `bg-sidebar-accent` + `text-sidebar-accent-foreground` para el admin. Son dos patrones intencionales, no son drift.
+- **Do** usar `text-muted-foreground` para texto apagado (rol, plan, metadata) y `bg-muted` para superficies apagadas (filter pill container, table headers). Mezclarlos hace el texto invisible.
+- **Do** usar `w-[95vw]` + `max-w-{size}` en todo `DialogContent`. El único `w-[92vw]` legítimo es el de `<ConfirmDialog>` (excepción documentada).
+- **Do** usar `style={{ backgroundColor: property.color || "var(--primary)" }}` como fallback del color de propiedad. `property.color` es data del usuario; el fallback es identidad.
 
-- **Cards usan `rounded-lg`** (6px per ADR-0016) explícitamente vía `className="rounded-lg"`, no se confía en el default `rounded-xl` del primitive. Desviación local intencional para mantener consistencia con el resto de controles del primitive.
-- **Email es read-only** con texto helper "*Para cambiar tu email, contacta a soporte.*" — no editable desde UI porque requiere flujo de verificación externo.
-- **Idioma/moneda/timezone** se persisten en `UserProfile` pero **no** afectan formatters ni date-fns locales aún. Cuando se activen, revisar ADR-0020 (timezone de negocio en `America/Santiago`).
-- **Notificaciones con guardado instantáneo** (cada toggle es su propio server action). El botón "Guardar Cambios" del form solo persiste Perfil + Empresa + Preferencias.
-- **Avatar upload** vía Cloudinary (`uploadImage` con folder `rentalpro/avatars`, max 5MB, MIME `image/*`). Endpoint `/api/upload` ya existente.
+### Don't
 
----
-
-## Detalle de Reserva — patrón ruta dedicada + preview híbrido
-
-`/reservations/[id]` (Server Component, `force-dynamic`) es la **ruta dedicada** para el detail completo. El modal `ReservationPreviewDialog` (`w-[95vw] max-w-2xl`) provee un **preview compacto** + CTA "Ver reserva completa" hacia la ruta.
-
-**Patrón de uso**:
-- **Lista de reservas** (`/reservations`): click → `<Link href="/reservations/{id}">` directo. Sin preview modal (mantiene contexto de lista, sin doble paso).
-- **Calendario** (`/calendar`): click en barra del timeline → `ReservationPreviewDialog` con info esencial (avatar+cliente, propiedad, estancia, total+pendiente, billing type, source, notas) + CTA "Ver reserva completa → /reservations/{id}".
-- **Deep-link** `/reservations?reservationId=...`: redirige a `/reservations/{id}` (no abre preview).
-
-**Preview content** (lo que cabe sin scroll en `max-w-2xl`):
-- Header: avatar circular (`bg-primary/10`), nombre, email + teléfono (clickable), badge status (semántico), badge "Airbnb" si `bookingAirbnb`.
-- Grid 2-col: Propiedad (chip color `property.color || "var(--primary)"`) + Estancia (check-in/out + noches/meses).
-- Total en grande (`text-2xl font-bold tabular-nums`) + panel warning si `pendingAmount > 0`.
-- Chips: BillingType + Source + Units (si `> 1`).
-- Notas (si existen) en panel `bg-muted/50`.
-- **Footer CTA**: `<Link>` con `buttonVariants({ variant: "default", className: "w-full sm:w-auto" })` + `<ArrowRight className="ml-2 size-4" />`.
-
-**Ruta `/reservations/[id]`** — Page Tier 2 (`text-2xl sm:text-3xl font-bold tracking-tight`), 4 secciones en scroll vertical. Acciones del header: `[Editar]` (abre `Dialog` con `ReservationForm`) + `[Cancelar]` (abre `ConfirmDialog` destructivo). Ver CONTEXT.md "Detalle de Reserva" para layout canónico.
-
-**Reglas duras**:
-- **NO** incluir tabla de pagos, gestión de pagos, documentos ni historial en el preview — eso es el detail.
-- **NO** abrir el preview desde la lista (siempre Link directo). El preview es exclusivo del calendario.
-- El preview debe tener un solo CTA primario visible: "Ver reserva completa". No hay acciones destructivas en el preview.
-
----
-
-## References
-
-- **Stitch project**: `projects/1529269251022042678` ("RentalPro - Rediseño UI") — fuente visual
-- **PRD**: `docs/agents/prd-ocean-breeze-fase-2.md` — plan de Fase 2 (cerrado)
-- **ADR-0014**: `docs/adr/0014-theme-architecture.md` — arquitectura de theme
-- **ADR-0016**: `docs/adr/0016-radius-and-control-shape-system.md` — radio y shape system
-- **ADR-0022**: `docs/adr/0022-prisma-migrations-via-supabase-mcp.md` — workflow de migraciones Prisma en Supabase
-- **ADR-0024**: `docs/adr/0024-kpi-consolidation.md` — consolidación a `<KpiCard>` único (supersedes ADR-0023)
-- **Issues cerradas**: #173 (Fase 1), #174 / #175 / #176 (Fase 2, 2026-07-06), #183 (`/settings` rediseño)
-- **Issues derivadas abiertas**: #177, #178, #179, #180, #181 (pagos work post-rediseño), #182 (dashboard UrgentCollectionCard refactor)
+- **Don't** envolver `<DataTable>` en `<Card>`. El primitive ya tiene su framing con el accent strip superior. Doble framing satura visualmente y rompe el patrón.
+- **Don't** usar `shadow-*` en `<Card>`, tablas, filas, inputs, botones sobre superficie plana, avatares, header, navbar o sidebar. La regla "Calm Water" es estricta — cualquier shadow en estos lugares es drift.
+- **Don't** crear un nuevo primitive de KPI. Si `KpiCard` no cubre el caso, significa que el caso necesita replantearse, no que necesita una variante.
+- **Don't** usar hex hardcodeado (`bg-emerald-500`, `text-red-600`, `bg-amber-100`, `bg-blue-500`, `bg-green-50`, etc.) en ningún componente UI. **Excepciones documentadas y únicas:**
+  - `src/lib/validations/property.ts` y `src/lib/actions/properties.ts` — default de validación Zod del color picker (capa datos).
+  - `src/components/properties/property-form.tsx` — paleta de opciones del color picker (input de usuario).
+  - `src/lib/payments/receipt-pdf.tsx` — documento PDF renderizado con `@react-pdf/renderer`, no UI del navegador. Son colores internos del PDF, no del producto.
+  - Tests (`__tests__/*`) — mock data.
+- **Don't** usar `bg-amber-50 border-amber-200`, `bg-green-50 border-green-200` ni similares para alert-boxes informativas. Usar `bg-warning/10 border-warning/20 text-warning-foreground` (o el tone que corresponda). Hoy hay 3 instancias en `billing-client.tsx` y `cancel-subscription-dialog.tsx` que requieren migración — registradas como drift conocido.
+- **Don't** usar `shadow-sm` en filter pills activos. El `bg-primary` teal provee contraste suficiente; el shadow es decorativo y rompe la regla Calm Water.
+- **Don't** usar `onClick` que navegue en `<tr>` de tabla. Solo el botón/link de la columna de acciones navega. Esto previene selección accidental de texto, doble-trigger, y problemas de accesibilidad.
+- **Don't** duplicar token values entre el frontmatter YAML y la prosa. Si un color está en `colors.verdigris`, la prosa puede nombrarlo pero no redefinir el valor oklch. El frontmatter es normativo.
+- **Don't** usar `rounded-none` salvo en casos extremos justificados (e.g., inputs que se funden con el contenedor). Por defecto, todo radio es ≥4px.
+- **Don't** generalizar las reglas de marketing al producto. `shadow-lg`, `shadow-2xl`, `shadow-primary/20` en landing/pricing son estética deliberada; en producto son drift.
