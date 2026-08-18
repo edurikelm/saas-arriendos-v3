@@ -88,7 +88,7 @@ interface ActionConfig {
   hasLoadingState?: boolean;
 }
 
-const ACTION_CONFIG: Record<ActionId, ActionConfig> = {
+export const ACTION_CONFIG: Record<ActionId, ActionConfig> = {
   generate: {
     icon: ExternalLink,
     label: "Generar link",

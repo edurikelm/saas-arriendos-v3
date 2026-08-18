@@ -130,18 +130,6 @@ function getNights(startDate: string, endDate: string): number {
   return Math.max(1, dateKeyToDayIndex(endKey) - dateKeyToDayIndex(startKey) + 1);
 }
 
-function formatDayMonth(dateString: string): string {
-  // date-only en el dominio → devolvemos "13 ago"
-  const key = dateString.slice(0, 10);
-  const [y, m, d] = key.split("-").map(Number);
-  const date = new Date(Date.UTC(y, m - 1, d, 12));
-  return date.toLocaleDateString("es-CL", {
-    day: "numeric",
-    month: "short",
-    timeZone: "UTC",
-  });
-}
-
 /** Devuelve solo el día del mes como string ("17") desde una fecha date-only. */
 function getDayNumber(dateString: string): string {
   const key = dateString.slice(0, 10);
@@ -485,11 +473,11 @@ function ReservationSummaryCard({
             </div>
 
             {/* Hasta */}
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 text-right">
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 Hasta
               </span>
-              <div className="flex items-baseline gap-1.5">
+              <div className="flex items-baseline gap-1.5 justify-end">
                 <span className="text-[1.75rem] font-bold text-foreground tabular-nums tracking-tight leading-none">
                   {getDayNumber(endDate)}
                 </span>
@@ -600,8 +588,6 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
   );
 
   const isEditable = reservation.status !== "CANCELLED" && reservation.status !== "COMPLETED";
-  const sourceLabel = reservation.bookingAirbnb ? "Airbnb" : "Directo";
-  const billingLabel = reservation.billingType === "MONTHLY" ? "Mensual" : "Diario";
   const propertyColor = reservation.property.color || "var(--primary)";
 
   return (
@@ -703,19 +689,7 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
             />
           </section>
 
-          {/* Sección 2: Documentos (solo MONTHLY) */}
-          {reservation.billingType === "MONTHLY" && (
-            <section>
-              <h2 className="text-sm font-bold text-foreground mb-3">Documentos</h2>
-              <Card>
-                <CardContent className="p-4 sm:p-6">
-                  <ReservationDocumentsPanel reservationId={reservation.id} />
-                </CardContent>
-              </Card>
-            </section>
-          )}
-
-          {/* Sección 3: Notas */}
+          {/* Sección 2: Notas */}
           {reservation.notes && (
             <section>
               <h2 className="text-sm font-bold text-foreground mb-3">Notas</h2>
@@ -750,6 +724,14 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
               temporalTone={temporalTone}
             />
           </div>
+
+          {/* Documentos (solo MONTHLY) — bajo Resumen en la columna derecha */}
+          {reservation.billingType === "MONTHLY" && (
+            <section>
+              <h2 className="text-sm font-bold text-foreground mb-3">Documentos</h2>
+              <ReservationDocumentsPanel reservationId={reservation.id} />
+            </section>
+          )}
 
           {/* Historial de cambios — colapsable para no saturar la vista */}
           <details className="rounded-lg ring-1 ring-border">
