@@ -95,7 +95,6 @@ export function PaymentsSection({
     isCheckingAllPayments,
     generatingLinkId,
     regeneratingLinkId,
-    showAddPaymentDialog,
     setShowAddPaymentDialog,
     MarkPaidModal,
     AddPaymentModal,

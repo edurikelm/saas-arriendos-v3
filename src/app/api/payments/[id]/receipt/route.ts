@@ -70,7 +70,6 @@ export async function GET(
   // 8. Generate PDF
   let buffer: Buffer;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pdfBuffer = await renderToBuffer(
       React.createElement(PaymentReceipt, { payment, paidAtUnix }) as React.ReactElement<any>
     );

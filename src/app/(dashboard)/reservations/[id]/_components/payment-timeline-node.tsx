@@ -14,8 +14,6 @@ import {
   FileText,
   Check,
   Send,
-  RefreshCw,
-  Trash2,
   CalendarClock,
   Wallet,
 } from "lucide-react";
@@ -98,17 +96,14 @@ export function PaymentTimelineNode({
   payment,
   index,
   total,
-  nowKey,
   daysFromNow,
   isActive,
   onGenerateLink,
   onRegenerateLink,
   onMarkPaid,
   onDeletePayment,
-  onUploadReceipt,
   onSendLink,
   generatingLinkId,
-  regeneratingLinkId,
   isFirstOverdue,
 }: PaymentTimelineNodeProps) {
   const isCompleted = payment.status === "COMPLETED";
@@ -142,7 +137,6 @@ export function PaymentTimelineNode({
   const canViewReceipt = !!payment.receiptUrl;
 
   const isGenerating = generatingLinkId === payment.id;
-  const isRegenerating = regeneratingLinkId === payment.id;
 
   // Dropdown items
   const dropdownItems: Array<{ id: string; label: string; destructive?: boolean }> = [];

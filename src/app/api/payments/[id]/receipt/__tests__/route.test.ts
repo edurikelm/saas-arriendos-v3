@@ -23,7 +23,6 @@ vi.mock("@/lib/db/prisma", () => ({ prisma: mockPrisma }));
 vi.mock("@/lib/auth/session", () => ({ getSession: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn(() => mockSupabase) }));
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 vi.mock("@react-pdf/renderer", () => ({
   renderToBuffer: vi.fn(async () => Buffer.from("%PDF-1.4 mock")),
   StyleSheet: { create: vi.fn(() => ({})) },

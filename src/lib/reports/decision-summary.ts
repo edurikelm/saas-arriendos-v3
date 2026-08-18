@@ -253,7 +253,7 @@ export function buildDecisionSummary(input: DecisionSummaryInput): ReportDecisio
 
   // ── Occupancy ────────────────────────────────────────────────────────────────
   let occupiedNightUnits = 0;
-  let reservationCount = intersectingActive.length;
+  const reservationCount = intersectingActive.length;
   let hasDaily = false;
   let hasMonthly = false;
 
