@@ -230,7 +230,7 @@ describe('PaymentsSection - paymentType separation', () => {
 
     // paidAmount should only count RESERVATION COMPLETED payments:
     // p1 ($50k RESERVATION COMPLETED) counts, p2 ($40k EXTRA) and p3 ($30k PENDING) don't.
-    // 200000 total - 50000 paid = 150000 pending (shown in KpiCard + "Saldo pendiente" focus card).
+    // 200000 total - 50000 paid = 150000 pending (shown in KpiCard "Pendiente").
     expect(screen.getAllByText('$150.000').length).toBeGreaterThanOrEqual(1);
   });
 });
@@ -250,10 +250,10 @@ describe('PaymentsSection - empty state', () => {
       />
     );
     expect(screen.getByText('Aún no hay pagos registrados')).toBeTruthy();
-    // "Agregar Pago" aparece en el header + empty state + focus card (3×) porque
-    // pendingAmount = totalPrice cuando no hay pagos: el focus card muestra "Agregar Pago"
-    // ya que no hay MERCADO_PAGO pendientes sin initPoint (BUG-3 fix).
-    expect(screen.getAllByRole('button', { name: /agregar pago/i })).toHaveLength(3);
+    // "Agregar Pago" aparece en el header + empty state (2×). El focus card ya no
+    // aparece en este caso porque no hay un MERCADO_PAGO pendiente sin initPoint
+    // — el KPI "Pendiente" ya carga el número, otro botón sería redundante.
+    expect(screen.getAllByRole('button', { name: /agregar pago/i })).toHaveLength(2);
     expect(screen.queryByRole('button', { name: /verificar/i })).toBeNull();
   });
 
@@ -290,10 +290,9 @@ describe('PaymentsSection - empty state', () => {
       />
     );
     expect(screen.getByText('Aún no hay pagos registrados')).toBeTruthy();
-    // "Agregar Pago" aparece en el header + empty state + focus card (3×) porque
-    // pendingAmount = totalPrice cuando no hay pagos: el focus card muestra "Agregar Pago"
-    // ya que no hay MERCADO_PAGO pendientes sin initPoint (BUG-3 fix).
-    expect(screen.getAllByRole('button', { name: /agregar pago/i })).toHaveLength(3);
+    // "Agregar Pago" aparece en el header + empty state (2×). El focus card ya no
+    // aparece en este caso porque no hay un MERCADO_PAGO pendiente sin initPoint.
+    expect(screen.getAllByRole('button', { name: /agregar pago/i })).toHaveLength(2);
   });
 
   it('muestra empty state sin CTA cuando la reserva está COMPLETED sin pagos', () => {
@@ -644,10 +643,10 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
       />
     );
     expect(screen.getByText("A\u00fan no hay pagos registrados")).toBeTruthy();
-    // 3x "Agregar Pago" (header + empty state + focus card). Focus card aparece porque
-    // pendingAmount = totalPrice cuando no hay pagos y no hay MERCADO_PAGO pendientes
-    // sin initPoint → CTA es "Agregar Pago" (BUG-3 fix).
-    expect(screen.getAllByRole("button", { name: /agregar pago/i })).toHaveLength(3);
+    // 2x "Agregar Pago" (header + empty state). El focus card ya no aparece en este
+    // caso porque no hay un MERCADO_PAGO pendiente sin initPoint — el KPI "Pendiente"
+    // ya carga el número, otro botón sería redundante.
+    expect(screen.getAllByRole("button", { name: /agregar pago/i })).toHaveLength(2);
   });
 
   // STATE 5: DAILY 1 pago completo
@@ -674,11 +673,11 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
   });
 
   // STATE 6: DAILY 1 pago parcial
-  it("DAILY 1 pago parcial — focus card Saldo pendiente + CTA", () => {
+  it("DAILY 1 pago parcial — CTA Generar link vive en la fila del pago, no en focus card", () => {
     const reservation = makeReservation({
       status: "CONFIRMED",
       totalPrice: "100000",
-      payments: [makePayment({ id: "p1", status: "PENDING", amount: "30000" })],
+      payments: [makePayment({ id: "p1", status: "PENDING", amount: "30000", method: "MERCADO_PAGO" })],
     });
     render(
       <PaymentsSection
@@ -691,12 +690,14 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
         propertyName="Test Property"
       />
     );
-    expect(screen.getByText("Saldo pendiente")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /generar link de mercado pago/i })).toBeTruthy();
+    // El focus card "Saldo pendiente" fue eliminado — el número vive solo en el KPI.
+    expect(screen.queryByText("Saldo pendiente")).toBeNull();
+    // El CTA de Mercado Pago queda en la fila del pago pendiente (no en un duplicado arriba).
+    expect(screen.getByRole("button", { name: /^generar link$/i })).toBeTruthy();
   });
 
   // STATE 7: DAILY varios parciales
-  it("DAILY varios parciales — lista cronologica + focus card", () => {
+  it("DAILY varios parciales — lista con todos los cards, sin focus card duplicado", () => {
     const reservation = makeReservation({
       status: "CONFIRMED",
       totalPrice: "200000",
@@ -717,7 +718,8 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
         propertyName="Test Property"
       />
     );
-    expect(screen.getByText("Saldo pendiente")).toBeTruthy();
+    // Sin focus card "Saldo pendiente" — el saldo vive en el KPI.
+    expect(screen.queryByText("Saldo pendiente")).toBeNull();
     const cards = document.querySelectorAll("[data-testid^=\"payment-card-\"]");
     expect(cards.length).toBe(3);
   });

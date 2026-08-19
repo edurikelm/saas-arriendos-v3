@@ -57,6 +57,30 @@ interface PaymentsSectionProps {
   propertyName: string;
 }
 
+/** Encabezado unificado para sub-secciones de pagos: título + acciones a la derecha.
+ *  Funciona como header del listado al que precede — mismo patrón que Cobros extra. */
+function SectionHeader({
+  title,
+  meta,
+  actions,
+}: {
+  title: string;
+  meta?: string;
+  actions?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-3">
+      <div className="space-y-0.5 min-w-0">
+        <p className="text-sm font-bold text-foreground leading-tight">{title}</p>
+        {meta && (
+          <p className="text-xs text-muted-foreground leading-tight">{meta}</p>
+        )}
+      </div>
+      {actions && <div className="flex flex-wrap gap-2 shrink-0">{actions}</div>}
+    </div>
+  );
+}
+
 export function PaymentsSection({
   reservationId,
   totalPrice,
@@ -118,7 +142,7 @@ export function PaymentsSection({
 
   return (
     <div className="space-y-6">
-      {/* KPIs */}
+      {/* KPIs — sin título encima, los números son el resumen */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         <KpiCard
           label="Total"
@@ -146,43 +170,40 @@ export function PaymentsSection({
         />
       </div>
 
-      {/* Payments section */}
-      <div className="space-y-6">
-        {/* Header: title + actions */}
-        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-          <p className="text-sm font-bold text-foreground">
-            {isMonthly ? "Cuotas de arriendo" : "Pagos de reserva"}
-          </p>
-
-          {/* Header actions */}
-          {isActive && (
-            <div className="flex gap-2">
-              {showHeaderVerify && (
+      {/* Listado de pagos — header (título + acciones) precede al listado.
+          Mismo patrón que Cobros extra: title a la izquierda, acciones a la derecha. */}
+      <div className="space-y-3">
+        <SectionHeader
+          title={isMonthly ? "Cuotas de arriendo" : "Pagos de reserva"}
+          actions={
+            isActive && (
+              <>
+                {showHeaderVerify && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleRefreshPayments}
+                    disabled={isCheckingAllPayments}
+                  >
+                    <RefreshCw
+                      className={cn("h-3.5 w-3.5 mr-1.5", isCheckingAllPayments && "animate-spin")}
+                    />
+                    {isCheckingAllPayments ? "Verificando..." : "Verificar pagos MP"}
+                  </Button>
+                )}
                 <Button
                   size="sm"
-                  variant="ghost"
-                  onClick={handleRefreshPayments}
-                  disabled={isCheckingAllPayments}
+                  variant="default"
+                  onClick={() => setShowAddPaymentDialog(true)}
                 >
-                  <RefreshCw
-                    className={cn("h-3.5 w-3.5 mr-1.5", isCheckingAllPayments && "animate-spin")}
-                  />
-                  {isCheckingAllPayments ? "Verificando..." : "Verificar pagos MP"}
+                  <Plus className="h-4 w-4 mr-1.5" />
+                  Agregar Pago
                 </Button>
-              )}
-              <Button
-                size="sm"
-                variant="default"
-                onClick={() => setShowAddPaymentDialog(true)}
-              >
-                <Plus className="h-4 w-4 mr-1.5" />
-                Agregar Pago
-              </Button>
-            </div>
-          )}
-        </div>
+              </>
+            )
+          }
+        />
 
-        {/* Dispatch by billing type */}
         {isMonthly ? (
           <PaymentsTimeline
             payments={reservationPayments}
@@ -204,7 +225,6 @@ export function PaymentsSection({
             payments={reservationPayments}
             nowKey={nowKey}
             isActive={isActive}
-            pendingAmount={pendingAmount}
             onGenerateLink={handleGenerateLink}
             onRegenerateLink={handleRegenerateLink}
             onMarkPaid={handleMarkPaidClick}
@@ -216,30 +236,41 @@ export function PaymentsSection({
             onAddPayment={() => setShowAddPaymentDialog(true)}
           />
         )}
-
-        {/* Extras section */}
-        {extraPayments.length > 0 && (
-          <div>
-            <div className="mb-3">
-              <p className="text-sm font-medium text-foreground">Cobros extra</p>
-            </div>
-            <PaymentsCardsList
-              payments={extraPayments}
-              nowKey={nowKey}
-              isActive={isActive}
-              pendingAmount={extraPendingAmount}
-              onGenerateLink={handleGenerateLink}
-              onRegenerateLink={handleRegenerateLink}
-              onMarkPaid={handleMarkPaidClick}
-              onDeletePayment={handleDeletePayment}
-              onUploadReceipt={handleUploadReceipt}
-              onSendLink={handleSendLink}
-              generatingLinkId={generatingLinkId}
-              regeneratingLinkId={regeneratingLinkId}
-            />
-          </div>
-        )}
       </div>
+
+      {/* Cobros extra (separado por space-y-6 del listado de arriendo) */}
+      {extraPayments.length > 0 && (
+        <div className="space-y-3">
+          <SectionHeader
+            title="Cobros extra"
+            actions={
+              isActive && (
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={() => setShowAddPaymentDialog(true)}
+                >
+                  <Plus className="h-4 w-4 mr-1.5" />
+                  Agregar Pago
+                </Button>
+              )
+            }
+          />
+          <PaymentsCardsList
+            payments={extraPayments}
+            nowKey={nowKey}
+            isActive={isActive}
+            onGenerateLink={handleGenerateLink}
+            onRegenerateLink={handleRegenerateLink}
+            onMarkPaid={handleMarkPaidClick}
+            onDeletePayment={handleDeletePayment}
+            onUploadReceipt={handleUploadReceipt}
+            onSendLink={handleSendLink}
+            generatingLinkId={generatingLinkId}
+            regeneratingLinkId={regeneratingLinkId}
+          />
+        </div>
+      )}
 
       {/* Modals */}
       <MarkPaidModal />

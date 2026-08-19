@@ -199,11 +199,14 @@ describe('ReservationDetailClient — header v3 (person + metadata row)', () => 
 });
 
 describe('ReservationDetailClient — sections', () => {
-  it('renders Detalle de pagos section', () => {
+  it('renders payments section via PaymentsSection header', () => {
     const reservation = createMockReservation();
     render(<ReservationDetailClient reservation={reservation} />);
 
-    expect(screen.getByText('Detalle de pagos')).toBeTruthy();
+    // El título "Detalle de pagos" wrapper se eliminó — la sección de pagos
+    // ahora se identifica por el header interno de PaymentsSection ("Pagos de reserva"
+    // para DAILY, "Cuotas de arriendo" para MONTHLY).
+    expect(screen.getByText('Pagos de reserva')).toBeTruthy();
   });
 
   it('hides Documentos section for DAILY reservation', () => {

@@ -14,8 +14,6 @@ import {
   FileText,
   Check,
   Send,
-  CalendarClock,
-  Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ACTION_CONFIG } from "@/components/payments/payment-row-actions";
@@ -49,12 +47,24 @@ const METHOD_LABELS: Record<string, string> = {
   TRANSFER: "Transferencia",
 };
 
-type BadgeVariant = "default" | "secondary" | "destructive" | "outline" | "warning" | "success";
+type BadgeVariant =
+  | "default"
+  | "secondary"
+  | "destructive"
+  | "outline"
+  | "warning"
+  | "success";
 
 const statusBadgeVariant: Record<string, BadgeVariant> = {
   PENDING: "warning",
   COMPLETED: "success",
   FAILED: "destructive",
+};
+
+const statusBadgeLabel: Record<string, string> = {
+  PENDING: "Pendiente",
+  COMPLETED: "Pagado",
+  FAILED: "Fallido",
 };
 
 interface PaymentCardProps {
@@ -73,6 +83,9 @@ interface PaymentCardProps {
   regeneratingLinkId?: string | null;
 }
 
+/** Item de lista dentro del contenedor de `PaymentsCardsList`.
+ *  El borde, el rounded y el background los provee el contenedor — este componente
+ *  solo aporta el contenido y su divider interno (lo provee el `divide-y` del padre). */
 export function PaymentCard({
   payment,
   index,
@@ -141,55 +154,51 @@ export function PaymentCard({
 
   return (
     <article
-      role="article"
       data-testid={`payment-card-${payment.id}`}
+      aria-label={ariaLabel}
       className={cn(
-        "rounded-lg border overflow-hidden bg-card",
+        "px-4 py-3 flex flex-col gap-2 transition-colors",
+        isActive && "hover:bg-muted/30",
         !isActive && "opacity-60",
       )}
     >
-      {/* ───── HEADER: context eyebrow + badge ───── */}
-      <div className="flex items-start justify-between gap-3 px-4 pt-3.5 pb-2">
-        <p
-          className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground min-w-0 flex-1"
-          aria-label={ariaLabel}
-        >
+      {/* Header: context eyebrow + status badge */}
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground min-w-0 flex-1">
           {contextHint}
         </p>
-        <Badge variant={statusBadgeVariant[payment.status] ?? "secondary"} className="text-[10px] shrink-0">
-          {payment.status === "PENDING" ? "Pendiente" : payment.status === "COMPLETED" ? "Pagado" : "Fallido"}
+        <Badge variant={statusBadgeVariant[payment.status] ?? "secondary"} className="shrink-0">
+          {statusBadgeLabel[payment.status] ?? payment.status}
         </Badge>
       </div>
 
-      {/* ───── HERO AMOUNT ───── */}
-      <div className="px-4 pb-3">
-        <p className="text-2xl font-bold tabular-nums text-foreground tracking-tight">
-          {formatAmount(payment.amount)}
-        </p>
-      </div>
-
-      {/* ───── DIVIDER ───── */}
-      <div className="border-t border-border" />
-
-      {/* ───── FOOTER: metadata + CTA ───── */}
-      <div className="flex items-center justify-between gap-3 px-4 py-3">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground min-w-0">
-          {payment.paidAt && (
-            <span className="inline-flex items-center gap-1.5">
-              <CalendarClock className="size-3.5 shrink-0" aria-hidden="true" />
+      {/* Single info row: status dot + amount + meta + actions. El dot refuerza el
+          badge del header con color al lado del monto — patrón "Status indicators"
+          del design system (DESIGN.md). self-center porque el círculo no tiene
+          baseline; el resto del row usa items-baseline para alinear el tipo. */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 min-w-0 flex-1">
+          <span
+            className={cn(
+              "size-2 rounded-full shrink-0 self-center",
+              payment.status === "PENDING" && "bg-warning",
+              payment.status === "COMPLETED" && "bg-success",
+              payment.status === "FAILED" && "bg-destructive",
+            )}
+            aria-hidden="true"
+          />
+          <p className="text-base font-bold tabular-nums text-foreground tracking-tight">
+            {formatAmount(payment.amount)}
+          </p>
+          <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5 text-xs text-muted-foreground min-w-0">
+            {payment.paidAt && (
               <span className="tabular-nums">Pagado {formatShortDate(payment.paidAt)}</span>
-            </span>
-          )}
-          {payment.dueDate && (
-            <span className="inline-flex items-center gap-1.5">
-              <CalendarClock className="size-3.5 shrink-0" aria-hidden="true" />
+            )}
+            {payment.dueDate && (
               <span className="tabular-nums">Vence {formatShortDate(payment.dueDate)}</span>
-            </span>
-          )}
-          <span className="inline-flex items-center gap-1.5">
-            <Wallet className="size-3.5 shrink-0" aria-hidden="true" />
+            )}
             <span>{methodLabel}</span>
-          </span>
+          </div>
         </div>
 
         <div className="flex items-center gap-1 shrink-0">

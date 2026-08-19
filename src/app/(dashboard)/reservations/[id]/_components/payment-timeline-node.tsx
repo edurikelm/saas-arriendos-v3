@@ -14,8 +14,6 @@ import {
   FileText,
   Check,
   Send,
-  CalendarClock,
-  Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ACTION_CONFIG } from "@/components/payments/payment-row-actions";
@@ -68,10 +66,22 @@ const toneClasses: Record<Tone, { bar: string; text: string }> = {
   destructive: { bar: "bg-destructive", text: "text-destructive" },
 };
 
-const statusBadgeVariant: Record<string, "success" | "warning" | "destructive" | "secondary"> = {
-  COMPLETED: "success",
-  PENDING: "warning",
-  FAILED: "destructive",
+/** Mapas de variante del Badge por tono — el Badge es el lenguaje canónico de estado,
+ *  así que overdue/due-today/future cada uno carga su tono (mismo doctrine que KpiCard). */
+const toneBadgeVariant: Record<Tone, "success" | "warning" | "info" | "destructive"> = {
+  success: "success",
+  info: "info",
+  warning: "warning",
+  destructive: "destructive",
+};
+
+/** Etiqueta humana de la cuota en función del tono — overdue y due-today añaden el adverbio
+ *  al badge (no al eyebrow) para evitar duplicación visual con el badge de estado. */
+const toneLabel: Record<Tone, string> = {
+  success: "Pagado",
+  info: "Pendiente",
+  warning: "Vence hoy",
+  destructive: "Vencido",
 };
 
 interface PaymentTimelineNodeProps {
@@ -104,6 +114,7 @@ export function PaymentTimelineNode({
   onDeletePayment,
   onSendLink,
   generatingLinkId,
+  regeneratingLinkId,
   isFirstOverdue,
 }: PaymentTimelineNodeProps) {
   const isCompleted = payment.status === "COMPLETED";
@@ -183,10 +194,17 @@ export function PaymentTimelineNode({
         aria-hidden="true"
       />
 
-      {/* Content */}
-      <div className={cn("flex-1 rounded-lg border bg-card overflow-hidden", borderClass(tone))}>
-        {/* ───── HEADER: eyebrow + badge ───── */}
-        <div className="flex items-start justify-between gap-3 px-4 pt-3.5 pb-2">
+      {/* Content — sin border tint por tone: el node dot lateral + el badge del header
+          ya cargan el color de estado. Border canónico del design system. */}
+      <div
+        className={cn(
+          "flex-1 rounded-lg border border-border bg-card overflow-hidden transition-colors",
+          isActive && "hover:bg-muted/30",
+          !isActive && "opacity-60",
+        )}
+      >
+        {/* ───── HEADER: eyebrow + month + badge ───── */}
+        <div className="flex items-start justify-between gap-3 px-4 pt-3 pb-1.5">
           <div className="min-w-0 flex-1">
             <p
               className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
@@ -195,50 +213,41 @@ export function PaymentTimelineNode({
               Mensualidad · Cuota {installmentNumber} de {total}
             </p>
             {monthLabel && (
-              <p className="text-xs text-muted-foreground mt-0.5 truncate">{monthLabel}</p>
+              <p className="text-sm font-semibold text-foreground mt-0.5 truncate">
+                {monthLabel}
+              </p>
             )}
           </div>
-          <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
-            {isPending && daysFromNow < 0 && (
-              <span className="text-[10px] text-destructive font-medium uppercase tracking-wider">
-                Vencido
-              </span>
-            )}
-            <Badge variant={statusBadgeVariant[payment.status] ?? "secondary"} className="text-[10px]">
-              {isCompleted ? "Pagado" : isPending ? "Pendiente" : "Fallido"}
-            </Badge>
-          </div>
+          {/* Badge único en el header — el tono comunica estado (vencido/vence hoy/futuro),
+              eliminando la duplicación anterior entre badge y texto inline. */}
+          <Badge
+            variant={toneBadgeVariant[tone]}
+            className="shrink-0"
+          >
+            {toneLabel[tone]}
+          </Badge>
         </div>
 
-        {/* ───── HERO AMOUNT ───── */}
-        <div className="px-4 pb-3">
-          <p className="text-2xl font-bold tabular-nums text-foreground tracking-tight">
-            {formatAmount(payment.amount)}
-          </p>
-        </div>
-
-        {/* ───── DIVIDER ───── */}
-        <div className="border-t border-border" />
-
-        {/* ───── FOOTER: metadata + CTA ───── */}
-        <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground min-w-0">
-            {payment.dueDate && (
-              <span className="inline-flex items-center gap-1.5">
-                <CalendarClock className="size-3.5 shrink-0" aria-hidden="true" />
-                <span className="tabular-nums">Vence {formatShortDate(payment.dueDate)}</span>
-                {isPending && daysFromNow >= 0 && daysFromNow <= 7 && daysFromNow > 0 && (
-                  <span className="text-info font-medium">· En {daysFromNow} días</span>
-                )}
-                {isPending && daysFromNow === 0 && (
-                  <span className="text-warning font-medium">· Vence hoy</span>
-                )}
-              </span>
-            )}
-            <span className="inline-flex items-center gap-1.5">
-              <Wallet className="size-3.5 shrink-0" aria-hidden="true" />
+        {/* ───── INFO ROW: amount + meta + CTA (single line, sin hero treatment) ───── */}
+        <div className="flex items-center justify-between gap-3 px-4 pb-3">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 min-w-0 flex-1">
+            <p className="text-base font-bold tabular-nums text-foreground tracking-tight">
+              {formatAmount(payment.amount)}
+            </p>
+            <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5 text-xs text-muted-foreground min-w-0">
+              {payment.dueDate && (
+                <span className="tabular-nums">
+                  Vence {formatShortDate(payment.dueDate)}
+                  {isPending && daysFromNow >= 0 && daysFromNow <= 7 && daysFromNow > 0 && (
+                    <span className="text-info font-medium"> · En {daysFromNow} días</span>
+                  )}
+                  {isPending && daysFromNow === 0 && (
+                    <span className="text-warning font-medium"> · Vence hoy</span>
+                  )}
+                </span>
+              )}
               <span>{methodLabel}</span>
-            </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-1 shrink-0">
@@ -332,14 +341,4 @@ export function PaymentTimelineNode({
       </div>
     </div>
   );
-}
-
-function borderClass(tone: Tone): string {
-  const map: Record<Tone, string> = {
-    success: "border-success/20",
-    info: "border-info/20",
-    warning: "border-warning/20",
-    destructive: "border-destructive/20",
-  };
-  return map[tone];
 }

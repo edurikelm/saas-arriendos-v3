@@ -675,40 +675,26 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_340px] gap-6">
         {/* ─── LEFT COLUMN ────────────────────────────────────────────── */}
         <div className="space-y-6 min-w-0">
-          {/* Sección 1: Pagos (prioridad — sin hero band encima) */}
-          <section>
-            <h2 className="text-sm font-bold text-foreground mb-3">Detalle de pagos</h2>
-            <PaymentsSection
-              reservationId={reservation.id}
-              totalPrice={reservation.totalPrice}
-              billingType={reservation.billingType}
-              status={reservation.status}
-              payments={reservation.payments}
-              client={reservation.client}
-              propertyName={reservation.property.name}
-            />
-          </section>
-
-          {/* Sección 2: Notas */}
-          {reservation.notes && (
-            <section>
-              <h2 className="text-sm font-bold text-foreground mb-3">Notas</h2>
-              <Card>
-                <CardContent className="p-4 sm:p-5">
-                  <p className="text-sm text-foreground whitespace-pre-wrap">
-                    {reservation.notes}
-                  </p>
-                </CardContent>
-              </Card>
-            </section>
-          )}
+          {/* Sección 1: Pagos. El título "Pagos de reserva" / "Cuotas de arriendo" vive
+              dentro de PaymentsSection como header del listado (mismo patrón que
+              "Cobros extra" abajo) — no necesita un h2 wrapper redundante. */}
+          <PaymentsSection
+            reservationId={reservation.id}
+            totalPrice={reservation.totalPrice}
+            billingType={reservation.billingType}
+            status={reservation.status}
+            payments={reservation.payments}
+            client={reservation.client}
+            propertyName={reservation.property.name}
+          />
         </div>
 
         {/* ─── RIGHT COLUMN ──────────────────────────────────────────── */}
         <aside className="lg:sticky lg:top-20 lg:self-start space-y-4">
-          {/* ReservationSummaryCard — hero compactado para sidebar (solo desktop) */}
+          {/* ReservationSummaryCard — hero compactado para sidebar (solo desktop).
+              Sin h2 "Resumen": el card ya carga el contexto (nombre cliente, fechas,
+              estancia, propiedad) y serviría de titulo de sí mismo. */}
           <div className="hidden lg:block">
-            <h2 className="text-sm font-bold text-foreground mb-3">Resumen</h2>
             <ReservationSummaryCard
               client={reservation.client}
               startDate={reservation.startDate}
@@ -724,6 +710,22 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
               temporalTone={temporalTone}
             />
           </div>
+
+          {/* Notas — vive en la columna derecha (supplementary content).
+              Mantiene h2 propio (como Documentos) para consistencia visual entre
+              las secciones del sidebar. */}
+          {reservation.notes && (
+            <section>
+              <h2 className="text-sm font-bold text-foreground mb-3">Notas</h2>
+              <Card>
+                <CardContent className="p-4 sm:p-5">
+                  <p className="text-sm text-foreground whitespace-pre-wrap">
+                    {reservation.notes}
+                  </p>
+                </CardContent>
+              </Card>
+            </section>
+          )}
 
           {/* Documentos (solo MONTHLY) — bajo Resumen en la columna derecha */}
           {reservation.billingType === "MONTHLY" && (
