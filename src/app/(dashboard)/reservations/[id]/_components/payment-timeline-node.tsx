@@ -66,22 +66,12 @@ const toneClasses: Record<Tone, { bar: string; text: string }> = {
   destructive: { bar: "bg-destructive", text: "text-destructive" },
 };
 
-/** Mapas de variante del Badge por tono — el Badge es el lenguaje canónico de estado,
- *  así que overdue/due-today/future cada uno carga su tono (mismo doctrine que KpiCard). */
+/** Mapas de variante del Badge por tono — el Badge es el lenguaje canónico de estado. */
 const toneBadgeVariant: Record<Tone, "success" | "warning" | "info" | "destructive"> = {
   success: "success",
   info: "info",
   warning: "warning",
   destructive: "destructive",
-};
-
-/** Etiqueta humana de la cuota en función del tono — overdue y due-today añaden el adverbio
- *  al badge (no al eyebrow) para evitar duplicación visual con el badge de estado. */
-const toneLabel: Record<Tone, string> = {
-  success: "Pagado",
-  info: "Pendiente",
-  warning: "Vence hoy",
-  destructive: "Vencido",
 };
 
 interface PaymentTimelineNodeProps {
@@ -122,17 +112,28 @@ export function PaymentTimelineNode({
   const isMercadoPago = payment.method === "MERCADO_PAGO";
   const isExpired = payment.expiresAt ? new Date(payment.expiresAt) < new Date() : false;
 
-  // Tone derivation
+  // Tone derivation — todos los pagos PENDING cargan el tono `warning` (amber)
+  // para coincidir con el KPI "Pendiente" del header. La etiqueta del badge (abajo)
+  // se calcula por separado desde `daysFromNow` para reflejar la urgencia real,
+  // no el color. Así "Vence 1 oct 2026" muestra badge "Pendiente", no "Vence hoy".
   let tone: Tone;
   if (isCompleted) {
     tone = "success";
   } else if (isPending && daysFromNow < 0) {
     tone = "destructive"; // overdue
-  } else if (isPending && daysFromNow === 0) {
-    tone = "warning"; // due today
   } else {
-    tone = "info";
+    tone = "warning"; // PENDING (any future or due today) — matches KPI Pendiente
   }
+
+  // Label del badge — refleja la urgencia real contra `dueDate`, NO el color.
+  // Cuatro ramas (mismo orden que el tone derivation para evitar inconsistencias).
+  const badgeLabel = isCompleted
+    ? "Pagado"
+    : daysFromNow < 0
+      ? "Vencido"
+      : daysFromNow === 0
+        ? "Vence hoy"
+        : "Pendiente";
 
   const { bar: barClass } = toneClasses[tone];
   const installmentNumber = payment.installmentIndex ?? index + 1;
@@ -218,13 +219,13 @@ export function PaymentTimelineNode({
               </p>
             )}
           </div>
-          {/* Badge único en el header — el tono comunica estado (vencido/vence hoy/futuro),
-              eliminando la duplicación anterior entre badge y texto inline. */}
+          {/* Badge único en el header — color vía `tone` (warning para todo PENDING,
+               matches KPI), texto vía `badgeLabel` (refleja `daysFromNow`). */}
           <Badge
             variant={toneBadgeVariant[tone]}
             className="shrink-0"
           >
-            {toneLabel[tone]}
+            {badgeLabel}
           </Badge>
         </div>
 

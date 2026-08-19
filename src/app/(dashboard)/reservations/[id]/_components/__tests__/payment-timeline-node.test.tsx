@@ -82,24 +82,24 @@ describe("PaymentTimelineNode", () => {
       const dot = document.querySelector("[class*=\"bg-warning\"]");
       expect(dot).toBeTruthy();
     });
-    it("PENDING upcoming within 7 days uses info bar", () => {
+    it("PENDING upcoming within 7 days uses warning bar (matches KPI Pendiente)", () => {
       render(
         <PaymentTimelineNode
           payment={mockPayment({ status: "PENDING" })}
           index={0} total={3} nowKey="2025-01-01" daysFromNow={5} isActive={true}
         />
       );
-      const dot = document.querySelector("[class*=\"bg-info\"]");
+      const dot = document.querySelector("[class*=\"bg-warning\"]");
       expect(dot).toBeTruthy();
     });
-    it("PENDING far future uses info bar", () => {
+    it("PENDING far future uses warning bar (matches KPI Pendiente)", () => {
       render(
         <PaymentTimelineNode
           payment={mockPayment({ status: "PENDING" })}
           index={0} total={3} nowKey="2025-01-01" daysFromNow={30} isActive={true}
         />
       );
-      const dot = document.querySelector("[class*=\"bg-info\"]");
+      const dot = document.querySelector("[class*=\"bg-warning\"]");
       expect(dot).toBeTruthy();
     });
   });
@@ -210,6 +210,41 @@ describe("PaymentTimelineNode", () => {
         />
       );
       expect(screen.queryByText("Vencido")).toBeNull();
+    });
+  });
+
+  describe("badge label urgency", () => {
+    // El color del badge (variant warning) es uniforme para todo PENDING (matches KPI),
+    // pero el TEXTO refleja daysFromNow: el usuario no debe ver "Vence hoy" en un pago
+    // que vence el 1 de octubre (futuro). Bug histórico: tone=warning mapeaba a
+    // "Vence hoy" indiscriminadamente.
+    it("shows 'Vence hoy' only when daysFromNow === 0", () => {
+      render(
+        <PaymentTimelineNode
+          payment={mockPayment({ status: "PENDING" })}
+          index={0} total={3} nowKey="2025-01-01" daysFromNow={0} isActive={true}
+        />
+      );
+      expect(screen.getByText("Vence hoy")).toBeTruthy();
+    });
+    it("shows 'Pendiente' (not 'Vence hoy') when payment is in the future", () => {
+      render(
+        <PaymentTimelineNode
+          payment={mockPayment({ status: "PENDING" })}
+          index={0} total={3} nowKey="2025-01-01" daysFromNow={30} isActive={true}
+        />
+      );
+      expect(screen.getByText("Pendiente")).toBeTruthy();
+      expect(screen.queryByText("Vence hoy")).toBeNull();
+    });
+    it("shows 'Pagado' for COMPLETED payments", () => {
+      render(
+        <PaymentTimelineNode
+          payment={mockPayment({ status: "COMPLETED" })}
+          index={0} total={3} nowKey="2025-01-01" daysFromNow={10} isActive={true}
+        />
+      );
+      expect(screen.getByText("Pagado")).toBeTruthy();
     });
   });
 

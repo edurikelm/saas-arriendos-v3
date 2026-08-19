@@ -1,14 +1,11 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, Plus, RefreshCw, Wallet } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { AlertCircle, CheckCircle2, Wallet } from "lucide-react";
 import { KpiCard } from "@/components/ui/kpi-card";
-import { cn } from "@/lib/utils";
-import { getReservationPaidAmount, getReservationPendingAmount } from "@/lib/payments/calculations";
 import { isOverdueInBusinessTz, nowKeyInBusinessTz } from "@/lib/domain/timezone";
-import { PaymentsTimeline } from "./payments-timeline";
+import { getReservationPaidAmount, getReservationPendingAmount } from "@/lib/payments/calculations";
 import { PaymentsCardsList } from "./payments-cards-list";
-import { usePaymentActions } from "./payment-actions";
+import { PaymentsTimeline } from "./payments-timeline";
 import type { Payment } from "@/components/payments/payments-table";
 
 function formatPrice(price: string | number): string {
@@ -47,26 +44,39 @@ function getOverdueCount(payments: Payment[]): number {
   ).length;
 }
 
+export interface PaymentsSectionActions {
+  onGenerateLink: (paymentId: string) => void;
+  onRegenerateLink: (paymentId: string) => void;
+  onMarkPaid: (paymentId: string) => void;
+  onDeletePayment: (paymentId: string) => void;
+  onUploadReceipt: (paymentId: string, file: File) => Promise<{ error?: string }>;
+  onSendLink: (payment: Payment) => void;
+  generatingLinkId: string | null;
+  regeneratingLinkId: string | null;
+}
+
 interface PaymentsSectionProps {
-  reservationId: string;
+  /** Precio total de la reserva (sin extras). Necesario para los KPIs. */
   totalPrice: string;
   billingType: string;
   status: string;
   payments: Payment[];
-  client: { name: string; email: string };
-  propertyName: string;
+  /** Handlers + state de usePaymentActions (el padre los provee). */
+  actions: PaymentsSectionActions;
+  /** Modal components renderizados al final de la sección (Mark paid, Add payment,
+   *  Delete confirm, Send link). El state vive en el `usePaymentActions` del padre. */
+  modals: React.ReactNode;
 }
 
-/** Encabezado unificado para sub-secciones de pagos: título + acciones a la derecha.
- *  Funciona como header del listado al que precede — mismo patrón que Cobros extra. */
+/** Encabezado unificado para sub-secciones de pagos: solo título + meta opcional.
+ *  Las acciones (Verificar MP, Agregar Pago) viven en el top bar del detail —
+ *  este header ya no las renderiza para evitar duplicación. */
 function SectionHeader({
   title,
   meta,
-  actions,
 }: {
   title: string;
   meta?: string;
-  actions?: React.ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-3">
@@ -76,19 +86,17 @@ function SectionHeader({
           <p className="text-xs text-muted-foreground leading-tight">{meta}</p>
         )}
       </div>
-      {actions && <div className="flex flex-wrap gap-2 shrink-0">{actions}</div>}
     </div>
   );
 }
 
 export function PaymentsSection({
-  reservationId,
   totalPrice,
   billingType,
   status,
   payments,
-  client,
-  propertyName,
+  actions,
+  modals,
 }: PaymentsSectionProps) {
   const nowKey = nowKeyInBusinessTz();
   const isActive = status !== "CANCELLED" && status !== "COMPLETED";
@@ -107,36 +115,6 @@ export function PaymentsSection({
   const totalPending = pendingAmount + extraPendingAmount;
   const overdueAmount = getOverdueAmount(payments);
   const overdueCount = getOverdueCount(payments);
-
-  const {
-    handleGenerateLink,
-    handleRegenerateLink,
-    handleMarkPaidClick,
-    handleDeletePayment,
-    handleUploadReceipt,
-    handleRefreshPayments,
-    handleSendLink,
-    isCheckingAllPayments,
-    generatingLinkId,
-    regeneratingLinkId,
-    setShowAddPaymentDialog,
-    MarkPaidModal,
-    AddPaymentModal,
-    DeleteConfirmModal,
-    SendLinkModal,
-  } = usePaymentActions({
-    reservationId,
-    totalPrice,
-    paidAmount,
-    client,
-    propertyName,
-    billingType,
-    isActive,
-  });
-
-  // "Verificar" solo cuando hay pagos MERCADO_PAGO (brief §5.8)
-  const hasMercadoPagoPayments = payments.some((p) => p.method === "MERCADO_PAGO");
-  const showHeaderVerify = isActive && hasMercadoPagoPayments;
 
   const isMonthly = billingType === "MONTHLY";
 
@@ -170,39 +148,9 @@ export function PaymentsSection({
         />
       </div>
 
-      {/* Listado de pagos — header (título + acciones) precede al listado.
-          Mismo patrón que Cobros extra: title a la izquierda, acciones a la derecha. */}
+      {/* Listado de pagos — header solo título (acciones viven en el top bar). */}
       <div className="space-y-3">
-        <SectionHeader
-          title={isMonthly ? "Cuotas de arriendo" : "Pagos de reserva"}
-          actions={
-            isActive && (
-              <>
-                {showHeaderVerify && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={handleRefreshPayments}
-                    disabled={isCheckingAllPayments}
-                  >
-                    <RefreshCw
-                      className={cn("h-3.5 w-3.5 mr-1.5", isCheckingAllPayments && "animate-spin")}
-                    />
-                    {isCheckingAllPayments ? "Verificando..." : "Verificar pagos MP"}
-                  </Button>
-                )}
-                <Button
-                  size="sm"
-                  variant="default"
-                  onClick={() => setShowAddPaymentDialog(true)}
-                >
-                  <Plus className="h-4 w-4 mr-1.5" />
-                  Agregar Pago
-                </Button>
-              </>
-            )
-          }
-        />
+        <SectionHeader title={isMonthly ? "Cuotas de arriendo" : "Pagos de reserva"} />
 
         {isMonthly ? (
           <PaymentsTimeline
@@ -210,73 +158,53 @@ export function PaymentsSection({
             isActive={isActive}
             overdueCount={overdueCount}
             overdueAmount={overdueAmount}
-            onGenerateLink={handleGenerateLink}
-            onRegenerateLink={handleRegenerateLink}
-            onMarkPaid={handleMarkPaidClick}
-            onDeletePayment={handleDeletePayment}
-            onUploadReceipt={handleUploadReceipt}
-            onSendLink={handleSendLink}
-            generatingLinkId={generatingLinkId}
-            regeneratingLinkId={regeneratingLinkId}
-            onAddPayment={() => setShowAddPaymentDialog(true)}
+            onGenerateLink={actions.onGenerateLink}
+            onRegenerateLink={actions.onRegenerateLink}
+            onMarkPaid={actions.onMarkPaid}
+            onDeletePayment={actions.onDeletePayment}
+            onUploadReceipt={actions.onUploadReceipt}
+            onSendLink={actions.onSendLink}
+            generatingLinkId={actions.generatingLinkId}
+            regeneratingLinkId={actions.regeneratingLinkId}
           />
         ) : (
           <PaymentsCardsList
             payments={reservationPayments}
             nowKey={nowKey}
             isActive={isActive}
-            onGenerateLink={handleGenerateLink}
-            onRegenerateLink={handleRegenerateLink}
-            onMarkPaid={handleMarkPaidClick}
-            onDeletePayment={handleDeletePayment}
-            onUploadReceipt={handleUploadReceipt}
-            onSendLink={handleSendLink}
-            generatingLinkId={generatingLinkId}
-            regeneratingLinkId={regeneratingLinkId}
-            onAddPayment={() => setShowAddPaymentDialog(true)}
+            onGenerateLink={actions.onGenerateLink}
+            onRegenerateLink={actions.onRegenerateLink}
+            onMarkPaid={actions.onMarkPaid}
+            onDeletePayment={actions.onDeletePayment}
+            onUploadReceipt={actions.onUploadReceipt}
+            onSendLink={actions.onSendLink}
+            generatingLinkId={actions.generatingLinkId}
+            regeneratingLinkId={actions.regeneratingLinkId}
           />
         )}
       </div>
 
-      {/* Cobros extra (separado por space-y-6 del listado de arriendo) */}
-      {extraPayments.length > 0 && (
-        <div className="space-y-3">
-          <SectionHeader
-            title="Cobros extra"
-            actions={
-              isActive && (
-                <Button
-                  size="sm"
-                  variant="default"
-                  onClick={() => setShowAddPaymentDialog(true)}
-                >
-                  <Plus className="h-4 w-4 mr-1.5" />
-                  Agregar Pago
-                </Button>
-              )
-            }
-          />
-          <PaymentsCardsList
-            payments={extraPayments}
-            nowKey={nowKey}
-            isActive={isActive}
-            onGenerateLink={handleGenerateLink}
-            onRegenerateLink={handleRegenerateLink}
-            onMarkPaid={handleMarkPaidClick}
-            onDeletePayment={handleDeletePayment}
-            onUploadReceipt={handleUploadReceipt}
-            onSendLink={handleSendLink}
-            generatingLinkId={generatingLinkId}
-            regeneratingLinkId={regeneratingLinkId}
-          />
-        </div>
-      )}
+      {/* Cobros extra — siempre visible (empty state vive en PaymentsCardsList). */}
+      <div className="space-y-3">
+        <SectionHeader title="Cobros extra" />
+        <PaymentsCardsList
+          payments={extraPayments}
+          nowKey={nowKey}
+          isActive={isActive}
+          variant="extra"
+          onGenerateLink={actions.onGenerateLink}
+          onRegenerateLink={actions.onRegenerateLink}
+          onMarkPaid={actions.onMarkPaid}
+          onDeletePayment={actions.onDeletePayment}
+          onUploadReceipt={actions.onUploadReceipt}
+          onSendLink={actions.onSendLink}
+          generatingLinkId={actions.generatingLinkId}
+          regeneratingLinkId={actions.regeneratingLinkId}
+        />
+      </div>
 
-      {/* Modals */}
-      <MarkPaidModal />
-      <AddPaymentModal />
-      <DeleteConfirmModal />
-      <SendLinkModal />
+      {/* Modals (estado vive en el hook del padre; solo los renderizamos aquí). */}
+      {modals}
     </div>
   );
 }

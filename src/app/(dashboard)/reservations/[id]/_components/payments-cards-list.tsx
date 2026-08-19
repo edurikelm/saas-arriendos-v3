@@ -1,7 +1,6 @@
 "use client";
 
 import { CheckCircle2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { PaymentCard } from "./payment-card";
 import type { Payment } from "@/components/payments/payments-table";
 
@@ -28,8 +27,6 @@ interface PaymentsCardsListProps {
   regeneratingLinkId?: string | null;
   /** Controls celebratory copy and empty-state message. */
   variant?: "reservation" | "extra";
-  // Empty state CTA
-  onAddPayment?: () => void;
 }
 
 export function PaymentsCardsList({
@@ -45,20 +42,24 @@ export function PaymentsCardsList({
   generatingLinkId,
   regeneratingLinkId,
   variant = "reservation",
-  onAddPayment,
 }: PaymentsCardsListProps) {
   const totalPaid = payments.reduce((sum, p) => sum + (p.status === "COMPLETED" ? Number(p.amount) : 0), 0);
   const allCompleted = payments.length > 0 && payments.every((p) => p.status === "COMPLETED");
 
-  // Variant-driven copy
+  // Variant-driven copy — diferenciado por variant en estado activo e inactivo
+  // para que las dos secciones de la reserva (arriendo + extras) tengan copy propia.
   const celebratoryText =
     payments.length === 1
       ? `Pago cobrado · ${formatPrice(payments[0].amount)}`
       : `${payments.length} pagos · ${formatPrice(totalPaid)} cobrados`;
-  const emptyMessage =
+  const activeEmptyMessage =
     variant === "extra"
       ? "Aún no hay cobros extra registrados"
       : "Aún no hay pagos registrados";
+  const inactiveEmptyMessage =
+    variant === "extra"
+      ? "Esta reserva no tiene cobros extra registrados."
+      : "Esta reserva no tiene pagos registrados.";
 
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden">
@@ -72,17 +73,14 @@ export function PaymentsCardsList({
         </div>
       )}
 
-      {/* Payment items or empty state */}
+      {/* Empty state — solo mensaje. El CTA "Agregar Pago" vive en el header de la
+          sección padre (no se duplica aquí), evitando dos botones con la misma acción
+          cuando la lista está vacía. */}
       {payments.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-10">
           <p className="text-sm text-muted-foreground">
-            {isActive ? emptyMessage : "Esta reserva no tiene pagos registrados."}
+            {isActive ? activeEmptyMessage : inactiveEmptyMessage}
           </p>
-          {isActive && onAddPayment && (
-            <Button size="sm" onClick={onAddPayment}>
-              Agregar Pago
-            </Button>
-          )}
         </div>
       ) : (
         <div className="divide-y divide-border">

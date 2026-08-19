@@ -172,29 +172,37 @@ describe('ReservationDetailClient — header v3 (person + metadata row)', () => 
     expect(screen.getAllByText(/3 meses/).length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders Editar + Cancelar buttons in header for editable reservations', () => {
+  it('no muestra botones "Editar" o "Cancelar" visibles en el top bar (viven en el dropdown de 3 puntos)', () => {
+    // Editar/Cancelar ya NO son botones visibles en el top bar — viven en el menú
+    // de 3 puntos para evitar duplicación. El header solo tiene [Volver] + acciones de pago + [⋮].
     const reservation = createMockReservation({ status: 'CONFIRMED' });
     render(<ReservationDetailClient reservation={reservation} />);
 
-    // Both desktop and mobile variants render the buttons; jsdom renders both DOM trees.
-    expect(screen.getAllByText('Editar').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Cancelar').length).toBeGreaterThan(0);
+    // El top bar NO debe tener botones visibles "Editar" o "Cancelar" (solo iconos del dropdown)
+    expect(screen.queryByRole('button', { name: /^editar$/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^cancelar$/i })).toBeNull();
+    // El dropdown trigger (3 puntos) sí existe — exact match porque cada payment card
+    // también tiene su propio dropdown con aria-label "Más acciones para X".
+    expect(screen.getByRole('button', { name: /^más acciones$/i })).toBeTruthy();
   });
 
-  it('hides Editar + Cancelar for CANCELLED reservation', () => {
+  it('hides top bar actions for CANCELLED reservation (no Agregar Pago, no Verificar MP)', () => {
     const reservation = createMockReservation({ status: 'CANCELLED' });
     render(<ReservationDetailClient reservation={reservation} />);
 
-    expect(screen.queryByText('Editar')).toBeNull();
-    expect(screen.queryByText('Cancelar')).toBeNull();
+    expect(screen.queryByRole('button', { name: /agregar pago/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /verificar pagos mp/i })).toBeNull();
+    // Sin el dropdown del top bar (sí pueden existir dropdowns en cada payment card)
+    expect(screen.queryByRole('button', { name: /^más acciones$/i })).toBeNull();
   });
 
-  it('hides Editar + Cancelar for COMPLETED reservation', () => {
+  it('hides top bar actions for COMPLETED reservation', () => {
     const reservation = createMockReservation({ status: 'COMPLETED' });
     render(<ReservationDetailClient reservation={reservation} />);
 
-    expect(screen.queryByText('Editar')).toBeNull();
-    expect(screen.queryByText('Cancelar')).toBeNull();
+    expect(screen.queryByRole('button', { name: /agregar pago/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /verificar pagos mp/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^más acciones$/i })).toBeNull();
   });
 });
 
@@ -281,5 +289,50 @@ describe('ReservationDetailClient — navigation', () => {
 
     const backLink = screen.getByRole('link', { name: /Volver a reservas/ });
     expect(backLink.getAttribute('href')).toBe('/reservations');
+  });
+});
+
+describe('ReservationDetailClient — top bar payment actions', () => {
+  it('renders "Agregar Pago" button in top bar (left of 3-dot menu) when reservation is editable', () => {
+    const reservation = createMockReservation({ status: 'CONFIRMED' });
+    render(<ReservationDetailClient reservation={reservation} />);
+
+    // "Agregar Pago" vive en el top bar (junto al 3-dot), NO en los headers de las listas.
+    // El test verifica que el botón aparece exactamente 1× (no duplicado en listas).
+    expect(screen.getByRole('button', { name: /agregar pago/i })).toBeTruthy();
+  });
+
+  it('renders "Verificar pagos MP" button when reservation has MercadoPago payments', () => {
+    // El mock tiene 2 pagos MERCADO_PAGO (uno COMPLETED, otro PENDING)
+    const reservation = createMockReservation({ status: 'CONFIRMED' });
+    render(<ReservationDetailClient reservation={reservation} />);
+
+    expect(screen.getByRole('button', { name: /verificar pagos mp/i })).toBeTruthy();
+  });
+
+  it('hides "Verificar pagos MP" button when no MercadoPago payments', () => {
+    const reservation = createMockReservation({
+      status: 'CONFIRMED',
+      payments: [
+        { id: 'p1', amount: '100000', status: 'COMPLETED', paymentType: 'RESERVATION', method: 'CASH' },
+      ],
+    });
+    render(<ReservationDetailClient reservation={reservation} />);
+
+    expect(screen.queryByRole('button', { name: /verificar pagos mp/i })).toBeNull();
+  });
+
+  it('hides "Verificar pagos MP" when reservation is CANCELLED (gating por isActive)', () => {
+    const reservation = createMockReservation({ status: 'CANCELLED' });
+    render(<ReservationDetailClient reservation={reservation} />);
+
+    expect(screen.queryByRole('button', { name: /verificar pagos mp/i })).toBeNull();
+  });
+
+  it('hides "Verificar pagos MP" when reservation is COMPLETED (gating por isActive)', () => {
+    const reservation = createMockReservation({ status: 'COMPLETED' });
+    render(<ReservationDetailClient reservation={reservation} />);
+
+    expect(screen.queryByRole('button', { name: /verificar pagos mp/i })).toBeNull();
   });
 });

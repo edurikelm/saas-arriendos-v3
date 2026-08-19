@@ -1,6 +1,45 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import { PaymentsSection } from '../payments-section';
+import * as React from 'react';
+import { PaymentsSection, type PaymentsSectionActions } from '../payments-section';
+import type { Payment } from '@/components/payments/payments-table';
+
+/** Wrapper para los tests: ignora los props legacy (reservationId/client/propertyName
+ *  que ya no usa PaymentsSection) y provee defaults para actions + modals. Los tests
+ *  pueden seguir pasando los props viejos sin warnings de TS. */
+function TestPaymentsSection(props: {
+  reservationId?: string;
+  totalPrice?: string;
+  billingType?: string;
+  status?: string;
+  payments?: Payment[];
+  client?: { name: string; email: string };
+  propertyName?: string;
+  actions?: Partial<PaymentsSectionActions>;
+  modals?: React.ReactNode;
+}) {
+  const actions: PaymentsSectionActions = {
+    onGenerateLink: vi.fn(),
+    onRegenerateLink: vi.fn(),
+    onMarkPaid: vi.fn(),
+    onDeletePayment: vi.fn(),
+    onUploadReceipt: vi.fn(),
+    onSendLink: vi.fn(),
+    generatingLinkId: null,
+    regeneratingLinkId: null,
+    ...props.actions,
+  };
+  return (
+    <PaymentsSection
+      totalPrice={props.totalPrice ?? "200000"}
+      billingType={props.billingType ?? "DAILY"}
+      status={props.status ?? "PENDING"}
+      payments={props.payments ?? []}
+      actions={actions}
+      modals={props.modals ?? null}
+    />
+  );
+}
 
 const mockRefresh = vi.fn();
 vi.mock('next/navigation', () => ({
@@ -96,7 +135,7 @@ describe('PaymentsSection - paymentType separation', () => {
     });
 
     render(
-      <PaymentsSection
+      <TestPaymentsSection
         reservationId={reservation.id}
         totalPrice={reservation.totalPrice}
         billingType={reservation.billingType}
@@ -119,7 +158,7 @@ describe('PaymentsSection - paymentType separation', () => {
     });
 
     render(
-      <PaymentsSection
+      <TestPaymentsSection
         reservationId={reservation.id}
         totalPrice={reservation.totalPrice}
         billingType={reservation.billingType}
@@ -143,7 +182,7 @@ describe('PaymentsSection - paymentType separation', () => {
     });
 
     render(
-      <PaymentsSection
+      <TestPaymentsSection
         reservationId={reservation.id}
         totalPrice={reservation.totalPrice}
         billingType={reservation.billingType}
@@ -157,16 +196,20 @@ describe('PaymentsSection - paymentType separation', () => {
     expect(screen.getByText('Cobros extra')).toBeTruthy();
   });
 
-  it('does not show "Cobros extra" section when no extra payments', () => {
+  it('siempre muestra la sección "Cobros extra" con empty state cuando no hay pagos extra', () => {
+    // La sección "Cobros extra" siempre se renderiza — el empty state vive dentro
+    // de PaymentsCardsList con variant="extra" y muestra la copy "Aún no hay cobros
+    // extra registrados" cuando payments está vacío.
     const reservation = createMockReservation({
       billingType: 'DAILY',
+      status: 'PENDING',
       payments: [
         createMockPayment({ id: 'p1', amount: '50000', status: 'COMPLETED', paymentType: 'RESERVATION' }),
       ],
     });
 
     render(
-      <PaymentsSection
+      <TestPaymentsSection
         reservationId={reservation.id}
         totalPrice={reservation.totalPrice}
         billingType={reservation.billingType}
@@ -177,7 +220,10 @@ describe('PaymentsSection - paymentType separation', () => {
       />
     );
 
-    expect(screen.queryByText('Cobros extra')).toBeNull();
+    // La sección sigue presente
+    expect(screen.getByText('Cobros extra')).toBeTruthy();
+    // Empty state específico para extras (variant="extra")
+    expect(screen.getByText('Aún no hay cobros extra registrados')).toBeTruthy();
   });
 
   it('shows both tables when reservation and extra payments exist', () => {
@@ -190,7 +236,7 @@ describe('PaymentsSection - paymentType separation', () => {
     });
 
     render(
-      <PaymentsSection
+      <TestPaymentsSection
         reservationId={reservation.id}
         totalPrice={reservation.totalPrice}
         billingType={reservation.billingType}
@@ -217,7 +263,7 @@ describe('PaymentsSection - paymentType separation', () => {
     });
 
     render(
-      <PaymentsSection
+      <TestPaymentsSection
         reservationId={reservation.id}
         totalPrice={reservation.totalPrice}
         billingType={reservation.billingType}
@@ -236,10 +282,12 @@ describe('PaymentsSection - paymentType separation', () => {
 });
 
 describe('PaymentsSection - empty state', () => {
-  it('muestra empty state rico en la tabla de pagos cuando payments está vacío y reserva activa', () => {
+  it('muestra empty state con mensaje en ambas listas sin botones (los CTAs viven en el top bar del padre)', () => {
+    // Los botones "Verificar pagos MP" y "Agregar Pago" se movieron al top bar del
+    // ReservationDetailClient — esta sección solo renderiza KPIs + listas + modals.
     const reservation = createMockReservation({ status: 'PENDING', payments: [] });
     render(
-      <PaymentsSection
+      <TestPaymentsSection
         reservationId={reservation.id}
         totalPrice={reservation.totalPrice}
         billingType={reservation.billingType}
@@ -250,17 +298,16 @@ describe('PaymentsSection - empty state', () => {
       />
     );
     expect(screen.getByText('Aún no hay pagos registrados')).toBeTruthy();
-    // "Agregar Pago" aparece en el header + empty state (2×). El focus card ya no
-    // aparece en este caso porque no hay un MERCADO_PAGO pendiente sin initPoint
-    // — el KPI "Pendiente" ya carga el número, otro botón sería redundante.
-    expect(screen.getAllByRole('button', { name: /agregar pago/i })).toHaveLength(2);
+    expect(screen.getByText('Aún no hay cobros extra registrados')).toBeTruthy();
+    // Sin botones en la sección — viven arriba (ReservationDetailClient top bar).
+    expect(screen.queryByRole('button', { name: /agregar pago/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /verificar/i })).toBeNull();
   });
 
-  it('muestra empty state sin CTA cuando la reserva está cancelada y sin pagos', () => {
+  it('muestra empty state inactivo (sin CTAs) cuando la reserva está cancelada', () => {
     const reservation = createMockReservation({ status: 'CANCELLED', payments: [] });
     render(
-      <PaymentsSection
+      <TestPaymentsSection
         reservationId={reservation.id}
         totalPrice={reservation.totalPrice}
         billingType={reservation.billingType}
@@ -271,15 +318,14 @@ describe('PaymentsSection - empty state', () => {
       />
     );
     expect(screen.getByText('Esta reserva no tiene pagos registrados.')).toBeTruthy();
+    expect(screen.getByText('Esta reserva no tiene cobros extra registrados.')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /agregar pago/i })).toBeNull();
   });
 
-  it('muestra empty state con CTA cuando la reserva está CONFIRMED sin pagos', () => {
-    // CONFIRMED es activo (mismo tratamiento que PENDING): la reserva ya está
-    // cobrada y se pueden seguir registrando pagos parciales / extras.
+  it('muestra empty state con mensaje cuando la reserva está CONFIRMED sin pagos', () => {
     const reservation = createMockReservation({ status: 'CONFIRMED', payments: [] });
     render(
-      <PaymentsSection
+      <TestPaymentsSection
         reservationId={reservation.id}
         totalPrice={reservation.totalPrice}
         billingType={reservation.billingType}
@@ -290,17 +336,14 @@ describe('PaymentsSection - empty state', () => {
       />
     );
     expect(screen.getByText('Aún no hay pagos registrados')).toBeTruthy();
-    // "Agregar Pago" aparece en el header + empty state (2×). El focus card ya no
-    // aparece en este caso porque no hay un MERCADO_PAGO pendiente sin initPoint.
-    expect(screen.getAllByRole('button', { name: /agregar pago/i })).toHaveLength(2);
+    expect(screen.getByText('Aún no hay cobros extra registrados')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /agregar pago/i })).toBeNull();
   });
 
-  it('muestra empty state sin CTA cuando la reserva está COMPLETED sin pagos', () => {
-    // COMPLETED es inactivo (mismo tratamiento que CANCELLED): no se permiten
-    // nuevos pagos sobre una reserva cerrada.
+  it('muestra empty state inactivo cuando la reserva está COMPLETED sin pagos', () => {
     const reservation = createMockReservation({ status: 'COMPLETED', payments: [] });
     render(
-      <PaymentsSection
+      <TestPaymentsSection
         reservationId={reservation.id}
         totalPrice={reservation.totalPrice}
         billingType={reservation.billingType}
@@ -311,6 +354,7 @@ describe('PaymentsSection - empty state', () => {
       />
     );
     expect(screen.getByText('Esta reserva no tiene pagos registrados.')).toBeTruthy();
+    expect(screen.getByText('Esta reserva no tiene cobros extra registrados.')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /agregar pago/i })).toBeNull();
   });
 });
@@ -335,7 +379,7 @@ describe('PaymentsSection - overdue KPI', () => {
     });
 
     render(
-      <PaymentsSection
+      <TestPaymentsSection
         reservationId={reservation.id}
         totalPrice={reservation.totalPrice}
         billingType={reservation.billingType}
@@ -371,7 +415,7 @@ describe('PaymentsSection - overdue KPI', () => {
     });
 
     render(
-      <PaymentsSection
+      <TestPaymentsSection
         reservationId={reservation.id}
         totalPrice={reservation.totalPrice}
         billingType={reservation.billingType}
@@ -402,7 +446,7 @@ describe('PaymentsSection - overdue KPI', () => {
     });
 
     render(
-      <PaymentsSection
+      <TestPaymentsSection
         reservationId={reservation.id}
         totalPrice={reservation.totalPrice}
         billingType={reservation.billingType}
@@ -437,7 +481,7 @@ describe('PaymentsSection - overdue KPI', () => {
     });
 
     render(
-      <PaymentsSection
+      <TestPaymentsSection
         reservationId={reservation.id}
         totalPrice={reservation.totalPrice}
         billingType={reservation.billingType}
@@ -472,7 +516,7 @@ describe('PaymentsSection - overdue KPI', () => {
     });
 
     render(
-      <PaymentsSection
+      <TestPaymentsSection
         reservationId={reservation.id}
         totalPrice={reservation.totalPrice}
         billingType={reservation.billingType}
@@ -539,7 +583,7 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
   });
 
   // STATE 1: MONTHLY 1 pagada + resto pendiente
-  it("MONTHLY 1 cuota pagada + resto pendiente — timeline con primera success, otras info", () => {
+  it("MONTHLY 1 cuota pagada + resto pendiente — timeline con primera success, otras warning (KPI Pendiente)", () => {
     const reservation = makeReservation({
       billingType: "MONTHLY",
       status: "CONFIRMED",
@@ -551,7 +595,7 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
       ],
     });
     render(
-      <PaymentsSection
+      <TestPaymentsSection
         reservationId={reservation.id}
         totalPrice={reservation.totalPrice}
         billingType={reservation.billingType}
@@ -582,7 +626,7 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
       ],
     });
     render(
-      <PaymentsSection
+      <TestPaymentsSection
         reservationId={reservation.id}
         totalPrice={reservation.totalPrice}
         billingType={reservation.billingType}
@@ -610,7 +654,7 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
       ],
     });
     render(
-      <PaymentsSection
+      <TestPaymentsSection
         reservationId={reservation.id}
         totalPrice={reservation.totalPrice}
         billingType={reservation.billingType}
@@ -629,10 +673,10 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
   });
 
   // STATE 4: DAILY 0 pagos activa
-  it("DAILY 0 pagos y reserva activa — empty state + CTA Agregar Pago", () => {
+  it("DAILY 0 pagos y reserva activa — empty state con mensaje (CTAs viven en top bar del padre)", () => {
     const reservation = makeReservation({ status: "PENDING", payments: [] });
     render(
-      <PaymentsSection
+      <TestPaymentsSection
         reservationId={reservation.id}
         totalPrice={reservation.totalPrice}
         billingType={reservation.billingType}
@@ -643,10 +687,9 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
       />
     );
     expect(screen.getByText("A\u00fan no hay pagos registrados")).toBeTruthy();
-    // 2x "Agregar Pago" (header + empty state). El focus card ya no aparece en este
-    // caso porque no hay un MERCADO_PAGO pendiente sin initPoint — el KPI "Pendiente"
-    // ya carga el número, otro botón sería redundante.
-    expect(screen.getAllByRole("button", { name: /agregar pago/i })).toHaveLength(2);
+    expect(screen.getByText("A\u00fan no hay cobros extra registrados")).toBeTruthy();
+    // PaymentsSection ya no renderiza botones — viven en el top bar del padre.
+    expect(screen.queryByRole("button", { name: /agregar pago/i })).toBeNull();
   });
 
   // STATE 5: DAILY 1 pago completo
@@ -657,7 +700,7 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
       payments: [makePayment({ id: "p1", status: "COMPLETED", paidAt: yesterday.toISOString() })],
     });
     render(
-      <PaymentsSection
+      <TestPaymentsSection
         reservationId={reservation.id}
         totalPrice={reservation.totalPrice}
         billingType={reservation.billingType}
@@ -680,7 +723,7 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
       payments: [makePayment({ id: "p1", status: "PENDING", amount: "30000", method: "MERCADO_PAGO" })],
     });
     render(
-      <PaymentsSection
+      <TestPaymentsSection
         reservationId={reservation.id}
         totalPrice={reservation.totalPrice}
         billingType={reservation.billingType}
@@ -708,7 +751,7 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
       ],
     });
     render(
-      <PaymentsSection
+      <TestPaymentsSection
         reservationId={reservation.id}
         totalPrice={reservation.totalPrice}
         billingType={reservation.billingType}
@@ -732,7 +775,7 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
       payments: [makePayment({ id: "p1", status: "COMPLETED", paidAt: yesterday.toISOString() })],
     });
     render(
-      <PaymentsSection
+      <TestPaymentsSection
         reservationId={reservation.id}
         totalPrice={reservation.totalPrice}
         billingType={reservation.billingType}
@@ -757,7 +800,7 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
       payments: [makePayment({ id: "p1", status: "COMPLETED", paidAt: yesterday.toISOString() })],
     });
     render(
-      <PaymentsSection
+      <TestPaymentsSection
         reservationId={reservation.id}
         totalPrice={reservation.totalPrice}
         billingType={reservation.billingType}
@@ -785,7 +828,7 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
       ],
     });
     render(
-      <PaymentsSection
+      <TestPaymentsSection
         reservationId={reservation.id}
         totalPrice={reservation.totalPrice}
         billingType={reservation.billingType}
@@ -799,137 +842,5 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
     // Extra payments rendered as cards
     const allCards = document.querySelectorAll("[data-testid^=\"payment-card-\"]");
     expect(allCards.length).toBe(3); // 1 reservation + 2 extra
-  });
-});
-
-describe("PaymentsSection - gating del boton Verificar pagos MP", () => {
-  const makeReservation = (overrides = {}) => ({
-    id: "res-1",
-    propertyId: "prop-1",
-    clientId: "client-1",
-    startDate: "2025-01-01",
-    endDate: "2025-01-05",
-    billingType: "DAILY",
-    unitsBooked: 1,
-    totalPrice: "200000",
-    status: "CONFIRMED",
-    bookingAirbnb: false,
-    notes: null,
-    property: { id: "prop-1", name: "Test Property", color: "#3B82F6", dailyPrice: "50000" },
-    client: { id: "client-1", name: "Test Client", email: "test@test.com" },
-    payments: [],
-    ...overrides,
-  });
-
-  const makePayment = (overrides = {}) => ({
-    id: "pay-1",
-    installmentIndex: null,
-    amount: "50000",
-    dueDate: null,
-    status: "PENDING",
-    method: "CASH",
-    initPoint: null,
-    expiresAt: null,
-    paidAt: null,
-    deletedAt: null,
-    receiptUrl: null,
-    paymentType: "RESERVATION",
-    title: null,
-    description: null,
-    installmentLabel: null,
-    ...overrides,
-  });
-
-  it("CASH payments — boton Verificar NO aparece", () => {
-    const reservation = makeReservation({
-      payments: [makePayment({ id: "p1", method: "CASH" })],
-    });
-    render(
-      <PaymentsSection
-        reservationId={reservation.id}
-        totalPrice={reservation.totalPrice}
-        billingType={reservation.billingType}
-        status={reservation.status}
-        payments={reservation.payments}
-        client={reservation.client}
-        propertyName="Test Property"
-      />
-    );
-    expect(screen.queryByRole("button", { name: /verificar pagos mp/i })).toBeNull();
-  });
-
-  it("MERCADOPAGO PENDING — boton Verificar aparece con label Verificar pagos MP", () => {
-    const reservation = makeReservation({
-      payments: [makePayment({ id: "p1", method: "MERCADO_PAGO", status: "PENDING" })],
-    });
-    render(
-      <PaymentsSection
-        reservationId={reservation.id}
-        totalPrice={reservation.totalPrice}
-        billingType={reservation.billingType}
-        status={reservation.status}
-        payments={reservation.payments}
-        client={reservation.client}
-        propertyName="Test Property"
-      />
-    );
-    expect(screen.getByRole("button", { name: /verificar pagos mp/i })).toBeTruthy();
-  });
-
-  it("MERCADOPAGO COMPLETED — boton Verificar aparece (revalidar links)", () => {
-    const reservation = makeReservation({
-      status: "CONFIRMED",
-      payments: [makePayment({ id: "p1", method: "MERCADO_PAGO", status: "COMPLETED", paidAt: new Date().toISOString() })],
-    });
-    render(
-      <PaymentsSection
-        reservationId={reservation.id}
-        totalPrice={reservation.totalPrice}
-        billingType={reservation.billingType}
-        status={reservation.status}
-        payments={reservation.payments}
-        client={reservation.client}
-        propertyName="Test Property"
-      />
-    );
-    expect(screen.getByRole("button", { name: /verificar pagos mp/i })).toBeTruthy();
-  });
-
-  it("CANCELLED + MERCADOPAGO — boton NO aparece (gating por isActive)", () => {
-    const reservation = makeReservation({
-      status: "CANCELLED",
-      payments: [makePayment({ id: "p1", method: "MERCADO_PAGO", status: "PENDING" })],
-    });
-    render(
-      <PaymentsSection
-        reservationId={reservation.id}
-        totalPrice={reservation.totalPrice}
-        billingType={reservation.billingType}
-        status={reservation.status}
-        payments={reservation.payments}
-        client={reservation.client}
-        propertyName="Test Property"
-      />
-    );
-    expect(screen.queryByRole("button", { name: /verificar pagos mp/i })).toBeNull();
-  });
-
-  it("COMPLETED reserva + MERCADOPAGO — boton NO aparece (gating por isActive)", () => {
-    const reservation = makeReservation({
-      status: "COMPLETED",
-      payments: [makePayment({ id: "p1", method: "MERCADO_PAGO", status: "COMPLETED" })],
-    });
-    render(
-      <PaymentsSection
-        reservationId={reservation.id}
-        totalPrice={reservation.totalPrice}
-        billingType={reservation.billingType}
-        status={reservation.status}
-        payments={reservation.payments}
-        client={reservation.client}
-        propertyName="Test Property"
-      />
-    );
-    expect(screen.queryByRole("button", { name: /verificar pagos mp/i })).toBeNull();
   });
 });

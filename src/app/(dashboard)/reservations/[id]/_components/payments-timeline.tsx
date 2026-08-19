@@ -29,7 +29,6 @@ interface PaymentsTimelineProps {
   onSendLink?: (payment: Payment) => void;
   generatingLinkId?: string | null;
   regeneratingLinkId?: string | null;
-  onAddPayment?: () => void;
 }
 
 export function PaymentsTimeline({
@@ -45,7 +44,6 @@ export function PaymentsTimeline({
   onSendLink,
   generatingLinkId,
   regeneratingLinkId,
-  onAddPayment,
 }: PaymentsTimelineProps) {
   const nowKey = nowKeyInBusinessTz();
 
@@ -112,15 +110,11 @@ export function PaymentsTimeline({
         </div>
       )}
 
-      {/* Timeline nodes */}
+      {/* Timeline nodes — empty state solo mensaje. El CTA "Agregar Pago" vive en el
+          header de la sección padre (no se duplica aquí). */}
       {sorted.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-8">
           <p className="text-sm text-muted-foreground">Aún no generaste cuotas</p>
-          {isActive && onAddPayment && (
-            <Button size="sm" onClick={onAddPayment}>
-              Agregar Pago
-            </Button>
-          )}
         </div>
       ) : (
         <div ref={focusRef} className="space-y-4">

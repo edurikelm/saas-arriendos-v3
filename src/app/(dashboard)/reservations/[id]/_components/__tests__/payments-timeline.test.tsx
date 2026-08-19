@@ -131,25 +131,25 @@ describe("PaymentsTimeline", () => {
       render(
         <PaymentsTimeline
           payments={[]} isActive={true} overdueCount={0} overdueAmount={0}
-          onGenerateLink={vi.fn()} onAddPayment={vi.fn()}
+          onGenerateLink={vi.fn()}
         />
       );
       expect(screen.getByText("Aún no generaste cuotas")).toBeTruthy();
     });
-    it("empty state shows Agregar Pago CTA when isActive=true", () => {
+    it("empty state no muestra CTA 'Agregar Pago' (vive en el header de la sección padre)", () => {
       render(
         <PaymentsTimeline
           payments={[]} isActive={true} overdueCount={0} overdueAmount={0}
-          onGenerateLink={vi.fn()} onAddPayment={vi.fn()}
+          onGenerateLink={vi.fn()}
         />
       );
-      expect(screen.getByRole("button", { name: /agregar pago/i })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /agregar pago/i })).toBeNull();
     });
     it("empty state does not show CTA when inactive", () => {
       render(
         <PaymentsTimeline
           payments={[]} isActive={false} overdueCount={0} overdueAmount={0}
-          onGenerateLink={vi.fn()} onAddPayment={vi.fn()}
+          onGenerateLink={vi.fn()}
         />
       );
       expect(screen.getByText("Aún no generaste cuotas")).toBeTruthy();

@@ -14,6 +14,8 @@ import {
   Home,
   MoreVertical,
   Pencil,
+  Plus,
+  RefreshCw,
   StickyNote,
   Tag,
   User as UserIcon,
@@ -45,6 +47,7 @@ import { cn } from "@/lib/utils";
 import { dateKeyToDayIndex } from "@/lib/domain/timezone";
 import { getInclusiveMonths } from "@/lib/reservation-dates";
 import { PaymentsSection } from "./payments-section";
+import { usePaymentActions } from "./payment-actions";
 
 interface ReservationChange {
   id: string;
@@ -590,9 +593,43 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
   const isEditable = reservation.status !== "CANCELLED" && reservation.status !== "COMPLETED";
   const propertyColor = reservation.property.color || "var(--primary)";
 
+  // Pagos — el hook vive aquí (top bar) para que "Verificar pagos MP" y "Agregar Pago"
+  // puedan dispararse desde los botones del header. Las listas reciben solo handlers.
+  const {
+    handleGenerateLink,
+    handleRegenerateLink,
+    handleMarkPaidClick,
+    handleDeletePayment,
+    handleUploadReceipt,
+    handleRefreshPayments,
+    handleSendLink,
+    isCheckingAllPayments,
+    generatingLinkId,
+    regeneratingLinkId,
+    setShowAddPaymentDialog,
+    MarkPaidModal,
+    AddPaymentModal,
+    DeleteConfirmModal,
+    SendLinkModal,
+  } = usePaymentActions({
+    reservationId: reservation.id,
+    totalPrice: reservation.totalPrice,
+    paidAmount: 0, // No se usa aquí — PaymentsSection recalcula desde payments
+    client: reservation.client,
+    propertyName: reservation.property.name,
+    billingType: reservation.billingType,
+    isActive: isEditable,
+  });
+
+  // "Verificar pagos MP" solo se muestra cuando hay pagos MercadoPago (brief §5.8)
+  const hasMercadoPagoPayments = reservation.payments.some(
+    (p) => p.method === "MERCADO_PAGO",
+  );
+  const showHeaderVerify = isEditable && hasMercadoPagoPayments;
+
   return (
     <div className="p-4 sm:p-6">
-      {/* ─── TOP BAR: back + actions ─────────────────────────────────── */}
+      {/* ─── TOP BAR: back + acciones de pago + 3-dot menu ──────────── */}
       <div className="mb-6 flex items-center justify-between gap-3">
         <Link
           href="/reservations"
@@ -605,23 +642,30 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
 
         {isEditable && (
           <div className="flex items-center gap-2">
+            {showHeaderVerify && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleRefreshPayments}
+                disabled={isCheckingAllPayments}
+                className="gap-1.5"
+              >
+                <RefreshCw
+                  className={cn("h-3.5 w-3.5", isCheckingAllPayments && "animate-spin")}
+                />
+                <span className="hidden sm:inline">
+                  {isCheckingAllPayments ? "Verificando..." : "Verificar pagos MP"}
+                </span>
+              </Button>
+            )}
             <Button
-              variant="outline"
               size="sm"
-              onClick={() => setShowEditForm(true)}
+              variant="default"
+              onClick={() => setShowAddPaymentDialog(true)}
               className="gap-1.5"
             >
-              <Pencil className="size-3.5" aria-hidden="true" />
-              <span className="hidden sm:inline">Editar</span>
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setShowCancelConfirm(true)}
-              className="gap-1.5"
-            >
-              <Ban className="size-3.5" aria-hidden="true" />
-              <span className="hidden sm:inline">Cancelar</span>
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Agregar Pago</span>
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger
@@ -677,15 +721,31 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
         <div className="space-y-6 min-w-0">
           {/* Sección 1: Pagos. El título "Pagos de reserva" / "Cuotas de arriendo" vive
               dentro de PaymentsSection como header del listado (mismo patrón que
-              "Cobros extra" abajo) — no necesita un h2 wrapper redundante. */}
+              "Cobros extra" abajo) — no necesita un h2 wrapper redundante.
+              Las acciones (Verificar MP, Agregar Pago) viven en el top bar del detail. */}
           <PaymentsSection
-            reservationId={reservation.id}
             totalPrice={reservation.totalPrice}
             billingType={reservation.billingType}
             status={reservation.status}
             payments={reservation.payments}
-            client={reservation.client}
-            propertyName={reservation.property.name}
+            actions={{
+              onGenerateLink: handleGenerateLink,
+              onRegenerateLink: handleRegenerateLink,
+              onMarkPaid: handleMarkPaidClick,
+              onDeletePayment: handleDeletePayment,
+              onUploadReceipt: handleUploadReceipt,
+              onSendLink: handleSendLink,
+              generatingLinkId,
+              regeneratingLinkId,
+            }}
+            modals={
+              <>
+                <MarkPaidModal />
+                <AddPaymentModal />
+                <DeleteConfirmModal />
+                <SendLinkModal />
+              </>
+            }
           />
         </div>
 

@@ -105,6 +105,17 @@ describe("PaymentsCardsList", () => {
       );
       expect(screen.getByText("Aún no hay cobros extra registrados")).toBeTruthy();
     });
+    it("variant=extra uses extra inactive empty state message when isActive=false", () => {
+      render(
+        <PaymentsCardsList
+          payments={[]}
+          nowKey="2025-01-01" isActive={false}
+          onGenerateLink={vi.fn()}
+          variant="extra"
+        />
+      );
+      expect(screen.getByText("Esta reserva no tiene cobros extra registrados.")).toBeTruthy();
+    });
   });
 
   describe("empty state", () => {
@@ -112,19 +123,19 @@ describe("PaymentsCardsList", () => {
       render(
         <PaymentsCardsList
           payments={[]} nowKey="2025-01-01" isActive={true}
-          onGenerateLink={vi.fn()} onAddPayment={vi.fn()}
+          onGenerateLink={vi.fn()}
         />
       );
       expect(screen.getByText("Aún no hay pagos registrados")).toBeTruthy();
     });
-    it("renders empty state with CTA when isActive=true", () => {
+    it("empty state no muestra CTA 'Agregar Pago' (vive en el header de la sección padre)", () => {
       render(
         <PaymentsCardsList
           payments={[]} nowKey="2025-01-01" isActive={true}
-          onGenerateLink={vi.fn()} onAddPayment={vi.fn()}
+          onGenerateLink={vi.fn()}
         />
       );
-      expect(screen.getByRole("button", { name: /agregar pago/i })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /agregar pago/i })).toBeNull();
     });
     it("renders inactive empty state when isActive=false", () => {
       render(
