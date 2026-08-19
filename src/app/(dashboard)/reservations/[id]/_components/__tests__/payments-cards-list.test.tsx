@@ -26,8 +26,12 @@ const mockPayment = (overrides = {}) => ({
 });
 
 describe("PaymentsCardsList", () => {
-  describe("celebratory state", () => {
-    it("renders compact strip with payment count and total when all COMPLETED", () => {
+  describe("celebratory strip (removed)", () => {
+    // El strip celebratorio "Pago cobrado · $X" / "N pagos · $X cobrados" fue
+    // eliminado en 2026-Q3: redundaba con el KPI "Pagado" del header de la
+    // sección y con el badge "Pagado" de cada PaymentCard. La lista queda
+    // plana. Estos asserts documentan la NO presencia del strip.
+    it("does NOT render celebratory strip when all payments are COMPLETED", () => {
       render(
         <PaymentsCardsList
           payments={[
@@ -38,9 +42,13 @@ describe("PaymentsCardsList", () => {
           onGenerateLink={vi.fn()}
         />
       );
-      expect(screen.getByText("2 pagos · $100.000 cobrados")).toBeTruthy();
+      expect(screen.queryByText(/pagos \u00b7 .* cobrados/i)).toBeNull();
+      expect(screen.queryByText(/pago cobrado/i)).toBeNull();
+      // Pero los cards sí se renderizan (no se rompió la lista)
+      const cards = document.querySelectorAll("[data-testid^=\"payment-card-\"]");
+      expect(cards.length).toBe(2);
     });
-    it("renders single payment copy when only one payment", () => {
+    it("does NOT render celebratory strip with single COMPLETED payment", () => {
       render(
         <PaymentsCardsList
           payments={[
@@ -50,9 +58,11 @@ describe("PaymentsCardsList", () => {
           onGenerateLink={vi.fn()}
         />
       );
-      expect(screen.getByText("Pago cobrado · $175.000")).toBeTruthy();
+      expect(screen.queryByText(/pago cobrado/i)).toBeNull();
+      // Card sigue presente con su monto
+      expect(screen.getByText("$175.000")).toBeTruthy();
     });
-    it("does not render celebratory when there is a PENDING payment", () => {
+    it("does NOT render celebratory strip when there is a PENDING payment", () => {
       render(
         <PaymentsCardsList
           payments={[
@@ -66,7 +76,7 @@ describe("PaymentsCardsList", () => {
       expect(screen.queryByText(/pagos \u00b7/)).toBeNull();
       expect(screen.queryByText(/pago cobrado/i)).toBeNull();
     });
-    it("does not render celebratory when payments array is empty", () => {
+    it("does NOT render celebratory strip when payments array is empty", () => {
       render(
         <PaymentsCardsList
           payments={[]}
@@ -80,7 +90,7 @@ describe("PaymentsCardsList", () => {
   });
 
   describe("variant prop", () => {
-    it("variant=extra uses extra celebratory copy", () => {
+    it("variant=extra: NO celebratory strip (mismo componente, mismo cleanup)", () => {
       render(
         <PaymentsCardsList
           payments={[
@@ -92,7 +102,11 @@ describe("PaymentsCardsList", () => {
           variant="extra"
         />
       );
-      expect(screen.getByText("2 pagos · $70.000 cobrados")).toBeTruthy();
+      expect(screen.queryByText(/pagos \u00b7 .* cobrados/i)).toBeNull();
+      expect(screen.queryByText(/pago cobrado/i)).toBeNull();
+      // Cards de extras siguen renderizándose
+      const cards = document.querySelectorAll("[data-testid^=\"payment-card-\"]");
+      expect(cards.length).toBe(2);
     });
     it("variant=extra uses extra empty state message", () => {
       render(

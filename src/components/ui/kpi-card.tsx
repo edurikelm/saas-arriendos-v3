@@ -30,10 +30,11 @@ const iconContainerToneClass: Record<KpiTone, string> = {
   destructive: "bg-destructive/10 text-destructive",
 };
 
-// Tonos para el value text — solo warning/destructive colorean el número
+// Tonos para el value text — success/warning/destructive colorean el número;
+// default e info quedan en foreground (estados neutros sin énfasis de color).
 const valueToneClass: Record<KpiTone, string> = {
   default: "text-foreground",
-  success: "text-foreground",
+  success: "text-success",
   info: "text-foreground",
   warning: "text-warning",
   destructive: "text-destructive",

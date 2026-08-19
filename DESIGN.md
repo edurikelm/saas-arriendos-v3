@@ -436,7 +436,7 @@ Primitive único para KPIs del producto. API: `label`, `value`, `unit?`, `icon?`
 
 - **Container:** `rounded-lg border border-border bg-card p-4`. Sin shadow.
 - **Label:** `text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1`.
-- **Value:** `text-xl font-bold tabular-nums`. Color: `text-foreground` por defecto; cambia a `text-{tone}` solo si `tone` es `warning` o `destructive` (señalización de atención).
+- **Value:** `text-xl font-bold tabular-nums`. Color: `text-foreground` por defecto; cambia a `text-{tone}` cuando `tone` es `success`, `warning` o `destructive`. `default` e `info` quedan en `text-foreground` (estados neutros sin énfasis de color).
 - **Icon container (opcional):** `size-9 rounded-xl bg-{tone}/10 text-{tone}` en esquina superior derecha. Sin container si no se pasa icon.
 - **Indicator (opcional):** `text-[10px] font-medium mt-1` con TrendingUp (positive) o AlertTriangle (warning/neutral).
 - **ProgressBar (opcional):** `h-1 rounded-full bg-muted` con fill `bg-primary`.

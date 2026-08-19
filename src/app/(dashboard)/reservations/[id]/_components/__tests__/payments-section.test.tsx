@@ -614,7 +614,10 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
   });
 
   // STATE 2: MONTHLY todo pagado
-  it("MONTHLY todo pagado — timeline completo success, sin focus card, celebratorio", () => {
+  it("MONTHLY todo pagado — timeline completo success, sin strip celebratorio", () => {
+    // El strip "Cuotas pagadas en su totalidad" fue eliminado (2026-Q3 cleanup).
+    // Validamos que los 3 nodos del timeline COMPLETED sí se renderizan, que no
+    // hay focus card de vencidas, y que el strip celebratorio NO está presente.
     const reservation = makeReservation({
       billingType: "MONTHLY",
       status: "COMPLETED",
@@ -636,7 +639,11 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
         propertyName="Test Property"
       />
     );
-    expect(screen.getByText("Cuotas pagadas en su totalidad")).toBeTruthy();
+    // Strip celebratorio eliminado
+    expect(screen.queryByText(/cuotas pagadas en su totalidad/i)).toBeNull();
+    // Los 3 nodos del timeline COMPLETED sí están renderizados
+    const nodes = document.querySelectorAll("[data-testid^=\"timeline-node-\"]");
+    expect(nodes.length).toBe(3);
     // No focus card for overdue
     expect(screen.queryByText(/tienes.*cuota.*vencida/i)).toBeNull();
   });
@@ -693,7 +700,11 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
   });
 
   // STATE 5: DAILY 1 pago completo
-  it("DAILY 1 pago completo — card success + celebratorio", () => {
+  it("DAILY 1 pago completo — card success renderiza sin strip celebratorio", () => {
+    // El strip "Pago cobrado · $X" fue eliminado (redundaba con KPI + badge).
+    // Validamos que el card COMPLETED sí se renderiza con su badge y monto,
+    // y que el strip celebratorio NO está presente. Hay 2+ "Pagado" en el DOM:
+    // el KPI label del header y el badge del card.
     const reservation = makeReservation({
       status: "COMPLETED",
       totalPrice: "50000",
@@ -710,7 +721,13 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
         propertyName="Test Property"
       />
     );
-    expect(screen.getByText("Pago cobrado · $50.000")).toBeTruthy();
+    // El card COMPLETED está presente con su badge "Pagado" y monto.
+    // getAllByText: el KPI del header ("Pagado") + el badge del card = 2.
+    expect(screen.getAllByText("Pagado").length).toBeGreaterThanOrEqual(2);
+    // $50.000 aparece 2 veces: KPI Total + monto del PaymentCard.
+    expect(screen.getAllByText("$50.000").length).toBeGreaterThanOrEqual(2);
+    // El strip celebratorio fue eliminado
+    expect(screen.queryByText(/pago cobrado/i)).toBeNull();
     // Sin focus card Saldo pendiente
     expect(screen.queryByText("Saldo pendiente")).toBeNull();
   });
@@ -793,7 +810,7 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
   });
 
   // STATE 9: COMPLETED
-  it("COMPLETED reserva — sin acciones, sin CTA primario", () => {
+  it("COMPLETED reserva — sin acciones, sin CTA primario, sin strip celebratorio", () => {
     const reservation = makeReservation({
       status: "COMPLETED",
       totalPrice: "200000",
@@ -811,8 +828,10 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
       />
     );
     expect(screen.queryByRole("button", { name: /agregar pago/i })).toBeNull();
-    // Celebratorio visible
-    expect(screen.getByText("Pago cobrado · $50.000")).toBeTruthy();
+    // Strip celebratorio eliminado — verificamos su ausencia
+    expect(screen.queryByText(/pago cobrado/i)).toBeNull();
+    // El card sigue presente con su badge "Pagado" (KPI del header + badge = 2+)
+    expect(screen.getAllByText("Pagado").length).toBeGreaterThanOrEqual(2);
   });
 
   // STATE 10: Con cobros extra

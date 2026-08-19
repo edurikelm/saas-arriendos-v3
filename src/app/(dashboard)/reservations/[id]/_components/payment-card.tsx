@@ -10,6 +10,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  CalendarCheck,
+  CalendarDays,
   MoreHorizontal,
   FileText,
   Check,
@@ -200,49 +202,74 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
       data-testid={`payment-card-${payment.id}`}
       aria-label={ariaLabel}
       className={cn(
-        "px-4 py-3 transition-colors",
+        "px-4 py-4 transition-colors",
         isActive && "hover:bg-muted/30",
         !isActive && "opacity-60",
       )}
     >
-      {/* Layout 2 zonas (igual que PaymentTimelineNode para coherencia visual):
-            • Info zone (izquierda): contextHint + status badge + amount block + meta line
-            • Actions zone (derecha):  primary action | secondary action (o dropdown)
-          El monto vive en el info zone (no con los botones) para que la columna
-          derecha solo contenga acciones — evita la percepción de "3 columnas". */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        {/* ───── INFO ZONE (izquierda) ───── */}
+      {/* Layout 3 columnas (desktop) / stacked (mobile) — mismo patrón que
+          PaymentTimelineNode para coherencia visual entre reservas mensuales y diarias:
+            • Col 1 (info):    contextHint (Pago N / Cuota / título EXTRA) + badge,
+                               debajo meta con iconos (📅 Pagado / 📅 Vence / MP método)
+            • Col 2 (monto):   kicker 10px + número tabular grande (centrado en desktop)
+            • Col 3 (acciones): botones apilados, alineados a la derecha en desktop
+          El contextHint pasa de eyebrow 10px a título `text-base` para alinearse con
+          el patrón del timeline node ("Octubre de 2026" como h3). */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+        {/* ───── COL 1 — INFO (contextHint + badge, debajo meta con iconos) ───── */}
         <div className="min-w-0 flex-1 flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2 min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground truncate">
+            <h3 className="text-base font-semibold text-foreground leading-tight">
               {contextHint}
-            </p>
+            </h3>
             <Badge variant={statusBadgeVariant[payment.status] ?? "secondary"} className="shrink-0">
               {statusBadgeLabel[payment.status] ?? payment.status}
             </Badge>
           </div>
-          {/* Amount block — vive con el info zone */}
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              {amountKicker}
-            </p>
-            <p className="text-xl font-bold tabular-nums text-foreground tracking-tight">
-              {formatAmount(payment.amount)}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5 text-xs text-muted-foreground min-w-0">
+          {/* Meta row con iconos — Pagado / Vence / Método */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground min-w-0">
             {payment.paidAt && (
-              <span className="tabular-nums">Pagado {formatShortDate(payment.paidAt)}</span>
+              <span className="inline-flex items-center gap-1 tabular-nums">
+                <CalendarCheck className="size-3 shrink-0" aria-hidden="true" />
+                <span>Pagado {formatShortDate(payment.paidAt)}</span>
+              </span>
+            )}
+            {payment.paidAt && payment.dueDate && (
+              <span className="text-muted-foreground/40" aria-hidden="true">·</span>
             )}
             {payment.dueDate && (
-              <span className="tabular-nums">Vence {formatShortDate(payment.dueDate)}</span>
+              <span className="inline-flex items-center gap-1 tabular-nums">
+                <CalendarDays className="size-3 shrink-0" aria-hidden="true" />
+                <span>Vence {formatShortDate(payment.dueDate)}</span>
+              </span>
             )}
-            <span>{methodLabel}</span>
+            {(payment.paidAt || payment.dueDate) && (
+              <span className="text-muted-foreground/40" aria-hidden="true">·</span>
+            )}
+            <span className="inline-flex items-center gap-1.5">
+              <span
+                className="inline-flex items-center justify-center size-4 rounded-sm bg-primary text-primary-foreground text-[9px] font-bold leading-none shrink-0"
+                aria-hidden="true"
+              >
+                MP
+              </span>
+              <span>{methodLabel}</span>
+            </span>
           </div>
         </div>
 
-        {/* ───── ACTIONS ZONE (derecha) — solo botones, sin monto ───── */}
-        <div className="flex flex-col items-start gap-1.5 shrink-0 sm:items-end">
+        {/* ───── COL 2 — MONTO (kicker + número tabular, centrado en desktop) ───── */}
+        <div className="flex flex-col items-start gap-0.5 shrink-0 sm:items-center sm:min-w-[140px]">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            {amountKicker}
+          </p>
+          <p className="text-xl font-bold tabular-nums text-foreground tracking-tight">
+            {formatAmount(payment.amount)}
+          </p>
+        </div>
+
+        {/* ───── COL 3 — ACCIONES (botones apilados, alineados a la derecha en desktop) ───── */}
+        <div className="flex flex-col items-start gap-1.5 shrink-0 sm:items-end sm:min-w-[150px]">
           {/* Primary action */}
           {primaryAction === "generate" && (
             <Button

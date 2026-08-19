@@ -10,6 +10,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  CalendarDays,
+  Hash,
   MoreHorizontal,
   FileText,
   Check,
@@ -239,12 +241,13 @@ export function PaymentTimelineNode({
         aria-hidden="true"
       />
 
-      {/* Content — Layout 2 zonas:
-            • Info zone (izquierda): eyebrow + título (mes + badge) + amount block + meta line
-            • Actions zone (derecha):  primary action | secondary action (o dropdown)
-          El monto vive en el info zone (no con los botones) para que la columna
-          derecha solo contenga acciones — evita la percepción de "3 columnas"
-          que aparece cuando monto + acciones compiten por el mismo cluster vertical.
+      {/* Content — Layout 3 columnas (desktop) / stacked (mobile):
+            • Col 1 (info):    título del mes + badge, debajo meta con iconos (# / 📅 / MP)
+            • Col 2 (monto):   kicker 10px + número tabular grande (centrado en desktop)
+            • Col 3 (acciones): botones apilados, alineados a la derecha en desktop
+          El monto en su propia columna evita que info y acciones compitan por
+          espacio horizontal y refleja la jerarquía "cuota · monto · acción" del
+          dominio. En mobile las 3 columnas se apilan verticalmente.
           Border canónico del design system; sin border tint por tone. */}
       <div
         className={cn(
@@ -253,50 +256,74 @@ export function PaymentTimelineNode({
           !isActive && "opacity-60",
         )}
       >
-        <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
-          {/* ───── INFO ZONE (izquierda) ───── */}
+        <div className="flex flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:gap-6">
+          {/* ───── COL 1 — INFO (mes + badge, debajo meta con iconos) ───── */}
           <div className="min-w-0 flex-1 flex flex-col gap-2">
-            <p
-              className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
-              aria-label={ariaLabel}
-            >
-              Mensualidad · Cuota {installmentNumber} de {total}
-            </p>
             <div className="flex flex-wrap items-center gap-2 min-w-0">
-              <h3 className="text-sm font-semibold text-foreground truncate">
+              <h3
+                className="text-base font-semibold text-foreground leading-tight"
+                aria-label={ariaLabel}
+              >
                 {monthLabel || "—"}
               </h3>
               <Badge variant={toneBadgeVariant[tone]} className="shrink-0">
                 {badgeLabel}
               </Badge>
             </div>
-            {/* Amount block — vive con el info zone. Kicker 10px whisper + número tabular grande. */}
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                {amountKicker}
-              </p>
-              <p className="text-xl font-bold tabular-nums text-foreground tracking-tight">
-                {formatAmount(payment.amount)}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5 text-xs text-muted-foreground min-w-0">
+            {/* Meta row con iconos — coincide con la maqueta (3 chips: # / 📅 / MP) */}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground min-w-0">
+              <span className="inline-flex items-center gap-1 tabular-nums">
+                <Hash className="size-3 shrink-0" aria-hidden="true" />
+                <span>Cuota {installmentNumber} de {total}</span>
+              </span>
+              <span className="text-muted-foreground/40" aria-hidden="true">·</span>
               {payment.dueDate && (
-                <span className="tabular-nums">
-                  Vence {formatShortDate(payment.dueDate)}
-                  {isPending && daysFromNow >= 0 && daysFromNow <= 7 && daysFromNow > 0 && (
-                    <span className="text-info font-medium"> · En {daysFromNow} días</span>
-                  )}
-                  {isPending && daysFromNow === 0 && (
-                    <span className="text-warning font-medium"> · Vence hoy</span>
-                  )}
+                <span className="inline-flex items-center gap-1 tabular-nums">
+                  <CalendarDays className="size-3 shrink-0" aria-hidden="true" />
+                  <span>
+                    Vence {formatShortDate(payment.dueDate)}
+                    {isPending && daysFromNow >= 0 && daysFromNow <= 7 && daysFromNow > 0 && (
+                      <span className="text-info font-medium"> · En {daysFromNow} días</span>
+                    )}
+                    {isPending && daysFromNow === 0 && (
+                      <span className="text-warning font-medium"> · Vence hoy</span>
+                    )}
+                  </span>
                 </span>
               )}
-              <span>{methodLabel}</span>
+              <span className="text-muted-foreground/40" aria-hidden="true">·</span>
+              <span className="inline-flex items-center gap-1.5">
+                <span
+                  className="inline-flex items-center justify-center size-4 rounded-sm bg-primary text-primary-foreground text-[9px] font-bold leading-none shrink-0"
+                  aria-hidden="true"
+                >
+                  MP
+                </span>
+                <span>{methodLabel}</span>
+              </span>
             </div>
           </div>
 
-          {/* ───── ACTIONS ZONE (derecha) — solo botones, sin monto ───── */}
-          <div className="flex flex-col items-start gap-1.5 shrink-0 sm:items-end">
+          {/* ───── COL 2 — MONTO (kicker + número tabular, centrado en desktop) ───── */}
+          <div className="flex flex-col items-start gap-0.5 shrink-0 sm:items-center sm:min-w-[140px]">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              {amountKicker}
+            </p>
+            <p className="text-xl font-bold tabular-nums text-foreground tracking-tight">
+              {formatAmount(payment.amount)}
+            </p>
+            {/* Sublabel "Pagado el X" — solo cuando COMPLETED. Refuerza visualmente
+                que ese monto ya fue cobrado, en el mismo verde del badge (Status
+                Color Doctrine: COMPLETED → success). */}
+            {isCompleted && payment.paidAt && (
+              <p className="text-[10px] font-medium text-success tabular-nums mt-0.5">
+                Pagado el {formatShortDate(payment.paidAt)}
+              </p>
+            )}
+          </div>
+
+          {/* ───── COL 3 — ACCIONES (botones apilados, alineados a la derecha en desktop) ───── */}
+          <div className="flex flex-col items-start gap-1.5 shrink-0 sm:items-end sm:min-w-[150px]">
             {/* Primary action */}
             {primaryAction === "generate" && (
               <Button

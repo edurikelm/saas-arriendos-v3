@@ -97,9 +97,13 @@ describe("PaymentsTimeline", () => {
     });
   });
 
-  describe("celebratory state", () => {
-    it("renders celebratory when all COMPLETED", () => {
-      render(
+  describe("celebratory strip (removed)", () => {
+    // El strip "Cuotas pagadas en su totalidad" fue eliminado (2026-Q3 cleanup):
+    // redundaba con el KPI "Pagado" del header y con el badge "Pagado" de cada
+    // PaymentTimelineNode. Estos asserts documentan la NO presencia del strip
+    // y que la lista de nodos sigue funcionando normalmente.
+    it("does NOT render celebratory strip when all payments are COMPLETED", () => {
+      const { container } = render(
         <PaymentsTimeline
           payments={[
             mockPayment({ id: "p1", status: "COMPLETED" }),
@@ -109,9 +113,12 @@ describe("PaymentsTimeline", () => {
           onGenerateLink={vi.fn()}
         />
       );
-      expect(screen.getByText("Cuotas pagadas en su totalidad")).toBeTruthy();
+      expect(screen.queryByText(/cuotas pagadas en su totalidad/i)).toBeNull();
+      // Pero los timeline nodes sí se renderizan (no se rompió la lista)
+      const nodes = container.querySelectorAll("[data-testid^=timeline-node-]");
+      expect(nodes.length).toBe(2);
     });
-    it("does not render celebratory when there are pending", () => {
+    it("does NOT render celebratory strip when there are pending payments", () => {
       render(
         <PaymentsTimeline
           payments={[
@@ -122,7 +129,7 @@ describe("PaymentsTimeline", () => {
           onGenerateLink={vi.fn()}
         />
       );
-      expect(screen.queryByText("Cuotas pagadas en su totalidad")).toBeNull();
+      expect(screen.queryByText(/cuotas pagadas en su totalidad/i)).toBeNull();
     });
   });
 

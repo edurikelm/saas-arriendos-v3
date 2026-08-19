@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { ArrowDown, CheckCircle2 } from "lucide-react";
+import { ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PaymentTimelineNode } from "./payment-timeline-node";
 import { daysFromNowInBusinessTz, isOverdueInBusinessTz, nowKeyInBusinessTz } from "@/lib/domain/timezone";
@@ -52,8 +52,6 @@ export function PaymentsTimeline({
     (a, b) => (a.installmentIndex ?? 0) - (b.installmentIndex ?? 0),
   );
 
-  const allCompleted = sorted.length > 0 && sorted.every((p) => p.status === "COMPLETED");
-
   // Find first overdue payment for focus
   const firstOverdueIdx = sorted.findIndex(
     (p) => p.status === "PENDING" && isOverdueInBusinessTz(p.dueDate, nowKey),
@@ -100,18 +98,11 @@ export function PaymentsTimeline({
         </div>
       )}
 
-      {/* Fully paid celebratory state */}
-      {allCompleted && sorted.length > 0 && (
-        <div className="rounded-lg border border-success/20 bg-success/5 p-4 flex items-center gap-3">
-          <div className="size-10 rounded-full bg-success/10 flex items-center justify-center shrink-0">
-            <CheckCircle2 className="size-5 text-success" aria-hidden="true" />
-          </div>
-          <p className="text-sm font-medium text-foreground">Cuotas pagadas en su totalidad</p>
-        </div>
-      )}
-
       {/* Timeline nodes — empty state solo mensaje. El CTA "Agregar Pago" vive en el
-          header de la sección padre (no se duplica aquí). */}
+          header de la sección padre (no se duplica aquí). El strip celebratorio
+          "Cuotas pagadas en su totalidad" fue eliminado (2026-Q3 cleanup):
+          redundaba con el KPI "Pagado" del header y con el badge "Pagado" de cada
+          PaymentTimelineNode. La lista queda plana, sin summary interno. */}
       {sorted.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-8">
           <p className="text-sm text-muted-foreground">Aún no generaste cuotas</p>
