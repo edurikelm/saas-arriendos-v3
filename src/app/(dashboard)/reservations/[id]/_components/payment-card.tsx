@@ -13,9 +13,14 @@ import {
   MoreHorizontal,
   FileText,
   Check,
+  Copy,
+  ExternalLink,
+  RefreshCw,
   Send,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { ACTION_CONFIG } from "@/components/payments/payment-row-actions";
 import type { Payment } from "@/components/payments/payments-table";
 
@@ -104,27 +109,64 @@ export function PaymentCard({
   const isMercadoPago = payment.method === "MERCADO_PAGO";
   const isExpired = payment.expiresAt ? new Date(payment.expiresAt) < new Date() : false;
 
-  // Primary action cascade (brief §5.4)
-  const canMarkPaid = isPending && isActive && !!onMarkPaid;
+  // Primary action cascade — alineado con ACTION_CONFIG / payment-row-actions.tsx
+  // (seam UI canónico). Orden: generate → regenerate → copy → markPaid → viewReceipt.
+  // `sendLink` queda como secundario (dropdown), nunca como primary.
   const canGenerateLink = isPending && isMercadoPago && !payment.initPoint && !!onGenerateLink;
   const canRegenerateLink = isPending && isMercadoPago && isExpired && !!payment.initPoint && !!onRegenerateLink;
+  const canCopyLink = isPending && isMercadoPago && !!payment.initPoint && !isExpired;
   const canSendLink = isPending && isMercadoPago && !!payment.initPoint && !!onSendLink;
+  const canMarkPaid = isPending && isActive && !!onMarkPaid;
   const canDelete = isPending && !isMercadoPago && isActive && !!onDeletePayment;
   const canViewReceipt = !!payment.receiptUrl;
 
-  // Dropdown secondaries
-  const dropdownItems: Array<{ id: string; label: string; destructive?: boolean }> = [];
-  if (canMarkPaid) dropdownItems.push({ id: "markPaid", label: ACTION_CONFIG.markPaid.label });
-  if (canDelete) dropdownItems.push({ id: "delete", label: ACTION_CONFIG.delete.label, destructive: true });
-  if (canViewReceipt) dropdownItems.push({ id: "viewReceipt", label: ACTION_CONFIG.viewReceipt.label });
-  if (canSendLink) dropdownItems.push({ id: "sendLink", label: ACTION_CONFIG.sendLink.label });
-  if (canGenerateLink) dropdownItems.push({ id: "generate", label: ACTION_CONFIG.generate.label });
-  if (canRegenerateLink) dropdownItems.push({ id: "regenerate", label: ACTION_CONFIG.regenerate.label });
+  const isGenerating = generatingLinkId === payment.id;
+  const isRegenerating = regeneratingLinkId === payment.id;
+
+  type PrimaryId = "generate" | "regenerate" | "copy" | "markPaid" | "viewReceipt";
+  const primaryAction: PrimaryId | null = canGenerateLink
+    ? "generate"
+    : canRegenerateLink
+      ? "regenerate"
+      : canCopyLink
+        ? "copy"
+        : canMarkPaid
+          ? "markPaid"
+          : isCompleted && canViewReceipt
+            ? "viewReceipt"
+            : null;
+
+  // Secondaries — todo lo que NO es primary pero sigue siendo elegible.
+  // UX rule (consistente con payment-row-actions.tsx): 1 secundaria → inline
+  // (botón visible, sin dropdown), 2+ secundarias → dropdown group.
+  type SecondaryId = "markPaid" | "delete" | "viewReceipt" | "sendLink";
+  const secondaries: SecondaryId[] = [];
+  if (canMarkPaid && primaryAction !== "markPaid") secondaries.push("markPaid");
+  if (canDelete) secondaries.push("delete");
+  if (isCompleted && canViewReceipt && primaryAction !== "viewReceipt") secondaries.push("viewReceipt");
+  if (canSendLink) secondaries.push("sendLink");
+
+  const inlineSecondary: SecondaryId | null =
+    primaryAction && secondaries.length === 1 ? secondaries[0] : null;
+  const dropdownSecondaries: SecondaryId[] =
+    primaryAction && secondaries.length >= 2 ? secondaries : [];
+
+  const dropdownItems = dropdownSecondaries.map((id) => ({
+    id,
+    label: ACTION_CONFIG[id].label,
+    destructive: id === "delete",
+  }));
 
   const runAction = (actionId: string) => {
     switch (actionId) {
       case "generate": onGenerateLink?.(payment.id); break;
       case "regenerate": onRegenerateLink?.(payment.id); break;
+      case "copy":
+        if (payment.initPoint) {
+          navigator.clipboard.writeText(payment.initPoint);
+          toast.success("Link copiado al portapapeles");
+        }
+        break;
       case "sendLink": onSendLink?.(payment); break;
       case "markPaid": onMarkPaid?.(payment.id); break;
       case "delete": onDeletePayment?.(payment.id); break;
@@ -144,52 +186,50 @@ export function PaymentCard({
           ? `Cuota ${payment.installmentIndex}`
           : `Pago ${index + 1} de ${total}`;
 
-  const methodLabel = METHOD_LABELS[payment.method] ?? "—";
+const methodLabel = METHOD_LABELS[payment.method] ?? "—";
   const ariaLabel =
     payment.paymentType === "EXTRA" && payment.title
       ? `Cobro extra · ${payment.title}`
       : payment.installmentIndex != null
         ? `Cuota ${payment.installmentIndex}`
         : `Pago ${index + 1} de ${total}`;
+  const amountKicker = isCompleted ? "Monto cobrado" : "Monto a pagar";
 
   return (
     <article
       data-testid={`payment-card-${payment.id}`}
       aria-label={ariaLabel}
       className={cn(
-        "px-4 py-3 flex flex-col gap-2 transition-colors",
+        "px-4 py-3 transition-colors",
         isActive && "hover:bg-muted/30",
         !isActive && "opacity-60",
       )}
     >
-      {/* Header: context eyebrow + status badge */}
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground min-w-0 flex-1">
-          {contextHint}
-        </p>
-        <Badge variant={statusBadgeVariant[payment.status] ?? "secondary"} className="shrink-0">
-          {statusBadgeLabel[payment.status] ?? payment.status}
-        </Badge>
-      </div>
-
-      {/* Single info row: status dot + amount + meta + actions. El dot refuerza el
-          badge del header con color al lado del monto — patrón "Status indicators"
-          del design system (DESIGN.md). self-center porque el círculo no tiene
-          baseline; el resto del row usa items-baseline para alinear el tipo. */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 min-w-0 flex-1">
-          <span
-            className={cn(
-              "size-2 rounded-full shrink-0 self-center",
-              payment.status === "PENDING" && "bg-warning",
-              payment.status === "COMPLETED" && "bg-success",
-              payment.status === "FAILED" && "bg-destructive",
-            )}
-            aria-hidden="true"
-          />
-          <p className="text-base font-bold tabular-nums text-foreground tracking-tight">
-            {formatAmount(payment.amount)}
-          </p>
+      {/* Layout 2 zonas (igual que PaymentTimelineNode para coherencia visual):
+            • Info zone (izquierda): contextHint + status badge + amount block + meta line
+            • Actions zone (derecha):  primary action | secondary action (o dropdown)
+          El monto vive en el info zone (no con los botones) para que la columna
+          derecha solo contenga acciones — evita la percepción de "3 columnas". */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        {/* ───── INFO ZONE (izquierda) ───── */}
+        <div className="min-w-0 flex-1 flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground truncate">
+              {contextHint}
+            </p>
+            <Badge variant={statusBadgeVariant[payment.status] ?? "secondary"} className="shrink-0">
+              {statusBadgeLabel[payment.status] ?? payment.status}
+            </Badge>
+          </div>
+          {/* Amount block — vive con el info zone */}
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              {amountKicker}
+            </p>
+            <p className="text-xl font-bold tabular-nums text-foreground tracking-tight">
+              {formatAmount(payment.amount)}
+            </p>
+          </div>
           <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5 text-xs text-muted-foreground min-w-0">
             {payment.paidAt && (
               <span className="tabular-nums">Pagado {formatShortDate(payment.paidAt)}</span>
@@ -201,13 +241,73 @@ export function PaymentCard({
           </div>
         </div>
 
-        <div className="flex items-center gap-1 shrink-0">
+        {/* ───── ACTIONS ZONE (derecha) — solo botones, sin monto ───── */}
+        <div className="flex flex-col items-start gap-1.5 shrink-0 sm:items-end">
           {/* Primary action */}
-          {isCompleted && (
+          {primaryAction === "generate" && (
             <Button
-              variant="ghost"
+              variant="link"
               size="sm"
-              className="h-7 text-xs gap-1"
+              className="h-7 px-1 text-xs text-primary hover:text-primary"
+              onClick={() => onGenerateLink?.(payment.id)}
+              disabled={isGenerating}
+            >
+              {isGenerating ? (
+                "Generando..."
+              ) : (
+                <>
+                  <ExternalLink className="size-3.5 mr-1" />
+                  Generar link
+                </>
+              )}
+            </Button>
+          )}
+          {primaryAction === "regenerate" && (
+            <Button
+              variant="link"
+              size="sm"
+              className="h-7 px-1 text-xs text-primary hover:text-primary"
+              onClick={() => onRegenerateLink?.(payment.id)}
+              disabled={isRegenerating}
+            >
+              {isRegenerating ? (
+                "Regenerando..."
+              ) : (
+                <>
+                  <RefreshCw className="size-3.5 mr-1" />
+                  Regenerar link
+                </>
+              )}
+            </Button>
+          )}
+          {primaryAction === "copy" && (
+            <Button
+              variant="link"
+              size="sm"
+              className="h-7 px-1 text-xs text-primary hover:text-primary"
+              onClick={() => runAction("copy")}
+              disabled={!payment.initPoint}
+            >
+              <Copy className="size-3.5 mr-1" />
+              Copiar link
+            </Button>
+          )}
+          {primaryAction === "markPaid" && (
+            <Button
+              variant="link"
+              size="sm"
+              className="h-7 px-1 text-xs text-warning hover:text-warning"
+              onClick={() => onMarkPaid?.(payment.id)}
+            >
+              <Check className="size-3.5 mr-1" />
+              Marcar pagado
+            </Button>
+          )}
+          {primaryAction === "viewReceipt" && (
+            <Button
+              variant="link"
+              size="sm"
+              className="h-7 px-1 text-xs text-muted-foreground hover:text-foreground gap-1"
               disabled={!payment.receiptUrl}
               title={!payment.receiptUrl ? "Sin comprobante adjunto" : undefined}
               onClick={() => payment.receiptUrl && window.open(payment.receiptUrl, "_blank")}
@@ -216,63 +316,32 @@ export function PaymentCard({
               Ver comprobante
             </Button>
           )}
-          {isPending && canGenerateLink && (
+          {isCompleted && primaryAction === null && canViewReceipt === false && (
             <Button
-              variant="default"
+              variant="link"
               size="sm"
-              className="h-7 text-xs"
-              onClick={() => onGenerateLink?.(payment.id)}
-              disabled={generatingLinkId === payment.id}
+              className="h-7 px-1 text-xs text-muted-foreground/60 gap-1"
+              disabled
+              title="Sin comprobante adjunto"
             >
-              {generatingLinkId === payment.id ? "Generando..." : "Generar link"}
-            </Button>
-          )}
-          {isPending && canRegenerateLink && (
-            <Button
-              variant="default"
-              size="sm"
-              className="h-7 text-xs"
-              onClick={() => onRegenerateLink?.(payment.id)}
-              disabled={regeneratingLinkId === payment.id}
-            >
-              {regeneratingLinkId === payment.id ? "Regenerando..." : "Regenerar link"}
-            </Button>
-          )}
-          {isPending && !canGenerateLink && !canRegenerateLink && canSendLink && (
-            <Button
-              variant="default"
-              size="sm"
-              className="h-7 text-xs"
-              onClick={() => onSendLink?.(payment)}
-            >
-              <Send className="size-3.5 mr-1" />
-              Enviar link
-            </Button>
-          )}
-          {isPending && !canGenerateLink && !canRegenerateLink && !canSendLink && canMarkPaid && (
-            <Button
-              variant="destructive"
-              size="sm"
-              className="h-7 text-xs"
-              onClick={() => onMarkPaid?.(payment.id)}
-            >
-              <Check className="size-3.5 mr-1" />
-              Marcar pagado
+              <FileText className="size-3.5" />
+              Ver comprobante
             </Button>
           )}
 
-          {/* Dropdown secondaries */}
-          {dropdownItems.length > 0 && (
+          {/* Secondary: dropdown (2+) OR inline button (1) */}
+          {dropdownItems.length > 0 ? (
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={
                   <Button
-                    variant="ghost"
+                    variant="link"
                     size="sm"
-                    className="size-7 p-0 text-muted-foreground hover:text-foreground"
+                    className="h-7 px-1 text-xs text-muted-foreground hover:text-foreground"
                     aria-label={`Más acciones para ${contextHint}`}
                   >
-                    <MoreHorizontal className="size-3.5" />
+                    <MoreHorizontal className="size-3.5 mr-1" />
+                    Más acciones
                   </Button>
                 }
               />
@@ -292,7 +361,48 @@ export function PaymentCard({
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
-          )}
+          ) : inlineSecondary === "markPaid" ? (
+            <Button
+              variant="link"
+              size="sm"
+              className="h-7 px-1 text-xs text-warning hover:text-warning"
+              onClick={() => onMarkPaid?.(payment.id)}
+            >
+              <Check className="size-3.5 mr-1" />
+              Marcar pagado
+            </Button>
+          ) : inlineSecondary === "sendLink" ? (
+            <Button
+              variant="link"
+              size="sm"
+              className="h-7 px-1 text-xs text-primary hover:text-primary"
+              onClick={() => onSendLink?.(payment)}
+            >
+              <Send className="size-3.5 mr-1" />
+              Enviar link
+            </Button>
+          ) : inlineSecondary === "viewReceipt" ? (
+            <Button
+              variant="link"
+              size="sm"
+              className="h-7 px-1 text-xs text-muted-foreground hover:text-foreground gap-1"
+              onClick={() => payment.receiptUrl && window.open(payment.receiptUrl, "_blank")}
+            >
+              <FileText className="size-3.5" />
+              Ver comprobante
+            </Button>
+          ) : inlineSecondary === "delete" ? (
+            <Button
+              variant="link"
+              size="sm"
+              className="h-7 px-1 text-xs text-muted-foreground hover:text-destructive"
+              onClick={() => onDeletePayment?.(payment.id)}
+              title="Eliminar pago"
+            >
+              <Trash2 className="size-3.5 mr-1" />
+              Eliminar
+            </Button>
+          ) : null}
         </div>
       </div>
     </article>

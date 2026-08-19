@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { PaymentTimelineNode } from "../payment-timeline-node";
 
 vi.mock("sonner", () => ({
@@ -158,7 +158,11 @@ describe("PaymentTimelineNode", () => {
       expect(btn).toBeTruthy();
       expect(btn.disabled).toBe(true);
     });
-    it("PENDING MERCADO_PAGO without initPoint shows Enviar link", () => {
+    // Cascada primaria alineada con ACTION_CONFIG / payment-row-actions.tsx.
+    // El bug original etiquetaba "Enviar link" ambas ramas (generate + sendLink).
+    // Tras el fix, generate → "Generar link" (primary), copy → "Copiar link"
+    // (primary), sendLink → secundario en dropdown.
+    it("PENDING MERCADO_PAGO without initPoint shows Generar link as primary", () => {
       render(
         <PaymentTimelineNode
           payment={mockPayment({ status: "PENDING", method: "MERCADO_PAGO", initPoint: null })}
@@ -166,29 +170,126 @@ describe("PaymentTimelineNode", () => {
           onGenerateLink={vi.fn()}
         />
       );
-      expect(screen.getByRole("button", { name: /enviar link/i })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /generar link/i })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /enviar link/i })).toBeNull();
     });
-    it("PENDING MERCADO_PAGO with valid initPoint shows Enviar link", () => {
+    it("PENDING MERCADO_PAGO with valid initPoint shows Copiar link as primary", () => {
       const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
       render(
         <PaymentTimelineNode
-          payment={mockPayment({ status: "PENDING", method: "MERCADO_PAGO", initPoint: "https://mp.com/link", expiresAt: tomorrow.toISOString() })}
+          payment={mockPayment({
+            status: "PENDING",
+            method: "MERCADO_PAGO",
+            initPoint: "https://mp.com/link",
+            expiresAt: tomorrow.toISOString(),
+          })}
           index={0} total={3} nowKey="2025-01-01" daysFromNow={3} isActive={true}
-          onSendLink={vi.fn()}
         />
       );
-      expect(screen.getByRole("button", { name: /enviar link/i })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /copiar link/i })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /enviar link/i })).toBeNull();
     });
-    it("PENDING overdue shows Marcar pagado destructive", () => {
+    it("PENDING MERCADO_PAGO with valid initPoint + onSendLink expone dropdown secundario", () => {
+      const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
       render(
         <PaymentTimelineNode
-          payment={mockPayment({ status: "PENDING" })}
+          payment={mockPayment({
+            status: "PENDING",
+            method: "MERCADO_PAGO",
+            initPoint: "https://mp.com/link",
+            expiresAt: tomorrow.toISOString(),
+          })}
+          index={0} total={3} nowKey="2025-01-01" daysFromNow={3} isActive={true}
+          onSendLink={vi.fn()}
+          onMarkPaid={vi.fn()}
+        />
+      );
+      // Primary = "Copiar link"; "Enviar link" queda como secundario en el dropdown (More actions).
+      expect(screen.getByRole("button", { name: /copiar link/i })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /más acciones/i })).toBeTruthy();
+      // El botón primario "Enviar link" ya NO debe existir (era el bug original).
+      expect(screen.queryByRole("button", { name: /enviar link/i })).toBeNull();
+    });
+    it("PENDING MERCADO_PAGO with expired initPoint shows Regenerar link as primary", () => {
+      const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+      render(
+        <PaymentTimelineNode
+          payment={mockPayment({
+            status: "PENDING",
+            method: "MERCADO_PAGO",
+            initPoint: "https://mp.com/link",
+            expiresAt: yesterday.toISOString(),
+          })}
+          index={0} total={3} nowKey="2025-01-01" daysFromNow={3} isActive={true}
+          onRegenerateLink={vi.fn()}
+        />
+      );
+      expect(screen.getByRole("button", { name: /regenerar link/i })).toBeTruthy();
+    });
+    it("PENDING overdue (no MP) shows Marcar pagado destructive", () => {
+      render(
+        <PaymentTimelineNode
+          payment={mockPayment({ status: "PENDING", method: "CASH" })}
           index={0} total={3} nowKey="2025-01-01" daysFromNow={-5} isActive={true}
           onMarkPaid={vi.fn()}
         />
       );
-      // The component renders "Marcar pagado" (without "como") for timeline node
       expect(screen.getByRole("button", { name: /marcar pagado/i })).toBeTruthy();
+    });
+  });
+
+  describe("UX rule: 1 secundaria → inline, 2+ → dropdown", () => {
+    it("PENDING MERCADO_PAGO sin link: muestra 'Generar link' + 'Marcar pagado' inline (sin dropdown)", () => {
+      render(
+        <PaymentTimelineNode
+          payment={mockPayment({ status: "PENDING", method: "MERCADO_PAGO", initPoint: null })}
+          index={0} total={3} nowKey="2025-01-01" daysFromNow={3} isActive={true}
+          onGenerateLink={vi.fn()}
+          onMarkPaid={vi.fn()}
+        />
+      );
+      // Ambos botones visibles inline.
+      expect(screen.getByRole("button", { name: /generar link/i })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /marcar pagado/i })).toBeTruthy();
+      // Sin dropdown: solo hay 1 secundaria (markPaid).
+      expect(screen.queryByRole("button", { name: /m\u00e1s acciones/i })).toBeNull();
+    });
+    it("PENDING MERCADO_PAGO expired: muestra 'Regenerar link' + 'Marcar pagado' inline (sin dropdown)", () => {
+      const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+      render(
+        <PaymentTimelineNode
+          payment={mockPayment({
+            status: "PENDING",
+            method: "MERCADO_PAGO",
+            initPoint: "https://mp.com/link",
+            expiresAt: yesterday.toISOString(),
+          })}
+          index={0} total={3} nowKey="2025-01-01" daysFromNow={3} isActive={true}
+          onRegenerateLink={vi.fn()}
+          onMarkPaid={vi.fn()}
+        />
+      );
+      expect(screen.getByRole("button", { name: /regenerar link/i })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /marcar pagado/i })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /m\u00e1s acciones/i })).toBeNull();
+    });
+    it("PENDING MERCADO_PAGO con link vigente + onMarkPaid + onSendLink: 2 secundarias → dropdown", () => {
+      const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+      render(
+        <PaymentTimelineNode
+          payment={mockPayment({
+            status: "PENDING",
+            method: "MERCADO_PAGO",
+            initPoint: "https://mp.com/link",
+            expiresAt: tomorrow.toISOString(),
+          })}
+          index={0} total={3} nowKey="2025-01-01" daysFromNow={3} isActive={true}
+          onMarkPaid={vi.fn()}
+          onSendLink={vi.fn()}
+        />
+      );
+      expect(screen.getByRole("button", { name: /copiar link/i })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /m\u00e1s acciones/i })).toBeTruthy();
     });
   });
 

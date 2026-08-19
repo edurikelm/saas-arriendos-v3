@@ -70,7 +70,7 @@ describe("PaymentCard", () => {
   });
 
   describe("dropdown actions", () => {
-    it("opens dropdown on MoreHorizontal button for PENDING CASH", async () => {
+    it("PENDING CASH con 1 secundaria (Eliminar) la muestra inline sin dropdown", () => {
       const onDelete = vi.fn();
       const onMarkPaid = vi.fn();
       render(
@@ -80,9 +80,29 @@ describe("PaymentCard", () => {
           onDeletePayment={onDelete} onMarkPaid={onMarkPaid}
         />
       );
-      const trigger = screen.getByRole("button", { name: /m\u00e1s acciones/i });
-      await act(async () => { trigger.click(); });
-      expect(screen.getByText("Eliminar pago")).toBeTruthy();
+      // UX rule canónica: con 1 secundaria, no hay dropdown — se renderiza inline.
+      expect(screen.getByRole("button", { name: /marcar pagado/i })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /^eliminar$/i })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /m\u00e1s acciones/i })).toBeNull();
+    });
+    it("PENDING MP + link vigente con 2+ secundarias las agrupa en dropdown", () => {
+      const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+      render(
+        <PaymentCard
+          payment={mockPayment({
+            status: "PENDING",
+            method: "MERCADO_PAGO",
+            initPoint: "https://mp.com/link",
+            expiresAt: tomorrow.toISOString(),
+          })}
+          index={0} total={3} nowKey="2025-01-01" isActive={true}
+          onMarkPaid={vi.fn()}
+          onSendLink={vi.fn()}
+        />
+      );
+      // primary = Copiar link; secondaries = [markPaid, sendLink] → dropdown.
+      expect(screen.getByRole("button", { name: /copiar link/i })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /m\u00e1s acciones/i })).toBeTruthy();
     });
     it("does not render dropdown when no actions available", () => {
       render(
@@ -147,7 +167,7 @@ describe("PaymentCard", () => {
       );
       expect(screen.getByRole("button", { name: /marcar pagado/i })).toBeTruthy();
     });
-    it("PENDING MERCADO_PAGO with valid initPoint shows Marcar pagado", () => {
+    it("PENDING MERCADO_PAGO with valid initPoint shows Copiar link", () => {
       const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
       render(
         <PaymentCard
@@ -156,7 +176,9 @@ describe("PaymentCard", () => {
           onMarkPaid={vi.fn()}
         />
       );
-      expect(screen.getByRole("button", { name: /marcar pagado/i })).toBeTruthy();
+      // Copiar link tiene prioridad sobre Marcar pagado en la cascada primaria
+      // (alineado con ACTION_CONFIG / payment-row-actions.tsx).
+      expect(screen.getByRole("button", { name: /copiar link/i })).toBeTruthy();
     });
   });
 
