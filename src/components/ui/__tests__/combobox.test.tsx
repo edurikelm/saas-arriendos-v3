@@ -124,4 +124,13 @@ describe('Combobox', () => {
     expect(document.getElementById('combo-test')).toBeDefined();
     expect(document.getElementById('combo-test')?.tagName).toBe('BUTTON');
   });
+
+  it('propaga aria-invalid y aria-describedby', () => {
+    render(<Combobox {...defaultProps} id="combo-aria-test" aria-invalid={true} aria-describedby="field-error" />);
+
+    const trigger = document.getElementById('combo-aria-test');
+    expect(trigger).toBeDefined();
+    expect(trigger).toHaveAttribute('aria-invalid', 'true');
+    expect(trigger).toHaveAttribute('aria-describedby', 'field-error');
+  });
 });

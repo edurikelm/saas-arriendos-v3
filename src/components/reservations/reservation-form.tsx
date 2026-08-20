@@ -201,6 +201,8 @@ export function ReservationForm({
                 onValueChange={(value) => setValue("propertyId", value || "")}
                 placeholder="Seleccionar propiedad"
                 showSearch={false}
+                aria-invalid={!!errors.propertyId}
+                aria-describedby={errors.propertyId ? "propertyId-error" : undefined}
               />
               {errors.propertyId && (
                 <p id="propertyId-error" className="text-xs text-destructive mt-1">{errors.propertyId.message}</p>
@@ -220,6 +222,8 @@ export function ReservationForm({
                 notFoundMessage="No se encontraron clientes"
                 footerAction={isAtFreeLimit ? undefined : { label: "Crear nuevo cliente...", onClick: () => setIsCreateClientOpen(true) }}
                 footerDisabledMessage={isAtFreeLimit ? "Límite de 5 clientes alcanzado (plan FREE)" : undefined}
+                aria-invalid={!!errors.clientId}
+                aria-describedby={errors.clientId ? "clientId-error" : undefined}
               />
               {errors.clientId && (
                 <p id="clientId-error" className="text-xs text-destructive mt-1">{errors.clientId.message}</p>
