@@ -239,9 +239,12 @@ export function ReservationForm({
               {/* Billing Type */}
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Tipo de Facturación *</Label>
-                <div className="grid grid-cols-2 gap-2">
+                <div role="radiogroup" aria-label="Tipo de facturación" className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
+                    role="radio"
+                    aria-checked={!isMonthly}
+                    tabIndex={!isMonthly ? 0 : -1}
                     onClick={() => {
                       setValue("billingType", "DAILY");
                       setMonths(undefined);
@@ -260,6 +263,9 @@ export function ReservationForm({
                   </button>
                   <button
                     type="button"
+                    role="radio"
+                    aria-checked={isMonthly}
+                    tabIndex={isMonthly ? 0 : -1}
                     onClick={() => {
                       if (!selectedProperty?.monthlyPrice) return;
                       setValue("billingType", "MONTHLY");
@@ -304,7 +310,7 @@ export function ReservationForm({
               ) : (
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Fecha de Inicio *</Label>
+                    <Label htmlFor="startDate" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Fecha de Inicio *</Label>
                     <DateRangePicker
                       date={{ from: dateRange.from, to: undefined }}
                       onDateChange={(date) => {
@@ -328,12 +334,14 @@ export function ReservationForm({
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Meses *</Label>
+                    <Label htmlFor="months" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Meses *</Label>
                     <Input
                       id="months"
                       type="number"
                       min={1}
                       max={12}
+                      aria-invalid={!!errors.months}
+                      aria-describedby={errors.months ? "months-error" : undefined}
                       {...register("months", { valueAsNumber: true })}
                       value={months || ""}
                       onChange={(e) => {
@@ -344,7 +352,7 @@ export function ReservationForm({
                       placeholder="Ej: 3"
                     />
                     {errors.months && (
-                      <p className="text-xs text-destructive mt-1">{errors.months.message}</p>
+                      <p id="months-error" className="text-xs text-destructive mt-1">{errors.months.message}</p>
                     )}
                   </div>
                 </div>
@@ -354,17 +362,19 @@ export function ReservationForm({
             {/* Right: Units + Airbnb */}
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Unidades *</Label>
+                <Label htmlFor="unitsBooked" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Unidades *</Label>
                 <Input
                   id="unitsBooked"
                   type="number"
                   min={1}
                   max={selectedProperty?.unitsAvailable || 1}
+                  aria-invalid={!!errors.unitsBooked}
+                  aria-describedby={errors.unitsBooked ? "unitsBooked-error" : undefined}
                   {...register("unitsBooked", { valueAsNumber: true })}
                   className="h-9 bg-card"
                 />
                 {errors.unitsBooked && (
-                  <p className="text-xs text-destructive mt-1">{errors.unitsBooked.message}</p>
+                  <p id="unitsBooked-error" className="text-xs text-destructive mt-1">{errors.unitsBooked.message}</p>
                 )}
                 {selectedProperty && (
                   <p className="text-[10px] text-muted-foreground">Disponibles: {selectedProperty.unitsAvailable}</p>
@@ -446,15 +456,17 @@ export function ReservationForm({
 
         {/* Section 4: Notas adicionales */}
         <div className="space-y-1.5">
-          <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Notas adicionales</Label>
+          <Label htmlFor="notes" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Notas adicionales</Label>
           <Textarea
             id="notes"
+            aria-invalid={!!errors.notes}
+            aria-describedby={errors.notes ? "notes-error" : undefined}
             {...register("notes")}
             className="min-h-20 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:border-ring resize-none transition-all"
             placeholder="Notas para esta reserva..."
           />
           {errors.notes && (
-            <p className="text-xs text-destructive mt-1">{errors.notes.message}</p>
+            <p id="notes-error" className="text-xs text-destructive mt-1">{errors.notes.message}</p>
           )}
         </div>
       </form>

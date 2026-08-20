@@ -153,7 +153,7 @@ export function SendPaymentLinkDialog({
         <div className="space-y-4 py-2">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-muted-foreground">Mensaje</label>
+              <label htmlFor="payment-message" className="text-xs font-medium text-muted-foreground">Mensaje</label>
               <Button
                 variant="ghost"
                 size="sm"
@@ -174,6 +174,7 @@ export function SendPaymentLinkDialog({
               </Button>
             </div>
             <Textarea
+              id="payment-message"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               className="min-h-[200px] text-sm"

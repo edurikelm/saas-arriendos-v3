@@ -310,7 +310,6 @@ export function ReservationDocumentsPanel({ reservationId }: { reservationId: st
               </Select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">Archivo</label>
               <FileInput onFileSelect={setFile} selectedFile={file} />
             </div>
           </div>

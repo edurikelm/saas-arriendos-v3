@@ -47,8 +47,7 @@ export function useReservationFilters({
   // Sync server filters to server
   useEffect(() => {
     onServerFiltersChange(serverFilters);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serverFilters]);
+  }, [serverFilters, onServerFiltersChange]);
 
   const updateServerFilter = useCallback(<K extends keyof Pick<ReservationFilters, "propertyId" | "billingType" | "status">>(
     key: K,

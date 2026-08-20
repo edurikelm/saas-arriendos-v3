@@ -75,7 +75,7 @@ function ReservationMobileCard({ reservation, onEdit, onCancel, onDelete }: {
       : "Sin abonos";
 
   return (
-    <article className="group relative overflow-hidden rounded-xl border border-border bg-card p-3.5 transition-all duration-300 hover:bg-accent">
+    <article className="group relative overflow-hidden rounded-xl border border-border bg-card p-3.5 transition-colors duration-150 hover:bg-accent">
       <div className={`absolute inset-y-0 left-0 w-1 ${reservationPillDotClass[stateTone]}`} />
       <div className="flex items-start gap-3 pl-1.5">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
@@ -226,7 +226,7 @@ export function ReservationTable({ reservations, onEdit, onCancel, onDelete }: {
                 </td>
                 {/* Estancia */}
                 <td className="px-6 py-5">
-                  <div className="text-xs text-foreground font-medium whitespace-nowrap">
+                  <div className="text-xs text-foreground font-medium whitespace-nowrap tabular-nums">
                     {formatDate(res.startDate)} - {formatDate(res.endDate)}
                   </div>
                   <div className="mt-0.5">
@@ -238,10 +238,10 @@ export function ReservationTable({ reservations, onEdit, onCancel, onDelete }: {
                   <div className="flex items-stretch gap-3">
 <div className={`w-0.5 rounded-full ${reservationPillDotClass[paymentTone]}`} />
                     <div className="flex flex-col">
-                      <p className={`text-xs font-bold ${paymentTone === "success" ? "text-success" : paymentTone === "warning" ? "text-foreground" : "text-destructive"}`}>
+                      <p className={`text-xs font-bold tabular-nums ${paymentTone === "success" ? "text-success" : paymentTone === "warning" ? "text-foreground" : "text-destructive"}`}>
                         {finLabel}
                       </p>
-                      <p className="text-[10px] text-muted-foreground">{finSubtext}</p>
+                      <p className="text-[10px] text-muted-foreground tabular-nums">{finSubtext}</p>
                     </div>
                   </div>
                 </td>

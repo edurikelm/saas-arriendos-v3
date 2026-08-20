@@ -252,9 +252,12 @@ export function AddPaymentDialog({
             control={control}
             name="paymentType"
             render={({ field }) => (
-              <div className="flex gap-1 p-1 rounded-lg bg-muted/50 border border-border">
+              <div role="radiogroup" aria-label="Tipo de pago" className="flex gap-1 p-1 rounded-lg bg-muted/50 border border-border">
                 <button
                   type="button"
+                  role="radio"
+                  aria-checked={field.value === "RESERVATION"}
+                  tabIndex={field.value === "RESERVATION" ? 0 : -1}
                   onClick={() => field.onChange("RESERVATION")}
                   className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
                     field.value === "RESERVATION"
@@ -266,6 +269,9 @@ export function AddPaymentDialog({
                 </button>
                 <button
                   type="button"
+                  role="radio"
+                  aria-checked={field.value === "EXTRA"}
+                  tabIndex={field.value === "EXTRA" ? 0 : -1}
                   onClick={() => field.onChange("EXTRA")}
                   className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
                     field.value === "EXTRA"
@@ -282,19 +288,19 @@ export function AddPaymentDialog({
           <div className="p-3 rounded-md bg-muted/50 border border-border text-sm">
             <div className="flex justify-between mb-1">
               <span className="text-muted-foreground">Total reserva:</span>
-              <span className="font-medium">
+              <span className="font-medium tabular-nums">
                 {formatAmount(Number(totalPrice))}
               </span>
             </div>
             <div className="flex justify-between mb-1">
               <span className="text-muted-foreground">Ya pagado:</span>
-              <span className="font-medium text-success">
+              <span className="font-medium text-success tabular-nums">
                 {formatAmount(paidAmount)}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Pendiente:</span>
-              <span className="font-medium text-warning">
+              <span className="font-medium text-warning tabular-nums">
                 {formatAmount(pendingAmount)}
               </span>
             </div>
@@ -306,12 +312,12 @@ export function AddPaymentDialog({
             name="method"
             render={({ field }) => (
               <div className="space-y-2">
-                <Label className="text-xs">Método de Pago</Label>
+                <Label htmlFor="method" className="text-xs">Método de Pago</Label>
                 <Select
                   value={field.value}
                   onValueChange={field.onChange}
                 >
-                  <SelectTrigger className="h-9">
+                  <SelectTrigger id="method" className="h-9">
                     <SelectValue>
                       {field.value === "MERCADO_PAGO" ? (
                         <div className="flex items-center gap-2">
@@ -347,14 +353,14 @@ export function AddPaymentDialog({
             render={({ field }) => (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs">Monto</Label>
+                  <Label htmlFor="amount" className="text-xs">Monto</Label>
                   {!isExtra && (
                     <button
                       type="button"
                       onClick={() => handleMaxClick(field.onChange)}
                       className="text-xs px-2 py-0.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer font-medium"
                     >
-                      Máximo: {formatAmount(pendingAmount)}
+                      Máximo: <span className="tabular-nums">{formatAmount(pendingAmount)}</span>
                     </button>
                   )}
                 </div>
@@ -363,6 +369,7 @@ export function AddPaymentDialog({
                     $
                   </span>
                   <Input
+                    id="amount"
                     type="text"
                     inputMode="numeric"
                     placeholder="0"
@@ -402,8 +409,9 @@ export function AddPaymentDialog({
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs">Descripción (opcional)</Label>
+                <Label htmlFor="description" className="text-xs">Descripción (opcional)</Label>
                 <Textarea
+                  id="description"
                   placeholder="Descripción opcional"
                   {...register("description")}
                   className="min-h-[60px]"
@@ -414,8 +422,9 @@ export function AddPaymentDialog({
 
           {showPaidAtAndReceipt && (
             <div className="space-y-2">
-              <Label className="text-xs">Fecha de Pago</Label>
+              <Label htmlFor="paidAt" className="text-xs">Fecha de Pago</Label>
               <Input
+                id="paidAt"
                 type="date"
                 {...register("paidAt")}
                 className="h-9"

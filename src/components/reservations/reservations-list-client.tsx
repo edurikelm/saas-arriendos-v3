@@ -117,12 +117,6 @@ export function ReservationsListClient({
     onServerFiltersChange: fetchReservations,
   });
 
-  // Re-fetch when server filters change
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch updates component state intentionally
-    fetchReservations(serverFilters);
-  }, [serverFilters, fetchReservations]);
-
   // Reset to page 1 when server filters change
   useEffect(() => {
     if (page !== 1) {
@@ -239,7 +233,7 @@ export function ReservationsListClient({
       {/* Page Header (Stitch pattern) */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-xl font-bold text-foreground">Reservas</h2>
+          <h1 className="text-xl font-bold text-foreground">Reservas</h1>
           <p className="text-xs text-muted-foreground">Gestiona todas las reservas y su estado operativo</p>
         </div>
         <Button onClick={() => setIsCreateOpen(true)}>
@@ -267,6 +261,7 @@ export function ReservationsListClient({
             <div className="relative w-full max-w-md">
               <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
               <input
+                aria-label="Buscar reservas"
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 placeholder="Buscar por nombre, propiedad o palabra clave..."
@@ -450,7 +445,7 @@ export function ReservationsListClient({
 
           {/* Counter + Pagination (top) */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground tabular-nums">
               Mostrando {((page - 1) * limit) + 1}-{Math.min(page * limit, filteredReservations.length)} de {total} reserva{total !== 1 ? "s" : ""}
             </div>
             {total > limit && (
@@ -479,7 +474,6 @@ export function ReservationsListClient({
               )}
             </div>
           ) : effectiveViewMode === "table" ? (
-            <div className="overflow-x-auto">
               <ReservationTable
                 reservations={filteredReservations}
                 onEdit={(id) => {
@@ -489,7 +483,6 @@ export function ReservationsListClient({
                 onCancel={(id) => handleCancel(id)}
                 onDelete={(id) => handleDelete(id)}
               />
-            </div>
           ) : (
             <div className="space-y-4">
               {filteredReservations.map((reservation) => (
