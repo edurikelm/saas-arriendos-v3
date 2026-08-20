@@ -3,16 +3,8 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   CalendarDays,
   Hash,
-  MoreHorizontal,
   FileText,
   Check,
   Copy,
@@ -23,7 +15,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { ACTION_CONFIG } from "@/components/payments/payment-row-actions";
 import type { Payment } from "@/components/payments/payments-table";
 
 function formatAmount(amount: string | number): string {
@@ -175,28 +166,60 @@ export function PaymentTimelineNode({
             ? "viewReceipt"
             : null;
 
-  // Secondaries — todo lo que NO es primary pero sigue siendo elegible.
-  // UX rule (consistente con payment-row-actions.tsx): 1 secundaria → inline
-  // (botón visible, sin dropdown), 2+ secundarias → dropdown group.
-  // Esto elimina los 3 puntos cuando solo hay "Marcar pagado" como secundaria
-  // (caso típico de cuota mensual sin link generado).
+  // Secondaries — todas se renderizan inline debajo de la primaria, sin importar
+  // la cantidad. Antes la regla era "1 → inline, 2+ → dropdown 'Más acciones'",
+  // pero el dropdown añadía fricción (dos taps para llegar a acciones obvias
+  // como "Marcar pagado" o "Enviar link"). Ahora todas las acciones elegibles
+  // son visibles — la jerarquía "primaria arriba + secundarias debajo" las
+  // mantiene ordenadas sin esconder nada.
+  //
+  // Orden estable (de arriba a abajo):
+  //   1. sendLink    — pegada a la primaria cuando la primaria es sobre el
+  //                    mismo link de MP (Copiar/Generar/Regenerar link); ambas
+  //                    son acciones sobre el mismo recurso.
+  //   2. markPaid    — la acción más frecuente del owner.
+  //   3. viewReceipt — secundaria de consulta cuando el pago está cerrado.
+  //   4. delete      — destructiva, siempre al final.
   type SecondaryId = "markPaid" | "delete" | "viewReceipt" | "sendLink";
   const secondaries: SecondaryId[] = [];
-  if (canMarkPaid && primaryAction !== "markPaid") secondaries.push("markPaid");
-  if (canDelete) secondaries.push("delete");
-  if (isCompleted && canViewReceipt && primaryAction !== "viewReceipt") secondaries.push("viewReceipt");
   if (canSendLink) secondaries.push("sendLink");
+  if (canMarkPaid && primaryAction !== "markPaid") secondaries.push("markPaid");
+  if (isCompleted && canViewReceipt && primaryAction !== "viewReceipt") secondaries.push("viewReceipt");
+  if (canDelete) secondaries.push("delete");
 
-  const inlineSecondary: SecondaryId | null =
-    primaryAction && secondaries.length === 1 ? secondaries[0] : null;
-  const dropdownSecondaries: SecondaryId[] =
-    primaryAction && secondaries.length >= 2 ? secondaries : [];
-
-  const dropdownItems = dropdownSecondaries.map((id) => ({
-    id,
-    label: ACTION_CONFIG[id].label,
-    destructive: id === "delete",
-  }));
+  // Mapa declarativo id → config visual del botón. Cada secundaria sabe cómo
+  // renderizarse; el render es un simple .map() sobre la lista `secondaries`.
+  const secondaryButtons: Record<SecondaryId, {
+    label: string;
+    icon: typeof Check;
+    className: string;
+    onClick: () => void;
+  }> = {
+    markPaid: {
+      label: "Marcar pagado",
+      icon: Check,
+      className: "text-success hover:text-success",
+      onClick: () => onMarkPaid?.(payment.id),
+    },
+    sendLink: {
+      label: "Enviar link",
+      icon: Send,
+      className: "text-info hover:text-info",
+      onClick: () => onSendLink?.(payment),
+    },
+    viewReceipt: {
+      label: "Ver comprobante",
+      icon: FileText,
+      className: "text-muted-foreground hover:text-foreground gap-1",
+      onClick: () => payment.receiptUrl && window.open(payment.receiptUrl, "_blank"),
+    },
+    delete: {
+      label: "Eliminar pago",
+      icon: Trash2,
+      className: "text-muted-foreground hover:text-destructive",
+      onClick: () => onDeletePayment?.(payment.id),
+    },
+  };
 
   const runAction = (actionId: string) => {
     switch (actionId) {
@@ -270,7 +293,7 @@ export function PaymentTimelineNode({
                 {badgeLabel}
               </Badge>
             </div>
-            {/* Meta row con iconos — coincide con la maqueta (3 chips: # / 📅 / MP) */}
+            {/* Meta row con iconos — coincide con la maqueta (chips: # / 📅 / método) */}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground min-w-0">
               <span className="inline-flex items-center gap-1 tabular-nums">
                 <Hash className="size-3 shrink-0" aria-hidden="true" />
@@ -293,12 +316,6 @@ export function PaymentTimelineNode({
               )}
               <span className="text-muted-foreground/40" aria-hidden="true">·</span>
               <span className="inline-flex items-center gap-1.5">
-                <span
-                  className="inline-flex items-center justify-center size-4 rounded-sm bg-primary text-primary-foreground text-[9px] font-bold leading-none shrink-0"
-                  aria-hidden="true"
-                >
-                  MP
-                </span>
                 <span>{methodLabel}</span>
               </span>
             </div>
@@ -329,7 +346,7 @@ export function PaymentTimelineNode({
               <Button
                 variant="link"
                 size="sm"
-                className="h-7 px-1 text-xs text-primary hover:text-primary"
+                className="h-7 px-1 text-xs text-info hover:text-info"
                 onClick={() => onGenerateLink?.(payment.id)}
                 disabled={isGenerating}
               >
@@ -347,7 +364,7 @@ export function PaymentTimelineNode({
               <Button
                 variant="link"
                 size="sm"
-                className="h-7 px-1 text-xs text-primary hover:text-primary"
+                className="h-7 px-1 text-xs text-info hover:text-info"
                 onClick={() => onRegenerateLink?.(payment.id)}
                 disabled={isRegenerating}
               >
@@ -365,7 +382,7 @@ export function PaymentTimelineNode({
               <Button
                 variant="link"
                 size="sm"
-                className="h-7 px-1 text-xs text-primary hover:text-primary"
+                className="h-7 px-1 text-xs text-info hover:text-info"
                 onClick={() => runAction("copy")}
                 disabled={!payment.initPoint}
               >
@@ -377,7 +394,7 @@ export function PaymentTimelineNode({
               <Button
                 variant="link"
                 size="sm"
-                className="h-7 px-1 text-xs text-warning hover:text-warning"
+                className="h-7 px-1 text-xs text-success hover:text-success"
                 onClick={() => onMarkPaid?.(payment.id)}
               >
                 <Check className="size-3.5 mr-1" />
@@ -410,78 +427,29 @@ export function PaymentTimelineNode({
               </Button>
             )}
 
-            {/* Secondary: dropdown (2+) OR inline button (1) */}
-            {dropdownItems.length > 0 ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button
-                      variant="link"
-                      size="sm"
-                      className="h-7 px-1 text-xs text-muted-foreground hover:text-foreground"
-                      aria-label={`Más acciones para Cuota ${installmentNumber}`}
-                    >
-                      <MoreHorizontal className="size-3.5 mr-1" />
-                      Más acciones
-                    </Button>
-                  }
-                />
-                <DropdownMenuContent align="end" className="w-48">
-                  {dropdownItems.map((item, idx) => (
-                    <div key={item.id}>
-                      {idx > 0 && <DropdownMenuSeparator />}
-                      <DropdownMenuItem
-                        variant={item.destructive ? "destructive" : "default"}
-                        onClick={() => runAction(item.id)}
-                      >
-                        {item.label}
-                      </DropdownMenuItem>
-                    </div>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : inlineSecondary === "markPaid" ? (
-              <Button
-                variant="link"
-                size="sm"
-                className="h-7 px-1 text-xs text-warning hover:text-warning"
-                onClick={() => onMarkPaid?.(payment.id)}
-              >
-                <Check className="size-3.5 mr-1" />
-                Marcar pagado
-              </Button>
-            ) : inlineSecondary === "sendLink" ? (
-              <Button
-                variant="link"
-                size="sm"
-                className="h-7 px-1 text-xs text-primary hover:text-primary"
-                onClick={() => onSendLink?.(payment)}
-              >
-                <Send className="size-3.5 mr-1" />
-                Enviar link
-              </Button>
-            ) : inlineSecondary === "viewReceipt" ? (
-              <Button
-                variant="link"
-                size="sm"
-                className="h-7 px-1 text-xs text-muted-foreground hover:text-foreground gap-1"
-                onClick={() => payment.receiptUrl && window.open(payment.receiptUrl, "_blank")}
-              >
-                <FileText className="size-3.5" />
-                Ver comprobante
-              </Button>
-            ) : inlineSecondary === "delete" ? (
-              <Button
-                variant="link"
-                size="sm"
-                className="h-7 px-1 text-xs text-muted-foreground hover:text-destructive"
-                onClick={() => onDeletePayment?.(payment.id)}
-                title="Eliminar pago"
-              >
-                <Trash2 className="size-3.5 mr-1" />
-                Eliminar
-              </Button>
-            ) : null}
+            {/* Secondaries — todas inline debajo de la primaria. Antes esto
+                era un dropdown "Más acciones" cuando había 2+ secundarias; ahora
+                cada acción se renderiza como su propio botón en orden estable
+                (markPaid → delete → viewReceipt → sendLink). El orden de
+                apilamiento refleja prioridad operativa: marcar pagado primero
+                (acción más frecuente del owner), destructivas al final. */}
+            {secondaries.map((id) => {
+              const cfg = secondaryButtons[id];
+              const Icon = cfg.icon;
+              return (
+                <Button
+                  key={id}
+                  variant="link"
+                  size="sm"
+                  className={cn("h-7 px-1 text-xs", cfg.className)}
+                  onClick={cfg.onClick}
+                  title={id === "delete" ? "Eliminar pago" : undefined}
+                >
+                  <Icon className="size-3.5 mr-1" />
+                  {cfg.label}
+                </Button>
+              );
+            })}
           </div>
         </div>
       </div>

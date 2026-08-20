@@ -3,16 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  CalendarCheck,
   CalendarDays,
-  MoreHorizontal,
   FileText,
   Check,
   Copy,
@@ -23,7 +14,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { ACTION_CONFIG } from "@/components/payments/payment-row-actions";
 import type { Payment } from "@/components/payments/payments-table";
 
 function formatAmount(amount: string | number): string {
@@ -138,26 +128,60 @@ export function PaymentCard({
             ? "viewReceipt"
             : null;
 
-  // Secondaries — todo lo que NO es primary pero sigue siendo elegible.
-  // UX rule (consistente con payment-row-actions.tsx): 1 secundaria → inline
-  // (botón visible, sin dropdown), 2+ secundarias → dropdown group.
+  // Secondaries — todas se renderizan inline debajo de la primaria, sin importar
+  // la cantidad. Antes la regla era "1 → inline, 2+ → dropdown 'Más acciones'",
+  // pero el dropdown añadía fricción (dos taps para llegar a acciones obvias
+  // como "Marcar pagado" o "Enviar link"). Ahora todas las acciones elegibles
+  // son visibles — la jerarquía "primaria arriba + secundarias debajo" las
+  // mantiene ordenadas sin esconder nada.
+  //
+  // Orden estable (de arriba a abajo):
+  //   1. sendLink    — pegada a la primaria cuando la primaria es sobre el
+  //                    mismo link de MP (Copiar/Generar/Regenerar link); ambas
+  //                    son acciones sobre el mismo recurso.
+  //   2. markPaid    — la acción más frecuente del owner.
+  //   3. viewReceipt — secundaria de consulta cuando el pago está cerrado.
+  //   4. delete      — destructiva, siempre al final.
   type SecondaryId = "markPaid" | "delete" | "viewReceipt" | "sendLink";
   const secondaries: SecondaryId[] = [];
-  if (canMarkPaid && primaryAction !== "markPaid") secondaries.push("markPaid");
-  if (canDelete) secondaries.push("delete");
-  if (isCompleted && canViewReceipt && primaryAction !== "viewReceipt") secondaries.push("viewReceipt");
   if (canSendLink) secondaries.push("sendLink");
+  if (canMarkPaid && primaryAction !== "markPaid") secondaries.push("markPaid");
+  if (isCompleted && canViewReceipt && primaryAction !== "viewReceipt") secondaries.push("viewReceipt");
+  if (canDelete) secondaries.push("delete");
 
-  const inlineSecondary: SecondaryId | null =
-    primaryAction && secondaries.length === 1 ? secondaries[0] : null;
-  const dropdownSecondaries: SecondaryId[] =
-    primaryAction && secondaries.length >= 2 ? secondaries : [];
-
-  const dropdownItems = dropdownSecondaries.map((id) => ({
-    id,
-    label: ACTION_CONFIG[id].label,
-    destructive: id === "delete",
-  }));
+  // Mapa declarativo id → config visual del botón. Cada secundaria sabe cómo
+  // renderizarse; el render es un simple .map() sobre la lista `secondaries`.
+  const secondaryButtons: Record<SecondaryId, {
+    label: string;
+    icon: typeof Check;
+    className: string;
+    onClick: () => void;
+  }> = {
+    markPaid: {
+      label: "Marcar pagado",
+      icon: Check,
+      className: "text-success hover:text-success",
+      onClick: () => onMarkPaid?.(payment.id),
+    },
+    sendLink: {
+      label: "Enviar link",
+      icon: Send,
+      className: "text-info hover:text-info",
+      onClick: () => onSendLink?.(payment),
+    },
+    viewReceipt: {
+      label: "Ver comprobante",
+      icon: FileText,
+      className: "text-muted-foreground hover:text-foreground gap-1",
+      onClick: () => payment.receiptUrl && window.open(payment.receiptUrl, "_blank"),
+    },
+    delete: {
+      label: "Eliminar pago",
+      icon: Trash2,
+      className: "text-muted-foreground hover:text-destructive",
+      onClick: () => onDeletePayment?.(payment.id),
+    },
+  };
 
   const runAction = (actionId: string) => {
     switch (actionId) {
@@ -178,7 +202,9 @@ export function PaymentCard({
     }
   };
 
-  // Eyebrow context: prioritize specific labels, fall back to ordinal position
+  // Eyebrow context: prioritize specific labels, fall back to ordinal position.
+  // Para pagos DAILY usamos solo "Pago N" (sin "de M") — el total no aporta
+  // información accionable y compite con el badge de estado ("Pagado"/"Pendiente").
   const contextHint =
     payment.paymentType === "EXTRA" && payment.title
       ? payment.title
@@ -186,7 +212,7 @@ export function PaymentCard({
         ? payment.installmentLabel
         : payment.installmentIndex != null
           ? `Cuota ${payment.installmentIndex}`
-          : `Pago ${index + 1} de ${total}`;
+          : `Pago ${index + 1}`;
 
 const methodLabel = METHOD_LABELS[payment.method] ?? "—";
   const ariaLabel =
@@ -194,7 +220,7 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
       ? `Cobro extra · ${payment.title}`
       : payment.installmentIndex != null
         ? `Cuota ${payment.installmentIndex}`
-        : `Pago ${index + 1} de ${total}`;
+        : `Pago ${index + 1}`;
   const amountKicker = isCompleted ? "Monto cobrado" : "Monto a pagar";
 
   return (
@@ -210,9 +236,13 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
       {/* Layout 3 columnas (desktop) / stacked (mobile) — mismo patrón que
           PaymentTimelineNode para coherencia visual entre reservas mensuales y diarias:
             • Col 1 (info):    contextHint (Pago N / Cuota / título EXTRA) + badge,
-                               debajo meta con iconos (📅 Pagado / 📅 Vence / MP método)
-            • Col 2 (monto):   kicker 10px + número tabular grande (centrado en desktop)
-            • Col 3 (acciones): botones apilados, alineados a la derecha en desktop
+                               debajo descripción (cobros extras) y meta con iconos
+                               (📅 Vence / método). "Pagado X" NO vive aquí — se movió
+                               bajo el monto cobrado (Col 2) cuando COMPLETED, igual
+                               que en el timeline node de mensuales.
+            • Col 2 (monto):   kicker 10px + número tabular grande + sublabel
+                               "Pagado el X" (text-success) cuando COMPLETED.
+            • Col 3 (acciones): botones apilados, alineados a la derecha en desktop.
           El contextHint pasa de eyebrow 10px a título `text-base` para alinearse con
           el patrón del timeline node ("Octubre de 2026" como h3). */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
@@ -226,33 +256,25 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
               {statusBadgeLabel[payment.status] ?? payment.status}
             </Badge>
           </div>
-          {/* Meta row con iconos — Pagado / Vence / Método */}
+          {payment.description && (
+            <p className="text-xs text-muted-foreground leading-snug">
+              {payment.description}
+            </p>
+          )}
+          {/* Meta row con iconos — Vence / Método.
+              "Pagado X" se mueve bajo el monto cobrado (Col 2) cuando COMPLETED,
+              replicando el patrón del timeline node de mensuales. */}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground min-w-0">
-            {payment.paidAt && (
-              <span className="inline-flex items-center gap-1 tabular-nums">
-                <CalendarCheck className="size-3 shrink-0" aria-hidden="true" />
-                <span>Pagado {formatShortDate(payment.paidAt)}</span>
-              </span>
-            )}
-            {payment.paidAt && payment.dueDate && (
-              <span className="text-muted-foreground/40" aria-hidden="true">·</span>
-            )}
             {payment.dueDate && (
               <span className="inline-flex items-center gap-1 tabular-nums">
                 <CalendarDays className="size-3 shrink-0" aria-hidden="true" />
                 <span>Vence {formatShortDate(payment.dueDate)}</span>
               </span>
             )}
-            {(payment.paidAt || payment.dueDate) && (
+            {payment.dueDate && (
               <span className="text-muted-foreground/40" aria-hidden="true">·</span>
             )}
             <span className="inline-flex items-center gap-1.5">
-              <span
-                className="inline-flex items-center justify-center size-4 rounded-sm bg-primary text-primary-foreground text-[9px] font-bold leading-none shrink-0"
-                aria-hidden="true"
-              >
-                MP
-              </span>
               <span>{methodLabel}</span>
             </span>
           </div>
@@ -266,6 +288,14 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
           <p className="text-xl font-bold tabular-nums text-foreground tracking-tight">
             {formatAmount(payment.amount)}
           </p>
+          {/* Sublabel "Pagado el X" — solo cuando COMPLETED. Replica el patrón del
+              timeline node (mensuales) y refuerza visualmente que ese monto ya fue
+              cobrado, en el mismo verde del badge (Status Color Doctrine). */}
+          {isCompleted && payment.paidAt && (
+            <p className="text-[10px] font-medium text-success tabular-nums mt-0.5">
+              Pagado el {formatShortDate(payment.paidAt)}
+            </p>
+          )}
         </div>
 
         {/* ───── COL 3 — ACCIONES (botones apilados, alineados a la derecha en desktop) ───── */}
@@ -275,7 +305,7 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
             <Button
               variant="link"
               size="sm"
-              className="h-7 px-1 text-xs text-primary hover:text-primary"
+              className="h-7 px-1 text-xs text-info hover:text-info"
               onClick={() => onGenerateLink?.(payment.id)}
               disabled={isGenerating}
             >
@@ -293,7 +323,7 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
             <Button
               variant="link"
               size="sm"
-              className="h-7 px-1 text-xs text-primary hover:text-primary"
+              className="h-7 px-1 text-xs text-info hover:text-info"
               onClick={() => onRegenerateLink?.(payment.id)}
               disabled={isRegenerating}
             >
@@ -311,7 +341,7 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
             <Button
               variant="link"
               size="sm"
-              className="h-7 px-1 text-xs text-primary hover:text-primary"
+              className="h-7 px-1 text-xs text-info hover:text-info"
               onClick={() => runAction("copy")}
               disabled={!payment.initPoint}
             >
@@ -323,7 +353,7 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
             <Button
               variant="link"
               size="sm"
-              className="h-7 px-1 text-xs text-warning hover:text-warning"
+              className="h-7 px-1 text-xs text-success hover:text-success"
               onClick={() => onMarkPaid?.(payment.id)}
             >
               <Check className="size-3.5 mr-1" />
@@ -356,80 +386,29 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
             </Button>
           )}
 
-          {/* Secondary: dropdown (2+) OR inline button (1) */}
-          {dropdownItems.length > 0 ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    variant="link"
-                    size="sm"
-                    className="h-7 px-1 text-xs text-muted-foreground hover:text-foreground"
-                    aria-label={`Más acciones para ${contextHint}`}
-                  >
-                    <MoreHorizontal className="size-3.5 mr-1" />
-                    Más acciones
-                  </Button>
-                }
-              />
-              <DropdownMenuContent align="end" className="w-48">
-                {dropdownItems.map((item, idx) => (
-                  <div key={item.id}>
-                    {idx > 0 && idx === dropdownItems.findIndex((i) => i.destructive) && (
-                      <DropdownMenuSeparator />
-                    )}
-                    <DropdownMenuItem
-                      variant={item.destructive ? "destructive" : "default"}
-                      onClick={() => runAction(item.id)}
-                    >
-                      {item.label}
-                    </DropdownMenuItem>
-                  </div>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : inlineSecondary === "markPaid" ? (
-            <Button
-              variant="link"
-              size="sm"
-              className="h-7 px-1 text-xs text-warning hover:text-warning"
-              onClick={() => onMarkPaid?.(payment.id)}
-            >
-              <Check className="size-3.5 mr-1" />
-              Marcar pagado
-            </Button>
-          ) : inlineSecondary === "sendLink" ? (
-            <Button
-              variant="link"
-              size="sm"
-              className="h-7 px-1 text-xs text-primary hover:text-primary"
-              onClick={() => onSendLink?.(payment)}
-            >
-              <Send className="size-3.5 mr-1" />
-              Enviar link
-            </Button>
-          ) : inlineSecondary === "viewReceipt" ? (
-            <Button
-              variant="link"
-              size="sm"
-              className="h-7 px-1 text-xs text-muted-foreground hover:text-foreground gap-1"
-              onClick={() => payment.receiptUrl && window.open(payment.receiptUrl, "_blank")}
-            >
-              <FileText className="size-3.5" />
-              Ver comprobante
-            </Button>
-          ) : inlineSecondary === "delete" ? (
-            <Button
-              variant="link"
-              size="sm"
-              className="h-7 px-1 text-xs text-muted-foreground hover:text-destructive"
-              onClick={() => onDeletePayment?.(payment.id)}
-              title="Eliminar pago"
-            >
-              <Trash2 className="size-3.5 mr-1" />
-              Eliminar
-            </Button>
-          ) : null}
+          {/* Secondaries — todas inline debajo de la primaria. Antes esto
+              era un dropdown "Más acciones" cuando había 2+ secundarias; ahora
+              cada acción se renderiza como su propio botón en orden estable
+              (markPaid → delete → viewReceipt → sendLink). El orden de
+              apilamiento refleja prioridad operativa: marcar pagado primero
+              (acción más frecuente del owner), destructivas al final. */}
+          {secondaries.map((id) => {
+            const cfg = secondaryButtons[id];
+            const Icon = cfg.icon;
+            return (
+              <Button
+                key={id}
+                variant="link"
+                size="sm"
+                className={cn("h-7 px-1 text-xs", cfg.className)}
+                onClick={cfg.onClick}
+                title={id === "delete" ? "Eliminar pago" : undefined}
+              >
+                <Icon className="size-3.5 mr-1" />
+                {cfg.label}
+              </Button>
+            );
+          })}
         </div>
       </div>
     </article>

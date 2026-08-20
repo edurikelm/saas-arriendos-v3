@@ -39,6 +39,42 @@ describe("PaymentCard", () => {
       render(<PaymentCard payment={mockPayment({ status: "COMPLETED" })} index={0} total={3} nowKey="2025-01-01" isActive={true} />);
       expect(screen.getByText("Pagado")).toBeTruthy();
     });
+    it("COMPLETED payment renders 'Pagado el X' sublabel below amount (not in meta row)", () => {
+      const { container } = render(
+        <PaymentCard
+          payment={mockPayment({ status: "COMPLETED", paidAt: "2026-08-19T12:00:00Z" })}
+          index={0} total={2} nowKey="2026-08-20" isActive={true}
+        />,
+      );
+      // El sublabel "Pagado el X" debe aparecer debajo del monto (text-success).
+      const sublabel = screen.getByText(/Pagado el 19 ago 2026/i);
+      expect(sublabel).toBeTruthy();
+      expect(sublabel.className).toContain("text-success");
+      // NO debe existir el formato antiguo "Pagado 19 ago 2026" (sin "el") en la meta row.
+      // Como el formato anterior ya no se renderiza en ningún lado, basta con asegurar
+      // que el texto exacto "Pagado 19 ago 2026" (sin "el") no está en el árbol.
+      expect(container.textContent).not.toMatch(/^Pagado 19 ago 2026$/);
+    });
+    it("PENDING payment does NOT render 'Pagado el X' sublabel", () => {
+      const { container } = render(
+        <PaymentCard
+          payment={mockPayment({ status: "PENDING", paidAt: null })}
+          index={0} total={2} nowKey="2026-08-20" isActive={true}
+        />,
+      );
+      expect(container.textContent).not.toMatch(/Pagado el/);
+    });
+    it("COMPLETED payment without paidAt does NOT render 'Pagado el' sublabel", () => {
+      // Defensa: si el flag COMPLETED viene sin fecha de pago, el sublabel no debe
+      // aparecer ni en estado vacío ("Pagado el —").
+      const { container } = render(
+        <PaymentCard
+          payment={mockPayment({ status: "COMPLETED", paidAt: null })}
+          index={0} total={2} nowKey="2026-08-20" isActive={true}
+        />,
+      );
+      expect(container.textContent).not.toMatch(/Pagado el/);
+    });
     it("renders FAILED badge", () => {
       render(<PaymentCard payment={mockPayment({ status: "FAILED" })} index={0} total={3} nowKey="2025-01-01" isActive={true} />);
       expect(screen.getByText("Fallido")).toBeTruthy();
@@ -59,13 +95,65 @@ describe("PaymentCard", () => {
       render(<PaymentCard payment={mockPayment({ installmentIndex: 3 })} index={2} total={6} nowKey="2025-01-01" isActive={true} />);
       expect(screen.getByText("Cuota 3")).toBeTruthy();
     });
-    it("renders payment N/total context for daily payments", () => {
+    it("renders ordinal 'Pago N' (without total) for daily payments", () => {
       render(<PaymentCard payment={mockPayment({ installmentIndex: null })} index={1} total={4} nowKey="2025-01-01" isActive={true} />);
-      expect(screen.getByText("Pago 2 de 4")).toBeTruthy();
+      // Solo el ordinal — el "de 4" no aporta información accionable y compite con el badge.
+      expect(screen.getByText("Pago 2")).toBeTruthy();
+      expect(screen.queryByText("Pago 2 de 4")).toBeNull();
+    });
+    it("daily payment aria-label exposes only ordinal (screen reader friendly)", () => {
+      render(<PaymentCard payment={mockPayment({ installmentIndex: null })} index={1} total={4} nowKey="2025-01-01" isActive={true} />);
+      expect(screen.getByLabelText("Pago 2")).toBeTruthy();
+      expect(screen.queryByLabelText(/de 4/)).toBeNull();
     });
     it("renders installmentLabel directly without prepended cuota", () => {
       render(<PaymentCard payment={mockPayment({ installmentLabel: "Cuota 1 - Sep" })} index={0} total={3} nowKey="2025-01-01" isActive={true} />);
       expect(screen.getByText("Cuota 1 - Sep")).toBeTruthy();
+    });
+    it("renders description when present (cobros extras)", () => {
+      render(
+        <PaymentCard
+          payment={mockPayment({
+            paymentType: "EXTRA",
+            title: "Limpieza extra",
+            description: "Limpieza profunda post check-out por mascota.",
+          })}
+          index={0} total={1} nowKey="2025-01-01" isActive={true}
+        />,
+      );
+      expect(screen.getByText("Limpieza profunda post check-out por mascota.")).toBeTruthy();
+    });
+    it("does not render description paragraph when description is null", () => {
+      const { container } = render(
+        <PaymentCard payment={mockPayment({ description: null })} index={0} total={1} nowKey="2025-01-01" isActive={true} />,
+      );
+      // El <p> de descripción nunca debe existir si description es null/vacío.
+      expect(container.querySelector("article p.text-xs.text-muted-foreground.leading-snug")).toBeNull();
+    });
+    it("renders only method label, no MP badge (Mercado Pago)", () => {
+      const { container } = render(
+        <PaymentCard payment={mockPayment({ method: "MERCADO_PAGO" })} index={0} total={1} nowKey="2025-01-01" isActive={true} />,
+      );
+      expect(screen.getByText("Mercado Pago")).toBeTruthy();
+      // El badge "MP" (span con bg-primary que contiene solo "MP") debe haber desaparecido.
+      const badges = container.querySelectorAll('span[aria-hidden="true"]');
+      const hasMpBadge = Array.from(badges).some((el) => el.textContent?.trim() === "MP");
+      expect(hasMpBadge).toBe(false);
+    });
+    it("renders only method label, no MP badge (Efectivo / Transferencia)", () => {
+      const { container: cashContainer } = render(
+        <PaymentCard payment={mockPayment({ method: "CASH", status: "PENDING" })} index={0} total={1} nowKey="2025-01-01" isActive={true} />,
+      );
+      expect(screen.getByText("Efectivo")).toBeTruthy();
+      const cashBadges = cashContainer.querySelectorAll('span[aria-hidden="true"]');
+      expect(Array.from(cashBadges).some((el) => el.textContent?.trim() === "MP")).toBe(false);
+
+      const { container: transferContainer } = render(
+        <PaymentCard payment={mockPayment({ method: "TRANSFER", status: "PENDING" })} index={0} total={1} nowKey="2025-01-01" isActive={true} />,
+      );
+      expect(screen.getByText("Transferencia")).toBeTruthy();
+      const transferBadges = transferContainer.querySelectorAll('span[aria-hidden="true"]');
+      expect(Array.from(transferBadges).some((el) => el.textContent?.trim() === "MP")).toBe(false);
     });
   });
 
@@ -80,12 +168,15 @@ describe("PaymentCard", () => {
           onDeletePayment={onDelete} onMarkPaid={onMarkPaid}
         />
       );
-      // UX rule canónica: con 1 secundaria, no hay dropdown — se renderiza inline.
+      // UX rule: 1 secundaria → inline. Ahora todas las secundarias son inline
+      // sin importar el conteo (no hay dropdown "Más acciones").
+      // Copy unificado con ACTION_CONFIG (antes era "Eliminar" inline vs.
+      // "Eliminar pago" en dropdown — ahora siempre "Eliminar pago").
       expect(screen.getByRole("button", { name: /marcar pagado/i })).toBeTruthy();
-      expect(screen.getByRole("button", { name: /^eliminar$/i })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /eliminar pago/i })).toBeTruthy();
       expect(screen.queryByRole("button", { name: /m\u00e1s acciones/i })).toBeNull();
     });
-    it("PENDING MP + link vigente con 2+ secundarias las agrupa en dropdown", () => {
+    it("PENDING MP + link vigente con 2+ secundarias las lista inline (sin dropdown)", () => {
       const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
       render(
         <PaymentCard
@@ -100,11 +191,16 @@ describe("PaymentCard", () => {
           onSendLink={vi.fn()}
         />
       );
-      // primary = Copiar link; secondaries = [markPaid, sendLink] → dropdown.
+      // primary = Copiar link; secondaries = [markPaid, sendLink] → todas
+      // inline, sin dropdown "Más acciones" (UX anterior: 2+ → dropdown).
       expect(screen.getByRole("button", { name: /copiar link/i })).toBeTruthy();
-      expect(screen.getByRole("button", { name: /m\u00e1s acciones/i })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /marcar pagado/i })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /enviar link/i })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /m\u00e1s acciones/i })).toBeNull();
     });
-    it("does not render dropdown when no actions available", () => {
+    it("does not render Más acciones anywhere (dropdown eliminado)", () => {
+      // Defensa: el botón "Más acciones" se eliminó completamente. Antes era el
+      // único punto de entrada para 2+ secundarias; ahora todas son inline.
       render(
         <PaymentCard
           payment={mockPayment({ status: "COMPLETED", method: "CASH", receiptUrl: null })}

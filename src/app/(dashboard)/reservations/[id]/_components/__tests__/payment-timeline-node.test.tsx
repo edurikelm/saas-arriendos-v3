@@ -207,7 +207,7 @@ describe("PaymentTimelineNode", () => {
       expect(screen.getByRole("button", { name: /copiar link/i })).toBeTruthy();
       expect(screen.queryByRole("button", { name: /enviar link/i })).toBeNull();
     });
-    it("PENDING MERCADO_PAGO with valid initPoint + onSendLink expone dropdown secundario", () => {
+    it("PENDING MERCADO_PAGO with valid initPoint + onSendLink + onMarkPaid lista secundarias inline", () => {
       const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
       render(
         <PaymentTimelineNode
@@ -222,11 +222,12 @@ describe("PaymentTimelineNode", () => {
           onMarkPaid={vi.fn()}
         />
       );
-      // Primary = "Copiar link"; "Enviar link" queda como secundario en el dropdown (More actions).
+      // Primary = "Copiar link"; secundarias (Enviar link, Marcar pagado) ahora
+      // se listan inline (UX anterior: 2+ → dropdown "Más acciones" — eliminado).
       expect(screen.getByRole("button", { name: /copiar link/i })).toBeTruthy();
-      expect(screen.getByRole("button", { name: /más acciones/i })).toBeTruthy();
-      // El botón primario "Enviar link" ya NO debe existir (era el bug original).
-      expect(screen.queryByRole("button", { name: /enviar link/i })).toBeNull();
+      expect(screen.getByRole("button", { name: /enviar link/i })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /marcar pagado/i })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /más acciones/i })).toBeNull();
     });
     it("PENDING MERCADO_PAGO with expired initPoint shows Regenerar link as primary", () => {
       const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
@@ -291,7 +292,7 @@ describe("PaymentTimelineNode", () => {
       expect(screen.getByRole("button", { name: /marcar pagado/i })).toBeTruthy();
       expect(screen.queryByRole("button", { name: /m\u00e1s acciones/i })).toBeNull();
     });
-    it("PENDING MERCADO_PAGO con link vigente + onMarkPaid + onSendLink: 2 secundarias → dropdown", () => {
+    it("PENDING MERCADO_PAGO con link vigente + onMarkPaid + onSendLink: 2 secundarias inline", () => {
       const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
       render(
         <PaymentTimelineNode
@@ -306,8 +307,12 @@ describe("PaymentTimelineNode", () => {
           onSendLink={vi.fn()}
         />
       );
+      // Primary "Copiar link" + secundarias inline: "Marcar pagado" + "Enviar link".
+      // Antes esto era un dropdown "Más acciones".
       expect(screen.getByRole("button", { name: /copiar link/i })).toBeTruthy();
-      expect(screen.getByRole("button", { name: /m\u00e1s acciones/i })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /marcar pagado/i })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /enviar link/i })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /m\u00e1s acciones/i })).toBeNull();
     });
   });
 
@@ -399,6 +404,42 @@ describe("PaymentTimelineNode", () => {
         />
       );
       expect(screen.getByText(/vence/i)).toBeTruthy();
+    });
+  });
+
+  describe("method label rendering (no MP badge)", () => {
+    it("renders only method label, no MP badge (Efectivo)", () => {
+      const { container } = render(
+        <PaymentTimelineNode
+          payment={mockPayment({ method: "CASH", status: "COMPLETED" })}
+          index={0} total={3} nowKey="2025-01-01" daysFromNow={10} isActive={true}
+        />,
+      );
+      expect(screen.getByText("Efectivo")).toBeTruthy();
+      const badges = container.querySelectorAll('span[aria-hidden="true"]');
+      expect(Array.from(badges).some((el) => el.textContent?.trim() === "MP")).toBe(false);
+    });
+    it("renders only method label, no MP badge (Transferencia)", () => {
+      const { container } = render(
+        <PaymentTimelineNode
+          payment={mockPayment({ method: "TRANSFER", status: "COMPLETED" })}
+          index={0} total={3} nowKey="2025-01-01" daysFromNow={10} isActive={true}
+        />,
+      );
+      expect(screen.getByText("Transferencia")).toBeTruthy();
+      const badges = container.querySelectorAll('span[aria-hidden="true"]');
+      expect(Array.from(badges).some((el) => el.textContent?.trim() === "MP")).toBe(false);
+    });
+    it("renders only method label, no MP badge (Mercado Pago)", () => {
+      const { container } = render(
+        <PaymentTimelineNode
+          payment={mockPayment({ method: "MERCADO_PAGO", status: "COMPLETED" })}
+          index={0} total={3} nowKey="2025-01-01" daysFromNow={10} isActive={true}
+        />,
+      );
+      expect(screen.getByText("Mercado Pago")).toBeTruthy();
+      const badges = container.querySelectorAll('span[aria-hidden="true"]');
+      expect(Array.from(badges).some((el) => el.textContent?.trim() === "MP")).toBe(false);
     });
   });
 
