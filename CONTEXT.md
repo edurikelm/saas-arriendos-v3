@@ -434,10 +434,10 @@ Los callsites que NO encajan en estos helpers (select+groupby custom, where+incl
 
 ## Estado del proyecto / Backlog activo
 
-**Última verificación de baseline** (post cierre #183 MP metadata migration, 2026-07-17):
+**Última verificación de baseline** (post /impeccable /reservations audit closes, 2026-08-20):
 - `npm run typecheck` → 0 errores
-- `npm run lint --quiet` → 0 errores (496 warnings de `no-explicit-any` y `no-unused-vars` en 350 archivos, ver decisión abajo)
-- `npm run test:run` → **1243/1243 verde (~73s; 2 skipped)** — Test Files 110 passed. Delta desde el último baseline documentado (1204) = **+39 tests** introducidos por commits posteriores a PRD-0001 (`d5f6ff9`, `0a30975`, `84cedd4`, `5b4070e`, `24ce686`, `f8e95ee`) que no actualizaron este reporte. **#183 no introdujo tests nuevos.** **Flaky tests conocidos** pueden aparecer en primera corrida (timeouts de 5000ms o assertions de "called N times") en estos 3 archivos — verificados aislados: 7/7, 13/13, 12/12 verde:
+- `npm run lint --quiet` → 0 errores (warnings de `no-explicit-any` y `no-unused-vars` decrementaron; ver decisión abajo)
+- `npm run test:run` → **1889/1889 verde (~100s; 2 skipped)** — Test Files 146 passed. Delta desde baseline anterior (1243) = **+646 tests / +36 files** introducidos por commits posteriores que no actualizaron este reporte (reservation-payments rewrite, /properties detail panel iCal, notifications email channel, support tickets admin, admin CSV export, /payments redesign, KPI consolidation, payments webhook hardening #197-#214, /reservations impecable + primitive id support). **Flaky tests conocidos** pueden aparecer en primera corrida (timeouts de 5000ms o assertions de "called N times") en estos 3 archivos — verificados aislados: 7/7, 21/21, 12/12 verde:
   - `src/lib/actions/__tests__/payments-kpis.test.ts`
   - `src/lib/actions/__tests__/reports-revenue.test.ts`
   - `src/lib/actions/__tests__/reports-reservations-paginated.test.ts`
@@ -447,6 +447,8 @@ Los callsites que NO encajan en estos helpers (select+groupby custom, where+incl
 - **PRD-0002 (UI gaps) + fixes MED**: cerrados en commit `a4cb41d` + próximo commit
 
 ### Cerrados en commits recientes
+
+- **/reservations — /impeccable audit + primitive id support** (2026-08-20) — commits `2095f15`, `0290d51`, `ac995d6`, `9612653`, `d5a5ff2`, `2727dea`. Cierra el flujo `/impeccable audit` + `critique` sobre `/reservations` (pre-score 14/20). Post-fix score estimado ~18-19/20 (Excellent). Cambios: (a) P1 WCAG AA — 12 Labels htmlFor+id, 2 radiogroups completos (role/aria-checked/tabIndex) en reservation-form y add-payment-dialog, search aria-label, 3 inputs con aria-invalid/aria-describedby, orphan Label removido; (b) P2 quick wins — `<h2>` → `<h1>`, 8 tabular-nums, double-fetch effect eliminado, overflow-x wrapper removido, transition-all → transition-colors; (c) Primitive `id` support en `Combobox`/`ReceiptUpload`/`DateRangePicker` para cerrar 4 a11y gaps (propertyId, clientId, startDate, receipt); (d) Combobox aria-invalid/aria-describedby forwarding + propertyId/clientId form error wiring; (e) Title field htmlFor+id en add-payment-dialog; (f) Dead code removal — `ReservationMobileCard` (~100 líneas, md:hidden dentro de ReservationTable desktop-only; mobile usa `ReservationListItem`). Snapshots: `.impeccable/critique/2026-08-20T21-16-11Z` (pre-fix) + `.impeccable/critique/2026-08-20T21-30-41Z` (post-fix).
 
 - **#183 — Migración Payment con metadata de Mercado Pago** (`docs/prd/PRD-0004-mp-payment-metadata-pdf.md` + `docs/adr/0026-mp-payment-metadata-storage.md`) — commits `24ce686` (migración DB) + `f8e95ee` (fix ADR encoding). Cierra la fundación del PRD-0004: 10 campos nuevos en `Payment` (`mpPaymentId`, `mpStatusDetail`, `mpPaymentMethodId`, `mpPaymentType`, `mpCardLastFour`, `mpInstallments`, `mpTransactionAmount`, `mpNetReceivedAmount`, `mpFeeAmount`, `mpDateCreated`) — todos nullable, sin defaults, sin backfill. ADR documenta decisión de NO encriptar `mpCardLastFour` (PCI DSS) y de `String` vs `BigInt` para `mpPaymentId`. Webhook/gateway (#184) y PDF comprobante (#185) dependen de este commit.
 
