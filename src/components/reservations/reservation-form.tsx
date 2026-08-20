@@ -192,8 +192,9 @@ export function ReservationForm({
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Propiedad *</Label>
+              <Label htmlFor="propertyId" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Propiedad *</Label>
               <Combobox
+                id="propertyId"
                 className="h-9 w-full bg-card"
                 options={properties.map(p => ({ value: p.id, label: p.name, subtitle: `${p.unitsAvailable} disp.` }))}
                 value={selectedPropertyId}
@@ -202,13 +203,14 @@ export function ReservationForm({
                 showSearch={false}
               />
               {errors.propertyId && (
-                <p className="text-xs text-destructive mt-1">{errors.propertyId.message}</p>
+                <p id="propertyId-error" className="text-xs text-destructive mt-1">{errors.propertyId.message}</p>
               )}
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Cliente *</Label>
+              <Label htmlFor="clientId" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Cliente *</Label>
               <Combobox
+                id="clientId"
                 className="h-9 w-full bg-card"
                 options={clientsList.map(c => ({ value: c.id, label: c.name, subtitle: c.email }))}
                 value={clientId}
@@ -220,7 +222,7 @@ export function ReservationForm({
                 footerDisabledMessage={isAtFreeLimit ? "Límite de 5 clientes alcanzado (plan FREE)" : undefined}
               />
               {errors.clientId && (
-                <p className="text-xs text-destructive mt-1">{errors.clientId.message}</p>
+                <p id="clientId-error" className="text-xs text-destructive mt-1">{errors.clientId.message}</p>
               )}
             </div>
           </div>
@@ -294,15 +296,16 @@ export function ReservationForm({
               {/* Dates */}
               {!isMonthly ? (
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Fechas de Estadía *</Label>
+                  <Label htmlFor="startDate" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Fechas de Estadía *</Label>
                   <DateRangePicker
+                    id="startDate"
                     date={dateRange}
                     onDateChange={handleDateRangeChange}
                     className="w-full"
                     blockedDates={blockedDates}
                   />
                   {(errors.startDate || errors.endDate) && (
-                    <p className="text-xs text-destructive">
+                    <p id="startDate-error" className="text-xs text-destructive">
                       {errors.startDate?.message || errors.endDate?.message}
                     </p>
                   )}

@@ -118,4 +118,10 @@ describe('Combobox', () => {
 
     expect(onClick).toHaveBeenCalled();
   });
+
+  it('propaga id al trigger', () => {
+    render(<Combobox {...defaultProps} id="combo-test" />);
+    expect(document.getElementById('combo-test')).toBeDefined();
+    expect(document.getElementById('combo-test')?.tagName).toBe('BUTTON');
+  });
 });

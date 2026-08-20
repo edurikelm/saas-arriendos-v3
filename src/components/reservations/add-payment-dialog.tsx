@@ -434,8 +434,8 @@ export function AddPaymentDialog({
 
           {showPaidAtAndReceipt && (
             <div className="space-y-2">
-              <Label className="text-xs">Comprobante (opcional)</Label>
-              <ReceiptUpload onFileSelect={setReceiptFile} />
+              <Label htmlFor="receipt" className="text-xs">Comprobante (opcional)</Label>
+              <ReceiptUpload onFileSelect={setReceiptFile} id="receipt" />
             </div>
           )}
         </div>

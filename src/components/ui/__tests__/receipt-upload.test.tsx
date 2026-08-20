@@ -95,4 +95,11 @@ describe('ReceiptUpload', () => {
 
     expect(onFileSelect).toHaveBeenCalledWith(validFile);
   });
+
+  it('propaga id al input file', () => {
+    render(<ReceiptUpload onFileSelect={vi.fn()} id="receipt-test" />);
+    expect(document.getElementById('receipt-test')).toBeDefined();
+    expect(document.getElementById('receipt-test')?.tagName).toBe('INPUT');
+    expect((document.getElementById('receipt-test') as HTMLInputElement).type).toBe('file');
+  });
 });

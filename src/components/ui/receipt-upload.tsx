@@ -9,9 +9,10 @@ interface ReceiptUploadProps {
   onFileSelect: (file: File | null) => void;
   maxSizeMb?: number;
   accept?: string;
+  id?: string;
 }
 
-export function ReceiptUpload({ onFileSelect, maxSizeMb = 5, accept = "image/jpeg,image/png,image/webp" }: ReceiptUploadProps) {
+export function ReceiptUpload({ onFileSelect, maxSizeMb = 5, accept = "image/jpeg,image/png,image/webp", id }: ReceiptUploadProps) {
   const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -103,6 +104,7 @@ export function ReceiptUpload({ onFileSelect, maxSizeMb = 5, accept = "image/jpe
         accept={accept}
         className="hidden"
         onChange={handleChange}
+        id={id}
       />
       {error && (
         <p className="text-xs text-destructive">{error}</p>

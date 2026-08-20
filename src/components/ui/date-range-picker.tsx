@@ -21,6 +21,7 @@ interface DateRangePickerProps {
   className?: string
   blockedDates?: string[]
   mode?: "range" | "single"
+  id?: string
 }
 
 export function DateRangePicker({
@@ -29,6 +30,7 @@ export function DateRangePicker({
   className,
   blockedDates = [],
   mode = "range",
+  id,
 }: DateRangePickerProps) {
   // Comparación por dateKey en wall-time SCL (ADR-0020). Antes: `new Date(blocked)`
   // + `setHours(0,0,0,0)` era timezone-frágil — en zonas UTC+ un string
@@ -49,6 +51,7 @@ export function DateRangePicker({
       <PopoverTrigger
         render={
           <Button
+            id={id}
             variant="outline"
             data-empty={!date?.from}
             className={cn(
