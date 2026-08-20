@@ -133,7 +133,7 @@ export function AddPaymentDialog({
     handleSubmit,
     control,
     reset,
-    formState: { isSubmitting },
+    formState: { errors, isSubmitting },
   } = useForm<AddPaymentFormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -397,15 +397,21 @@ export function AddPaymentDialog({
           {isExtra && (
             <>
               <div className="space-y-2">
-                <Label className="text-xs">
+                <Label htmlFor="title" className="text-xs">
                   Título <span className="text-destructive">*</span>
                 </Label>
                 <Input
+                  id="title"
                   type="text"
                   placeholder="Ej: Limpieza extra, Daños menores"
                   {...register("title")}
+                  aria-invalid={!!errors.title}
+                  aria-describedby={errors.title ? "title-error" : undefined}
                   className="h-9"
                 />
+                {errors.title && (
+                  <p id="title-error" className="text-xs text-destructive mt-1">{errors.title.message}</p>
+                )}
               </div>
 
               <div className="space-y-2">
