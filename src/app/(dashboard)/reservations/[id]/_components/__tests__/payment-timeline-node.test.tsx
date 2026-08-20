@@ -191,7 +191,7 @@ describe("PaymentTimelineNode", () => {
       expect(screen.getByRole("button", { name: /generar link/i })).toBeTruthy();
       expect(screen.queryByRole("button", { name: /enviar link/i })).toBeNull();
     });
-    it("PENDING MERCADO_PAGO with valid initPoint shows Copiar link as primary", () => {
+    it("PENDING MERCADO_PAGO with valid initPoint (sin onSendLink) shows Copiar link as primary", () => {
       const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
       render(
         <PaymentTimelineNode
@@ -204,10 +204,12 @@ describe("PaymentTimelineNode", () => {
           index={0} total={3} nowKey="2025-01-01" daysFromNow={3} isActive={true}
         />
       );
+      // Sin onSendLink, primary = "Copiar link" (fallback defensivo). La cascada
+      // con onSendLink se cubre en el test siguiente.
       expect(screen.getByRole("button", { name: /copiar link/i })).toBeTruthy();
       expect(screen.queryByRole("button", { name: /enviar link/i })).toBeNull();
     });
-    it("PENDING MERCADO_PAGO with valid initPoint + onSendLink + onMarkPaid lista secundarias inline", () => {
+    it("PENDING MERCADO_PAGO with valid initPoint + onSendLink: primary = 'Enviar link' (sin duplicación)", () => {
       const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
       render(
         <PaymentTimelineNode
@@ -222,11 +224,11 @@ describe("PaymentTimelineNode", () => {
           onMarkPaid={vi.fn()}
         />
       );
-      // Primary = "Copiar link"; secundarias (Enviar link, Marcar pagado) ahora
-      // se listan inline (UX anterior: 2+ → dropdown "Más acciones" — eliminado).
-      expect(screen.getByRole("button", { name: /copiar link/i })).toBeTruthy();
+      // Decisión local: con onSendLink, primary = "Enviar link". La secundaria
+      // sendLink se omite porque ya es primary (evita duplicación visible).
       expect(screen.getByRole("button", { name: /enviar link/i })).toBeTruthy();
       expect(screen.getByRole("button", { name: /marcar pagado/i })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /copiar link/i })).toBeNull();
       expect(screen.queryByRole("button", { name: /más acciones/i })).toBeNull();
     });
     it("PENDING MERCADO_PAGO with expired initPoint shows Regenerar link as primary", () => {
@@ -292,7 +294,7 @@ describe("PaymentTimelineNode", () => {
       expect(screen.getByRole("button", { name: /marcar pagado/i })).toBeTruthy();
       expect(screen.queryByRole("button", { name: /m\u00e1s acciones/i })).toBeNull();
     });
-    it("PENDING MERCADO_PAGO con link vigente + onMarkPaid + onSendLink: 2 secundarias inline", () => {
+    it("PENDING MERCADO_PAGO con link vigente + onMarkPaid + onSendLink: primary Enviar link + 1 secundaria", () => {
       const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
       render(
         <PaymentTimelineNode
@@ -307,11 +309,11 @@ describe("PaymentTimelineNode", () => {
           onSendLink={vi.fn()}
         />
       );
-      // Primary "Copiar link" + secundarias inline: "Marcar pagado" + "Enviar link".
-      // Antes esto era un dropdown "Más acciones".
-      expect(screen.getByRole("button", { name: /copiar link/i })).toBeTruthy();
-      expect(screen.getByRole("button", { name: /marcar pagado/i })).toBeTruthy();
+      // Primary "Enviar link" + secundaria "Marcar pagado" inline. Antes esto
+      // era primary "Copiar link" + secundarias "Marcar pagado" + "Enviar link".
       expect(screen.getByRole("button", { name: /enviar link/i })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /marcar pagado/i })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /copiar link/i })).toBeNull();
       expect(screen.queryByRole("button", { name: /m\u00e1s acciones/i })).toBeNull();
     });
   });

@@ -139,7 +139,15 @@ export function PaymentTimelineNode({
   const methodLabel = METHOD_LABELS[payment.method] ?? "—";
 
   // Primary action cascade — alineado con ACTION_CONFIG en payment-row-actions.tsx
-  // (seam canónico de UI de acciones de pago). Orden: generate → regenerate → copy → markPaid.
+  // (seam canónico de UI de acciones de pago). Orden: generate → regenerate → sendLink → copy → markPaid.
+  //
+  // Decisión local a /reservations/[id]: cuando hay link vigente + onSendLink,
+  // el primary es "Enviar link" (no "Copiar link"). Justificación: el modal
+  // `SendPaymentLinkDialog` ya expone su propio botón "Copiar" para copiar el
+  // mensaje con el link; mostrar "Copiar link" + "Enviar link" como dos acciones
+  // separadas duplica la misma capacidad. `canCopyLink` queda como fallback
+  // defensivo: si por alguna razón `onSendLink` no se pasa (p.ej. otro callsite),
+  // el comportamiento legacy (primary = "Copiar link") se preserva.
   const canGenerateLink = isPending && isMercadoPago && !payment.initPoint && !!onGenerateLink;
   const canRegenerateLink = isPending && isMercadoPago && isExpired && !!payment.initPoint && !!onRegenerateLink;
   const canCopyLink = isPending && isMercadoPago && !!payment.initPoint && !isExpired;
@@ -151,20 +159,21 @@ export function PaymentTimelineNode({
   const isGenerating = generatingLinkId === payment.id;
   const isRegenerating = regeneratingLinkId === payment.id;
 
-  // Action primaria: generate > regenerate > copy > markPaid > viewReceipt.
-  // `sendLink` queda como secundario (dropdown), nunca como primary.
-  type PrimaryId = "generate" | "regenerate" | "copy" | "markPaid" | "viewReceipt";
+  // Action primaria: generate > regenerate > sendLink > copy > markPaid > viewReceipt.
+  type PrimaryId = "generate" | "regenerate" | "sendLink" | "copy" | "markPaid" | "viewReceipt";
   const primaryAction: PrimaryId | null = canGenerateLink
     ? "generate"
     : canRegenerateLink
       ? "regenerate"
-      : canCopyLink
-        ? "copy"
-        : canMarkPaid
-          ? "markPaid"
-          : isCompleted && canViewReceipt
-            ? "viewReceipt"
-            : null;
+      : canSendLink
+        ? "sendLink"
+        : canCopyLink
+          ? "copy"
+          : canMarkPaid
+            ? "markPaid"
+            : isCompleted && canViewReceipt
+              ? "viewReceipt"
+              : null;
 
   // Secondaries — todas se renderizan inline debajo de la primaria, sin importar
   // la cantidad. Antes la regla era "1 → inline, 2+ → dropdown 'Más acciones'",
@@ -173,16 +182,17 @@ export function PaymentTimelineNode({
   // son visibles — la jerarquía "primaria arriba + secundarias debajo" las
   // mantiene ordenadas sin esconder nada.
   //
+  // `sendLink` se omite cuando ya es la primary (evita duplicación visible).
+  //
   // Orden estable (de arriba a abajo):
-  //   1. sendLink    — pegada a la primaria cuando la primaria es sobre el
-  //                    mismo link de MP (Copiar/Generar/Regenerar link); ambas
-  //                    son acciones sobre el mismo recurso.
+  //   1. sendLink    — pegada a la primaria cuando la primaria NO es sobre el
+  //                    mismo link de MP (p.ej. primary = markPaid).
   //   2. markPaid    — la acción más frecuente del owner.
   //   3. viewReceipt — secundaria de consulta cuando el pago está cerrado.
   //   4. delete      — destructiva, siempre al final.
   type SecondaryId = "markPaid" | "delete" | "viewReceipt" | "sendLink";
   const secondaries: SecondaryId[] = [];
-  if (canSendLink) secondaries.push("sendLink");
+  if (canSendLink && primaryAction !== "sendLink") secondaries.push("sendLink");
   if (canMarkPaid && primaryAction !== "markPaid") secondaries.push("markPaid");
   if (isCompleted && canViewReceipt && primaryAction !== "viewReceipt") secondaries.push("viewReceipt");
   if (canDelete) secondaries.push("delete");
@@ -225,12 +235,6 @@ export function PaymentTimelineNode({
     switch (actionId) {
       case "generate": onGenerateLink?.(payment.id); break;
       case "regenerate": onRegenerateLink?.(payment.id); break;
-      case "copy":
-        if (payment.initPoint) {
-          navigator.clipboard.writeText(payment.initPoint);
-          toast.success("Link copiado al portapapeles");
-        }
-        break;
       case "sendLink": onSendLink?.(payment); break;
       case "markPaid": onMarkPaid?.(payment.id); break;
       case "delete": onDeletePayment?.(payment.id); break;
@@ -378,12 +382,28 @@ export function PaymentTimelineNode({
                 )}
               </Button>
             )}
+            {primaryAction === "sendLink" && (
+              <Button
+                variant="link"
+                size="sm"
+                className="h-7 px-1 text-xs text-info hover:text-info"
+                onClick={() => onSendLink?.(payment)}
+              >
+                <Send className="size-3.5 mr-1" />
+                Enviar link
+              </Button>
+            )}
             {primaryAction === "copy" && (
               <Button
                 variant="link"
                 size="sm"
                 className="h-7 px-1 text-xs text-info hover:text-info"
-                onClick={() => runAction("copy")}
+                onClick={() => {
+                  if (payment.initPoint) {
+                    navigator.clipboard.writeText(payment.initPoint);
+                    toast.success("Link copiado al portapapeles");
+                  }
+                }}
                 disabled={!payment.initPoint}
               >
                 <Copy className="size-3.5 mr-1" />
@@ -430,9 +450,11 @@ export function PaymentTimelineNode({
             {/* Secondaries — todas inline debajo de la primaria. Antes esto
                 era un dropdown "Más acciones" cuando había 2+ secundarias; ahora
                 cada acción se renderiza como su propio botón en orden estable
-                (markPaid → delete → viewReceipt → sendLink). El orden de
+                (sendLink → markPaid → viewReceipt → delete). El orden de
                 apilamiento refleja prioridad operativa: marcar pagado primero
-                (acción más frecuente del owner), destructivas al final. */}
+                (acción más frecuente del owner), destructivas al final.
+                `sendLink` se omite cuando ya es la primary (evita duplicación
+                visible con el botón de arriba). */}
             {secondaries.map((id) => {
               const cfg = secondaryButtons[id];
               const Icon = cfg.icon;

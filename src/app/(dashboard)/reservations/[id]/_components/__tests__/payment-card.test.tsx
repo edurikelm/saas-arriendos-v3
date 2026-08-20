@@ -176,7 +176,7 @@ describe("PaymentCard", () => {
       expect(screen.getByRole("button", { name: /eliminar pago/i })).toBeTruthy();
       expect(screen.queryByRole("button", { name: /m\u00e1s acciones/i })).toBeNull();
     });
-    it("PENDING MP + link vigente con 2+ secundarias las lista inline (sin dropdown)", () => {
+    it("PENDING MP + link vigente + onSendLink: primary = 'Enviar link' (sin duplicación)", () => {
       const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
       render(
         <PaymentCard
@@ -191,12 +191,34 @@ describe("PaymentCard", () => {
           onSendLink={vi.fn()}
         />
       );
-      // primary = Copiar link; secondaries = [markPaid, sendLink] → todas
-      // inline, sin dropdown "Más acciones" (UX anterior: 2+ → dropdown).
-      expect(screen.getByRole("button", { name: /copiar link/i })).toBeTruthy();
-      expect(screen.getByRole("button", { name: /marcar pagado/i })).toBeTruthy();
+      // Decisión local: cuando hay link vigente + onSendLink, primary = "Enviar link".
+      // Justificación: el modal SendPaymentLinkDialog ya expone su propio botón "Copiar",
+      // así que mostrar "Copiar link" + "Enviar link" como dos acciones separadas
+      // duplica la misma capacidad. La secundaria queda solo "Marcar pagado" (sendLink
+      // se omite porque ya es primary).
       expect(screen.getByRole("button", { name: /enviar link/i })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /marcar pagado/i })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /copiar link/i })).toBeNull();
       expect(screen.queryByRole("button", { name: /m\u00e1s acciones/i })).toBeNull();
+    });
+    it("PENDING MP + link vigente + sin onSendLink: primary = 'Copiar link' (fallback defensivo)", () => {
+      // Defensa: si onSendLink no se pasa, el comportamiento legacy (primary = "Copiar link")
+      // se preserva. Cubre el caso edge de un callsite que no expone el flujo de envío.
+      const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+      render(
+        <PaymentCard
+          payment={mockPayment({
+            status: "PENDING",
+            method: "MERCADO_PAGO",
+            initPoint: "https://mp.com/link",
+            expiresAt: tomorrow.toISOString(),
+          })}
+          index={0} total={3} nowKey="2025-01-01" isActive={true}
+          onMarkPaid={vi.fn()}
+        />
+      );
+      expect(screen.getByRole("button", { name: /copiar link/i })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /enviar link/i })).toBeNull();
     });
     it("does not render Más acciones anywhere (dropdown eliminado)", () => {
       // Defensa: el botón "Más acciones" se eliminó completamente. Antes era el
@@ -263,7 +285,7 @@ describe("PaymentCard", () => {
       );
       expect(screen.getByRole("button", { name: /marcar pagado/i })).toBeTruthy();
     });
-    it("PENDING MERCADO_PAGO with valid initPoint shows Copiar link", () => {
+    it("PENDING MERCADO_PAGO with valid initPoint (sin onSendLink) shows Copiar link", () => {
       const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
       render(
         <PaymentCard
@@ -272,9 +294,10 @@ describe("PaymentCard", () => {
           onMarkPaid={vi.fn()}
         />
       );
-      // Copiar link tiene prioridad sobre Marcar pagado en la cascada primaria
-      // (alineado con ACTION_CONFIG / payment-row-actions.tsx).
+      // Sin onSendLink, primary = "Copiar link" (fallback defensivo). La cascada
+      // con onSendLink se cubre en "primary = 'Enviar link' (sin duplicación)".
       expect(screen.getByRole("button", { name: /copiar link/i })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /enviar link/i })).toBeNull();
     });
   });
 
