@@ -35,8 +35,8 @@ const dotClassNames: Record<PillTone, string> = {
 };
 
 /**
- * Vertical bar color for a pill tone. Used by ReservationMobileCard to render
- * the left accent stripe (decorative, outside the pill itself).
+ * Vertical bar color for a pill tone. Used by the desktop reservation table
+ * to render left accent stripes on finance cells (decorative, outside the pill).
  */
 export const reservationPillDotClass: Record<PillTone, string> = dotClassNames;
 

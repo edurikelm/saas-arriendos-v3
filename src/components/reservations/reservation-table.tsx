@@ -48,96 +48,6 @@ function getPaymentTone(paidAmount: number, totalPrice: number): PillTone {
   return "destructive";
 }
 
-function ReservationMobileCard({ reservation, onEdit, onCancel, onDelete }: {
-  reservation: Reservation;
-  onEdit?: (id: string) => void;
-  onCancel?: (id: string) => void;
-  onDelete?: (id: string) => void;
-}) {
-  const paidAmount = getReservationPaidAmount(reservation.payments);
-  const totalPrice = Number(reservation.totalPrice);
-  const temporal = getTemporalStatus(reservation.startDate, reservation.endDate, reservation.billingType, reservation.status);
-  const stateTone = getReservationTone(reservation.status, reservation.startDate, reservation.endDate);
-  const paymentTone = getPaymentTone(paidAmount, totalPrice);
-  const duration = reservation.billingType === "MONTHLY"
-    ? `${getMonths(reservation.startDate, reservation.endDate)} meses`
-    : `${getNights(reservation.startDate, reservation.endDate)} noches`;
-
-  const finLabel = paymentTone === "success"
-    ? "Saldado"
-    : paymentTone === "warning"
-      ? formatPrice(totalPrice - paidAmount)
-      : "Pendiente";
-  const finSubtext = paymentTone === "success"
-    ? `${formatPrice(paidAmount)} pagado`
-    : paymentTone === "warning"
-      ? `Restante de ${formatPrice(totalPrice)}`
-      : "Sin abonos";
-
-  return (
-    <article className="group relative overflow-hidden rounded-xl border border-border bg-card p-3.5 transition-colors duration-150 hover:bg-accent">
-      <div className={`absolute inset-y-0 left-0 w-1 ${reservationPillDotClass[stateTone]}`} />
-      <div className="flex items-start gap-3 pl-1.5">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-          {getInitials(reservation.client.name)}
-        </div>
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <h3 className="truncate text-sm font-semibold text-foreground">{reservation.client.name}</h3>
-              <p className="truncate text-xs text-muted-foreground">{reservation.property.name}</p>
-            </div>
-            <p className="shrink-0 text-right text-base font-bold tabular-nums text-foreground">{formatPrice(reservation.totalPrice)}</p>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            <span className="tabular-nums">{formatDate(reservation.startDate)} – {formatDate(reservation.endDate)}</span>
-            <span className="text-muted-foreground"> · {duration}</span>
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-1.5 pl-1.5">
-        <ReservationPill tone={stateTone} label={temporal.label} />
-        <ReservationPill tone={reservation.billingType === "DAILY" ? "info" : "info-strong"} label={reservation.billingType === "DAILY" ? "Diario" : "Mensual"} />
-      </div>
-
-      <div className="mt-3 flex items-stretch gap-2 pl-1.5">
-        <div className={`w-0.5 rounded-full ${reservationPillDotClass[paymentTone]}`} />
-        <div className="flex flex-col">
-          <p className={`text-xs font-bold ${paymentTone === "success" ? "text-success" : paymentTone === "warning" ? "text-foreground" : "text-destructive"}`}>{finLabel}</p>
-          <p className="text-[10px] text-muted-foreground">{finSubtext}</p>
-        </div>
-      </div>
-
-      <div className="mt-3 flex items-center justify-end gap-1 pl-1.5">
-        {reservation.notes && (
-          <p className="mr-auto line-clamp-2 pl-1.5 text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">Notas:</span> {reservation.notes}
-          </p>
-        )}
-        <Link href={`/reservations/${reservation.id}`} className={buttonVariants({ variant: "ghost", size: "icon-sm" })} aria-label="Ver reserva">
-          <Eye className="h-4 w-4" aria-hidden="true" />
-        </Link>
-        {onEdit && (
-          <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:text-foreground" onClick={() => onEdit(reservation.id)} aria-label="Editar reserva">
-            <Pencil className="h-4 w-4" aria-hidden="true" />
-          </Button>
-        )}
-        {(reservation.status === "PENDING" || reservation.status === "CONFIRMED") && onCancel && (
-          <Button size="icon" variant="ghost" className="size-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => onCancel(reservation.id)} aria-label="Cancelar reserva">
-            <Ban className="h-4 w-4" aria-hidden="true" />
-          </Button>
-        )}
-        {(reservation.status === "CANCELLED" || reservation.status === "COMPLETED") && onDelete && (
-          <Button size="icon" variant="ghost" className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => onDelete(reservation.id)} aria-label="Eliminar reserva">
-            <Trash2 className="h-4 w-4" aria-hidden="true" />
-          </Button>
-        )}
-      </div>
-    </article>
-  );
-}
-
 export function ReservationTable({ reservations, onEdit, onCancel, onDelete }: {
   reservations: Reservation[];
   onEdit?: (id: string) => void;
@@ -150,18 +60,6 @@ export function ReservationTable({ reservations, onEdit, onCancel, onDelete }: {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 md:hidden">
-        {sorted.map((res) => (
-          <ReservationMobileCard
-            key={res.id}
-            reservation={res}
-            onEdit={onEdit}
-            onCancel={onCancel}
-            onDelete={onDelete}
-          />
-        ))}
-      </div>
-
       <div className="hidden md:block">
         <DataTable
           headers={[
