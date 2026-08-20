@@ -130,7 +130,7 @@ describe('Combobox', () => {
 
     const trigger = document.getElementById('combo-aria-test');
     expect(trigger).toBeDefined();
-    expect(trigger).toHaveAttribute('aria-invalid', 'true');
-    expect(trigger).toHaveAttribute('aria-describedby', 'field-error');
+    expect(trigger?.getAttribute('aria-invalid')).toBe('true');
+    expect(trigger?.getAttribute('aria-describedby')).toBe('field-error');
   });
 });

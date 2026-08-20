@@ -1,9 +1,7 @@
 "use client";
 
 import { MoreVertical, Eye, Pencil, Ban, Trash2 } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button, buttonVariants } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import {
   DropdownMenu,
