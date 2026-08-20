@@ -47,7 +47,7 @@ import { cn } from "@/lib/utils";
 import { dateKeyToDayIndex } from "@/lib/domain/timezone";
 import { getInclusiveMonths } from "@/lib/reservation-dates";
 import { PaymentsSection } from "./payments-section";
-import { usePaymentActions } from "./payment-actions";
+import { usePaymentActions, MarkPaidModal } from "./payment-actions";
 
 interface ReservationChange {
   id: string;
@@ -607,7 +607,8 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
     generatingLinkId,
     regeneratingLinkId,
     setShowAddPaymentDialog,
-    MarkPaidModal,
+    markPaidId,
+    setMarkPaidId,
     AddPaymentModal,
     DeleteConfirmModal,
     SendLinkModal,
@@ -740,7 +741,17 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
             }}
             modals={
               <>
-                <MarkPaidModal />
+                <MarkPaidModal
+                  paymentId={markPaidId}
+                  open={markPaidId !== null}
+                  onOpenChange={(open) => {
+                    if (!open) setMarkPaidId(null);
+                  }}
+                  onSuccess={() => {
+                    setMarkPaidId(null);
+                    refreshData();
+                  }}
+                />
                 <AddPaymentModal />
                 <DeleteConfirmModal />
                 <SendLinkModal />
