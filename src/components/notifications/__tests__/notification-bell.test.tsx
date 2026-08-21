@@ -45,7 +45,7 @@ describe("NotificationBell", () => {
 
   it("renders the Bell button with rounded-lg and correct aria-label", () => {
     render(<NotificationBell unreadCount={0} />);
-    const bell = screen.getByLabelText("Notificaciones");
+    const bell = screen.getByRole("button", { name: /Notificaciones/ });
     expect(bell.className).toMatch(/\brounded-lg\b/);
   });
 
@@ -78,13 +78,13 @@ describe("NotificationBell", () => {
 
   it("Bell button is still accessible when count is 0", () => {
     render(<NotificationBell unreadCount={0} />);
-    const bell = screen.getByLabelText("Notificaciones");
+    const bell = screen.getByRole("button", { name: /Notificaciones/ });
     expect(bell).toBeTruthy();
   });
 
   it("Bell button is still accessible when count is greater than 0", () => {
     render(<NotificationBell unreadCount={10} />);
-    const bell = screen.getByLabelText("Notificaciones");
+    const bell = screen.getByRole("button", { name: /Notificaciones/ });
     expect(bell).toBeTruthy();
   });
 
@@ -92,7 +92,7 @@ describe("NotificationBell", () => {
     const user = userEvent.setup();
 
     render(<NotificationBell unreadCount={5} />);
-    const bell = screen.getByLabelText("Notificaciones");
+    const bell = screen.getByRole("button", { name: /Notificaciones/ });
 
     await act(async () => {
       await user.click(bell);
@@ -105,7 +105,7 @@ describe("NotificationBell", () => {
     const user = userEvent.setup();
 
     render(<NotificationBell unreadCount={0} />);
-    const bell = screen.getByLabelText("Notificaciones");
+    const bell = screen.getByRole("button", { name: /Notificaciones/ });
 
     await act(async () => {
       await user.click(bell);
@@ -119,7 +119,7 @@ describe("NotificationBell", () => {
     const onNotificationsRead = vi.fn();
 
     render(<NotificationBell unreadCount={5} onNotificationsRead={onNotificationsRead} />);
-    const bell = screen.getByLabelText("Notificaciones");
+    const bell = screen.getByRole("button", { name: /Notificaciones/ });
 
     await act(async () => {
       await user.click(bell);
@@ -135,7 +135,7 @@ describe("NotificationBell", () => {
     const onNotificationsRead = vi.fn();
 
     render(<NotificationBell unreadCount={0} onNotificationsRead={onNotificationsRead} />);
-    const bell = screen.getByLabelText("Notificaciones");
+    const bell = screen.getByRole("button", { name: /Notificaciones/ });
 
     await act(async () => {
       await user.click(bell);
@@ -180,7 +180,7 @@ describe("NotificationBell", () => {
         onNotificationsRead={onNotificationsRead}
       />
     );
-    const bell = screen.getByLabelText("Notificaciones");
+    const bell = screen.getByRole("button", { name: /Notificaciones/ });
 
     await act(async () => {
       await user.click(bell);

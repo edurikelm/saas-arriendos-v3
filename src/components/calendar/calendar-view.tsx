@@ -213,11 +213,11 @@ export function CalendarView({
     <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
       <Button variant="default" onClick={() => setCreateDialogOpen(true)}>
         <Plus className="mr-2 h-4 w-4" />
-        <span className="hidden sm:inline">Nueva Reserva</span>
-        <span className="sm:hidden">Nueva</span>
+        <span className="hidden sm:inline text-foreground">Nueva Reserva</span>
+        <span className="sm:hidden text-foreground">Nueva</span>
       </Button>
       <Select value={selectedPropertyId} onValueChange={(v) => setSelectedPropertyId(v || "all")}>
-        <SelectTrigger className="w-full min-w-0 sm:w-48">
+        <SelectTrigger className="w-full min-w-0 sm:w-48" aria-label="Filtrar por propiedad">
           <SelectValue placeholder="Propiedades">
             {(value: string | null) => {
               if (!value || value === "all") return "Todas";
@@ -255,7 +255,7 @@ export function CalendarView({
       {/* 1. Page header (Stitch "Calendario de Ocupación") */}
       <div className="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Calendario de Ocupación</h2>
+          <h1 className="text-2xl font-bold tracking-tight">Calendario de Ocupación</h1>
           <p className="text-xs text-muted-foreground">
             Gestiona la disponibilidad de tus unidades en tiempo real.
           </p>

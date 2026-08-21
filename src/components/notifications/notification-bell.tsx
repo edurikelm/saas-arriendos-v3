@@ -57,7 +57,7 @@ export function NotificationBell({ unreadCount, initialNotifications, onNotifica
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Notificaciones"
+            aria-label={unreadCount > 0 ? `Notificaciones, ${unreadCount} sin leer` : "Notificaciones"}
             className="rounded-lg relative inline-flex items-center justify-center"
           />
         }

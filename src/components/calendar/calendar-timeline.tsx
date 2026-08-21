@@ -456,12 +456,12 @@ export function CalendarTimeline({ reservations, externalBlocks = [], currentMon
                         : ended
                         ? "border-border bg-muted text-muted-foreground opacity-75 line-through decoration-muted-foreground/60"
                         : active
-                        ? "border-brand-secondary bg-brand-secondary text-white"
-                        : "border border-brand-secondary/20 bg-brand-secondary/10 text-brand-secondary";
+                        ? "border-brand-secondary bg-brand-secondary text-foreground"
+                        : "border border-brand-secondary/20 bg-brand-secondary/10 text-foreground";
 
                       const chipClass = active
-                        ? "bg-white/20 text-white"
-                        : "bg-brand-secondary/20 text-brand-secondary";
+                        ? "bg-white/20 text-foreground"
+                        : "bg-brand-secondary/20 text-foreground";
 
                       return (
                         <button
