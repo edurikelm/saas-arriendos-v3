@@ -17,13 +17,14 @@ import { ReactivateButton } from "./reactivate-button";
 interface BillingClientProps {
   subscription: Subscription | null;
   usage: OwnerUsage;
+  activeExternalCalendarCount?: number;
 }
 
 function formatPrice(amount: number): string {
   return `$${amount.toLocaleString("es-CL")}`;
 }
 
-export function BillingClient({ subscription, usage }: BillingClientProps) {
+export function BillingClient({ subscription, usage, activeExternalCalendarCount }: BillingClientProps) {
   const [isPending, startTransition] = useTransition();
   const [cancelOpen, setCancelOpen] = useState(false);
 
@@ -187,6 +188,7 @@ export function BillingClient({ subscription, usage }: BillingClientProps) {
       open={cancelOpen}
       onOpenChange={setCancelOpen}
       currentPeriodEnd={subscription?.currentPeriodEnd ?? null}
+      activeExternalCalendarCount={activeExternalCalendarCount ?? 0}
     />
     </>
   );

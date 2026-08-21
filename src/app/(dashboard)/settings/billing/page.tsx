@@ -1,5 +1,6 @@
 import { requireOwner } from "@/lib/auth/guards";
 import { getCurrentSubscriptionAction, countOwnerUsage } from "@/lib/actions/subscriptions";
+import { countActiveExternalCalendars } from "@/lib/external-calendars/queries";
 import { BillingClient } from "@/components/billing/billing-client";
 import type { Metadata } from "next";
 
@@ -9,9 +10,10 @@ export const metadata: Metadata = {
 
 export default async function BillingPage() {
   const session = await requireOwner();
-  const [subscription, usage] = await Promise.all([
+  const [subscription, usage, activeExternalCalendarCount] = await Promise.all([
     getCurrentSubscriptionAction(),
     countOwnerUsage(session.userId),
+    countActiveExternalCalendars(session.userId),
   ]);
 
   return (
@@ -23,7 +25,11 @@ export default async function BillingPage() {
         </p>
       </div>
 
-      <BillingClient subscription={subscription} usage={usage} />
+      <BillingClient
+        subscription={subscription}
+        usage={usage}
+        activeExternalCalendarCount={activeExternalCalendarCount}
+      />
     </div>
   );
 }

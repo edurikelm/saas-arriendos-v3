@@ -172,3 +172,82 @@ describe("CancelSubscriptionDialog", () => {
     });
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// activeExternalCalendarCount amber block
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("activeExternalCalendarCount warning block", () => {
+  it("activeExternalCalendarCount=0 no renderiza el bloque amber", async () => {
+    render(
+      <CancelSubscriptionDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        currentPeriodEnd={new Date("2026-08-15T12:00:00Z")}
+        activeExternalCalendarCount={0}
+      />
+    );
+
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("activeExternalCalendarCount=1 renderiza el bloque con texto singular", async () => {
+    render(
+      <CancelSubscriptionDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        currentPeriodEnd={new Date("2026-08-15T12:00:00Z")}
+        activeExternalCalendarCount={1}
+      />
+    );
+
+    const block = screen.getByRole("status");
+    expect(block.textContent).toContain("1 calendario externo sincronizado");
+  });
+
+  it("activeExternalCalendarCount=3 renderiza el bloque con texto plural", async () => {
+    render(
+      <CancelSubscriptionDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        currentPeriodEnd={new Date("2026-08-15T12:00:00Z")}
+        activeExternalCalendarCount={3}
+      />
+    );
+
+    const block = screen.getByRole("status");
+    expect(block.textContent).toContain("3 calendarios externos sincronizados");
+  });
+
+  it("el bloque amber tiene role=status para accesibilidad", async () => {
+    render(
+      <CancelSubscriptionDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        currentPeriodEnd={new Date("2026-08-15T12:00:00Z")}
+        activeExternalCalendarCount={2}
+      />
+    );
+
+    const block = screen.getByRole("status");
+    expect(block).toBeTruthy();
+    expect(block.textContent).toContain("calendarios externos sincronizados");
+  });
+
+  it("default prop activeExternalCalendarCount=0 no rompe tests existentes", async () => {
+    // Este test documenta que el default es 0 (compatibilidad con tests sin la prop)
+    render(
+      <CancelSubscriptionDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        currentPeriodEnd={new Date("2026-08-15T12:00:00Z")}
+        // sin activeExternalCalendarCount → usa default 0
+      />
+    );
+
+    // El bloque amber NO debe aparecer con default 0
+    expect(screen.queryByRole("status")).toBeNull();
+    // Pero el dialog sigue funcionando normalmente
+    expect(screen.getByText("Cancelar suscripcion PRO")).toBeTruthy();
+  });
+});

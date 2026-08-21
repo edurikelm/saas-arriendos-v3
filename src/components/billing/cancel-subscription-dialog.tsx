@@ -34,12 +34,14 @@ interface CancelSubscriptionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentPeriodEnd: Date | null;
+  activeExternalCalendarCount?: number;
 }
 
 export function CancelSubscriptionDialog({
   open,
   onOpenChange,
   currentPeriodEnd,
+  activeExternalCalendarCount = 0,
 }: CancelSubscriptionDialogProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -108,6 +110,26 @@ export function CancelSubscriptionDialog({
               ))}
             </ul>
           </div>
+
+          {/* Aviso de Calendarios Externos sincronizados */}
+          {activeExternalCalendarCount > 0 && (
+            <div
+              role="status"
+              className="rounded-lg border border-warning/20 bg-warning/10 p-4"
+            >
+              <p className="text-sm font-medium text-warning mb-2">
+                Calendarios externos sincronizados
+              </p>
+              <p className="text-sm text-warning">
+                Tienes {activeExternalCalendarCount}{" "}
+                {activeExternalCalendarCount === 1 ? "calendario externo" : "calendarios externos"}
+                {" "}sincronizado{activeExternalCalendarCount === 1 ? "" : "s"}.
+                Al bajar, dejarán de sincronizar con Airbnb/Booking/VRBO y los bloqueos
+                previos dejarán de contar para disponibilidad. Puedes reactivarlos
+                volviendo a PRO.
+              </p>
+            </div>
+          )}
 
           {/* Reason selector */}
           <div className="space-y-2">
