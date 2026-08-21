@@ -13,7 +13,13 @@ export default async function BillingPage() {
   const [subscription, usage, activeExternalCalendarCount] = await Promise.all([
     getCurrentSubscriptionAction(),
     countOwnerUsage(session.userId),
-    countActiveExternalCalendars(session.userId),
+    countActiveExternalCalendars(session.userId).catch((error) => {
+      // Defense in depth (per dashboard pattern at /dashboard/page.tsx):
+      // si la query falla, fallback a 0 — el bloque amber no se muestra,
+      // pero la página sigue renderizando. Mejor un warning perdido que 500.
+      console.error("[billing] failed to count active external calendars", error);
+      return 0;
+    }),
   ]);
 
   return (
