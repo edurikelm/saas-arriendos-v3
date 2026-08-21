@@ -20,6 +20,8 @@ import { getActiveSubscription } from "@/lib/subscriptions/queries";
 import type { QueryAdapter } from "@/lib/subscriptions/queries";
 import type { Subscription, SubscriptionStatus } from "@prisma/client";
 import { recordSubscriptionNotification } from "@/lib/notifications/subscription-events";
+import { softStopExternalCalendars } from "@/lib/subscriptions/subscription-downgrade";
+import type { DowngradeSnapshot } from "@/lib/subscriptions/subscription-downgrade";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Types
@@ -393,12 +395,19 @@ export async function applySubscriptionEvent(
         })
       : currentSubscription;
 
+    // ── Soft-stop de recursos externos en downgrade (expired / expired_check) ──
+    let downgradeSnapshot: DowngradeSnapshot | undefined;
+    if (type === "expired" || type === "expired_check") {
+      downgradeSnapshot = await softStopExternalCalendars(currentSubscription.userId, tx);
+    }
+
     // Registrar evento de auditoría
     await tx.subscriptionEvent.create({
       data: {
         subscriptionId,
         type,
         payload: (payload ?? undefined) as any,
+        ...(downgradeSnapshot && { downgradeSnapshot }),
       },
     });
 

@@ -12,6 +12,20 @@ import type { Subscription, SubscriptionEvent } from "@prisma/client";
 // Mocks — TODOS dentro de un solo vi.hoisted
 // ────────────────────────────────────────────────────────────────────────────
 
+// Mock de softStopExternalCalendars — llamado por lifecycle.ts en expired/expired_check
+const mockSoftStopExternalCalendars = vi.hoisted(() =>
+  vi.fn(() =>
+    Promise.resolve({
+      externalCalendarIds: ["cal-1", "cal-2"],
+      externalBlockIds: ["block-1"],
+    }),
+  ),
+);
+
+vi.mock("../subscription-downgrade", () => ({
+  softStopExternalCalendars: mockSoftStopExternalCalendars,
+}));
+
 const mocks = vi.hoisted(() => ({
   subscriptionFindUnique: vi.fn<() => Promise<Subscription | null>>(),
   subscriptionFindFirst: vi.fn<() => Promise<Subscription | null>>(),
@@ -22,6 +36,8 @@ const mocks = vi.hoisted(() => ({
   userProfileUpdate: vi.fn<() => Promise<never>>(),
   adminActionLogCreate: vi.fn<() => Promise<never>>(),
   recordSubscriptionNotification: vi.fn<() => Promise<void>>(),
+  externalCalendarUpdateManyAndReturn: vi.fn(),
+  externalChannelBlockUpdateManyAndReturn: vi.fn(),
   // $transaction ejecuta el callback pasando un tx mockeado que comparte los mismos mocks
   // (porque el código del lifecycle usa tx.subscription.update etc. cuando está en tx)
   $transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) =>
@@ -38,6 +54,12 @@ const mocks = vi.hoisted(() => ({
         update: mocks.userProfileUpdate,
       },
       adminActionLog: { create: mocks.adminActionLogCreate },
+      externalCalendar: {
+        updateManyAndReturn: mocks.externalCalendarUpdateManyAndReturn,
+      },
+      externalChannelBlock: {
+        updateManyAndReturn: mocks.externalChannelBlockUpdateManyAndReturn,
+      },
     }),
   ),
 }));
@@ -59,6 +81,12 @@ vi.mock("@/lib/db/prisma", () => ({
     },
     adminActionLog: {
       create: mocks.adminActionLogCreate,
+    },
+    externalCalendar: {
+      updateManyAndReturn: mocks.externalCalendarUpdateManyAndReturn,
+    },
+    externalChannelBlock: {
+      updateManyAndReturn: mocks.externalChannelBlockUpdateManyAndReturn,
     },
     $transaction: mocks.$transaction,
   },
