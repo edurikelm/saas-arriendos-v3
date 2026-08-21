@@ -189,12 +189,12 @@ El detalle completo de una reserva vive en **ruta dedicada** `/reservations/[id]
 
 ## Calendario
 
-- Vista por defecto: **Timeline** (no grid). El toggle grid↔timeline está en el header.
+- Vista por defecto: **Timeline** (no grid). El toggle grid↔timeline **NO está implementado**. Los componentes `CalendarMonthGrid`, `CalendarList`, `CalendarWeekView` existen en `src/components/calendar/calendar-timeline.tsx` como código dormant para uso futuro, pero no están wireados en `calendar-view.tsx`.
 - Reservas **diarias** → mostradas como barra (inicio → fin)
 - Reservas **mensuales** → NO aparecen en calendario visual, solo en lista de reservas
 - Las semanas del calendario empiezan en lunes y terminan en domingo.
 - Las fechas de reserva en el calendario son **date-only** del dominio. Aunque el backend pueda serializarlas como ISO (`toISOString()`), la UI debe calcular posiciones usando solo `YYYY-MM-DD` para evitar desfases por timezone. `end_date` es inclusivo: una reserva 25→30 ocupa 6 noches y debe visualizarse hasta el 30.
-- La vista mensual (grid) calcula cuántas barras completas caben en la altura por defecto de cada semana. Si sobran eventos, se colapsan en un raíl compacto de líneas finas superpuestas con un indicador `+N`, sin crecer la fila; al pasar el mouse se previsualiza toda la semana expandida. El botón global (`Expandir todas`/`Colapsar todas`) permite fijar la expansión de todas las semanas con overflow.
+- **Vista mensual (grid)** — contrato aplicable a `CalendarMonthGrid` (código dormant, no renderizado en `/calendar`): calcula cuántas barras completas caben en la altura por defecto de cada semana. Si sobran eventos, se colapsan en un raíl compacto de líneas finas superpuestas con un indicador `+N`, sin crecer la fila; al pasar el mouse se previsualiza toda la semana expandida. El botón global (`Expandir todas`/`Colapsar todas`) permite fijar la expansión de todas las semanas con overflow. **Nota:** La Timeline view (la única actualmente renderizada en `/calendar`) usa rendering single-lane sin collapse por semana.
 
 ### Calendarios Externos
 
