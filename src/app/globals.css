@@ -416,3 +416,29 @@
 html {
   scroll-behavior: smooth;
 }
+
+/* P3-6: Timeline horizontal scrollbar — scoped to calendar timeline only */
+.timeline-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+.timeline-scroll::-webkit-scrollbar-track {
+  background: var(--muted);
+  border-radius: 3px;
+}
+.timeline-scroll::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+.timeline-scroll::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklch, var(--border) 80%, var(--foreground) 20%);
+}
+
+.dark .timeline-scroll::-webkit-scrollbar-track {
+  background: #0a1825;
+}
+.dark .timeline-scroll::-webkit-scrollbar-thumb {
+  background: #1e293b;
+}
+.dark .timeline-scroll::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklch, #1e293b 80%, #f1f5f9 20%);
+}

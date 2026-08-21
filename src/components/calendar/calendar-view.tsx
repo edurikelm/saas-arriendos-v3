@@ -161,6 +161,9 @@ export function CalendarView({
   // KPIs (Stitch "Calendario de Ocupación" — 4 cards)
   const monthStart = useMemo(() => new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1), [currentMonth]);
   const monthEnd = useMemo(() => new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0), [currentMonth]);
+  // Note: today recomputes on every render (no deps), which is fine because this
+  // component is used in Operate mode — users navigate fresh each session rather
+  // than leaving the page open across midnight. A setInterval refresh is overkill.
   const today = useMemo(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -244,12 +247,12 @@ export function CalendarView({
       </Select>
       {plan === "PRO" && (
         <Button
-          variant={showExternalBlocks ? "secondary" : "outline"}
+          variant="ghost"
           size="sm"
           aria-pressed={showExternalBlocks}
           aria-label="Mostrar bloqueos externos"
           onClick={handleToggleExternalBlocks}
-          className="h-8 rounded-md"
+          className={`h-8 rounded-md ${showExternalBlocks ? "bg-primary text-primary-foreground" : "bg-transparent text-muted-foreground hover:text-foreground"}`}
         >
           <Globe className="mr-1.5 h-4 w-4" />
           Bloqueos
@@ -273,7 +276,7 @@ export function CalendarView({
       {/* 2. KPI Grid (4 cards estilo Stitch).
             Mobile: 2 columnas (2x2 grid) para reducir altura antes del timeline,
             que es la sección accionable prioritaria del calendario. */}
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
         <KpiCard
           label="Ocupación Media"
           value={`${calendarKpis.occupancyRate}%`}
@@ -283,7 +286,7 @@ export function CalendarView({
               ? "success"
               : calendarKpis.occupancyRate >= 50
               ? "default"
-              : "default"
+              : "warning"
           }
           indicator={
             calendarKpis.occupancyRate >= 85
@@ -312,7 +315,7 @@ export function CalendarView({
           label="Revenue Proyectado"
           value={formatCLP(calendarKpis.projectedRevenue)}
           icon={Wallet}
-          tone="success"
+          tone={calendarKpis.projectedRevenue > 0 ? "default" : "warning"}
           indicator={{
             text: `${dailyReservations.filter((r) => r.status !== "CANCELLED").length} reservas activas`,
             variant: "neutral",
@@ -350,7 +353,7 @@ export function CalendarView({
           <Button
             variant="outline"
             size="sm"
-            className="h-8 px-3 text-xs font-bold"
+            className="h-8 px-3 text-[10px] font-bold uppercase tracking-wider"
             onClick={() => setCurrentMonth(new Date())}
           >
             Hoy
@@ -380,6 +383,8 @@ export function CalendarView({
             </div>
           )}
           <CalendarTimeline
+            selectedPropertyId={selectedPropertyId}
+            properties={properties}
             reservations={dailyReservations.map((r) => ({
               ...r,
               propertyId: r.property.id,

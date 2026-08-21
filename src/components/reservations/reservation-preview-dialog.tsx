@@ -66,7 +66,7 @@ export function ReservationPreviewDialog({
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
       <DialogContent
         className="w-[95vw] max-w-2xl p-5 sm:p-6"
-        showCloseButton={false}
+        showCloseButton={true}
       >
         {/* Header: avatar + client info + status badges */}
         <div className="flex items-start justify-between gap-4 mb-6">

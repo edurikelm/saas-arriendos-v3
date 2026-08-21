@@ -263,12 +263,14 @@ function channelLabel(channel: CalendarExternalBlock["channel"]): string {
   }
 }
 
-export function CalendarTimeline({ reservations, externalBlocks = [], conflicts = new Set(), currentMonth, onSelectReservation }: {
+export function CalendarTimeline({ reservations, externalBlocks = [], conflicts = new Set(), currentMonth, onSelectReservation, selectedPropertyId, properties }: {
   reservations: Reservation[];
   externalBlocks?: CalendarExternalBlock[];
   conflicts?: Set<string>;
   currentMonth: Date;
   onSelectReservation: (id: string) => void;
+  selectedPropertyId?: string;
+  properties?: Property[];
 }) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [timelineViewportWidth, setTimelineViewportWidth] = useState(0);
@@ -362,7 +364,7 @@ export function CalendarTimeline({ reservations, externalBlocks = [], conflicts 
           aria-hidden="true"
           className={`pointer-events-none absolute inset-y-0 right-0 z-40 w-8 bg-gradient-to-l from-card to-transparent transition-opacity duration-100 ${scrollState.canScrollRight ? "opacity-100" : "opacity-0"}`}
         />
-        <div ref={scrollContainerRef} className="overflow-x-auto [scrollbar-gutter:stable]">
+        <div ref={scrollContainerRef} className="overflow-x-auto timeline-scroll [scrollbar-gutter:stable]">
           <div className="min-w-max" role="grid" aria-label="Timeline de ocupación por propiedad y día" style={{ width: timelineWidth }}>
             <div className="sticky top-0 z-20 flex border-b bg-card/95 backdrop-blur supports-[backdrop-filter:blur(0px)]:bg-card/80" role="row">
               <div
@@ -391,7 +393,7 @@ export function CalendarTimeline({ reservations, externalBlocks = [], conflicts 
                     <div className={`mx-auto flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold ${isSameDay(day, today) ? "bg-primary text-primary-foreground" : "text-foreground"}`}>
                       {format(day, "d")}
                     </div>
-                    <div className="mt-0.5 text-[10px] font-medium uppercase text-muted-foreground">
+                    <div className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                       {format(day, "EEE", { locale: es }).slice(0, 3)}
                     </div>
                   </div>
@@ -403,7 +405,11 @@ export function CalendarTimeline({ reservations, externalBlocks = [], conflicts 
             <div className="flex min-h-40 items-center justify-center px-6 py-8 text-center">
               <div className="max-w-sm rounded-2xl border bg-background/80 p-6">
                 <Calendar className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
-                <h3 className="font-semibold">Sin reservas diarias este mes</h3>
+                <h3 className="font-semibold">
+                  {selectedPropertyId && selectedPropertyId !== "all"
+                    ? `Sin reservas en ${properties?.find((p) => p.id === selectedPropertyId)?.name ?? "esta propiedad"} este mes`
+                    : "Sin reservas diarias este mes"}
+                </h3>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Cuando existan reservas, apareceran como barras por propiedad y rango de fechas.
                 </p>
@@ -440,7 +446,7 @@ export function CalendarTimeline({ reservations, externalBlocks = [], conflicts 
                       <div className="flex items-center gap-2">
                         <span className="truncate text-sm font-semibold leading-snug">{property.name}</span>
                       </div>
-                      <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground sm:gap-2">
+                      <div className="mt-1 hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex sm:gap-2">
                         <Home className="h-3 w-3 shrink-0" />
                         {sortedReservations.length} {sortedReservations.length === 1 ? "reserva" : "reservas"}
                       </div>
