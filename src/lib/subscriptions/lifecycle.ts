@@ -42,6 +42,17 @@ export type SubscriptionEventType =
   | "duplicate"
   | "expired_check";
 
+/**
+ * Estados desde los cuales una transición `authorized` debe disparar
+ * el restore de recursos iCal (#224). Equivale a "estados que representan
+ * un downgrade efectivo" (no PENDING, no AUTHORIZED, no PAUSED).
+ */
+const RESTORE_ELIGIBLE_STATES: readonly SubscriptionStatus[] = [
+  "CANCELLED",
+  "EXPIRED",
+  "FAILED",
+];
+
 export type SubscriptionEventInput = {
   type: SubscriptionEventType;
   subscriptionId?: string;
@@ -405,7 +416,7 @@ export async function applySubscriptionEvent(
     // ── Restore de recursos externos en upgrade (authorized desde CANCELLED/EXPIRED/FAILED) ──
     if (
       type === "authorized" &&
-      ["CANCELLED", "EXPIRED", "FAILED"].includes(currentSubscription.status)
+      RESTORE_ELIGIBLE_STATES.includes(currentSubscription.status)
     ) {
       const snapshot = await findLastDowngradeSnapshot(currentSubscription.userId, tx);
       if (snapshot) {

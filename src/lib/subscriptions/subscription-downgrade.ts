@@ -109,6 +109,21 @@ export async function restoreExternalCalendars(
     select: { id: true },
   });
 
+  // Diagnóstico defensivo: si algún ID del snapshot no se restauró (huérfano
+  // eliminado durante FREE, o race condition), loggea un warning. Útil para
+  // diagnosticar tickets de soporte sin agregar fricción al happy path.
+  const orphanCalendarIds = snapshot.externalCalendarIds.filter(
+    (id) => !calendars.some((c: { id: string }) => c.id === id),
+  );
+  const orphanBlockIds = snapshot.externalBlockIds.filter(
+    (id) => !blocks.some((b: { id: string }) => b.id === id),
+  );
+  if (orphanCalendarIds.length > 0 || orphanBlockIds.length > 0) {
+    console.warn(
+      `[restoreExternalCalendars] userId=${userId} — ${orphanCalendarIds.length} calendar(s) and ${orphanBlockIds.length} block(s) skipped (likely deleted during FREE period).`,
+    );
+  }
+
   return {
     restoredCalendarIds: calendars.map((c: { id: string }) => c.id),
     restoredBlockIds: blocks.map((b: { id: string }) => b.id),
