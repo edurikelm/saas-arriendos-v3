@@ -179,7 +179,7 @@ export function ReservationForm({
       <div className="flex flex-col max-h-[calc(90vh-65px)]">
         <form
           onSubmit={handleSubmit(handleFormSubmit)}
-          className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6"
+          className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 sm:space-y-6"
         >
         <input type="hidden" {...register("startDate")} />
         <input type="hidden" {...register("endDate")} />
@@ -315,7 +315,7 @@ export function ReservationForm({
                   )}
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="startDate" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Fecha de Inicio *</Label>
                     <DateRangePicker
@@ -409,52 +409,54 @@ export function ReservationForm({
               <h3 className="text-[10px] font-bold text-foreground uppercase tracking-wider">Resumen Financiero</h3>
             </div>
 
-            <div className="bg-primary/5 border border-primary/20 rounded-xl p-6">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  {/* Detalle */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Info className="h-3.5 w-3.5" />
-                      <p className="text-[10px] uppercase font-bold tracking-wider">Detalle</p>
-                    </div>
-                    <p className="text-sm font-semibold text-foreground pl-6">
-                      {isMonthly
-                        ? `${months} ${months === 1 ? "mes" : "meses"} × ${unitsBooked || 1} ${(unitsBooked || 1) === 1 ? "unidad" : "unidades"}`
-                        : `${nights} ${nights === 1 ? "noche" : "noches"} × ${unitsBooked || 1} ${(unitsBooked || 1) === 1 ? "unidad" : "unidades"}`}
-                    </p>
+            <div className="bg-card ring-1 ring-foreground/10 rounded-xl overflow-hidden">
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] divide-y md:divide-y-0 md:divide-x divide-border">
+                {/* Detalle */}
+                <div className="p-4 sm:p-5 space-y-2">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Info className="h-3.5 w-3.5" />
+                    <p className="text-[10px] uppercase font-bold tracking-wider">Detalle</p>
                   </div>
+                  <p className="text-sm font-semibold text-foreground">
+                    {isMonthly
+                      ? `${months} ${months === 1 ? "mes" : "meses"} × ${unitsBooked || 1} ${(unitsBooked || 1) === 1 ? "unidad" : "unidades"}`
+                      : `${nights} ${nights === 1 ? "noche" : "noches"} × ${unitsBooked || 1} ${(unitsBooked || 1) === 1 ? "unidad" : "unidades"}`}
+                  </p>
+                </div>
 
-                  {/* Período */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <CalendarDays className="h-3.5 w-3.5" />
-                      <p className="text-[10px] uppercase font-bold tracking-wider">Período</p>
-                    </div>
-                    <div className="pl-6 flex flex-col gap-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted-foreground font-medium uppercase">Desde</span>
-                        <span className="text-sm font-semibold text-foreground">
-                          {format(dateRange.from!, "d MMM, yyyy", { locale: es })}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted-foreground font-medium uppercase">Hasta</span>
-                        <span className="text-sm font-semibold text-foreground">
-                          {format(endDate!, "d MMM, yyyy", { locale: es })}
-                        </span>
-                      </div>
-                    </div>
+                {/* Período */}
+                <div className="p-4 sm:p-5 space-y-2">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <CalendarDays className="h-3.5 w-3.5" />
+                    <p className="text-[10px] uppercase font-bold tracking-wider">Período</p>
+                  </div>
+                  <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                    <span className="text-[10px] text-muted-foreground font-medium uppercase self-center">Desde</span>
+                    <span className="text-sm font-semibold text-foreground tabular-nums">
+                      {format(dateRange.from!, "d MMM, yyyy", { locale: es })}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground font-medium uppercase self-center">Hasta</span>
+                    <span className="text-sm font-semibold text-foreground tabular-nums">
+                      {format(endDate!, "d MMM, yyyy", { locale: es })}
+                    </span>
                   </div>
                 </div>
 
                 {/* Monto Total */}
-                <div className="shrink-0 flex flex-col items-start md:items-end justify-center pt-4 md:pt-0 md:pl-6 md:border-l border-primary/10">
-                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Monto Total</p>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-2xl font-bold text-primary tabular-nums">${totalAmount.toLocaleString("es-CL")}</span>
-                    <span className="text-[10px] font-medium text-primary/60 uppercase">CLP</span>
+                <div className="p-4 sm:p-5 space-y-2 bg-muted/30 md:bg-transparent md:min-w-[200px]">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Wallet className="h-3.5 w-3.5" />
+                    <p className="text-[10px] uppercase font-bold tracking-wider">Monto Total</p>
                   </div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-2xl font-bold text-primary tabular-nums">${totalAmount.toLocaleString("es-CL")}</span>
+                    <span className="text-xs font-medium text-primary/60 uppercase">CLP</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground tabular-nums">
+                    {isMonthly
+                      ? `$${Number(selectedProperty.monthlyPrice).toLocaleString("es-CL")} / mes`
+                      : `$${Number(selectedProperty.dailyPrice).toLocaleString("es-CL")} / noche`}
+                  </p>
                 </div>
               </div>
             </div>
@@ -479,7 +481,7 @@ export function ReservationForm({
       </form>
 
       {/* Footer - outside the form */}
-      <div className="shrink-0 border-t border-border bg-muted/30 px-5 py-5 flex items-center justify-end gap-3">
+      <div className="shrink-0 border-t border-border bg-muted/30 px-4 sm:px-5 py-4 sm:py-5 flex items-center justify-end gap-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <Button type="button" variant="outline" onClick={onCancel} className="h-10 px-6 text-sm font-medium">
           Cancelar
         </Button>
