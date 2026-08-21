@@ -253,7 +253,7 @@ export function CalendarView({
           aria-pressed={showExternalBlocks}
           aria-label="Mostrar bloqueos externos"
           onClick={handleToggleExternalBlocks}
-          className={`h-8 rounded-md ${showExternalBlocks ? "bg-primary text-primary-foreground" : "bg-transparent text-muted-foreground hover:text-foreground"}`}
+          className={`h-8 rounded-md ${showExternalBlocks ? "bg-primary text-foreground" : "bg-transparent text-muted-foreground hover:text-foreground"}`}
         >
           <Globe className="mr-1.5 h-4 w-4" />
           Bloqueos
