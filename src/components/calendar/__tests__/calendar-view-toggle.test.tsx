@@ -49,6 +49,7 @@ function makeRes(overrides: Partial<CalendarReservation> = {}): CalendarReservat
     status: "CONFIRMED",
     billingType: "DAILY",
     totalPrice: 100,
+    unitsBooked: 1,
     property: { id: "p1", name: "Casa" },
     client: { name: "Juan" },
     ...overrides,

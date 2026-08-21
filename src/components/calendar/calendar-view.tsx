@@ -168,15 +168,23 @@ export function CalendarView({
   }, []);
 
   const calendarKpis = useMemo(() => {
-    const activeThisMonth = dailyReservations.filter((r) => {
+    // P0-3 fix: filter by selectedPropertyId when not "all"
+    const filteredReservations = selectedPropertyId === "all"
+      ? dailyReservations
+      : dailyReservations.filter((r) => r.property.id === selectedPropertyId);
+
+    const activeThisMonth = filteredReservations.filter((r) => {
       if (r.status === "CANCELLED") return false;
       const start = parseCalendarDate(r.startDate);
       const end = parseCalendarDate(r.endDate);
       return start <= monthEnd && end >= monthStart;
     });
 
-    const occupiedUnits = activeThisMonth.reduce((sum) => sum + 1, 0);
-    const totalUnits = properties.reduce((sum, p) => sum + p.unitsAvailable, 0);
+    // P0-2 fix: count unitsBooked instead of always +1 per reservation
+    const occupiedUnits = activeThisMonth.reduce((sum, r) => sum + (r.unitsBooked ?? 1), 0);
+    const totalUnits = selectedPropertyId === "all"
+      ? properties.reduce((sum, p) => sum + p.unitsAvailable, 0)
+      : (properties.find((p) => p.id === selectedPropertyId)?.unitsAvailable ?? 0);
     const occupancyRate = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0;
 
     // Hoy en wall-time SCL (ADR-0020). Antes: `today.toISOString().slice(0, 10)`
@@ -184,11 +192,11 @@ export function CalendarView({
     // en el día anterior en SCL, dejando `arrivalsToday`/`departuresToday` en 0
     // cuando había reservas que llegaban/salían ese día.
     const todayKey = nowKeyInBusinessTz();
-    const arrivalsToday = dailyReservations.filter((r) => {
+    const arrivalsToday = filteredReservations.filter((r) => {
       if (r.status === "CANCELLED") return false;
       return r.startDate.slice(0, 10) === todayKey;
     }).length;
-    const departuresToday = dailyReservations.filter((r) => {
+    const departuresToday = filteredReservations.filter((r) => {
       if (r.status === "CANCELLED") return false;
       return r.endDate.slice(0, 10) === todayKey;
     }).length;
@@ -201,7 +209,7 @@ export function CalendarView({
       departuresToday,
       projectedRevenue,
     };
-  }, [dailyReservations, properties, monthStart, monthEnd, today]);
+  }, [dailyReservations, properties, selectedPropertyId, monthStart, monthEnd, today]);
 
   // Filter external blocks to selected property (if not "all")
   const visibleExternalBlocks = useMemo(() => {
@@ -377,7 +385,7 @@ export function CalendarView({
               propertyId: r.property.id,
               clientId: "",
               billingType: "DAILY" as const,
-              unitsBooked: 1,
+              unitsBooked: r.unitsBooked ?? 1,
               bookingAirbnb: false,
               notes: null,
               payments: [],
@@ -394,6 +402,7 @@ export function CalendarView({
               },
             }))}
             externalBlocks={showExternalBlocks ? visibleExternalBlocks : []}
+            conflicts={conflicts}
             currentMonth={currentMonth}
             onSelectReservation={handleSelectReservation}
           />

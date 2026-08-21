@@ -261,7 +261,7 @@ function channelLabel(channel: CalendarExternalBlock["channel"]): string {
   }
 }
 
-export function CalendarTimeline({ reservations, externalBlocks = [], currentMonth, onSelectReservation }: {
+export function CalendarTimeline({ reservations, externalBlocks = [], conflicts = new Set(), currentMonth, onSelectReservation }: {
   reservations: Reservation[];
   externalBlocks?: CalendarExternalBlock[];
   conflicts?: Set<string>;
@@ -370,21 +370,31 @@ export function CalendarTimeline({ reservations, externalBlocks = [], currentMon
               >
                 Propiedad
               </div>
-              {days.map((day) => (
-                <div
-                  key={day.toISOString()}
-                  className={`shrink-0 border-r border-border/60 px-1 py-2 text-center ${isSameDay(day, today) ? "bg-primary/10" : ""}`}
-                  role="columnheader"
-                  style={{ width: dayWidth }}
-                >
-                  <div className={`mx-auto flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold ${isSameDay(day, today) ? "bg-primary text-primary-foreground" : "text-foreground"}`}>
-                    {format(day, "d")}
+              {days.map((day) => {
+                const dayKey = format(day, "yyyy-MM-dd");
+                const hasConflict = conflicts.has(dayKey);
+                return (
+                  <div
+                    key={day.toISOString()}
+                    className={`relative shrink-0 border-r border-border/60 px-1 py-2 text-center ${isSameDay(day, today) ? "bg-primary/10" : ""}`}
+                    role="columnheader"
+                    style={{ width: dayWidth }}
+                  >
+                    {hasConflict && (
+                      <span
+                        className="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-warning"
+                        aria-hidden="true"
+                      />
+                    )}
+                    <div className={`mx-auto flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold ${isSameDay(day, today) ? "bg-primary text-primary-foreground" : "text-foreground"}`}>
+                      {format(day, "d")}
+                    </div>
+                    <div className="mt-0.5 text-[10px] font-medium uppercase text-muted-foreground">
+                      {format(day, "EEE", { locale: es }).slice(0, 3)}
+                    </div>
                   </div>
-                  <div className="mt-0.5 text-[10px] font-medium uppercase text-muted-foreground">
-                    {format(day, "EEE", { locale: es }).slice(0, 3)}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
           {propertyGroups.length === 0 ? (

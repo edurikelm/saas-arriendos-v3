@@ -19,6 +19,7 @@ export type CalendarReservation = {
   status: string;
   billingType: string;
   totalPrice: number;
+  unitsBooked: number;
   property: {
     id: string;
     name: string;
@@ -875,6 +876,7 @@ export async function getCalendarReservations(options?: {
       status: true,
       billingType: true,
       totalPrice: true,
+      unitsBooked: true,
       property: {
         select: {
           id: true,
@@ -898,6 +900,7 @@ export async function getCalendarReservations(options?: {
     status: r.status,
     billingType: r.billingType,
     totalPrice: Number(r.totalPrice),
+    unitsBooked: r.unitsBooked,
     property: {
       id: r.property.id,
       name: r.property.name,
