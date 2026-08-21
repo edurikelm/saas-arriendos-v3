@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   subscriptionCreate: vi.fn(),
   subscriptionUpdate: vi.fn(),
   subscriptionEventCreate: vi.fn(),
+  subscriptionEventFindFirst: vi.fn(),
   propertyCount: vi.fn(),
   reservationClientCount: vi.fn(),
   userProfileFindUnique: vi.fn(),
@@ -37,7 +38,10 @@ const mocks = vi.hoisted(() => ({
         create: mocks.subscriptionCreate,
         update: mocks.subscriptionUpdate,
       },
-      subscriptionEvent: { create: mocks.subscriptionEventCreate },
+      subscriptionEvent: {
+        create: mocks.subscriptionEventCreate,
+        findFirst: mocks.subscriptionEventFindFirst,
+      },
       userProfile: {
         findUnique: mocks.userProfileFindUnique,
         update: mocks.userProfileUpdate,
@@ -65,6 +69,7 @@ vi.mock("@/lib/db/prisma", () => ({
     },
     subscriptionEvent: {
       create: mocks.subscriptionEventCreate,
+      findFirst: mocks.subscriptionEventFindFirst,
     },
     userProfile: {
       findUnique: mocks.userProfileFindUnique,

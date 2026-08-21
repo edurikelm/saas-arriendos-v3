@@ -1,6 +1,6 @@
 /**
- * Tests para subscription-downgrade.ts — softStopExternalCalendars y su
- * integración en applySubscriptionEvent.
+ * Tests para subscription-downgrade.ts — softStopExternalCalendars,
+ * restoreExternalCalendars y su integración en applySubscriptionEvent.
  *
  * Patrón: TODOS los mocks dentro de UN vi.hoisted para que vi.mock pueda
  * accederlos cuando es hoisted al top del archivo.
@@ -9,7 +9,8 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Subscription, SubscriptionEvent } from "@prisma/client";
-import type { DowngradeSnapshot } from "../subscription-downgrade";
+import type { DowngradeSnapshot } from "../queries";
+import type { RestoreReport } from "../subscription-downgrade";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Mocks — TODOS dentro de un solo vi.hoisted
@@ -94,7 +95,7 @@ vi.mock("@/lib/notifications/subscription-events", () => ({
 // Imports — DESPUÉS de los mocks
 // ────────────────────────────────────────────────────────────────────────────
 
-import { softStopExternalCalendars } from "../subscription-downgrade";
+import { softStopExternalCalendars, restoreExternalCalendars } from "../subscription-downgrade";
 import { applySubscriptionEvent } from "../lifecycle";
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -261,6 +262,159 @@ describe("softStopExternalCalendars", () => {
     );
     expect(snap2.externalCalendarIds).toEqual([]);
     expect(snap2.externalBlockIds).toEqual([]);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// restoreExternalCalendars — unit tests (con adapter fake)
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("restoreExternalCalendars", () => {
+  // Tier 1 #1: restaura solo los IDs del snapshot WHERE correcto
+  it("con adapter fake: usa WHERE correcto con id IN + isActive false", async () => {
+    const fakeAdapter = {
+      externalCalendar: {
+        updateManyAndReturn: vi.fn().mockResolvedValue([{ id: "cal-1" }]),
+      },
+      externalChannelBlock: {
+        updateManyAndReturn: vi.fn().mockResolvedValue([{ id: "block-1" }]),
+      },
+    };
+
+    const snapshot: DowngradeSnapshot = {
+      externalCalendarIds: ["cal-1", "cal-2"],
+      externalBlockIds: ["block-1"],
+    };
+
+    const report = await restoreExternalCalendars(
+      "user-1",
+      snapshot,
+      fakeAdapter as any,
+    );
+
+    expect(report.restoredCalendarIds).toEqual(["cal-1"]);
+    expect(report.restoredBlockIds).toEqual(["block-1"]);
+    expect(
+      (
+        fakeAdapter.externalCalendar.updateManyAndReturn as ReturnType<typeof vi.fn>
+      ).mock.calls[0],
+    ).toMatchObject([
+      {
+        where: { userId: "user-1", id: { in: ["cal-1", "cal-2"] }, isActive: false },
+        data: { isActive: true },
+        select: { id: true },
+      },
+    ]);
+    expect(
+      (
+        fakeAdapter.externalChannelBlock.updateManyAndReturn as ReturnType<typeof vi.fn>
+      ).mock.calls[0],
+    ).toMatchObject([
+      {
+        where: { status: "INACTIVE", id: { in: ["block-1"] }, property: { userId: "user-1" } },
+        data: { status: "ACTIVE" },
+        select: { id: true },
+      },
+    ]);
+  });
+
+  // Tier 1 #2: idempotente — 2ª llamada con isActive=true retorna count=0
+  it("idempotente: 2ª llamada con recursos ya activos retorna arrays vacíos", async () => {
+    const fakeAdapter = {
+      externalCalendar: {
+        updateManyAndReturn: vi
+          .fn()
+          .mockResolvedValueOnce([{ id: "cal-1" }])
+          .mockResolvedValueOnce([]),
+      },
+      externalChannelBlock: {
+        updateManyAndReturn: vi
+          .fn()
+          .mockResolvedValueOnce([{ id: "block-1" }])
+          .mockResolvedValueOnce([]),
+      },
+    };
+
+    const snapshot: DowngradeSnapshot = {
+      externalCalendarIds: ["cal-1"],
+      externalBlockIds: ["block-1"],
+    };
+
+    const report1 = await restoreExternalCalendars(
+      "user-1",
+      snapshot,
+      fakeAdapter as any,
+    );
+    expect(report1.restoredCalendarIds).toEqual(["cal-1"]);
+    expect(report1.restoredBlockIds).toEqual(["block-1"]);
+
+    const report2 = await restoreExternalCalendars(
+      "user-1",
+      snapshot,
+      fakeAdapter as any,
+    );
+    expect(report2.restoredCalendarIds).toEqual([]);
+    expect(report2.restoredBlockIds).toEqual([]);
+  });
+
+  // Tier 1 #3: ignora IDs huérfanos (snapshot con IDs inválidos + válidos)
+  it("ignora IDs huérfanos: solo actualiza los IDs que existen en la DB", async () => {
+    const fakeAdapter = {
+      externalCalendar: {
+        updateManyAndReturn: vi.fn().mockResolvedValue([{ id: "cal-valid" }]),
+      },
+      externalChannelBlock: {
+        updateManyAndReturn: vi.fn().mockResolvedValue([{ id: "block-valid" }]),
+      },
+    };
+
+    const snapshot: DowngradeSnapshot = {
+      externalCalendarIds: ["cal-valid", "cal-orphan"],
+      externalBlockIds: ["block-valid", "block-orphan"],
+    };
+
+    const report = await restoreExternalCalendars(
+      "user-1",
+      snapshot,
+      fakeAdapter as any,
+    );
+
+    expect(report.restoredCalendarIds).toEqual(["cal-valid"]);
+    expect(report.restoredBlockIds).toEqual(["block-valid"]);
+  });
+
+  // Tier 1 #4: respeta userId (defense in depth, no toca calendarios de otros owners)
+  it("respeta userId: no toca calendarios de otros owners", async () => {
+    const fakeAdapter = {
+      externalCalendar: {
+        updateManyAndReturn: vi.fn().mockResolvedValue([]),
+      },
+      externalChannelBlock: {
+        updateManyAndReturn: vi.fn().mockResolvedValue([]),
+      },
+    };
+
+    const snapshot: DowngradeSnapshot = {
+      externalCalendarIds: ["cal-other-owner"],
+      externalBlockIds: ["block-other-owner"],
+    };
+
+    await restoreExternalCalendars(
+      "user-1",
+      snapshot,
+      fakeAdapter as any,
+    );
+
+    // El WHERE incluye userId, por lo que el update de otro owner no matchea nada
+    expect(
+      (
+        fakeAdapter.externalCalendar.updateManyAndReturn as ReturnType<typeof vi.fn>
+      ).mock.calls[0],
+    ).toMatchObject([
+      {
+        where: { userId: "user-1", id: { in: ["cal-other-owner"] }, isActive: false },
+      },
+    ]);
   });
 });
 

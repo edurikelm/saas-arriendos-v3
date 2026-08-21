@@ -112,8 +112,10 @@ Cuando un owner baja a FREE, sus datos persisten. Solo se desactivan las funcion
 
 - Calendarios externos configurados: el cron `/api/cron/external-calendars/sync` filtra por `user.plan === "PRO"` para no sincronizar. Los calendarios no se borran (el owner puede volver a PRO y recuperarlos).
 - Feeds iCal exportados: siguen siendo consultables por canales externos (no se revocan automáticamente). El owner FREE no puede revocarlos desde la UI (acción gated PRO); un SUPER_ADMIN puede hacerlo manualmente.
-- Propiedades y clientes que excedan límites FREE (3 / 5): siguen visibles. Solo se impide crear nuevos. Esto contradice el FAQ actual que dice "quedan ocultos" — actualizamos el FAQ para reflejar el comportamiento real.
+- Propiedades y clientes que excedan límites FREE (3 / 5): siguen visibles. Solo se impede crear nuevos. Esto contradice el FAQ actual que dice "quedan ocultos" — actualizamos el FAQ para reflejar el comportamiento real.
 - Documentos de reserva: la UI los oculta al FREE, pero los endpoints siguen accesibles. Esto es un gap pre-existente que queda fuera de scope de este PRD.
+
+**Restauración al reactivar PRO (Issue #224):** cuando el owner reactiva PRO después de un downgrade, los Calendarios Externos y Bloqueos de Canal Externo soft-stoppeados se restauran vía `restoreExternalCalendars(userId, snapshot, tx)`. El snapshot se persiste en `SubscriptionEvent.payload.downgradeSnapshot` del evento `expired`/`expired_check` correspondiente. La búsqueda del snapshot es por `userId` (no por `subscriptionId`) para sobrevivir tanto al reuso de fila de Subscription como a una eventual creación de nueva fila.
 
 ### 6. Webhook separado para suscripciones
 

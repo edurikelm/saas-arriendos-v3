@@ -20,8 +20,9 @@ import { getActiveSubscription } from "@/lib/subscriptions/queries";
 import type { QueryAdapter } from "@/lib/subscriptions/queries";
 import type { Subscription, SubscriptionStatus } from "@prisma/client";
 import { recordSubscriptionNotification } from "@/lib/notifications/subscription-events";
-import { softStopExternalCalendars } from "@/lib/subscriptions/subscription-downgrade";
-import type { DowngradeSnapshot } from "@/lib/subscriptions/subscription-downgrade";
+import { softStopExternalCalendars, restoreExternalCalendars } from "@/lib/subscriptions/subscription-downgrade";
+import { findLastDowngradeSnapshot } from "@/lib/subscriptions/queries";
+import type { DowngradeSnapshot } from "@/lib/subscriptions/queries";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Types
@@ -399,6 +400,18 @@ export async function applySubscriptionEvent(
     let downgradeSnapshot: DowngradeSnapshot | undefined;
     if (type === "expired" || type === "expired_check") {
       downgradeSnapshot = await softStopExternalCalendars(currentSubscription.userId, tx);
+    }
+
+    // ── Restore de recursos externos en upgrade (authorized desde CANCELLED/EXPIRED/FAILED) ──
+    if (
+      type === "authorized" &&
+      ["CANCELLED", "EXPIRED", "FAILED"].includes(currentSubscription.status)
+    ) {
+      const snapshot = await findLastDowngradeSnapshot(currentSubscription.userId, tx);
+      if (snapshot) {
+        await restoreExternalCalendars(currentSubscription.userId, snapshot, tx);
+      }
+      // Si no hay snapshot (FREE puro → PRO, o CANCELLED-vigente → reactivado): no-op
     }
 
     // Registrar evento de auditoría — el snapshot se mergea DENTRO del payload

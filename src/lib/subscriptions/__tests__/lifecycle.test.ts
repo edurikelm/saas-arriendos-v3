@@ -22,9 +22,35 @@ const mockSoftStopExternalCalendars = vi.hoisted(() =>
   ),
 );
 
+// Mock de restoreExternalCalendars — llamado por lifecycle.ts en authorized con downgrade previo
+const mockRestoreExternalCalendars = vi.hoisted(() =>
+  vi.fn(() =>
+    Promise.resolve({
+      restoredCalendarIds: ["cal-1"],
+      restoredBlockIds: ["block-1"],
+    }),
+  ),
+);
+
+// Mock de findLastDowngradeSnapshot — usado por lifecycle.ts en authorized
+const mockFindLastDowngradeSnapshot = vi.hoisted(() =>
+  vi.fn<() => Promise<{ externalCalendarIds: string[]; externalBlockIds: string[] } | null>>(() =>
+    Promise.resolve(null),
+  ),
+);
+
 vi.mock("../subscription-downgrade", () => ({
   softStopExternalCalendars: mockSoftStopExternalCalendars,
+  restoreExternalCalendars: mockRestoreExternalCalendars,
 }));
+
+vi.mock("../queries", async (importOriginal) => {
+  const actual = (await importOriginal()) as typeof import("../queries");
+  return {
+    ...actual,
+    findLastDowngradeSnapshot: mockFindLastDowngradeSnapshot,
+  };
+});
 
 const mocks = vi.hoisted(() => ({
   subscriptionFindUnique: vi.fn<() => Promise<Subscription | null>>(),
@@ -32,6 +58,7 @@ const mocks = vi.hoisted(() => ({
   subscriptionCreate: vi.fn<() => Promise<Subscription>>(),
   subscriptionUpdate: vi.fn<() => Promise<Subscription>>(),
   subscriptionEventCreate: vi.fn<() => Promise<SubscriptionEvent>>(),
+  subscriptionEventFindFirst: vi.fn<() => Promise<unknown>>(),
   userProfileFindUnique: vi.fn<() => Promise<{ plan: string | null } | null>>(),
   userProfileUpdate: vi.fn<() => Promise<never>>(),
   adminActionLogCreate: vi.fn<() => Promise<never>>(),
@@ -48,7 +75,10 @@ const mocks = vi.hoisted(() => ({
         create: mocks.subscriptionCreate,
         update: mocks.subscriptionUpdate,
       },
-      subscriptionEvent: { create: mocks.subscriptionEventCreate },
+      subscriptionEvent: {
+        create: mocks.subscriptionEventCreate,
+        findFirst: mocks.subscriptionEventFindFirst,
+      },
       userProfile: {
         findUnique: mocks.userProfileFindUnique,
         update: mocks.userProfileUpdate,
@@ -74,6 +104,7 @@ vi.mock("@/lib/db/prisma", () => ({
     },
     subscriptionEvent: {
       create: mocks.subscriptionEventCreate,
+      findFirst: mocks.subscriptionEventFindFirst,
     },
     userProfile: {
       findUnique: mocks.userProfileFindUnique,
@@ -245,6 +276,222 @@ describe('applySubscriptionEvent({ type: "authorized" })', () => {
       },
     });
     expect(mocks.subscriptionUpdate).not.toHaveBeenCalled();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// applySubscriptionEvent({ type: "authorized" }) con transición desde downgrade
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('applySubscriptionEvent({ type: "authorized" }) con transición desde downgrade', () => {
+  // Tier 1 #5: desde CANCELLED SIN snap previo → NO ejecuta restore
+  it("desde CANCELLED SIN snap previo: NO ejecuta restore", async () => {
+    const cancelledSub = fakeSub({ status: "CANCELLED" });
+    const authorizedSub = fakeSub({ status: "AUTHORIZED" });
+
+    mocks.subscriptionFindUnique.mockResolvedValue(cancelledSub);
+    mocks.subscriptionUpdate.mockResolvedValue(authorizedSub);
+    mocks.subscriptionEventCreate.mockResolvedValue({} as SubscriptionEvent);
+    mocks.userProfileFindUnique.mockResolvedValue({ plan: "FREE" });
+    mocks.userProfileUpdate.mockResolvedValue({} as never);
+    mocks.adminActionLogCreate.mockResolvedValue({} as never);
+    mockFindLastDowngradeSnapshot.mockResolvedValue(null);
+
+    await applySubscriptionEvent({
+      type: "authorized",
+      subscriptionId: "sub-1",
+    });
+
+    expect(mockRestoreExternalCalendars).not.toHaveBeenCalled();
+  });
+
+  // Tier 1 #6: desde EXPIRED CON snap → ejecuta restore
+  it("desde EXPIRED CON snap: ejecuta restore con snapshot del último expired", async () => {
+    const expiredSub = fakeSub({ status: "EXPIRED", userId: "user-1" });
+    const authorizedSub = fakeSub({ status: "AUTHORIZED", userId: "user-1" });
+
+    mocks.subscriptionFindUnique.mockResolvedValue(expiredSub);
+    mocks.subscriptionUpdate.mockResolvedValue(authorizedSub);
+    mocks.subscriptionEventCreate.mockResolvedValue({} as SubscriptionEvent);
+    mocks.userProfileFindUnique.mockResolvedValue({ plan: "FREE" });
+    mocks.userProfileUpdate.mockResolvedValue({} as never);
+    mocks.adminActionLogCreate.mockResolvedValue({} as never);
+    mockFindLastDowngradeSnapshot.mockResolvedValue({
+      externalCalendarIds: ["cal-1", "cal-2"],
+      externalBlockIds: ["block-1"],
+    });
+
+    await applySubscriptionEvent({
+      type: "authorized",
+      subscriptionId: "sub-1",
+    });
+
+    expect(mockFindLastDowngradeSnapshot).toHaveBeenCalledWith(
+      "user-1",
+      expect.objectContaining({ subscriptionEvent: expect.any(Object) }),
+    );
+    expect(mockRestoreExternalCalendars).toHaveBeenCalledWith(
+      "user-1",
+      { externalCalendarIds: ["cal-1", "cal-2"], externalBlockIds: ["block-1"] },
+      expect.objectContaining({ subscriptionEvent: expect.any(Object) }),
+    );
+  });
+
+  // Tier 1 #7: desde FAILED SIN snap → NO ejecuta restore
+  it("desde FAILED SIN snap: NO ejecuta restore", async () => {
+    const failedSub = fakeSub({ status: "FAILED", userId: "user-1" });
+    const authorizedSub = fakeSub({ status: "AUTHORIZED", userId: "user-1" });
+
+    mocks.subscriptionFindUnique.mockResolvedValue(failedSub);
+    mocks.subscriptionUpdate.mockResolvedValue(authorizedSub);
+    mocks.subscriptionEventCreate.mockResolvedValue({} as SubscriptionEvent);
+    mocks.userProfileFindUnique.mockResolvedValue({ plan: "FREE" });
+    mocks.userProfileUpdate.mockResolvedValue({} as never);
+    mocks.adminActionLogCreate.mockResolvedValue({} as never);
+    mockFindLastDowngradeSnapshot.mockResolvedValue(null);
+
+    await applySubscriptionEvent({
+      type: "authorized",
+      subscriptionId: "sub-1",
+    });
+
+    expect(mockRestoreExternalCalendars).not.toHaveBeenCalled();
+  });
+
+  // Tier 1 #8: desde PENDING (FREE → PRO primer upgrade) → NO ejecuta restore
+  it("desde PENDING (FREE → PRO primer upgrade): NO ejecuta restore", async () => {
+    const pendingSub = fakeSub({ status: "PENDING", userId: "user-1" });
+    const authorizedSub = fakeSub({ status: "AUTHORIZED", userId: "user-1" });
+
+    mocks.subscriptionFindUnique.mockResolvedValue(pendingSub);
+    mocks.subscriptionUpdate.mockResolvedValue(authorizedSub);
+    mocks.subscriptionEventCreate.mockResolvedValue({} as SubscriptionEvent);
+    mocks.userProfileFindUnique.mockResolvedValue({ plan: "FREE" });
+    mocks.userProfileUpdate.mockResolvedValue({} as never);
+    mocks.adminActionLogCreate.mockResolvedValue({} as never);
+    mockFindLastDowngradeSnapshot.mockResolvedValue(null);
+
+    await applySubscriptionEvent({
+      type: "authorized",
+      subscriptionId: "sub-1",
+    });
+
+    expect(mockRestoreExternalCalendars).not.toHaveBeenCalled();
+  });
+
+  // Tier 1 #9: multi-cycle — 2 eventos expired con snaps distintos → restore usa el más reciente
+  it("multi-cycle: restore usa el snapshot más reciente (orderBy createdAt desc)", async () => {
+    const expiredSub = fakeSub({ status: "EXPIRED", userId: "user-1" });
+    const authorizedSub = fakeSub({ status: "AUTHORIZED", userId: "user-1" });
+
+    mocks.subscriptionFindUnique.mockResolvedValue(expiredSub);
+    mocks.subscriptionUpdate.mockResolvedValue(authorizedSub);
+    mocks.subscriptionEventCreate.mockResolvedValue({} as SubscriptionEvent);
+    mocks.userProfileFindUnique.mockResolvedValue({ plan: "FREE" });
+    mocks.userProfileUpdate.mockResolvedValue({} as never);
+    mocks.adminActionLogCreate.mockResolvedValue({} as never);
+    // El más reciente tiene cal-recent
+    mockFindLastDowngradeSnapshot.mockResolvedValue({
+      externalCalendarIds: ["cal-recent"],
+      externalBlockIds: ["block-recent"],
+    });
+
+    await applySubscriptionEvent({
+      type: "authorized",
+      subscriptionId: "sub-1",
+    });
+
+    // findLastDowngradeSnapshot usa orderBy: { createdAt: "desc" } → top 1
+    expect(mockFindLastDowngradeSnapshot).toHaveBeenCalledWith(
+      "user-1",
+      expect.anything(),
+    );
+    expect(mockRestoreExternalCalendars).toHaveBeenCalledWith(
+      "user-1",
+      { externalCalendarIds: ["cal-recent"], externalBlockIds: ["block-recent"] },
+      expect.anything(),
+    );
+  });
+
+  // Tier 2 #10: restore failure dentro de tx → subscription NO se actualiza (rollback)
+  it("restore failure dentro de tx → subscription NO se actualiza (rollback)", async () => {
+    const expiredSub = fakeSub({ status: "EXPIRED", userId: "user-1" });
+    const authorizedSub = fakeSub({ status: "AUTHORIZED", userId: "user-1" });
+
+    mocks.subscriptionFindUnique.mockResolvedValue(expiredSub);
+    mocks.subscriptionUpdate.mockResolvedValue(authorizedSub);
+    mocks.subscriptionEventCreate.mockResolvedValue({} as SubscriptionEvent);
+    mocks.userProfileFindUnique.mockResolvedValue({ plan: "FREE" });
+    mocks.userProfileUpdate.mockResolvedValue({} as never);
+    mocks.adminActionLogCreate.mockResolvedValue({} as never);
+    mockFindLastDowngradeSnapshot.mockResolvedValue({
+      externalCalendarIds: ["cal-1"],
+      externalBlockIds: ["block-1"],
+    });
+    mockRestoreExternalCalendars.mockRejectedValue(new Error("DB error on restore"));
+
+    await expect(
+      applySubscriptionEvent({
+        type: "authorized",
+        subscriptionId: "sub-1",
+      }),
+    ).rejects.toThrow("DB error on restore");
+
+    // subscription.update YA fue llamado antes de restore
+    expect(mocks.subscriptionUpdate).toHaveBeenCalled();
+    // userProfile NO fue actualizado porque la tx hizo rollback
+    expect(mocks.userProfileUpdate).not.toHaveBeenCalled();
+  });
+
+  // Tier 2 #11: webhook duplicado (authorized 2 veces desde CANCELLED) → segunda es duplicate
+  it("webhook duplicado (authorized 2 veces desde CANCELLED): segunda es duplicate, no re-ejecuta restore", async () => {
+    const cancelledSub = fakeSub({ status: "CANCELLED", userId: "user-1" });
+    const authorizedSub = fakeSub({ status: "AUTHORIZED", userId: "user-1" });
+
+    mocks.subscriptionFindUnique.mockResolvedValue(cancelledSub);
+    mocks.subscriptionUpdate.mockResolvedValue(authorizedSub);
+    mocks.subscriptionEventCreate.mockResolvedValue({} as SubscriptionEvent);
+    mocks.userProfileFindUnique.mockResolvedValue({ plan: "FREE" });
+    mocks.userProfileUpdate.mockResolvedValue({} as never);
+    mocks.adminActionLogCreate.mockResolvedValue({} as never);
+    mockFindLastDowngradeSnapshot.mockResolvedValue({
+      externalCalendarIds: ["cal-1"],
+      externalBlockIds: ["block-1"],
+    });
+    // Reset para limpiar mockRejectedValue residual del test "rollback" anterior
+    mockRestoreExternalCalendars.mockReset();
+    mockRestoreExternalCalendars.mockResolvedValue({
+      restoredCalendarIds: ["cal-1"],
+      restoredBlockIds: ["block-1"],
+    });
+
+    // Primera llamada: CANCELLED → AUTHORIZED
+    await applySubscriptionEvent({
+      type: "authorized",
+      subscriptionId: "sub-1",
+    });
+
+    expect(mockRestoreExternalCalendars).toHaveBeenCalledTimes(1);
+
+    // Segunda llamada: ya AUTHORIZED → duplicate
+    mocks.subscriptionFindUnique.mockResolvedValue(authorizedSub);
+    mocks.subscriptionEventCreate.mockResolvedValue({} as SubscriptionEvent);
+    mockRestoreExternalCalendars.mockClear();
+
+    const result2 = await applySubscriptionEvent({
+      type: "authorized",
+      subscriptionId: "sub-1",
+    });
+
+    expect(result2.subscription.status).toBe("AUTHORIZED");
+    expect(mocks.subscriptionEventCreate).toHaveBeenLastCalledWith({
+      data: expect.objectContaining({
+        subscriptionId: "sub-1",
+        type: "duplicate",
+      }),
+    });
+    // restore NO se ejecutó en el segundo llamado
+    expect(mockRestoreExternalCalendars).not.toHaveBeenCalled();
   });
 });
 

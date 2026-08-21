@@ -1,27 +1,17 @@
 /**
- * Soft-stop de recursos iCal cuando un owner PRO hace downgrade a FREE.
+ * Soft-stop y restore de recursos iCal acoplados al ciclo de vida del plan PRO.
  *
- * Cuando expira el período pagado de un owner PRO, sus Calendarios Externos
- * y Bloqueos de Canal Externo quedan "zombis" (isActive=true / ACTIVE) y
- * siguen contando para disponibilidad aunque el plan FREE no pueda gestionarlos.
+ * - `softStopExternalCalendars`: marca inactivos Calendarios Externos y
+ *   Bloqueos Externos cuando expira el PRO (issue #220).
+ * - `restoreExternalCalendars`: restaura esos recursos a estado activo cuando
+ *   el owner reactiva PRO (issue #224).
  *
- * Este módulo marca esos recursos como inactivos de forma idempotente y
- * retorna un snapshot con los IDs afectados para que #224 pueda restaurar
- * si el owner reactiva PRO.
- *
- * Importante: el soft-stop se ejecuta SIEMPRE que el tipo de evento sea
- * `expired` o `expired_check`, independiente del resultado de applyPlanChange.
- * Defense in depth — aún si applyPlanChange no cambia el plan (ej: ya era FREE),
- * los recursos quedan marcados para no generar drift.
+ * El snapshot persistido en SubscriptionEvent.payload.downgradeSnapshot es el
+ * contrato entre ambos helpers.
  */
 
 import { prisma } from "@/lib/db/prisma";
-import type { QueryAdapter } from "@/lib/subscriptions/queries";
-
-export type DowngradeSnapshot = {
-  externalCalendarIds: string[];
-  externalBlockIds: string[];
-};
+import type { QueryAdapter, DowngradeSnapshot } from "@/lib/subscriptions/queries";
 
 /**
  * Soft-stop todos los recursos iCal de un owner.
@@ -65,5 +55,62 @@ export async function softStopExternalCalendars(
   return {
     externalCalendarIds: calendars.map((c: { id: string }) => c.id),
     externalBlockIds: blocks.map((b: { id: string }) => b.id),
+  };
+}
+
+export type RestoreReport = {
+  restoredCalendarIds: string[];
+  restoredBlockIds: string[];
+};
+
+/**
+ * Restaura los recursos iCal del snapshot a estado activo.
+ *
+ * - Marca `ExternalCalendar.isActive = true` para los calendarios inactivos del snapshot.
+ * - Marca `ExternalChannelBlock.status = ACTIVE` para los bloques inactivos del snapshot.
+ * - Retorna `RestoreReport` con los IDs efectivamente restaurados (excluye huérfanos).
+ *
+ * Silent skip es intencional:
+ * - IDs eliminados por el owner mientras estaba FREE: la fila no existe, se ignora.
+ * - IDs ya activos (race con cron): `WHERE isActive:false` filtra, no-op.
+ * - IDs de OTRO owner (defense in depth): `userId` filtra, no se tocan.
+ *
+ * Si el owner modificó manualmente un calendario durante FREE (no soportado
+ * por UI pero posible vía DB directa), el restore revierte ese cambio.
+ * Decisión intencional: la suscripción PRO restaura todos los recursos PRO.
+ *
+ * Acepta `QueryAdapter` para participar en `$transaction` del caller.
+ */
+export async function restoreExternalCalendars(
+  userId: string,
+  snapshot: DowngradeSnapshot,
+  adapter: QueryAdapter = prisma,
+): Promise<RestoreReport> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tx = adapter as any;
+
+  const calendars = await tx.externalCalendar.updateManyAndReturn({
+    where: {
+      userId,
+      id: { in: snapshot.externalCalendarIds },
+      isActive: false, // idempotente + respeta cambios manuales como no-op
+    },
+    data: { isActive: true },
+    select: { id: true },
+  });
+
+  const blocks = await tx.externalChannelBlock.updateManyAndReturn({
+    where: {
+      status: "INACTIVE",
+      id: { in: snapshot.externalBlockIds },
+      property: { userId }, // defense in depth
+    },
+    data: { status: "ACTIVE" },
+    select: { id: true },
+  });
+
+  return {
+    restoredCalendarIds: calendars.map((c: { id: string }) => c.id),
+    restoredBlockIds: blocks.map((b: { id: string }) => b.id),
   };
 }
