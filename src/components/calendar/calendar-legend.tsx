@@ -1,10 +1,11 @@
+import { AlertCircle, CheckCircle2, XCircle } from "lucide-react";
 import { channelColors } from "@/lib/calendar/channel-colors";
 
-const BAR_STATES = [
-  { label: "Activa", dotClass: "bg-success" },
-  { label: "Próxima", dotClass: "bg-info" },
-  { label: "Cancelada", dotClass: "bg-destructive" },
-  { label: "Finalizada", dotClass: "bg-muted-foreground" },
+const STATUS_STATES = [
+  { label: "Pendiente", icon: AlertCircle, colorClass: "text-muted-foreground" },
+  { label: "Confirmada", icon: CheckCircle2, colorClass: "text-success" },
+  { label: "Cancelada", icon: XCircle, colorClass: "text-destructive" },
+  { label: "Completada", icon: CheckCircle2, colorClass: "text-muted-foreground" },
 ] as const;
 
 const CHANNELS = [
@@ -24,19 +25,19 @@ export function CalendarLegend({ showChannels = false }: CalendarLegendProps) {
       className="flex flex-wrap items-center gap-x-4 gap-y-1.5"
       aria-label="Leyenda del calendario"
     >
-      {/* Reservation bar states */}
+      {/* Reservation bar states — icons match the StatusIcon rendered inside each bar */}
       <div className="flex items-center gap-x-3 gap-y-1">
         <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
           Estado
         </span>
         <div className="flex items-center gap-x-2">
-          {BAR_STATES.map(({ label, dotClass }) => (
+          {STATUS_STATES.map(({ label, icon: Icon, colorClass }) => (
             <div
               key={label}
-              className="inline-flex items-center gap-1.5"
+              className="inline-flex items-center gap-1"
             >
-              <span
-                className={`inline-block h-2 w-2 rounded-md ${dotClass}`}
+              <Icon
+                className={`h-3 w-3 shrink-0 ${colorClass}`}
                 aria-hidden="true"
               />
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">

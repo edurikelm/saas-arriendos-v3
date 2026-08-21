@@ -3,20 +3,35 @@ import { render, screen } from "@testing-library/react";
 import { CalendarLegend } from "../calendar-legend";
 
 describe("CalendarLegend", () => {
-  describe("bar state entries", () => {
-    it("renders 4 bar state entries", () => {
+  describe("bar state entries (icon-based, mirrors statusConfig in calendar-timeline.tsx)", () => {
+    it("renders 4 status state entries", () => {
       render(<CalendarLegend />);
-      const states = ["Activa", "Próxima", "Cancelada", "Finalizada"];
+      const states = ["Pendiente", "Confirmada", "Cancelada", "Completada"];
       states.forEach((state) => {
         expect(screen.getByText(state)).toBeDefined();
       });
     });
 
-    it("each bar state entry has a visible dot", () => {
-      render(<CalendarLegend />);
-      const dots = document.querySelectorAll(".bg-success, .bg-info, .bg-destructive, .bg-muted-foreground");
-      // 4 bar state dots when channels not shown
-      expect(dots.length).toBeGreaterThanOrEqual(4);
+    it("each status entry has an icon (svg) child", () => {
+      const { container } = render(<CalendarLegend />);
+      const statusContainer = screen.getByText("Estado").parentElement!;
+      const entries = Array.from(statusContainer.querySelectorAll("div")).filter((d) =>
+        ["Pendiente", "Confirmada", "Cancelada", "Completada"].some((s) =>
+          d.textContent?.includes(s),
+        ),
+      );
+      entries.forEach((entry) => {
+        const svg = entry.querySelector("svg");
+        expect(svg).not.toBeNull();
+      });
+    });
+
+    it("does not use rounded-full on any legend element (Calm Water Rule)", () => {
+      const { container } = render(<CalendarLegend />);
+      const dots = container.querySelectorAll("span");
+      dots.forEach((dot) => {
+        expect(dot.className).not.toMatch(/rounded-full/);
+      });
     });
   });
 
@@ -77,11 +92,8 @@ describe("CalendarLegend", () => {
     });
   });
 
-  it("does not use rounded-full on any dot element", () => {
-    render(<CalendarLegend showChannels={true} />);
-    const dots = document.querySelectorAll("span");
-    dots.forEach((dot) => {
-      expect(dot.className).not.toMatch(/rounded-full/);
-    });
+  it("legend has accessible name 'Leyenda del calendario'", () => {
+    render(<CalendarLegend />);
+    expect(screen.getByLabelText("Leyenda del calendario")).toBeDefined();
   });
 });
