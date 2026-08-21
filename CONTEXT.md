@@ -109,6 +109,28 @@ El webhook intenta matchear el pago en este orden:
 - Plan: FREE (3 propiedades, 5 clientes) o PRO (ilimitado)
 - Registro automático (no requiere aprobación)
 
+### Descubrimiento de Plan y Facturación
+
+La página `/settings/billing` (gestión de suscripción PRO) se descubre desde
+dos puntos en producto, **no en el sidebar**:
+
+1. **`/settings`** — card "Plan y facturación" al tope, con badge de plan
+   actual y CTA hacia `/settings/billing`. Sigue el patrón natural
+   "Configuración → Plan". El card adapta CTA según estado:
+   - FREE → "Pasar a PRO"
+   - PRO (AUTHORIZED/PAUSED) → "Administrar plan"
+   - CANCELLED con período vigente → "Reactivar PRO"
+   - PENDING → "Revisar pago pendiente"
+2. **`/dashboard`** — banner contextual **solo cuando accionable**:
+   FREE con `usage.properties >= 2 OR usage.clients >= 4` (preventivo antes
+   de topar el límite), o CANCELLED con `currentPeriodEnd > now` (empujar
+   reactivación mientras el período pagado sigue vigente). En estado estable
+   el banner es self-null (no decora).
+
+**Razón:** el sidebar ya tiene 9 items; añadir "Plan y facturación" como
+sub-item no aporta mucho vs el card de Configuración. El banner respeta la
+regla "Operate" del design system: muestra lo urgente, oculta lo estable.
+
 ## Storage
 
 - **Imágenes de propiedades y comprobantes de pago** → Cloudinary (25GB gratis en tier gratuito)

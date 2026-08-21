@@ -7,6 +7,11 @@ import { cn } from "@/lib/utils";
 import { classifyCollectionAlerts } from "@/lib/alerts/collection-alerts";
 import { getProperties } from "@/lib/actions/properties";
 import { getReservations } from "@/lib/actions/reservations";
+import {
+  getCurrentSubscriptionAction,
+  countOwnerUsage,
+} from "@/lib/actions/subscriptions";
+import { requireOwner } from "@/lib/auth/guards";
 import { ReservationPill } from "@/components/reservations/reservation-pill";
 import {
   daysUntilEnd,
@@ -18,6 +23,7 @@ import {
   labelDaysUntilStart,
 } from "@/components/reservations/reservation-status";
 import { OccupancyStrip } from "@/components/calendar/occupancy-strip";
+import { PlanAlertBanner } from "@/components/billing/plan-alert-banner";
 import { DashboardCobranzaList, type CobranzaItem } from "./_components/dashboard-cobranza-list";
 import { DashboardReservasTable } from "./_components/dashboard-reservas-table";
 
@@ -102,6 +108,19 @@ export default async function DashboardPage() {
   let properties: Property[] = [];
   let dataLoadError: string | null = null;
 
+  // Plan/subscription + usage: cargados aparte para no acoplar el try/catch
+  // principal. Si fallan (raro), el dashboard sigue renderizando sin banner —
+  // un banner ausente no es un error funcional.
+  let subscription: Awaited<ReturnType<typeof getCurrentSubscriptionAction>> = null;
+  let usage: Awaited<ReturnType<typeof countOwnerUsage>> = {
+    properties: 0,
+    clients: 0,
+    propertiesLimit: 3,
+    clientsLimit: 5,
+  };
+
+  const session = await requireOwner();
+
   try {
     const [reservationsResult, propertiesResult] = await Promise.all([
       getReservations(),
@@ -112,6 +131,18 @@ export default async function DashboardPage() {
   } catch (err) {
     console.error("[dashboard] failed to load initial data", err);
     dataLoadError = err instanceof Error ? err.message : "No pudimos cargar tus datos.";
+  }
+
+  try {
+    const [sub, usageResult] = await Promise.all([
+      getCurrentSubscriptionAction(),
+      countOwnerUsage(session.userId),
+    ]);
+    subscription = sub;
+    usage = usageResult;
+  } catch (err) {
+    console.error("[dashboard] failed to load plan/usage data", err);
+    // No-op: seguimos con defaults; el banner no se renderiza (variante null).
   }
 
   const today = new Date();
@@ -345,6 +376,10 @@ export default async function DashboardPage() {
           Nueva Reserva
         </Link>
       </div>
+
+      {/* 1b. Plan alert banner — solo aparece si FREE cerca del límite
+            o CANCELLED con período vigente. self-nulling en estado estable. */}
+      <PlanAlertBanner subscription={subscription} usage={usage} />
 
       {/* 2. KPI Grid (4 cards estilo Stitch).
             Mobile: 2 columnas (2x2 grid) para reducir la altura antes de "Próximas

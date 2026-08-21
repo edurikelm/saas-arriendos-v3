@@ -1,11 +1,17 @@
 import { MercadoPagoSettings } from "@/components/settings/MercadoPagoSettings";
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
 import { ProfileForm } from "@/components/settings/profile-form";
+import { PlanOverviewCard } from "@/components/billing/plan-overview-card";
 import {
   getNotificationsEmailEnabled,
   getNotificationsSmsEnabled,
 } from "@/lib/actions/notifications";
 import { getUserProfileSettings } from "@/lib/actions/profile";
+import {
+  getCurrentSubscriptionAction,
+  countOwnerUsage,
+} from "@/lib/actions/subscriptions";
+import { requireOwner } from "@/lib/auth/guards";
 
 type SettingsPageProps = {
   searchParams: Promise<{
@@ -15,11 +21,15 @@ type SettingsPageProps = {
 
 export default async function SettingsPage({ searchParams }: SettingsPageProps) {
   const params = await searchParams;
-  const [profile, emailEnabled, smsEnabled] = await Promise.all([
-    getUserProfileSettings(),
-    getNotificationsEmailEnabled(),
-    getNotificationsSmsEnabled(),
-  ]);
+  const session = await requireOwner();
+  const [profile, emailEnabled, smsEnabled, subscription, usage] =
+    await Promise.all([
+      getUserProfileSettings(),
+      getNotificationsEmailEnabled(),
+      getNotificationsSmsEnabled(),
+      getCurrentSubscriptionAction(),
+      countOwnerUsage(session.userId),
+    ]);
 
   // (dashboard)/layout.tsx already enforces requireOwner(), so session is guaranteed.
   // If profile is null here, it means the session userId has no UserProfile row (data inconsistency).
@@ -34,6 +44,10 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
         <p className="text-sm text-muted-foreground">
           Administra tu perfil, empresa y preferencias de la plataforma
         </p>
+      </div>
+
+      <div className="mb-6">
+        <PlanOverviewCard subscription={subscription} usage={usage} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
