@@ -299,9 +299,9 @@ describe('applySubscriptionEvent({ type: "cancelled" })', () => {
 // ────────────────────────────────────────────────────────────────────────────
 
 describe('applySubscriptionEvent({ type: "expired" })', () => {
-  it("AUTHORIZED → EXPIRED + dispara applyPlanChange(PRO → FREE)", async () => {
-    const authorizedSub = fakeSub({ status: "AUTHORIZED", plan: "PRO" });
-    const expiredSub = fakeSub({ status: "EXPIRED", plan: "PRO" });
+  it("AUTHORIZED → EXPIRED + dispara applyPlanChange(PRO → FREE) + soft-stop iCal", async () => {
+    const authorizedSub = fakeSub({ status: "AUTHORIZED", plan: "PRO", userId: "user-1" });
+    const expiredSub = fakeSub({ status: "EXPIRED", plan: "PRO", userId: "user-1" });
 
     mocks.subscriptionFindUnique.mockResolvedValue(authorizedSub);
     mocks.subscriptionUpdate.mockResolvedValue(expiredSub);
@@ -321,6 +321,49 @@ describe('applySubscriptionEvent({ type: "expired" })', () => {
       to: "FREE",
       source: "subscription_lifecycle",
     });
+    // El soft-stop debe invocarse con el userId del subscription dentro de la tx
+    expect(mockSoftStopExternalCalendars).toHaveBeenCalledWith(
+      "user-1",
+      expect.objectContaining({ externalCalendar: expect.any(Object) }),
+    );
+    // Y el snapshot del mock debe quedar en el payload del evento
+    expect(mocks.subscriptionEventCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: "expired",
+        payload: expect.objectContaining({
+          downgradeSnapshot: {
+            externalCalendarIds: ["cal-1", "cal-2"],
+            externalBlockIds: ["block-1"],
+          },
+        }),
+      }),
+    });
+  });
+
+  it("NO soft-stop cuando el plan ya era FREE (defense in depth)", async () => {
+    const authorizedSub = fakeSub({ status: "AUTHORIZED", plan: "PRO", userId: "user-1" });
+    const expiredSub = fakeSub({ status: "EXPIRED", plan: "PRO", userId: "user-1" });
+
+    mocks.subscriptionFindUnique.mockResolvedValue(authorizedSub);
+    mocks.subscriptionUpdate.mockResolvedValue(expiredSub);
+    mocks.subscriptionEventCreate.mockResolvedValue({} as SubscriptionEvent);
+    // Plan ya era FREE — applyPlanChange debe ser no-op
+    mocks.userProfileFindUnique.mockResolvedValue({ plan: "FREE" });
+
+    const result = await applySubscriptionEvent({
+      type: "expired",
+      subscriptionId: "sub-1",
+    });
+
+    expect(result.subscription.status).toBe("EXPIRED");
+    // El soft-stop se ejecuta igual (escuela A — defense in depth)
+    expect(mockSoftStopExternalCalendars).toHaveBeenCalledWith(
+      "user-1",
+      expect.anything(),
+    );
+    // Pero el plan no cambia (applyPlanChange retorna no-op)
+    expect(mocks.userProfileUpdate).not.toHaveBeenCalled();
+    expect(result.planChange).toEqual({ from: "FREE", to: "FREE", source: "subscription_lifecycle" });
   });
 });
 
@@ -329,7 +372,10 @@ describe('applySubscriptionEvent({ type: "expired" })', () => {
 // ────────────────────────────────────────────────────────────────────────────
 
 describe('applySubscriptionEvent({ type: "failed" })', () => {
-  it("AUTHORIZED → FAILED + dispara applyPlanChange(PRO → FREE)", async () => {
+  it("AUTHORIZED → FAILED + dispara applyPlanChange(PRO → FREE) + NO soft-stop (intencional)", async () => {
+    // Decisión documentada (ADR-0027 §4): `failed` es reintento de MP, no
+    // downgrade por fin de período. Los recursos iCal siguen activos porque
+    // la subscription puede volver a AUTHORIZED en el siguiente ciclo de retry.
     const authorizedSub = fakeSub({ status: "AUTHORIZED", plan: "PRO" });
     const failedSub = fakeSub({ status: "FAILED", plan: "PRO" });
 
@@ -351,6 +397,8 @@ describe('applySubscriptionEvent({ type: "failed" })', () => {
       to: "FREE",
       source: "subscription_lifecycle",
     });
+    // El soft-stop NO se ejecuta en `failed` — solo en `expired`/`expired_check`
+    expect(mockSoftStopExternalCalendars).not.toHaveBeenCalled();
   });
 });
 

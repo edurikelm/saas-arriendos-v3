@@ -401,13 +401,17 @@ export async function applySubscriptionEvent(
       downgradeSnapshot = await softStopExternalCalendars(currentSubscription.userId, tx);
     }
 
-    // Registrar evento de auditoría
+    // Registrar evento de auditoría — el snapshot se mergea DENTRO del payload
+    // (no como propiedad hermana de `data`, porque SubscriptionEvent solo tiene
+    // la columna JSON `payload` — ver schema.prisma:587)
     await tx.subscriptionEvent.create({
       data: {
         subscriptionId,
         type,
-        payload: (payload ?? undefined) as any,
-        ...(downgradeSnapshot && { downgradeSnapshot }),
+        payload: {
+          ...(payload ?? {}),
+          ...(downgradeSnapshot ? { downgradeSnapshot } : {}),
+        } as any,
       },
     });
 

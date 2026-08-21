@@ -43,9 +43,10 @@ export async function softStopExternalCalendars(
   adapter: QueryAdapter = prisma,
 ): Promise<DowngradeSnapshot> {
   // Usar updateManyAndReturn (Prisma 5.10+, disponible en 7.0) — 1 sola query por tabla.
-  // El adapter (TransactionClient o prisma global) expone todos los models de Prisma.
-  // El cast via unknown es necesario porque QueryAdapter es un tipo estrecho que
-  // solo incluye subscription/subscriptionEvent/userProfile/adminActionLog.
+  // El cast es necesario porque TypeScript no infiere que Prisma.TransactionClient
+  // expone `externalCalendar` y `externalChannelBlock` (los seams canónicos del repo
+  // — `queries.ts` — solo declaran explícitamente subscription/subscriptionEvent/
+  // userProfile/adminActionLog en el tipo QueryAdapter).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tx = adapter as any;
 
