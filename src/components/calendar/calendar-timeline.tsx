@@ -6,6 +6,7 @@ import { es } from "date-fns/locale/es";
 import { ChevronLeft, ChevronRight, Calendar, Home, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { channelColors } from "@/lib/calendar/channel-colors";
+import { getBarTextColor } from "@/lib/calendar/bar-text-color";
 import { getNights } from "@/components/reservations/reservation-status";
 
 interface Payment {
@@ -20,6 +21,7 @@ interface Payment {
 interface Property {
   id: string;
   name: string;
+  color?: string;
 }
 
 interface Client {
@@ -351,7 +353,7 @@ export function CalendarTimeline({ reservations, externalBlocks = [], conflicts 
   );
 
   return (
-    <div className="relative overflow-hidden rounded-xl border bg-card">
+    <div className="relative overflow-hidden rounded-xl border border-t-2 border-t-primary bg-card">
         <div
           aria-hidden="true"
           className={`pointer-events-none absolute inset-y-0 left-0 z-40 w-8 bg-gradient-to-r from-card to-transparent transition-opacity duration-100 ${scrollState.canScrollLeft ? "opacity-100" : "opacity-0"}`}
@@ -459,35 +461,46 @@ export function CalendarTimeline({ reservations, externalBlocks = [], conflicts 
                       const ended = isReservationEnded(res);
                       const active = !isCancelled && !ended && isReservationActive(res);
 
-                      // Stitch-style alternation: active (solid brand-secondary) vs upcoming (light brand-secondary/10)
-                      // Usa brand-secondary en vez de primary para no chocar con el botón "Nueva Reserva"
+                      // Stitch-style alternation: active (solid property.color) vs upcoming (property.color/10)
+                      // property.color is user-set; luminance helper ensures WCAG AA text contrast (4.5:1).
+                      const barTextColor = getBarTextColor(res.property.color);
                       const barClass = isCancelled
                         ? "border-border bg-muted text-muted-foreground line-through"
                         : ended
                         ? "border-border bg-muted text-muted-foreground opacity-75 line-through decoration-muted-foreground/60"
                         : active
-                        ? "border-brand-secondary bg-brand-secondary text-foreground"
-                        : "border border-brand-secondary/20 bg-brand-secondary/10 text-foreground";
-
-                      const chipClass = active
-                        ? "bg-white/20 text-foreground"
-                        : "bg-brand-secondary/20 text-foreground";
+                        ? `border-[var(--brand-secondary)] ${barTextColor}`
+                        : `border-[var(--brand-secondary)]/20 ${barTextColor}`;
 
                       return (
                         <button
                           key={res.id}
                           onClick={() => onSelectReservation(res.id)}
-                          className={`group absolute flex h-8 items-center gap-1.5 overflow-hidden rounded-md border px-2 text-left text-xs transition-all hover:z-20 hover:-translate-y-0.5 focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-2 sm:px-3 ${barClass}`}
+                          className={`group absolute flex h-8 items-center gap-1.5 overflow-hidden rounded-md border px-2 text-left text-xs transition-all hover:z-20 focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-2 sm:px-3 ${barClass}`}
                           style={{
                             left: `${leftOffset * dayWidth + 4}px`,
                             top: "12px",
                             width: `${Math.max(duration * dayWidth - 8, 34)}px`,
+                            backgroundColor: isCancelled || ended
+                              ? undefined
+                              : active
+                              ? res.property.color || "var(--brand-secondary)"
+                              : res.property.color
+                              ? `${res.property.color}1a` // 10% opacity hex
+                              : "var(--brand-secondary)",
+                            borderColor: isCancelled || ended
+                              ? undefined
+                              : active
+                              ? res.property.color || "var(--brand-secondary)"
+                              : res.property.color
+                              ? `${res.property.color}33` // 20% opacity hex
+                              : "var(--brand-secondary)",
                           }}
                           title={`${res.client.name} - ${formatDate(res.startDate)} a ${formatDate(res.endDate)}`}
                         >
                           <StatusIcon className="h-3.5 w-3.5 shrink-0 opacity-90" />
                           <span className="min-w-0 flex-1 truncate font-semibold">{res.client.name}</span>
-                          <span className={`hidden shrink-0 rounded-sm px-1.5 py-0.5 font-medium sm:inline-flex ${chipClass}`}>
+                          <span className="hidden shrink-0 rounded-sm bg-white/20 px-1.5 py-0.5 font-medium text-foreground sm:inline-flex">
                             {getNights(res.startDate, res.endDate)}n
                           </span>
                         </button>
