@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { ChevronLeft, ChevronRight, Plus, Globe, AlertTriangle, Building2, CalendarCheck, Wallet } from "lucide-react";
+import { CalendarLegend } from "@/components/calendar/calendar-legend";
 import { addMonths, format, subMonths } from "date-fns";
 import { es } from "date-fns/locale/es";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
@@ -365,6 +366,9 @@ export function CalendarView({
           {headerActions}
         </div>
       </div>
+
+      {/* Legend row — always visible for bar states; channels visible when external blocks are toggled on */}
+      <CalendarLegend showChannels={showExternalBlocks} />
 
       {/* 4. Timeline — sin Card wrapper (CalendarTimeline ya tiene su propio rounded-xl border) */}
       {loading ? (
