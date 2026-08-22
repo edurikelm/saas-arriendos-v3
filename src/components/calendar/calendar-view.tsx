@@ -259,8 +259,14 @@ export function CalendarView({
   }, [externalBlocks, selectedPropertyId]);
 
   const headerActions = (
-    <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-      <Button variant="default" onClick={() => setCreateDialogOpen(true)}>
+    // Mobile: vertical stack con cada item full-width (mejor tap targets,
+    // no compite con el toolbar de mes/Hoy). sm+: horizontal inline.
+    <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center">
+      <Button
+        variant="default"
+        onClick={() => setCreateDialogOpen(true)}
+        className="w-full sm:w-auto"
+      >
         <Plus className="mr-2 h-4 w-4" />
         <span className="hidden sm:inline text-foreground">Nueva Reserva</span>
         <span className="sm:hidden text-foreground">Nueva</span>
@@ -290,7 +296,9 @@ export function CalendarView({
           aria-pressed={showExternalBlocks}
           aria-label="Mostrar bloqueos externos"
           onClick={handleToggleExternalBlocks}
-          className={`h-8 rounded-md ${showExternalBlocks ? "bg-primary text-foreground" : "bg-transparent text-muted-foreground hover:text-foreground"}`}
+          className={`h-8 w-full rounded-md px-3 text-[10px] font-bold uppercase tracking-wider transition-colors sm:w-auto ${
+            showExternalBlocks ? "bg-primary text-foreground" : "bg-transparent text-muted-foreground hover:text-foreground"
+          }`}
         >
           <Globe className="mr-1.5 h-4 w-4" />
           Bloqueos
@@ -301,11 +309,14 @@ export function CalendarView({
 
   return (
     <div className="space-y-6">
-      {/* 1. Page header (Stitch "Calendario de Ocupación") */}
+      {/* 1. Page header (Stitch "Calendario de Ocupación").
+            Mobile: h1 más pequeño (text-xl) y subtítulo más discreto (text-[11px])
+            para reducir altura vertical y empujar el timeline hacia el fold.
+            md+: h1 text-2xl (Tier 2 de Display), subtítulo text-xs. */}
       <div className="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Calendario de Ocupación</h1>
-          <p className="text-xs text-muted-foreground">
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Calendario de Ocupación</h1>
+          <p className="text-[11px] text-muted-foreground sm:text-xs">
             Gestiona la disponibilidad de tus unidades en tiempo real.
           </p>
           {/* Sublabel: comunica cuántas canceladas están ocultas (solo cuando hay
@@ -329,8 +340,11 @@ export function CalendarView({
 
       {/* 2. KPI Grid (4 cards estilo Stitch).
             Mobile: 2 columnas (2x2 grid) para reducir altura antes del timeline,
-            que es la sección accionable prioritaria del calendario. */}
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
+            que es la sección accionable prioritaria del calendario.
+            En <640px ocupaba 4 alturas verticales (stack) — ahora 2 alturas (2x2).
+            El Revenue card con value largo cabe porque el KpiCard usa text-lg en
+            mobile + padding reducido (p-3). */}
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4 sm:gap-4">
         <KpiCard
           label="Ocupación Media"
           value={`${calendarKpis.occupancyRate}%`}
@@ -377,9 +391,12 @@ export function CalendarView({
         />
       </section>
 
-      {/* 3. Controls bar — sin Card wrapper (sin envoltorio, controles en línea) */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {/* Sección izquierda: filtro del calendario */}
+      {/* 3. Controls bar — sin Card wrapper (sin envoltorio, controles en línea).
+            Mobile: stack vertical (sección izquierda = mes/Hoy/toggle, sección
+            derecha = acciones — cada una full-width cuando están en su propia fila).
+            sm+: una sola fila con ambas secciones inline y separadas por justify-between. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        {/* Sección izquierda: navegación de mes + Hoy + toggle canceladas */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex h-8 items-center overflow-hidden rounded-lg border">
             <Button
@@ -391,7 +408,9 @@ export function CalendarView({
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <div className="min-w-[180px] px-4 py-1.5 text-center text-xs font-bold capitalize">
+            {/* min-width del label del mes: 140 en mobile (cabe "Septiembre" sin truncar),
+                180 en sm+ (alineado con la cifra mínima del dayWidth del timeline) */}
+            <div className="min-w-[140px] px-3 py-1.5 text-center text-xs font-bold capitalize sm:min-w-[180px] sm:px-4">
               {format(currentMonth, "MMMM yyyy", { locale: es })}
             </div>
             <Button
@@ -443,7 +462,8 @@ export function CalendarView({
           )}
         </div>
 
-        {/* Sección derecha: acciones */}
+        {/* Sección derecha: acciones (Nueva, dropdown, Bloqueos).
+            En mobile headerActions es vertical con items full-width (definido arriba). */}
         <div className="flex flex-wrap items-center gap-2">
           {headerActions}
         </div>

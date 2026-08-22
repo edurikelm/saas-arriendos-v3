@@ -67,7 +67,7 @@ export function KpiCard({
   const progressValue = progressBar ? Math.max(0, Math.min(100, progressBar.value)) : null;
 
   return (
-    <div role="group" aria-label={label} className="rounded-lg border border-border bg-card p-4">
+    <div role="group" aria-label={label} className="rounded-lg border border-border bg-card p-3 sm:p-4">
       <div className="mb-1 flex items-start justify-between gap-2">
         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
           {label}
@@ -75,7 +75,7 @@ export function KpiCard({
         {Icon && (
           <div
             className={cn(
-              "flex size-9 shrink-0 items-center justify-center rounded-xl",
+              "flex size-7 shrink-0 items-center justify-center rounded-lg sm:size-9 sm:rounded-xl",
               iconContainerToneClass[tone]
             )}
             aria-hidden="true"
@@ -85,7 +85,8 @@ export function KpiCard({
         )}
       </div>
       <div className="flex items-baseline gap-1">
-        <span className={cn("text-xl font-bold tabular-nums", valueToneClass[tone])}>
+        {/* Value: text-lg en mobile (cabe en grid 2-col), text-xl en sm+ */}
+        <span className={cn("text-lg font-bold tabular-nums sm:text-xl", valueToneClass[tone])}>
           {value}
         </span>
         {unit && <span className="text-[10px] text-muted-foreground">{unit}</span>}
