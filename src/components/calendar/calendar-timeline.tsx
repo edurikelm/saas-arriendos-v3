@@ -466,12 +466,14 @@ export function CalendarTimeline({ reservations, externalBlocks = [], conflicts 
                       const ended = isReservationEnded(res);
                       const active = !isCancelled && !ended && isReservationActive(res);
 
-                      // Dashboard-matching pattern for upcoming (light green tint, green border + text)
-                      // and active (solid green + white text). Status Doctrine for terminal states.
+// Dashboard-matching pattern for upcoming (light green tint, green border + text)
+//                      and active (solid green + white text). Status Doctrine for terminal states.
+// COMPLETED uses text-foreground + opacity-60 wrapper: keeps AA contrast on bg-muted
+// while still feeling "faded/past". text-muted-foreground alone is 4.32:1 (fails AA by 0.18).
                       const barClass = isCancelled
                         ? "border-destructive/40 bg-destructive text-destructive-foreground line-through"
                         : ended
-                        ? "border-border bg-muted text-foreground opacity-75 line-through decoration-muted-foreground/60"
+                        ? "border-border bg-muted text-foreground opacity-60 line-through decoration-muted-foreground/60"
                         : active
                         ? "border-primary/30 bg-primary text-primary-foreground"
                         : "border-primary/20 bg-primary/10 text-primary"; // PENDING + CONFIRMED upcoming
@@ -485,15 +487,17 @@ export function CalendarTimeline({ reservations, externalBlocks = [], conflicts 
                           : res.status === "CANCELLED"
                           ? "text-destructive-foreground"
                           : res.status === "COMPLETED"
-                          ? "text-foreground" // darker for AA with opacity-75
+                          ? "text-foreground opacity-60" // matches bar wrapper opacity for visual unity
                           : active
                           ? "text-success-foreground" // dark green on solid green (visible)
                           : "text-success"; // CONFIRMED upcoming on light green
 
                       // Badge "Nn" — adapts to bar bg for color cohesion
                       const badgeClass =
-                        isCancelled || ended
-                          ? "bg-white/20 text-foreground"
+                        isCancelled
+                          ? "bg-white/20 text-destructive-foreground"
+                          : ended
+                          ? "bg-white/20 text-foreground opacity-60"
                           : active
                           ? "bg-white/20 text-primary-foreground"
                           : "bg-primary/20 text-primary";
