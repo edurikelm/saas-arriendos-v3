@@ -213,7 +213,10 @@ export async function deleteProperty(id: string) {
       where: { id },
     });
   } catch (error) {
-    console.error("[deleteProperty] failed", error);
+    console.error(
+      `[deleteProperty] failed (userId=${session.userId}, propertyId=${id})`,
+      error,
+    );
     return {
       error: `No se pudo eliminar la propiedad. Por favor intenta de nuevo.`,
     };
