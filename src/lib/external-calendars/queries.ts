@@ -14,6 +14,11 @@ import type { Prisma } from "@prisma/client";
 
 export type QueryAdapter = Prisma.TransactionClient | typeof prisma;
 
+export type DowngradeSnapshot = {
+  externalCalendarIds: string[];
+  externalBlockIds: string[];
+};
+
 /**
  * Cuenta los Calendarios Externos activos de un owner.
  *
@@ -28,4 +33,45 @@ export async function countActiveExternalCalendars(
   return adapter.externalCalendar.count({
     where: { userId, isActive: true },
   });
+}
+
+/**
+ * Soft-stop de recursos iCal asociados a UNA propiedad específica.
+ *
+ * - Marca `ExternalCalendar.isActive = false` para calendarios activos de esta propiedad
+ * - Marca `ExternalChannelBlock.status = INACTIVE` para bloques activos de esta propiedad
+ * - Retorna snapshot `{ externalCalendarIds, externalBlockIds }` con los IDs afectados
+ *
+ * Idempotente. Reusa el mismo shape del snapshot que `softStopExternalCalendars` (#220)
+ * por consistencia.
+ *
+ * Usado por `deleteProperty` (lib/actions/properties.ts:194) para evitar FK error
+ * cuando se elimina una propiedad con calendarios asociados.
+ *
+ * NO usa el helper de #220 (que opera por userId) porque no queremos pausar calendarios
+ * de otras propiedades del mismo owner.
+ */
+export async function softStopExternalCalendarsForProperty(
+  propertyId: string,
+  adapter: QueryAdapter = prisma,
+): Promise<DowngradeSnapshot> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tx = adapter as any;
+
+  const calendars = await tx.externalCalendar.updateManyAndReturn({
+    where: { propertyId, isActive: true },
+    data: { isActive: false },
+    select: { id: true },
+  });
+
+  const blocks = await tx.externalChannelBlock.updateManyAndReturn({
+    where: { status: "ACTIVE", propertyId },
+    data: { status: "INACTIVE" },
+    select: { id: true },
+  });
+
+  return {
+    externalCalendarIds: calendars.map((c: { id: string }) => c.id),
+    externalBlockIds: blocks.map((b: { id: string }) => b.id),
+  };
 }

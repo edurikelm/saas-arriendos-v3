@@ -5,6 +5,7 @@ import type { Prisma } from "@prisma/client";
 import { getSession } from "@/lib/auth/session";
 import { propertySchema, type PropertyInput } from "@/lib/validations/property";
 import { revalidatePath } from "next/cache";
+import { softStopExternalCalendarsForProperty } from "@/lib/external-calendars/queries";
 
 const FREE_PROPERTY_LIMIT = 3;
 
@@ -202,9 +203,21 @@ export async function deleteProperty(id: string) {
 
   if (!existing) return { error: "Propiedad no encontrada" };
 
-  await prisma.property.delete({
-    where: { id },
-  });
+  try {
+    // Defense in depth: si la propiedad tiene Calendarios Externos o Bloques
+    // Externos asociados, desactivarlos antes del delete (FK sin onDelete:Cascade
+    // causaría P2003). El helper es idempotente — si no hay calendarios,
+    // retorna snapshot vacío sin error.
+    await softStopExternalCalendarsForProperty(id);
+    await prisma.property.delete({
+      where: { id },
+    });
+  } catch (error) {
+    console.error("[deleteProperty] failed", error);
+    return {
+      error: `No se pudo eliminar la propiedad. Por favor intenta de nuevo.`,
+    };
+  }
 
   revalidatePath("/properties");
   return { success: true };
