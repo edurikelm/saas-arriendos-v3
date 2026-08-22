@@ -47,8 +47,10 @@ function IndicatorIcon({ variant }: { variant: KpiIndicatorVariant }) {
 }
 
 function indicatorClasses(variant: KpiIndicatorVariant): string {
-  if (variant === "positive") return "text-primary";
-  if (variant === "warning") return "text-destructive";
+  // text-success-foreground (oklch 0.30 0.10 150, dark green) passes WCAG AA on white card bg;
+  // text-primary (verdigris #22c55e) is too light for normal-size text (2.27:1 fail).
+  if (variant === "positive") return "text-success-foreground";
+  if (variant === "warning") return "text-destructive-foreground";
   return "text-muted-foreground";
 }
 
