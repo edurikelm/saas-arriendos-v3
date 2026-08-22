@@ -376,10 +376,12 @@ export function CalendarTimeline({ reservations, externalBlocks = [], conflicts 
               {days.map((day) => {
                 const dayKey = format(day, "yyyy-MM-dd");
                 const hasConflict = conflicts.has(dayKey);
+                const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                const isToday = isSameDay(day, today);
                 return (
                   <div
                     key={day.toISOString()}
-                    className={`relative shrink-0 border-r border-border/60 px-1 py-2 text-center ${isSameDay(day, today) ? "bg-primary/10" : ""}`}
+                    className={`relative shrink-0 border-r border-border/60 px-1 py-2 text-center ${isToday ? "bg-primary/10" : isWeekend ? "bg-secondary" : ""}`}
                     role="columnheader"
                     style={{ width: dayWidth }}
                   >
@@ -389,10 +391,10 @@ export function CalendarTimeline({ reservations, externalBlocks = [], conflicts 
                         aria-hidden="true"
                       />
                     )}
-                    <div className={`mx-auto flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold ${isSameDay(day, today) ? "bg-primary text-primary-foreground" : "text-foreground"}`}>
+                    <div className={`mx-auto flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold ${isToday ? "bg-primary text-primary-foreground" : "text-foreground"}`}>
                       {format(day, "d")}
                     </div>
-                    <div className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    <div className={`mt-1.5 text-[10px] font-bold uppercase tracking-wider ${isToday ? "text-primary" : "text-muted-foreground"}`}>
                       {format(day, "EEE", { locale: es }).slice(0, 3)}
                     </div>
                   </div>
@@ -466,17 +468,24 @@ export function CalendarTimeline({ reservations, externalBlocks = [], conflicts 
                       const ended = isReservationEnded(res);
                       const active = !isCancelled && !ended && isReservationActive(res);
 
-// Dashboard-matching pattern for upcoming (light green tint, green border + text)
-//                      and active (solid green + white text). Status Doctrine for terminal states.
-// COMPLETED uses text-foreground + opacity-60 wrapper: keeps AA contrast on bg-muted
-// while still feeling "faded/past". text-muted-foreground alone is 4.32:1 (fails AA by 0.18).
+// Status → bar color mapping (per DESIGN.md Status Color Doctrine):
+//   - CONFIRMED active  → solid primary (Verdigris)
+//   - CONFIRMED upcoming → primary/10 tint (upcoming reservation, no salience)
+//   - PENDING             → warning/10 tint (Amber Hour = "saldo pendiente" — DESIGN.md:209)
+//   - CANCELLED           → destructive bg with line-through
+//   - COMPLETED (ended)   → muted bg + line-through (terminal, faded)
+//
+// PENDING vs CONFIRMED-upcoming differentiation: ambas son "no iniciadas" pero PENDING
+// carga peso semántico (dinero pendiente). Mismo bg-tint, distinto accent token.
                       const barClass = isCancelled
                         ? "border-destructive/40 bg-destructive text-destructive-foreground line-through"
                         : ended
                         ? "border-border bg-muted text-foreground opacity-60 line-through decoration-muted-foreground/60"
                         : active
                         ? "border-primary/30 bg-primary text-primary-foreground"
-                        : "border-primary/20 bg-primary/10 text-primary"; // PENDING + CONFIRMED upcoming
+                        : res.status === "PENDING"
+                        ? "border-warning/30 bg-warning/10 text-warning"
+                        : "border-primary/20 bg-primary/10 text-primary"; // CONFIRMED upcoming
 
                       // Icon color matches the legend's status color. Uses -foreground variant
                       // when the legend color would clash with the bar bg (red on green, etc).
@@ -500,25 +509,59 @@ export function CalendarTimeline({ reservations, externalBlocks = [], conflicts 
                           ? "bg-white/20 text-foreground opacity-60"
                           : active
                           ? "bg-white/20 text-primary-foreground"
+                          : res.status === "PENDING"
+                          ? "bg-warning/20 text-warning"
                           : "bg-primary/20 text-primary";
+
+                      // Progressive disclosure del contenido según el ancho disponible.
+                      // Barras estrechas (<90px): ocultan chip de noches.
+                      // Barras muy estrechas (<60px): ocultan también el icono (solo nombre).
+                      // Barras mínimas (<36px): ocultan todo excepto el dot de status.
+                      const barWidthPx = Math.max(duration * dayWidth - 8, 34);
+                      const showNightsBadge = barWidthPx >= 90;
+                      const showStatusIcon = barWidthPx >= 60;
+                      const showClientName = barWidthPx >= 36;
+                      const ariaLabel = [
+                        res.client.name,
+                        statusConfig[res.status]?.label ?? res.status,
+                        `${getNights(res.startDate, res.endDate)} noches`,
+                        `${formatDate(res.startDate)} a ${formatDate(res.endDate)}`,
+                      ].join(", ");
 
                       return (
                         <button
                           key={res.id}
                           onClick={() => onSelectReservation(res.id)}
+                          aria-label={ariaLabel}
                           className={`group absolute flex h-8 items-center gap-1.5 overflow-hidden rounded-md border px-2 text-left text-xs transition-all hover:z-20 focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-2 sm:px-3 ${barClass}`}
                           style={{
                             left: `${leftOffset * dayWidth + 4}px`,
                             top: "12px",
-                            width: `${Math.max(duration * dayWidth - 8, 34)}px`,
+                            width: `${barWidthPx}px`,
                           }}
-                          title={`${res.client.name} - ${formatDate(res.startDate)} a ${formatDate(res.endDate)}`}
+                          title={ariaLabel}
                         >
-                          <StatusIcon className={`h-3.5 w-3.5 shrink-0 opacity-90 ${iconColorClass}`} />
-                          <span className="min-w-0 flex-1 truncate font-semibold">{res.client.name}</span>
-                          <span className={`hidden shrink-0 rounded-sm px-1.5 py-0.5 font-medium sm:inline-flex ${badgeClass}`}>
-                            {getNights(res.startDate, res.endDate)}n
-                          </span>
+                          {showStatusIcon && (
+                            <StatusIcon
+                              aria-hidden="true"
+                              className={`h-3.5 w-3.5 shrink-0 opacity-90 ${iconColorClass}`}
+                            />
+                          )}
+                          {showClientName && (
+                            <span className="min-w-0 flex-1 truncate font-semibold">{res.client.name}</span>
+                          )}
+                          {!showClientName && (
+                            // Dot único cuando la barra es demasiado estrecha para texto
+                            <span
+                              aria-hidden="true"
+                              className={`mx-auto h-1.5 w-1.5 shrink-0 rounded-full ${iconColorClass}`}
+                            />
+                          )}
+                          {showNightsBadge && (
+                            <span aria-hidden="true" className={`hidden shrink-0 rounded-sm px-1.5 py-0.5 font-medium sm:inline-flex ${badgeClass}`}>
+                              {getNights(res.startDate, res.endDate)}n
+                            </span>
+                          )}
                         </button>
                       );
                     })}
@@ -530,19 +573,22 @@ export function CalendarTimeline({ reservations, externalBlocks = [], conflicts 
                       const leftOffset = Math.max(0, getDayOffset(start, monthStart));
                       const rightOffset = Math.min(days.length - 1, getDayOffset(end, monthStart));
                       const duration = rightOffset - leftOffset + 1;
+                      const blockWidthPx = Math.max(duration * dayWidth - 8, 34);
+                      const showChannelLabel = blockWidthPx >= 70;
+                      const channelName = block.channel === "AIRBNB" ? "Airbnb" : block.channel === "BOOKING_COM" ? "Booking.com" : block.channel === "VRBO" ? "VRBO" : "Otro canal";
                       return (
                         <div
                           key={block.id}
-                          className="absolute flex h-5 cursor-default items-center gap-1 overflow-hidden rounded-md border border-dashed border-foreground/40 bg-foreground/[0.04] px-1.5 text-[10px] font-medium text-muted-foreground backdrop-blur-sm"
+                          className="absolute flex h-6 cursor-default items-center gap-1.5 overflow-hidden rounded-md border border-dashed border-foreground/40 bg-foreground/[0.04] px-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur-sm"
                           style={{
                             left: `${leftOffset * dayWidth + 4}px`,
-                            top: "56px",
-                            width: `${Math.max(duration * dayWidth - 8, 34)}px`,
+                            top: "52px",
+                            width: `${blockWidthPx}px`,
                           }}
-                          title={`${block.channel === "AIRBNB" ? "Airbnb" : block.channel === "BOOKING_COM" ? "Booking.com" : block.channel === "VRBO" ? "VRBO" : "Otro canal"} — Not available`}
+                          title={`${channelName} — No disponible`}
                         >
-                          <span className={`h-2 w-2 rounded-full ${channelDotClass(block.channel)}`} />
-                          <span>{channelLabel(block.channel)}</span>
+                          <span aria-hidden="true" className={`h-2.5 w-2.5 shrink-0 rounded-full ${channelDotClass(block.channel)}`} />
+                          {showChannelLabel && <span className="truncate">{channelLabel(block.channel)}</span>}
                         </div>
                       );
                     })}

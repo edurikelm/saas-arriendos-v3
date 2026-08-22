@@ -5,24 +5,29 @@ interface StatusStateEntry {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   colorClass: string;
-  labelClass?: string;
   opacityClass?: string;
 }
 
 // PENDING → text-warning (Amber Hour) per DESIGN.md:209-212 —
 // "reservas con saldo pendiente" maps to the warning semantic token.
+// El strikethrough vive SOLO dentro de las reservation pills (calendar-timeline.tsx),
+// nunca en los labels de la leyenda — un label tachado sugiere que el filtro está
+// deshabilitado, lo cual es un anti-patrón de UX.
 const STATUS_STATES: StatusStateEntry[] = [
   { label: "Pendiente", icon: AlertCircle, colorClass: "text-warning" },
   { label: "Confirmada", icon: CheckCircle2, colorClass: "text-success" },
-  { label: "Cancelada", icon: XCircle, colorClass: "text-destructive", labelClass: "line-through" },
-  { label: "Completada", icon: CheckCircle2, colorClass: "text-muted-foreground", labelClass: "line-through", opacityClass: "opacity-75" },
+  { label: "Cancelada", icon: XCircle, colorClass: "text-destructive", opacityClass: "opacity-75" },
+  { label: "Completada", icon: CheckCircle2, colorClass: "text-muted-foreground", opacityClass: "opacity-75" },
 ];
 
+// Channels — solo dot + label. El prefijo "A"/"B"/"V" se eliminó: leer "A Airbnb"
+// parecía un índice de DB escapado a UI. El dot del semantic token basta para identificar
+// el canal; el label en uppercase mantiene el ritmo del "10px whisper".
 const CHANNELS = [
-  { letter: "A", label: "Airbnb", dotClass: channelColors.AIRBNB.dotClass },
-  { letter: "B", label: "Booking", dotClass: channelColors.BOOKING_COM.dotClass },
-  { letter: "V", label: "VRBO", dotClass: channelColors.VRBO.dotClass },
-  { letter: "?", label: "Otro", dotClass: channelColors.OTHER.dotClass },
+  { label: "Airbnb", dotClass: channelColors.AIRBNB.dotClass },
+  { label: "Booking", dotClass: channelColors.BOOKING_COM.dotClass },
+  { label: "VRBO", dotClass: channelColors.VRBO.dotClass },
+  { label: "Otro", dotClass: channelColors.OTHER.dotClass },
 ] as const;
 
 interface CalendarLegendProps {
@@ -41,7 +46,7 @@ export function CalendarLegend({ showChannels = false }: CalendarLegendProps) {
           Estado
         </span>
         <div className="flex items-center gap-x-2">
-          {STATUS_STATES.map(({ label, icon: Icon, colorClass, labelClass, opacityClass }) => (
+          {STATUS_STATES.map(({ label, icon: Icon, colorClass, opacityClass }) => (
             <div
               key={label}
               className={`inline-flex items-center gap-1 ${opacityClass ?? ""}`}
@@ -50,9 +55,7 @@ export function CalendarLegend({ showChannels = false }: CalendarLegendProps) {
                 className={`h-3 w-3 shrink-0 ${colorClass}`}
                 aria-hidden="true"
               />
-              <span
-                className={`text-[10px] font-bold uppercase tracking-wider text-muted-foreground ${labelClass ?? ""}`}
-              >
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 {label}
               </span>
             </div>
@@ -68,27 +71,24 @@ export function CalendarLegend({ showChannels = false }: CalendarLegendProps) {
         />
       )}
 
-      {/* External channel letters */}
+      {/* External channels — dot + label, sin prefijo letter (ver comment arriba) */}
       {showChannels && (
         <div className="flex items-center gap-x-3 gap-y-1">
           <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
             Canal
           </span>
           <div className="flex items-center gap-x-2">
-            {CHANNELS.map(({ letter, label, dotClass }) => (
+            {CHANNELS.map(({ label, dotClass }) => (
               <div
                 key={label}
                 className="inline-flex items-center gap-1"
               >
                 <span
-                  className={`inline-block h-2 w-2 rounded-md ${dotClass}`}
+                  className={`inline-block h-2 w-2 rounded-full ${dotClass}`}
                   aria-hidden="true"
                 />
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                  {letter}{" "}
-                  <span className="font-normal normal-case tracking-normal">
-                    {label}
-                  </span>
+                  {label}
                 </span>
               </div>
             ))}

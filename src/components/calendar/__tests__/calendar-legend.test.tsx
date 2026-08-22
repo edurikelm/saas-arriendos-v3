@@ -38,11 +38,19 @@ describe("CalendarLegend", () => {
       expect(container.querySelectorAll(".text-muted-foreground").length).toBeGreaterThan(0);
     });
 
-    it("CANCELLED and COMPLETADA labels carry line-through (mirrors bar visual)", () => {
+    it("CANCELLED and COMPLETADA labels do NOT carry line-through (only the bar pills do)", () => {
+      // Polish fix: un label tachado sugiere "filtro deshabilitado" — anti-patrón UX.
+      // El strikethrough vive SOLO dentro de las reservation pills (calendar-timeline.tsx),
+      // nunca en los labels de la leyenda. La diferenciación terminal se hace vía opacity-75.
       const { container } = render(<CalendarLegend />);
-      const labelsWithStrikethrough = container.querySelectorAll(".line-through");
-      // At least 2 labels should have line-through (CANCELLED + COMPLETADA)
-      expect(labelsWithStrikethrough.length).toBeGreaterThanOrEqual(2);
+      const allSpans = Array.from(container.querySelectorAll("span"));
+      const labels = allSpans.filter(
+        (s) => ["Cancelada", "Completada"].includes(s.textContent?.trim() ?? ""),
+      );
+      expect(labels.length).toBeGreaterThan(0);
+      labels.forEach((label) => {
+        expect(label.className).not.toMatch(/line-through/);
+      });
     });
 
     it("COMPLETADA entry has opacity-75 wrapper (mirrors bar opacity treatment)", () => {
@@ -77,28 +85,14 @@ describe("CalendarLegend", () => {
       });
     });
 
-    it("renders channel letter A for Airbnb", () => {
+    it("does NOT render channel letters (A/B/V/?) — only dot + label", () => {
+      // Polish fix: el prefijo "A Airbnb" / "B Booking" parecía un índice de DB
+      // escapado a UI. Ahora cada canal es solo dot semántico + label uppercase.
       render(<CalendarLegend showChannels={true} />);
-      expect(screen.getByText(/^A$/)).toBeDefined();
-      expect(screen.getByText("Airbnb")).toBeDefined();
-    });
-
-    it("renders channel letter B for Booking", () => {
-      render(<CalendarLegend showChannels={true} />);
-      expect(screen.getByText(/^B$/)).toBeDefined();
-      expect(screen.getByText("Booking")).toBeDefined();
-    });
-
-    it("renders channel letter V for VRBO", () => {
-      render(<CalendarLegend showChannels={true} />);
-      expect(screen.getByText(/^V$/)).toBeDefined();
-      expect(screen.getByText("VRBO")).toBeDefined();
-    });
-
-    it("renders channel letter ? for Otro", () => {
-      render(<CalendarLegend showChannels={true} />);
-      expect(screen.getByText(/^\?$/)).toBeDefined();
-      expect(screen.getByText("Otro")).toBeDefined();
+      expect(screen.queryByText(/^A$/)).toBeNull();
+      expect(screen.queryByText(/^B$/)).toBeNull();
+      expect(screen.queryByText(/^V$/)).toBeNull();
+      expect(screen.queryByText(/^\?$/)).toBeNull();
     });
 
     it("channel dots have correct semantic dotClass from channel-colors", () => {
