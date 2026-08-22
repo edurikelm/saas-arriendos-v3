@@ -28,11 +28,11 @@ describe("CalendarLegend", () => {
 
     it("status icons carry the semantic color class that mirrors the bar bg", () => {
       const { container } = render(<CalendarLegend />);
-      // PENDING → text-info (matches bg-info bar)
+      // PENDING → text-warning (Amber Hour, per DESIGN.md:209 — "reservas con saldo pendiente")
       // CONFIRMED → text-success (matches bg-primary bar)
       // CANCELLED → text-destructive (matches bg-destructive bar)
       // COMPLETADA → text-muted-foreground (matches bg-muted bar)
-      expect(container.querySelectorAll(".text-info").length).toBeGreaterThan(0);
+      expect(container.querySelectorAll(".text-warning").length).toBeGreaterThan(0);
       expect(container.querySelectorAll(".text-success").length).toBeGreaterThan(0);
       expect(container.querySelectorAll(".text-destructive").length).toBeGreaterThan(0);
       expect(container.querySelectorAll(".text-muted-foreground").length).toBeGreaterThan(0);

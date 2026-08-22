@@ -9,8 +9,10 @@ interface StatusStateEntry {
   opacityClass?: string;
 }
 
+// PENDING → text-warning (Amber Hour) per DESIGN.md:209-212 —
+// "reservas con saldo pendiente" maps to the warning semantic token.
 const STATUS_STATES: StatusStateEntry[] = [
-  { label: "Pendiente", icon: AlertCircle, colorClass: "text-info" },
+  { label: "Pendiente", icon: AlertCircle, colorClass: "text-warning" },
   { label: "Confirmada", icon: CheckCircle2, colorClass: "text-success" },
   { label: "Cancelada", icon: XCircle, colorClass: "text-destructive", labelClass: "line-through" },
   { label: "Completada", icon: CheckCircle2, colorClass: "text-muted-foreground", labelClass: "line-through", opacityClass: "opacity-75" },

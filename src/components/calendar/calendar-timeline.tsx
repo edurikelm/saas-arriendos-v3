@@ -478,9 +478,10 @@ export function CalendarTimeline({ reservations, externalBlocks = [], conflicts 
 
                       // Icon color matches the legend's status color. Uses -foreground variant
                       // when the legend color would clash with the bar bg (red on green, etc).
+                      // PENDING → text-warning per DESIGN.md:209 (Amber Hour = "reservas con saldo pendiente").
                       const iconColorClass =
                         res.status === "PENDING"
-                          ? "text-info"
+                          ? "text-warning"
                           : res.status === "CANCELLED"
                           ? "text-destructive-foreground"
                           : res.status === "COMPLETED"
