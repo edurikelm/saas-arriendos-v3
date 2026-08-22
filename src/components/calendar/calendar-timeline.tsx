@@ -6,7 +6,6 @@ import { es } from "date-fns/locale/es";
 import { ChevronLeft, ChevronRight, Calendar, Home, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { channelColors } from "@/lib/calendar/channel-colors";
-import { getBarTextColor } from "@/lib/calendar/bar-text-color";
 import { getNights } from "@/components/reservations/reservation-status";
 
 interface Payment {
@@ -467,16 +466,18 @@ export function CalendarTimeline({ reservations, externalBlocks = [], conflicts 
                       const ended = isReservationEnded(res);
                       const active = !isCancelled && !ended && isReservationActive(res);
 
-                      // Stitch-style alternation: active (solid property.color) vs upcoming (property.color/10)
-                      // property.color is user-set; luminance helper ensures WCAG AA text contrast (4.5:1).
-                      const barTextColor = getBarTextColor(res.property.color);
+                      // Status-based colors (semantic tokens from Status Color Doctrine).
+                      // property.color is NOT used here — consistent with dashboard occupancy-strip
+                      // which uses a single color per state. Property identity is preserved by the
+                      // sticky property column on the left. Text color uses text-foreground for AA
+                      // contrast on every light/medium bg token here.
                       const barClass = isCancelled
-                        ? "border-border bg-muted text-muted-foreground line-through"
+                        ? "border-destructive/40 bg-destructive text-foreground line-through"
                         : ended
                         ? "border-border bg-muted text-muted-foreground opacity-75 line-through decoration-muted-foreground/60"
-                        : active
-                        ? `border-[var(--brand-secondary)] ${barTextColor}`
-                        : `border-[var(--brand-secondary)]/20 ${barTextColor}`;
+                        : res.status === "PENDING"
+                        ? "border-info/40 bg-info text-foreground"
+                        : "border-primary/40 bg-primary text-foreground";
 
                       return (
                         <button
@@ -487,20 +488,6 @@ export function CalendarTimeline({ reservations, externalBlocks = [], conflicts 
                             left: `${leftOffset * dayWidth + 4}px`,
                             top: "12px",
                             width: `${Math.max(duration * dayWidth - 8, 34)}px`,
-                            backgroundColor: isCancelled || ended
-                              ? undefined
-                              : active
-                              ? res.property.color || "var(--brand-secondary)"
-                              : res.property.color
-                              ? `${res.property.color}1a` // 10% opacity hex
-                              : "var(--brand-secondary)",
-                            borderColor: isCancelled || ended
-                              ? undefined
-                              : active
-                              ? res.property.color || "var(--brand-secondary)"
-                              : res.property.color
-                              ? `${res.property.color}33` // 20% opacity hex
-                              : "var(--brand-secondary)",
                           }}
                           title={`${res.client.name} - ${formatDate(res.startDate)} a ${formatDate(res.endDate)}`}
                         >

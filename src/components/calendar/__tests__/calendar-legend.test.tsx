@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { CalendarLegend } from "../calendar-legend";
 
 describe("CalendarLegend", () => {
-  describe("bar state entries (icon-based, mirrors statusConfig in calendar-timeline.tsx)", () => {
+  describe("bar state entries (icon + semantic color, mirrors bar bg)", () => {
     it("renders 4 status state entries", () => {
       render(<CalendarLegend />);
       const states = ["Pendiente", "Confirmada", "Cancelada", "Completada"];
@@ -24,6 +24,31 @@ describe("CalendarLegend", () => {
         const svg = entry.querySelector("svg");
         expect(svg).not.toBeNull();
       });
+    });
+
+    it("status icons carry the semantic color class that mirrors the bar bg", () => {
+      const { container } = render(<CalendarLegend />);
+      // PENDING → text-info (matches bg-info bar)
+      // CONFIRMED → text-success (matches bg-primary bar)
+      // CANCELLED → text-destructive (matches bg-destructive bar)
+      // COMPLETADA → text-muted-foreground (matches bg-muted bar)
+      expect(container.querySelectorAll(".text-info").length).toBeGreaterThan(0);
+      expect(container.querySelectorAll(".text-success").length).toBeGreaterThan(0);
+      expect(container.querySelectorAll(".text-destructive").length).toBeGreaterThan(0);
+      expect(container.querySelectorAll(".text-muted-foreground").length).toBeGreaterThan(0);
+    });
+
+    it("CANCELLED and COMPLETADA labels carry line-through (mirrors bar visual)", () => {
+      const { container } = render(<CalendarLegend />);
+      const labelsWithStrikethrough = container.querySelectorAll(".line-through");
+      // At least 2 labels should have line-through (CANCELLED + COMPLETADA)
+      expect(labelsWithStrikethrough.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("COMPLETADA entry has opacity-75 wrapper (mirrors bar opacity treatment)", () => {
+      const { container } = render(<CalendarLegend />);
+      const opacity75 = container.querySelectorAll(".opacity-75");
+      expect(opacity75.length).toBeGreaterThanOrEqual(1);
     });
 
     it("does not use rounded-full on any legend element (Calm Water Rule)", () => {

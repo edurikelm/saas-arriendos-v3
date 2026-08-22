@@ -1,12 +1,20 @@
 import { AlertCircle, CheckCircle2, XCircle } from "lucide-react";
 import { channelColors } from "@/lib/calendar/channel-colors";
 
-const STATUS_STATES = [
-  { label: "Pendiente", icon: AlertCircle, colorClass: "text-muted-foreground" },
+interface StatusStateEntry {
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  colorClass: string;
+  labelClass?: string;
+  opacityClass?: string;
+}
+
+const STATUS_STATES: StatusStateEntry[] = [
+  { label: "Pendiente", icon: AlertCircle, colorClass: "text-info" },
   { label: "Confirmada", icon: CheckCircle2, colorClass: "text-success" },
-  { label: "Cancelada", icon: XCircle, colorClass: "text-destructive" },
-  { label: "Completada", icon: CheckCircle2, colorClass: "text-muted-foreground" },
-] as const;
+  { label: "Cancelada", icon: XCircle, colorClass: "text-destructive", labelClass: "line-through" },
+  { label: "Completada", icon: CheckCircle2, colorClass: "text-muted-foreground", labelClass: "line-through", opacityClass: "opacity-75" },
+];
 
 const CHANNELS = [
   { letter: "A", label: "Airbnb", dotClass: channelColors.AIRBNB.dotClass },
@@ -25,22 +33,24 @@ export function CalendarLegend({ showChannels = false }: CalendarLegendProps) {
       className="flex flex-wrap items-center gap-x-4 gap-y-1.5"
       aria-label="Leyenda del calendario"
     >
-      {/* Reservation bar states — icons match the StatusIcon rendered inside each bar */}
+      {/* Reservation bar states — icon color mirrors the bar background color */}
       <div className="flex items-center gap-x-3 gap-y-1">
         <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
           Estado
         </span>
         <div className="flex items-center gap-x-2">
-          {STATUS_STATES.map(({ label, icon: Icon, colorClass }) => (
+          {STATUS_STATES.map(({ label, icon: Icon, colorClass, labelClass, opacityClass }) => (
             <div
               key={label}
-              className="inline-flex items-center gap-1"
+              className={`inline-flex items-center gap-1 ${opacityClass ?? ""}`}
             >
               <Icon
                 className={`h-3 w-3 shrink-0 ${colorClass}`}
                 aria-hidden="true"
               />
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              <span
+                className={`text-[10px] font-bold uppercase tracking-wider text-muted-foreground ${labelClass ?? ""}`}
+              >
                 {label}
               </span>
             </div>
