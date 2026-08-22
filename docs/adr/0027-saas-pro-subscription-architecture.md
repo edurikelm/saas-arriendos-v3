@@ -167,7 +167,16 @@ Constraint `userId @unique` en `Subscription`. Si un owner cancela y luego quier
 - Mantiene el historial en una sola fila (más simple de consultar).
 - Permite `listSubscriptionEvents` para auditar todo el ciclo de vida.
 
-**Excepción:** si la `Subscription` ya pasó a `EXPIRED` (más de 1 ciclo cerrado), se crea una nueva fila para empezar de cero. Esta lógica vive en `startProUpgrade()`.
+**Excepción (EXPIRED / FAILED — Issue #225):** cuando el owner intenta reactivarse desde estado `EXPIRED` o `FAILED`, `startProUpgrade()` ejecuta dentro de una transacción atómica:
+1. Borra los `SubscriptionEvent` de la fila vieja (FK `RESTRICT` lo exige).
+2. Hard-delete la fila `Subscription` vieja.
+3. Crea la nueva fila `Subscription(PENDING)` vía `applySubscriptionEvent({ type: "created" }, tx)`.
+
+El `AdminActionLog` con action `SUBSCRIPTION_REPLACED` registra el reemplazo (`adminId = userId` del owner, no un placeholder del sistema).
+
+Si el delete o el create falla, la transacción entera aborta → la fila vieja se mantiene intacta y el owner recibe error. Esto es failure-safe: nunca perdemos la fila EXPIRED sin haber creado el reemplazo.
+
+La búsqueda del downgrade snapshot para restaurar recursos externos en la reactivación usa `userId` (no `subscriptionId`) — esto es independiente del replace porque el snapshot se registra en `SubscriptionEvent.payload.downgradeSnapshot` del evento `expired`/`expired_check`, que sobrevive al delete de la fila (los eventos se borran primero, y el snapshot se busca por `userId`). Ver ADR-0027 §5 para el detalle de restauración.
 
 ## Consecuencias
 

@@ -14,8 +14,8 @@
  * - `userId @unique`: 1 owner = 1 subscription activa.
  * - Si la subscription está CANCELLED y no expiró, `reactivateMySubscription`
  *   reactiva la misma fila (no se crea nueva).
- * - Si la subscription está EXPIRED, se debe crear una fila nueva
- *   (`startProUpgrade` lo maneja).
+ * - Si la subscription está EXPIRED o FAILED, `startProUpgrade` ejecuta
+ *   delete+create dentro de una transacción atómica (ADR-0027 §9).
  */
 
 import { requireOwner } from "@/lib/auth/guards";
@@ -52,11 +52,13 @@ export async function getCurrentSubscriptionAction() {
 /**
  * Inicia el flujo de upgrade a PRO.
  *
- * 1. Verifica que no tenga subscription activa (o que esté EXPIRED).
- * 2. Crea `Subscription(PENDING)` vía `applySubscriptionEvent("created")`.
- * 3. Obtiene `planId` de MP vía `ensurePlan()`.
- * 4. Crea el preapproval en MP y obtiene `initPoint`.
- * 5. Actualiza la subscription con los IDs de MP y fechas.
+ * 1. Pre-check: verifica que no tenga subscription activa.
+ * 2. Dentro de tx: si EXPIRED/FAILED existe → delete eventos + hard-delete la fila.
+ * 3. Crea `Subscription(PENDING)` vía `applySubscriptionEvent("created", tx)`.
+ * 4. Post-commit: registra `AdminActionLog.SUBSCRIPTION_REPLACED`.
+ * 5. Obtiene `planId` de MP vía `ensurePlan()`.
+ * 6. Crea el preapproval en MP y obtiene `initPoint`.
+ * 7. Actualiza la subscription con los IDs de MP y fechas.
  *
  * El plan se activa cuando MP envía el webhook "authorized".
  */
@@ -67,7 +69,7 @@ export async function startProUpgrade(): Promise<{
   const session = await requireOwner();
   const { userId, email } = session;
 
-  // Verificar subscription existente
+  // Pre-check (existente, fuera de tx — solo bloquea casos no elegibles)
   const existing = await getCurrentSubscription(userId);
 
   if (existing) {
@@ -82,31 +84,83 @@ export async function startProUpgrade(): Promise<{
       });
       throw new Error(`Tu suscripción PRO sigue activa hasta ${endDate}`);
     }
-    // Si CANCELLED + expirada o FAILED/EXPIRED → se permite crear nueva
-    // (el constraint userId@unique se maneja via delete o reuso de fila)
   }
 
-  // Crear subscription PENDING
-  const { subscription } = await applySubscriptionEvent({
-    type: "created",
-    userId,
-    payload: { initiatedBy: "owner", email },
-  });
+  // ── REEMPLAZAR: dentro de tx, si existe fila EXPIRED/FAILED → delete + create ──
+  // (mover el try/catch interno al bloque tx para atomicidad)
+
+  let subscription: import("@prisma/client").Subscription;
+  let replacedSubscriptionId: string | null = null;
 
   try {
-    // Obtener planId de MP
+    const result = await prisma.$transaction(async (tx) => {
+      // Re-check dentro de tx (doble-click concurrente: puede que la fila ya no exista)
+      const fresh = await tx.subscription.findUnique({ where: { userId } });
+
+      if (fresh && (fresh.status === "EXPIRED" || fresh.status === "FAILED")) {
+        // Borrar eventos de la subscription vieja (FK RESTRICT lo exige)
+        await tx.subscriptionEvent.deleteMany({
+          where: { subscriptionId: fresh.id },
+        });
+        // Hard delete la fila vieja
+        await tx.subscription.delete({
+          where: { id: fresh.id },
+        });
+        replacedSubscriptionId = fresh.id;
+      }
+
+      // Crear la nueva subscription PENDING via applySubscriptionEvent
+      // (participa en la tx vía adapter pattern — ver lifecycle.ts:374-384)
+      const { subscription: created } = await applySubscriptionEvent(
+        {
+          type: "created",
+          userId,
+          payload: { initiatedBy: "owner", email },
+        },
+        tx,
+      );
+      return { subscription: created };
+    });
+    subscription = result.subscription;
+  } catch (error) {
+    // Si falla el delete o el create, nada se persiste (rollback automático)
+    console.error("[startProUpgrade] failed to replace existing subscription", error);
+    throw error;
+  }
+
+  // Auditar el reemplazo si ocurrió (FUERA de tx — best-effort)
+  if (replacedSubscriptionId) {
+    try {
+      await prisma.adminActionLog.create({
+        data: {
+          adminId: userId, // owner como actor (no el placeholder "system")
+          targetId: userId,
+          action: "SUBSCRIPTION_REPLACED",
+          details: JSON.stringify({
+            replacedSubscriptionId,
+            newSubscriptionId: subscription.id,
+            reason: "owner_reactivate_from_expired_or_failed",
+          }),
+        },
+      });
+    } catch (error) {
+      console.error("[startProUpgrade] failed to record SUBSCRIPTION_REPLACED log", error);
+      // No-op: el reemplazo ocurrió, solo perdimos la auditoría
+    }
+  }
+
+  // ── Continuar con MP (idéntico al código actual) ──
+  try {
     const { planId } = await getProGateway().ensurePlan();
 
-    // Crear preapproval en MP
     const { preapprovalId, initPoint } = await getProGateway().createPreapproval({
       userId,
       payerEmail: email,
       planId,
     });
 
-    // Actualizar subscription con datos de MP
     const now = new Date();
-    const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // sandbox: +1 mes
+    const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
     await prisma.subscription.update({
       where: { id: subscription.id },
@@ -123,14 +177,10 @@ export async function startProUpgrade(): Promise<{
 
     return { initPoint, subscriptionId: subscription.id };
   } catch (error) {
-    // Si falla la creación del preapproval o el update, limpiar la subscription PENDING huérfana
-    // para evitar que el owner quede bloqueado por el constraint userId @unique.
+    // Si falla la creación del preapproval, limpiar la subscription PENDING huérfana
     await prisma.subscription.delete({
       where: { id: subscription.id },
-    }).catch(() => {
-      // Si el delete también falla (raro), noop. El owner podrá intentar de nuevo
-      // y `getActiveSubscription` bloqueará el doble intento via la validación previa.
-    });
+    }).catch(() => {});
     throw error;
   }
 }

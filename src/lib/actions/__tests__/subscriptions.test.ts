@@ -22,8 +22,10 @@ const mocks = vi.hoisted(() => ({
   subscriptionFindFirst: vi.fn(),
   subscriptionCreate: vi.fn(),
   subscriptionUpdate: vi.fn(),
+  subscriptionDelete: vi.fn(),
   subscriptionEventCreate: vi.fn(),
   subscriptionEventFindFirst: vi.fn(),
+  subscriptionEventDeleteMany: vi.fn(),
   propertyCount: vi.fn(),
   reservationClientCount: vi.fn(),
   userProfileFindUnique: vi.fn(),
@@ -37,10 +39,12 @@ const mocks = vi.hoisted(() => ({
         findFirst: mocks.subscriptionFindFirst,
         create: mocks.subscriptionCreate,
         update: mocks.subscriptionUpdate,
+        delete: mocks.subscriptionDelete,
       },
       subscriptionEvent: {
         create: mocks.subscriptionEventCreate,
         findFirst: mocks.subscriptionEventFindFirst,
+        deleteMany: mocks.subscriptionEventDeleteMany,
       },
       userProfile: {
         findUnique: mocks.userProfileFindUnique,
@@ -66,10 +70,12 @@ vi.mock("@/lib/db/prisma", () => ({
       findFirst: mocks.subscriptionFindFirst,
       create: mocks.subscriptionCreate,
       update: mocks.subscriptionUpdate,
+      delete: mocks.subscriptionDelete,
     },
     subscriptionEvent: {
       create: mocks.subscriptionEventCreate,
       findFirst: mocks.subscriptionEventFindFirst,
+      deleteMany: mocks.subscriptionEventDeleteMany,
     },
     userProfile: {
       findUnique: mocks.userProfileFindUnique,
@@ -176,7 +182,7 @@ import {
 // ────────────────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
   mocks.requireOwner.mockResolvedValue(mockSession);
 });
 
@@ -230,6 +236,199 @@ describe("startProUpgrade", () => {
     );
 
     await expect(startProUpgrade()).rejects.toThrow(/sigue activa hasta/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// startProUpgrade — replace EXPIRED/FAILED
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("startProUpgrade — replace EXPIRED/FAILED", () => {
+  // Helper para setup base de upgrade exitoso
+  // Usa mockReturnValueOnce en vez de mockResolvedValue para evitar
+  // contaminación entre tests (vi.clearAllMocks no limpia valores de retorno).
+  const setupUpgradeSuccess = (existingSub: Partial<MockSub> = {}) => {
+    const newSub = mockSub({ id: "sub-new", status: "PENDING" });
+    mocks.subscriptionFindUnique.mockResolvedValueOnce(mockSub(existingSub));
+    mocks.subscriptionEventDeleteMany.mockResolvedValueOnce({ count: 2 });
+    mocks.subscriptionDelete.mockResolvedValueOnce(mockSub(existingSub));
+    mocks.subscriptionCreate.mockResolvedValueOnce(newSub);
+    mocks.subscriptionEventCreate.mockResolvedValueOnce({});
+    mocks.ensurePlan.mockResolvedValueOnce({ planId: "plan-123" });
+    mocks.createPreapproval.mockResolvedValueOnce({
+      preapprovalId: "preapproval-123",
+      initPoint: "https://mercadopago.com/init",
+    });
+    mocks.subscriptionUpdate.mockResolvedValueOnce(newSub);
+    mocks.adminActionLogCreate.mockResolvedValueOnce({});
+    return newSub;
+  };
+
+  it("EXPIRED → upgrade succeeds: delete events + delete old sub + create new PENDING", async () => {
+    setupUpgradeSuccess({ id: "sub-old", status: "EXPIRED" });
+
+    const result = await startProUpgrade();
+
+    expect(result.subscriptionId).toBe("sub-new");
+    // FK RESTRICT → primero se borran los eventos
+    expect(mocks.subscriptionEventDeleteMany).toHaveBeenCalledWith({
+      where: { subscriptionId: "sub-old" },
+    });
+    // Luego se borra la fila vieja
+    expect(mocks.subscriptionDelete).toHaveBeenCalledWith({
+      where: { id: "sub-old" },
+    });
+    // Nueva subscription creada
+    expect(mocks.subscriptionCreate).toHaveBeenCalled();
+    // AdminActionLog registrado
+    expect(mocks.adminActionLogCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        adminId: "user-1",
+        targetId: "user-1",
+        action: "SUBSCRIPTION_REPLACED",
+        details: expect.stringContaining("sub-old"),
+      }),
+    });
+  });
+
+  it("FAILED → upgrade succeeds: same as EXPIRED", async () => {
+    setupUpgradeSuccess({ id: "sub-old", status: "FAILED" });
+
+    const result = await startProUpgrade();
+
+    expect(result.subscriptionId).toBe("sub-new");
+    expect(mocks.subscriptionEventDeleteMany).toHaveBeenCalledWith({
+      where: { subscriptionId: "sub-old" },
+    });
+    expect(mocks.subscriptionDelete).toHaveBeenCalledWith({
+      where: { id: "sub-old" },
+    });
+  });
+
+  it("AUTHORIZED → upgrade attempt blocks (regression)", async () => {
+    mocks.subscriptionFindFirst.mockResolvedValue(
+      mockSub({ status: "AUTHORIZED" }),
+    );
+
+    await expect(startProUpgrade()).rejects.toThrow("Ya tienes PRO activo");
+    expect(mocks.subscriptionEventDeleteMany).not.toHaveBeenCalled();
+    expect(mocks.subscriptionDelete).not.toHaveBeenCalled();
+    expect(mocks.subscriptionCreate).not.toHaveBeenCalled();
+  });
+
+  it("PAUSED → upgrade attempt blocks (regression)", async () => {
+    mocks.subscriptionFindFirst.mockResolvedValue(
+      mockSub({ status: "PAUSED" }),
+    );
+
+    await expect(startProUpgrade()).rejects.toThrow("Ya tienes PRO activo");
+    expect(mocks.subscriptionEventDeleteMany).not.toHaveBeenCalled();
+    expect(mocks.subscriptionDelete).not.toHaveBeenCalled();
+    expect(mocks.subscriptionCreate).not.toHaveBeenCalled();
+  });
+
+  it("CANCELLED-vigente → upgrade attempt blocks (regression)", async () => {
+    const futureDate = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
+    mocks.subscriptionFindFirst.mockResolvedValue(
+      mockSub({ status: "CANCELLED", currentPeriodEnd: futureDate }),
+    );
+
+    await expect(startProUpgrade()).rejects.toThrow(/sigue activa hasta/);
+    expect(mocks.subscriptionEventDeleteMany).not.toHaveBeenCalled();
+    expect(mocks.subscriptionDelete).not.toHaveBeenCalled();
+    expect(mocks.subscriptionCreate).not.toHaveBeenCalled();
+  });
+
+  it("FREE puro → upgrade succeeds (regression)", async () => {
+    // No existe subscription para el user
+    mocks.subscriptionFindFirst.mockResolvedValue(null);
+    mocks.subscriptionFindUnique.mockResolvedValue(null);
+    mocks.subscriptionEventDeleteMany.mockResolvedValue({ count: 0 });
+    mocks.subscriptionDelete.mockResolvedValue(null);
+    mocks.subscriptionCreate.mockResolvedValue(mockSub({ id: "sub-new", status: "PENDING" }));
+    mocks.subscriptionEventCreate.mockResolvedValue({});
+    mocks.ensurePlan.mockResolvedValue({ planId: "plan-123" });
+    mocks.createPreapproval.mockResolvedValue({
+      preapprovalId: "preapproval-123",
+      initPoint: "https://mercadopago.com/init",
+    });
+    mocks.subscriptionUpdate.mockResolvedValue(
+      mockSub({ id: "sub-new", mpPreapprovalId: "preapproval-123" }),
+    );
+    // AdminActionLog NO debe llamarse cuando no hay reemplazo
+    mocks.adminActionLogCreate.mockResolvedValue({});
+
+    const result = await startProUpgrade();
+
+    expect(result.subscriptionId).toBe("sub-new");
+    expect(mocks.subscriptionEventDeleteMany).not.toHaveBeenCalled();
+    expect(mocks.subscriptionDelete).not.toHaveBeenCalled();
+    expect(mocks.adminActionLogCreate).not.toHaveBeenCalled();
+  });
+
+  it("Atomicidad: si applySubscriptionEvent falla, la subscription vieja sigue existiendo (rollback)", async () => {
+    const oldSub = mockSub({ id: "sub-old", status: "EXPIRED" });
+    mocks.subscriptionFindUnique.mockResolvedValue(oldSub);
+    mocks.subscriptionEventDeleteMany.mockResolvedValue({ count: 2 });
+    mocks.subscriptionDelete.mockResolvedValue(oldSub);
+    // applySubscriptionEvent dentro de tx rechaza
+    mocks.subscriptionCreate.mockRejectedValue(new Error("Unique constraint violation"));
+
+    await expect(startProUpgrade()).rejects.toThrow("Unique constraint violation");
+    // El delete de la vieja NO persistó porque estaba dentro del tx que abortó
+    // ( mocks.subscriptionDelete fue llamado pero el tx hizo rollback )
+    expect(mocks.subscriptionEventDeleteMany).toHaveBeenCalled();
+    expect(mocks.subscriptionDelete).toHaveBeenCalled();
+  });
+
+  it("AdminActionLog SUBSCRIPTION_REPLACED contiene replacedSubscriptionId + newSubscriptionId en JSON", async () => {
+    setupUpgradeSuccess({ id: "sub-old", status: "EXPIRED" });
+
+    await startProUpgrade();
+
+    expect(mocks.adminActionLogCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        adminId: "user-1",
+        targetId: "user-1",
+        action: "SUBSCRIPTION_REPLACED",
+        details: expect.stringContaining("sub-old"),
+      }),
+    });
+    const details = JSON.parse(
+      mocks.adminActionLogCreate.mock.calls[0][0].data.details,
+    );
+    expect(details.replacedSubscriptionId).toBe("sub-old");
+    expect(details.newSubscriptionId).toBe("sub-new");
+    expect(details.reason).toBe("owner_reactivate_from_expired_or_failed");
+  });
+
+  it("Doble-click concurrente: re-check dentro de tx evita delete si la fila ya no existe", async () => {
+    // Primer llamada: la fila existe → se borra
+    // Segundo llamada (simulada): la fila ya no existe → re-check la encuentra null → skip delete
+    const newSub = mockSub({ id: "sub-new", status: "PENDING" });
+
+    // subscriptionFindUnique retorna null en la re-check dentro de tx
+    // (la fila fue borrada por la primera llamada en el mismo test)
+    mocks.subscriptionFindUnique
+      .mockResolvedValueOnce(null) // pre-check (getCurrentSubscription) → no hay sub activa
+      .mockResolvedValueOnce(null); // re-check dentro de tx → la fila ya no existe
+    mocks.subscriptionEventDeleteMany.mockResolvedValue({ count: 0 });
+    mocks.subscriptionDelete.mockResolvedValue(null);
+    mocks.subscriptionCreate.mockResolvedValue(newSub);
+    mocks.subscriptionEventCreate.mockResolvedValue({});
+    mocks.ensurePlan.mockResolvedValue({ planId: "plan-123" });
+    mocks.createPreapproval.mockResolvedValue({
+      preapprovalId: "preapproval-123",
+      initPoint: "https://mercadopago.com/init",
+    });
+    mocks.subscriptionUpdate.mockResolvedValue(newSub);
+
+    const result = await startProUpgrade();
+
+    expect(result.subscriptionId).toBe("sub-new");
+    // No se intentó delete porque fresh === null dentro de tx
+    expect(mocks.subscriptionDelete).not.toHaveBeenCalled();
+    expect(mocks.subscriptionEventDeleteMany).not.toHaveBeenCalled();
   });
 });
 
