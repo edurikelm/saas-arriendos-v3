@@ -466,18 +466,36 @@ export function CalendarTimeline({ reservations, externalBlocks = [], conflicts 
                       const ended = isReservationEnded(res);
                       const active = !isCancelled && !ended && isReservationActive(res);
 
-                      // Status-based colors (semantic tokens from Status Color Doctrine).
-                      // property.color is NOT used here — consistent with dashboard occupancy-strip
-                      // which uses a single color per state. Property identity is preserved by the
-                      // sticky property column on the left. Text color uses text-foreground for AA
-                      // contrast on every light/medium bg token here.
+                      // Dashboard-matching pattern for upcoming (light green tint, green border + text)
+                      // and active (solid green + white text). Status Doctrine for terminal states.
                       const barClass = isCancelled
-                        ? "border-destructive/40 bg-destructive text-foreground line-through"
+                        ? "border-destructive/40 bg-destructive text-destructive-foreground line-through"
                         : ended
-                        ? "border-border bg-muted text-muted-foreground opacity-75 line-through decoration-muted-foreground/60"
-                        : res.status === "PENDING"
-                        ? "border-info/40 bg-info text-foreground"
-                        : "border-primary/40 bg-primary text-foreground";
+                        ? "border-border bg-muted text-foreground opacity-75 line-through decoration-muted-foreground/60"
+                        : active
+                        ? "border-primary/30 bg-primary text-primary-foreground"
+                        : "border-primary/20 bg-primary/10 text-primary"; // PENDING + CONFIRMED upcoming
+
+                      // Icon color matches the legend's status color. Uses -foreground variant
+                      // when the legend color would clash with the bar bg (red on green, etc).
+                      const iconColorClass =
+                        res.status === "PENDING"
+                          ? "text-info"
+                          : res.status === "CANCELLED"
+                          ? "text-destructive-foreground"
+                          : res.status === "COMPLETED"
+                          ? "text-foreground" // darker for AA with opacity-75
+                          : active
+                          ? "text-success-foreground" // dark green on solid green (visible)
+                          : "text-success"; // CONFIRMED upcoming on light green
+
+                      // Badge "Nn" — adapts to bar bg for color cohesion
+                      const badgeClass =
+                        isCancelled || ended
+                          ? "bg-white/20 text-foreground"
+                          : active
+                          ? "bg-white/20 text-primary-foreground"
+                          : "bg-primary/20 text-primary";
 
                       return (
                         <button
@@ -491,9 +509,9 @@ export function CalendarTimeline({ reservations, externalBlocks = [], conflicts 
                           }}
                           title={`${res.client.name} - ${formatDate(res.startDate)} a ${formatDate(res.endDate)}`}
                         >
-                          <StatusIcon className="h-3.5 w-3.5 shrink-0 opacity-90" />
+                          <StatusIcon className={`h-3.5 w-3.5 shrink-0 opacity-90 ${iconColorClass}`} />
                           <span className="min-w-0 flex-1 truncate font-semibold">{res.client.name}</span>
-                          <span className="hidden shrink-0 rounded-sm bg-white/20 px-1.5 py-0.5 font-medium text-foreground sm:inline-flex">
+                          <span className={`hidden shrink-0 rounded-sm px-1.5 py-0.5 font-medium sm:inline-flex ${badgeClass}`}>
                             {getNights(res.startDate, res.endDate)}n
                           </span>
                         </button>
