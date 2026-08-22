@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { ChevronLeft, ChevronRight, Plus, Globe, AlertTriangle, Building2, CalendarCheck, Wallet } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Globe, AlertTriangle, Building2, CalendarCheck, Wallet, Eye, EyeOff } from "lucide-react";
 import { CalendarLegend } from "@/components/calendar/calendar-legend";
 import { addMonths, format, subMonths } from "date-fns";
 import { es } from "date-fns/locale/es";
@@ -53,6 +53,7 @@ interface CalendarViewProps {
   initialReservations: CalendarReservation[];
   initialExternalBlocks?: CalendarExternalBlock[];
   initialShowExternalBlocks?: boolean;
+  initialShowCancelled?: boolean;
   properties: Property[];
   clients: Client[];
   plan?: string;
@@ -62,6 +63,7 @@ export function CalendarView({
   initialReservations,
   initialExternalBlocks = [],
   initialShowExternalBlocks = false,
+  initialShowCancelled = false,
   properties,
   clients,
   plan = "FREE",
@@ -69,6 +71,7 @@ export function CalendarView({
   const [reservations, setReservations] = useState<CalendarReservation[]>(initialReservations);
   const [externalBlocks, setExternalBlocks] = useState<CalendarExternalBlock[]>(initialExternalBlocks);
   const [showExternalBlocks, setShowExternalBlocks] = useState<boolean>(initialShowExternalBlocks);
+  const [showCancelled, setShowCancelled] = useState<boolean>(initialShowCancelled);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>("all");
   const [loading, setLoading] = useState(false);
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
@@ -90,6 +93,21 @@ export function CalendarView({
     }
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }, [showExternalBlocks, searchParamsHook, router, pathname]);
+
+  // Toggle de canceladas — default oculto (modo Operate: lo inactivo reposa).
+  // Persiste en URL (?showCancelled=1) para que el estado sobreviva a refresh
+  // y se pueda compartir. Mismo patrón que handleToggleExternalBlocks.
+  const handleToggleCancelled = useCallback(() => {
+    const next = !showCancelled;
+    setShowCancelled(next);
+    const params = new URLSearchParams(searchParamsHook.toString());
+    if (next) {
+      params.set("showCancelled", "1");
+    } else {
+      params.delete("showCancelled");
+    }
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [showCancelled, searchParamsHook, router, pathname]);
 
   const fetchReservations = useCallback(async () => {
     setLoading(true);
@@ -153,11 +171,30 @@ export function CalendarView({
 
   const dailyReservations = reservations.filter((r) => r.billingType === "DAILY");
 
-  // Compute conflicts between reservations and external blocks
+  // Canceladas ocultas por default (modo Operate: el timeline refleja estado vigente,
+  // no archivo histórico). El toggle `showCancelled` permite verlas bajo demanda.
+  // El conteo se calcula siempre (sin filtrar) para alimentar el sublabel "X canceladas
+  // ocultas" y el contador del toggle.
+  const cancelledCount = useMemo(
+    () => dailyReservations.filter((r) => r.status === "CANCELLED").length,
+    [dailyReservations],
+  );
+  const visibleDailyReservations = useMemo(
+    () =>
+      showCancelled
+        ? dailyReservations
+        : dailyReservations.filter((r) => r.status !== "CANCELLED"),
+    [dailyReservations, showCancelled],
+  );
+
+  // Compute conflicts entre reservas VISIBLES y bloqueos externos. Cuando una reserva
+  // cancelada se oculta del timeline, los días donde solo ella generaba conflicto con
+  // un bloqueo externo dejan de marcarse con dot ámbar — coherente con que la cancelación
+  // libera ese día y el bloqueo externo pasa a ser el ocupante real sin conflicto.
   const conflicts = useMemo(() => {
     if (!showExternalBlocks) return new Set<string>();
-    return computeConflictDates(reservations, externalBlocks);
-  }, [reservations, externalBlocks, showExternalBlocks]);
+    return computeConflictDates(visibleDailyReservations, externalBlocks);
+  }, [visibleDailyReservations, externalBlocks, showExternalBlocks]);
 
   // KPIs (Stitch "Calendario de Ocupación" — 4 cards)
   const monthStart = useMemo(() => new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1), [currentMonth]);
@@ -271,6 +308,22 @@ export function CalendarView({
           <p className="text-xs text-muted-foreground">
             Gestiona la disponibilidad de tus unidades en tiempo real.
           </p>
+          {/* Sublabel: comunica cuántas canceladas están ocultas (solo cuando hay
+              canceladas en el mes y el toggle está apagado). Evita que el owner se
+              pregunte por qué el timeline no cuadra con "Ocupación Media".
+              data-testid facilita el targeting en tests; aria-label es la versión
+              accesible para screen readers. */}
+          {cancelledCount > 0 && !showCancelled && (
+            <p
+              data-testid="cancelled-sublabel"
+              aria-label={`${cancelledCount} reserva${cancelledCount === 1 ? "" : "s"} cancelada${cancelledCount === 1 ? "" : "s"} oculta${cancelledCount === 1 ? "" : "s"}`}
+              className="mt-1 text-[10px] font-medium text-muted-foreground/80"
+            >
+              <span className="tabular-nums">{cancelledCount}</span>{" "}
+              reserva{cancelledCount === 1 ? "" : "s"} cancelada{cancelledCount === 1 ? "" : "s"}{" "}
+              oculta{cancelledCount === 1 ? "" : "s"} · activa el toggle para ver
+            </p>
+          )}
         </div>
       </div>
 
@@ -328,7 +381,7 @@ export function CalendarView({
       <div className="flex flex-wrap items-center justify-between gap-3">
         {/* Sección izquierda: filtro del calendario */}
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center overflow-hidden rounded-lg border">
+          <div className="flex h-8 items-center overflow-hidden rounded-lg border">
             <Button
               variant="ghost"
               size="icon"
@@ -353,12 +406,41 @@ export function CalendarView({
           </div>
           <Button
             variant="outline"
-            size="sm"
+            size="default"
             className="h-8 px-3 text-[10px] font-bold uppercase tracking-wider"
             onClick={() => setCurrentMonth(new Date())}
           >
             Hoy
           </Button>
+          {/* Toggle de canceladas — default oculto (modo Operate).
+              Solo se muestra cuando hay canceladas en el mes; sin canceladas
+              no hay nada que filtrar. Estado se persiste en URL. */}
+          {cancelledCount > 0 && (
+            <Button
+              variant="ghost"
+              size="default"
+              aria-pressed={showCancelled}
+              aria-label={
+                showCancelled
+                  ? "Ocultar reservas canceladas"
+                  : `Mostrar ${cancelledCount} reserva${cancelledCount === 1 ? "" : "s"} cancelada${cancelledCount === 1 ? "" : "s"}`
+              }
+              onClick={handleToggleCancelled}
+              className={`h-8 rounded-md border px-3 text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                showCancelled
+                  ? "border-destructive/30 bg-destructive/10 text-destructive"
+                  : "border-border bg-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {showCancelled ? (
+                <EyeOff className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              ) : (
+                <Eye className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              )}
+              <span className="tabular-nums">{cancelledCount}</span>
+              <span className="hidden sm:inline">cancelada{cancelledCount === 1 ? "" : "s"}</span>
+            </Button>
+          )}
         </div>
 
         {/* Sección derecha: acciones */}
@@ -389,7 +471,7 @@ export function CalendarView({
           <CalendarTimeline
             selectedPropertyId={selectedPropertyId}
             properties={properties}
-            reservations={dailyReservations.map((r) => ({
+            reservations={visibleDailyReservations.map((r) => ({
               ...r,
               propertyId: r.property.id,
               clientId: "",

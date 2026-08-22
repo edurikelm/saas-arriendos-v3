@@ -5,12 +5,13 @@ import { getSession } from "@/lib/auth/session";
 import { CalendarView } from "@/components/calendar/calendar-view";
 
 interface CalendarPageProps {
-  searchParams: Promise<{ showExternalBlocks?: string }>;
+  searchParams: Promise<{ showExternalBlocks?: string; showCancelled?: string }>;
 }
 
 export default async function CalendarPage({ searchParams }: CalendarPageProps) {
   const params = await searchParams;
   const showExternalBlocks = params.showExternalBlocks === "1";
+  const showCancelled = params.showCancelled === "1";
 
   const [session, properties, clientsResult, reservations, externalBlocks] = await Promise.all([
     getSession(),
@@ -35,6 +36,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
       initialReservations={reservations}
       initialExternalBlocks={externalBlocks}
       initialShowExternalBlocks={showExternalBlocks}
+      initialShowCancelled={showCancelled}
       plan={session?.plan ?? "FREE"}
       properties={properties.map((p) => ({
         id: p.id,
