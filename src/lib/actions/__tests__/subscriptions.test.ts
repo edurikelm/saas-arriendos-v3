@@ -184,6 +184,12 @@ import {
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.requireOwner.mockResolvedValue(mockSession);
+  // Defaults: los mocks usados con .catch() en el código de producción
+  // (prisma.subscription.delete, adminActionLog.create) necesitan retornar
+  // Promise. Sin esto, vi.resetAllMocks() borra la implementación default
+  // y .catch() falla con "Cannot read properties of undefined".
+  mocks.subscriptionDelete.mockResolvedValue({} as never);
+  mocks.adminActionLogCreate.mockResolvedValue({} as never);
 });
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -429,6 +435,100 @@ describe("startProUpgrade — replace EXPIRED/FAILED", () => {
     // No se intentó delete porque fresh === null dentro de tx
     expect(mocks.subscriptionDelete).not.toHaveBeenCalled();
     expect(mocks.subscriptionEventDeleteMany).not.toHaveBeenCalled();
+  });
+
+  it("CANCELLED + currentPeriodEnd=null: bloquea por safety (dato legacy)", async () => {
+    // Edge case: subscription legacy sin currentPeriodEnd seteada.
+    // Sin este guard, el owner podría perder acceso inadvertidamente.
+    mocks.subscriptionFindFirst.mockResolvedValue(
+      mockSub({ status: "CANCELLED", currentPeriodEnd: null }),
+    );
+
+    await expect(startProUpgrade()).rejects.toThrow(
+      /sigue activa hasta/i,
+    );
+    expect(mocks.subscriptionDelete).not.toHaveBeenCalled();
+  });
+
+  it("CANCELLED + currentPeriodEnd en el pasado: replace (regresión post-fix)", async () => {
+    // CANCELLED-expirado llega al tx; antes del fix esto causaba P2002.
+    const past = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const cancelledExpired = mockSub({
+      status: "CANCELLED",
+      currentPeriodEnd: past,
+      id: "sub-cancelled-expired",
+    });
+    // Pre-check retorna CANCELLED-expirado. getActiveSubscription dentro del tx
+    // filtra status IN (PENDING/AUTHORIZED,PAUSED) — CANCELLED no calza → null.
+    mocks.subscriptionFindFirst.mockImplementation((args: any) => {
+      const allowed = args?.where?.status?.in ?? [];
+      if (!allowed.includes("CANCELLED")) return Promise.resolve(null);
+      return Promise.resolve(cancelledExpired);
+    });
+    mocks.subscriptionFindUnique.mockResolvedValue(cancelledExpired);
+    mocks.subscriptionCreate.mockResolvedValue(
+      mockSub({ id: "sub-new", status: "PENDING" }),
+    );
+    mocks.subscriptionUpdate.mockResolvedValue(
+      mockSub({ id: "sub-new", status: "PENDING" }),
+    );
+    mocks.ensurePlan.mockResolvedValue({ planId: "plan-123" });
+    mocks.createPreapproval.mockResolvedValue({
+      preapprovalId: "preapproval-123",
+      initPoint: "https://mp.example.com/init",
+    });
+
+    const result = await startProUpgrade();
+    expect(result.subscriptionId).toBe("sub-new");
+    // El replace ocurrió: se borró la CANCELLED-expirado
+    expect(mocks.subscriptionDelete).toHaveBeenCalledWith({ where: { id: "sub-cancelled-expired" } });
+  });
+
+  it("AdminActionLog failure post-tx NO afecta el return de startProUpgrade", async () => {
+    // AdminActionLog es best-effort. Si falla, el owner sigue viendo su nueva subscription.
+    const expired = mockSub({ id: "sub-old", status: "EXPIRED" });
+    mocks.subscriptionFindFirst.mockImplementation((args: any) => {
+      const allowed = args?.where?.status?.in ?? [];
+      // getCurrentSubscription NO filtra status — siempre retorna si existe.
+      // getActiveSubscription filtra (PENDING/AUTHORIZED/PAUSED) — EXPIRED no calza → null.
+      if (!allowed.includes("EXPIRED") && !allowed.includes("CANCELLED")) {
+        // Cuando es getActiveSubscription (filtro estricto), EXPIRED no está → null
+        return Promise.resolve(null);
+      }
+      return Promise.resolve(expired);
+    });
+    mocks.subscriptionFindUnique.mockResolvedValue(expired);
+    mocks.subscriptionCreate.mockResolvedValue(
+      mockSub({ id: "sub-new", status: "PENDING" }),
+    );
+    mocks.subscriptionUpdate.mockResolvedValue(
+      mockSub({ id: "sub-new", status: "PENDING" }),
+    );
+    mocks.ensurePlan.mockResolvedValue({ planId: "plan-123" });
+    mocks.createPreapproval.mockResolvedValue({
+      preapprovalId: "preapproval-123",
+      initPoint: "https://mp.example.com/init",
+    });
+    // Preapproval OK pero adminActionLog falla
+    mocks.adminActionLogCreate.mockRejectedValue(new Error("Audit service down"));
+
+    // No debe throw — el best-effort logging no aborta la acción principal
+    const result = await startProUpgrade();
+    expect(result.subscriptionId).toBe("sub-new");
+    expect(result.initPoint).toBe("https://mp.example.com/init");
+  });
+
+  it("PENDING existente: bloquea con mensaje claro (no cae al tx)", async () => {
+    // Segundo click del dueño mientras la PENDING inicial aún existe.
+    mocks.subscriptionFindFirst.mockResolvedValue(
+      mockSub({ status: "PENDING" }),
+    );
+
+    await expect(startProUpgrade()).rejects.toThrow(
+      /pago PRO pendiente/i,
+    );
+    // No se intentó crear nada nuevo
+    expect(mocks.subscriptionCreate).not.toHaveBeenCalled();
   });
 });
 
