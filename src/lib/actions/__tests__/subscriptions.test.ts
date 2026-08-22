@@ -229,6 +229,71 @@ describe("startProUpgrade", () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/settings/billing");
   });
 
+  it("usa nextPaymentDate de MP para currentPeriodEnd cuando MP lo devuelve (#221)", async () => {
+    // MP devuelve next_payment_date en el response de createPreapproval.
+    // Ese valor debe llegar a Subscription.currentPeriodEnd y .nextPaymentDate
+    // (no el placeholder hardcoded de +30d).
+    const mpPeriodEnd = "2026-09-21T10:00:00.000-04:00";
+    const mpPeriodStart = "2026-08-22T10:00:00.000-04:00";
+    mocks.subscriptionFindFirst.mockResolvedValue(null);
+    mocks.subscriptionCreate.mockResolvedValue(mockSub({ id: "sub-new", status: "PENDING" }));
+    mocks.subscriptionEventCreate.mockResolvedValue({});
+    mocks.ensurePlan.mockResolvedValue({ planId: "plan-123" });
+    mocks.createPreapproval.mockResolvedValue({
+      preapprovalId: "preapproval-123",
+      initPoint: "https://mercadopago.com/init",
+      nextPaymentDate: mpPeriodEnd,
+      autoRecurringStartDate: mpPeriodStart,
+    });
+    mocks.subscriptionUpdate.mockResolvedValue(mockSub({ id: "sub-new" }));
+
+    await startProUpgrade();
+
+    expect(mocks.subscriptionUpdate).toHaveBeenCalledWith({
+      where: { id: "sub-new" },
+      data: expect.objectContaining({
+        mpPreapprovalId: "preapproval-123",
+        mpPlanId: "plan-123",
+        currentPeriodStart: new Date(mpPeriodStart),
+        currentPeriodEnd: new Date(mpPeriodEnd),
+        nextPaymentDate: new Date(mpPeriodEnd),
+      }),
+    });
+  });
+
+  it("usa +30d como placeholder cuando MP NO devuelve nextPaymentDate (#221 fallback)", async () => {
+    // Caso raro / respuesta parcial: MP no incluye next_payment_date.
+    // El +30d es solo placeholder hasta el primer webhook "authorized"
+    // (que sobreescribe este valor en lifecycle.ts).
+    const beforeCall = Date.now();
+    mocks.subscriptionFindFirst.mockResolvedValue(null);
+    mocks.subscriptionCreate.mockResolvedValue(mockSub({ id: "sub-new", status: "PENDING" }));
+    mocks.subscriptionEventCreate.mockResolvedValue({});
+    mocks.ensurePlan.mockResolvedValue({ planId: "plan-123" });
+    mocks.createPreapproval.mockResolvedValue({
+      preapprovalId: "preapproval-123",
+      initPoint: "https://mercadopago.com/init",
+      // nextPaymentDate y autoRecurringStartDate explícitamente undefined
+      nextPaymentDate: undefined,
+      autoRecurringStartDate: undefined,
+    });
+    mocks.subscriptionUpdate.mockResolvedValue(mockSub({ id: "sub-new" }));
+
+    await startProUpgrade();
+    const afterCall = Date.now();
+
+    const call = mocks.subscriptionUpdate.mock.calls.find(
+      (c) => c[0]?.where?.id === "sub-new",
+    );
+    expect(call).toBeDefined();
+    const data = call![0].data;
+    const expectedMin = beforeCall + 30 * 24 * 60 * 60 * 1000;
+    const expectedMax = afterCall + 30 * 24 * 60 * 60 * 1000;
+    expect(data.currentPeriodEnd.getTime()).toBeGreaterThanOrEqual(expectedMin);
+    expect(data.currentPeriodEnd.getTime()).toBeLessThanOrEqual(expectedMax);
+    expect(data.nextPaymentDate.getTime()).toBe(data.currentPeriodEnd.getTime());
+  });
+
   it("cuando user ya tiene subscription AUTHORIZED: throw", async () => {
     mocks.subscriptionFindFirst.mockResolvedValue(mockSub({ status: "AUTHORIZED" }));
 

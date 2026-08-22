@@ -187,7 +187,57 @@ describe("createPreapproval()", () => {
     expect(result).toEqual({
       preapprovalId: "preapproval-mp-999",
       initPoint: "https://mercadopago.com/checkout?pref=abc",
+      nextPaymentDate: undefined,
+      autoRecurringStartDate: undefined,
     });
+  });
+
+  it("parsea next_payment_date y auto_recurring.start_date cuando MP los devuelve (#221)", async () => {
+    setupToken();
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        id: "preapproval-1",
+        init_point: "https://mp.com/init",
+        next_payment_date: "2026-09-21T10:00:00.000-04:00",
+        auto_recurring: {
+          start_date: "2026-08-22T10:00:00.000-04:00",
+        },
+      }),
+    });
+
+    const gateway = new MercadoPagoProGateway();
+    const result = await gateway.createPreapproval({
+      userId: "user-1",
+      payerEmail: "owner@test.com",
+      planId: "plan-1",
+    });
+
+    expect(result.nextPaymentDate).toBe("2026-09-21T10:00:00.000-04:00");
+    expect(result.autoRecurringStartDate).toBe("2026-08-22T10:00:00.000-04:00");
+  });
+
+  it("nextPaymentDate y autoRecurringStartDate son undefined si MP no los incluye (#221 fallback)", async () => {
+    setupToken();
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        id: "preapproval-1",
+        init_point: "https://mp.com/init",
+      }),
+    });
+
+    const gateway = new MercadoPagoProGateway();
+    const result = await gateway.createPreapproval({
+      userId: "user-1",
+      payerEmail: "owner@test.com",
+      planId: "plan-1",
+    });
+
+    expect(result.nextPaymentDate).toBeUndefined();
+    expect(result.autoRecurringStartDate).toBeUndefined();
   });
 
   it("lanza error claro si MP devuelve 400", async () => {

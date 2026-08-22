@@ -41,7 +41,19 @@ export interface ProSubscriptionGateway {
     userId: string;
     payerEmail: string;
     planId: string;
-  }): Promise<{ preapprovalId: string; initPoint: string }>;
+  }): Promise<{
+    preapprovalId: string;
+    initPoint: string;
+    /**
+     * Fecha del próximo cobro del preapproval en formato ISO 8601 con offset
+     (`-04:00`). Devuelto por Mercado Pago en la raíz del response de create.
+     Equivale al final del período actual cuando el preapproval está activo.
+     Puede ser `undefined` si MP no la incluye en el response.
+     */
+    nextPaymentDate?: string;
+    /** Inicio del período recurrente (ISO 8601, de `auto_recurring.start_date`). */
+    autoRecurringStartDate?: string;
+  }>;
   cancelPreapproval(preapprovalId: string): Promise<void>;
   fetchPreapproval(preapprovalId: string): Promise<MpPreapprovalInfo>;
 }
@@ -102,7 +114,12 @@ export class MercadoPagoProGateway implements ProSubscriptionGateway {
     userId: string;
     payerEmail: string;
     planId: string;
-  }): Promise<{ preapprovalId: string; initPoint: string }> {
+  }): Promise<{
+    preapprovalId: string;
+    initPoint: string;
+    nextPaymentDate?: string;
+    autoRecurringStartDate?: string;
+  }> {
     const response = await mpFetch(`${BASE_URL}/v1/preapproval`, {
       method: "POST",
       headers: {
@@ -128,8 +145,15 @@ export class MercadoPagoProGateway implements ProSubscriptionGateway {
     const data = (await response.json()) as {
       id: string;
       init_point: string;
+      next_payment_date?: string;
+      auto_recurring?: { start_date?: string };
     };
-    return { preapprovalId: data.id, initPoint: data.init_point };
+    return {
+      preapprovalId: data.id,
+      initPoint: data.init_point,
+      nextPaymentDate: data.next_payment_date,
+      autoRecurringStartDate: data.auto_recurring?.start_date,
+    };
   }
 
   async cancelPreapproval(preapprovalId: string): Promise<void> {

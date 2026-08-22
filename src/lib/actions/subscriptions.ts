@@ -180,21 +180,42 @@ export async function startProUpgrade(): Promise<{
   try {
     const { planId } = await getProGateway().ensurePlan();
 
-    const { preapprovalId, initPoint } = await getProGateway().createPreapproval({
+    const {
+      preapprovalId,
+      initPoint,
+      nextPaymentDate,
+      autoRecurringStartDate,
+    } = await getProGateway().createPreapproval({
       userId,
       payerEmail: email,
       planId,
     });
 
+    // currentPeriodStart:
+    //   Preferimos `auto_recurring.start_date` que devuelve MP en el response
+    //   (timestamp exacto del primer cobro). Si no viene, usamos `now` como
+    //   fallback (el webhook de "authorized" sobreescribe este valor con la
+    //   fecha real de MP en la práctica).
+    // currentPeriodEnd / nextPaymentDate:
+    //   Mercado Pago devuelve `next_payment_date` en la raíz del response.
+    //   Para un preapproval con `status: "authorized"`, equivale al final del
+    //   período actual. Si MP no lo incluye (caso raro / respuesta parcial),
+    //   usamos `now + 30 días` como placeholder hasta que llegue el primer
+    //   webhook de "authorized" — ese valor se reconciliará en lifecycle.ts.
     const now = new Date();
-    const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const periodStart = autoRecurringStartDate
+      ? new Date(autoRecurringStartDate)
+      : now;
+    const periodEnd = nextPaymentDate
+      ? new Date(nextPaymentDate)
+      : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // placeholder — webhook authorized corrige
 
     await prisma.subscription.update({
       where: { id: subscription.id },
       data: {
         mpPreapprovalId: preapprovalId,
         mpPlanId: planId,
-        currentPeriodStart: now,
+        currentPeriodStart: periodStart,
         currentPeriodEnd: periodEnd,
         nextPaymentDate: periodEnd,
       },
