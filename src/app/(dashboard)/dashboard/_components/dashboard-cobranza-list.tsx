@@ -1,14 +1,48 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
+/**
+ * Bucket de cobranza — alineado 1:1 con `DashboardCollectionBucket`
+ * (`@/lib/dashboard/summary`). Redefinido localmente para no acoplar este
+ * componente puramente presentacional al seam de dominio.
+ */
+export type CobranzaBucket = "OVERDUE" | "DUE_TODAY" | "UPCOMING_7D";
+
 export interface CobranzaItem {
   reservationId: string;
   clientName: string;
   amount: number;
   dueDate: Date | null;
-  isOverdue: boolean;
+  bucket: CobranzaBucket;
   propertyName: string;
 }
+
+const BUCKET_LABEL: Record<CobranzaBucket, string> = {
+  OVERDUE: "Vencido",
+  DUE_TODAY: "Vence hoy",
+  UPCOMING_7D: "Pendiente",
+};
+
+const BUCKET_PREFIX: Record<CobranzaBucket, string> = {
+  OVERDUE: "Vencido",
+  DUE_TODAY: "Vence",
+  UPCOMING_7D: "Vence",
+};
+
+// Tono del label superior (nombre + fecha) por bucket.
+const BUCKET_LABEL_CLASS: Record<CobranzaBucket, string> = {
+  OVERDUE: "text-destructive",
+  DUE_TODAY: "text-warning",
+  UPCOMING_7D: "text-muted-foreground",
+};
+
+// Tono del badge inferior (derecha) por bucket. Mismo mapeo de tono que
+// KpiCard usa para `warning`/`destructive` (kpi-card.tsx: valueToneClass).
+const BUCKET_BADGE_CLASS: Record<CobranzaBucket, string> = {
+  OVERDUE: "text-destructive",
+  DUE_TODAY: "text-warning",
+  UPCOMING_7D: "text-warning-foreground",
+};
 
 function formatCLP(amount: number): string {
   return new Intl.NumberFormat("es-CL", {
@@ -83,25 +117,22 @@ export function DashboardCobranzaList({
                 <li key={`${item.reservationId}-${idx}`} className="flex items-center justify-between">
                   <div className="min-w-0">
                     <p className="truncate text-xs font-bold text-foreground">{item.clientName}</p>
-                    {item.isOverdue ? (
-                      <p className="text-[10px] font-bold text-destructive">
-                        Vencido: {item.dueDate ? formatDate(item.dueDate) : "—"}
-                      </p>
-                    ) : (
-                      <p className="text-[10px] text-muted-foreground">
-                        Vence: {item.dueDate ? formatDate(item.dueDate) : "—"}
-                      </p>
-                    )}
+                    <p
+                      className={cn(
+                        "text-[10px]",
+                        item.bucket === "UPCOMING_7D" ? "" : "font-bold",
+                        BUCKET_LABEL_CLASS[item.bucket]
+                      )}
+                    >
+                      {BUCKET_PREFIX[item.bucket]}: {item.dueDate ? formatDate(item.dueDate) : "—"}
+                    </p>
                   </div>
                   <div className="text-right">
                     <p className="text-xs font-bold text-foreground">{formatCLP(item.amount)}</p>
                     <span
-                      className={cn(
-                        "text-[9px] font-bold uppercase",
-                        item.isOverdue ? "text-destructive" : "text-warning-foreground"
-                      )}
+                      className={cn("text-[9px] font-bold uppercase", BUCKET_BADGE_CLASS[item.bucket])}
                     >
-                      {item.isOverdue ? "Vencido" : "Pendiente"}
+                      {BUCKET_LABEL[item.bucket]}
                     </span>
                   </div>
                 </li>
