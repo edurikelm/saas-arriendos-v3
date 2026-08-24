@@ -11,6 +11,7 @@ import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
 import { prisma } from "@/lib/db/prisma";
 import { isSuperAdmin } from "@/lib/auth/role-routes";
+import { computeEffectivePlan } from "@/lib/subscriptions/effective-plan";
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "your-secret-key");
 
@@ -55,6 +56,9 @@ export async function getSession(): Promise<SessionUser | null> {
         plan: true,
         email: true,
         status: true,
+        subscription: {
+          select: { status: true, currentPeriodEnd: true },
+        },
       },
     });
 
@@ -65,7 +69,7 @@ export async function getSession(): Promise<SessionUser | null> {
     return {
       userId: user.id,
       role: user.role,
-      plan: user.plan,
+      plan: computeEffectivePlan(user.plan, user.subscription),
       email: user.email,
       status: user.status,
     };
