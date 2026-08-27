@@ -142,9 +142,21 @@ export default async function DashboardPage() {
     clientName: item.clientName,
     amount: item.amount,
     dueDate: item.dueDate ? new Date(item.dueDate) : null,
+    daysFromToday: item.daysFromToday,
     bucket: item.bucket,
     propertyName: item.propertyName,
   }));
+
+  // El card muestra el top `collectionLimit` (default 4), pero el footer
+  // reporta el total real de vencido+hoy+próximos 7 días — mostrar la suma
+  // de los items visibles mentiría cuando hay más cobros abiertos en esa
+  // ventana. `collection.pendingCount`/`totalToCollect` NO sirven aquí:
+  // cubren TODA deuda pendiente sin ventana de tiempo (incluye cobros a
+  // 30+ días), que es un scope más amplio que lo que esta lista muestra.
+  const cobranzaTotalCount =
+    collection.overdueCount + collection.dueTodayCount + collection.upcoming7dCount;
+  const cobranzaTotalAmount =
+    collection.overdueAmount + collection.dueTodayAmount + collection.upcoming7dAmount;
 
   // Subtitle data-driven: prioriza la señal más accionable para el dueño.
   const subtitleText =
@@ -365,7 +377,12 @@ export default async function DashboardPage() {
         </div>
 
         {/* Cobranza list — col-1 */}
-        <DashboardCobranzaList items={cobranzaItems} viewAllHref="/payments" />
+        <DashboardCobranzaList
+          items={cobranzaItems}
+          viewAllHref="/payments"
+          totalAmount={cobranzaTotalAmount}
+          totalCount={cobranzaTotalCount}
+        />
       </section>
 
       {/* 4. Calendario de ocupación — full width */}

@@ -123,6 +123,16 @@ export interface DashboardCollectionKpi {
   overdueAmount: number;
   dueTodayCount: number;
   dueTodayAmount: number;
+  /**
+   * Cobros que vencen en los próximos 7 días (sin incluir hoy ni vencidos).
+   * Scope acotado a la misma población que `collectionItems` — a diferencia
+   * de `pendingCount`/`totalToCollect`, que cubren TODA deuda pendiente sin
+   * ventana de tiempo. Existe para que el footer de `DashboardCobranzaList`
+   * pueda mostrar el total real de vencido+hoy+próximos 7 días, no solo la
+   * suma de los `collectionLimit` items visibles.
+   */
+  upcoming7dCount: number;
+  upcoming7dAmount: number;
 }
 
 export interface DashboardUpcomingKpi {
@@ -358,6 +368,10 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     (sum, { row }) => sum + row.nextInstallmentAmount + row.extrasPending,
     0,
   );
+  const upcoming7dAmount = upcoming7dRows.reduce(
+    (sum, { row }) => sum + row.nextInstallmentAmount + row.extrasPending,
+    0,
+  );
 
   const collection: DashboardCollectionKpi = {
     pendingCount: collectionTotals.pendingInvoices,
@@ -366,6 +380,8 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     overdueAmount: collectionTotals.totalOverdue,
     dueTodayCount: dueTodayRows.length,
     dueTodayAmount,
+    upcoming7dCount: upcoming7dRows.length,
+    upcoming7dAmount,
   };
 
   // ── Enriquecimiento (solo MONTHLY): paymentId/initPoint/expiresAt vía
