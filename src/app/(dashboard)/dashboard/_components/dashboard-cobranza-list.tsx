@@ -4,13 +4,19 @@ import { ReservationPill, type PillTone } from "@/components/reservations/reserv
 import { cn } from "@/lib/utils";
 
 /**
- * Urgencia de un cobro, alineada con `The Status Color Doctrine` de DESIGN.md:
- *   VENCIDO           → destructive
- *   VENCE HOY         → warning
- *   próximos 7 días   → info
+ * Urgencia de un cobro. Dos colores, no tres: `info` (per DESIGN.md, "próximos
+ * 7 días") describe estados neutrales — duración DAILY/MONTHLY, próximo
+ * check-in — no dinero pendiente de cobro. Un cobro que vence en 5 días sigue
+ * siendo una acción pendiente, no un dato de contexto; pintarlo `info` lo
+ * hace leer como no-urgente cuando en realidad solo es "menos urgente que
+ * hoy". La distinción de urgencia entre "hoy" y "en N días" la carga el
+ * label y el peso del texto de vencimiento, no el color de la pill:
+ *   VENCIDO                    → destructive
+ *   VENCE HOY / próximos 7 días → warning
  *
  * Reemplaza al antiguo boolean `isOverdue`, que colapsaba "vence hoy" y
- * "vence en 7 días" en un único estado "Pendiente" pintado con `warning`.
+ * "vence en 7 días" en un único estado "Pendiente" pintado con `warning`
+ * (mismo resultado de color, pero sin distinguir "hoy" en el label).
  */
 export type CobranzaUrgency = "overdue" | "today" | "upcoming";
 
@@ -28,7 +34,7 @@ export interface CobranzaItem {
 const URGENCY_TONE: Record<CobranzaUrgency, PillTone> = {
   overdue: "destructive",
   today: "warning",
-  upcoming: "info",
+  upcoming: "warning",
 };
 
 const URGENCY_LABEL: Record<CobranzaUrgency, string> = {
