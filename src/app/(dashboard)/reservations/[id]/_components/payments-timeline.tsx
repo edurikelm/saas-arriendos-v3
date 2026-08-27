@@ -111,7 +111,7 @@ export function PaymentsTimeline({
         <div ref={focusRef} className="space-y-4">
           {sorted.map((payment, idx) => {
             const days = payment.dueDate
-              ? daysFromTodayDateOnly(payment.dueDate, new Date(nowKey))
+              ? daysFromTodayDateOnly(payment.dueDate)
               : 999; // No due date → treat as far future
             return (
               <PaymentTimelineNode

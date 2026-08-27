@@ -68,7 +68,7 @@ export function isOverdueDateOnly(
   nowKey?: string,
 ): boolean {
   if (date == null) return false;
-  return dateOnlyKey(date) < (nowKey ?? getDateKeyInTz(new Date()));
+  return dateOnlyKey(date) < (nowKey ?? nowKeyInBusinessTz());
 }
 
 /**
