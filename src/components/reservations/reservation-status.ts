@@ -27,6 +27,7 @@
 import {
   BUSINESS_TIME_ZONE,
   dateKeyToDayIndex,
+  dateOnlyKey,
   getDateKeyInTz,
 } from "@/lib/domain/timezone";
 import { getInclusiveMonths } from "@/lib/reservation-dates";
@@ -42,27 +43,6 @@ export type ReservationLifecycleStatus =
 export interface TemporalStatus {
   label: string;
   sublabel?: string;
-}
-
-/**
- * Extrae la clave date-only (`YYYY-MM-DD`) de un string de fecha.
- *
- * El backend serializa `Reservation.startDate` con `Date.toISOString()`,
- * produciendo `YYYY-MM-DDT00:00:00.000Z`. Como `start_date` es date-only
- * en el dominio (CONTEXT.md), extraemos directamente los primeros 10
- * caracteres sin reinterpretar el componente horario como UTC.
- *
- * Si la fecha viene como ISO completo con hora distinta a midnight
- * (ej: `2026-08-11T15:30:00.000Z`), usamos `getDateKeyInTz` en
- * `America/Santiago` para mantener la consistencia con el resto del módulo.
- */
-function parseDateKey(dateString: string): string {
-  // Caso común: el backend emite YYYY-MM-DDT00:00:00.000Z → usar la parte date-only.
-  if (/^\d{4}-\d{2}-\d{2}/.test(dateString)) {
-    return dateString.slice(0, 10);
-  }
-  // Fallback para strings no estándar (poco probable): formatear en SCL.
-  return getDateKeyInTz(dateString, BUSINESS_TIME_ZONE);
 }
 
 /**
@@ -86,8 +66,8 @@ export function getTemporalStatus(
   if (status === "CANCELLED") return { label: "Cancelada" };
   if (status === "COMPLETED") return { label: "Finalizada" };
 
-  const startKey = parseDateKey(startDate);
-  const endKey = parseDateKey(endDate);
+  const startKey = dateOnlyKey(startDate);
+  const endKey = dateOnlyKey(endDate);
   const todayKey = getDateKeyInTz(now, BUSINESS_TIME_ZONE);
 
   if (todayKey > endKey) return { label: "Finalizada" };
@@ -131,8 +111,8 @@ export function getReservationTone(
   if (status === "CANCELLED") return "destructive";
   if (status === "COMPLETED") return "neutral";
 
-  const startKey = parseDateKey(startDate);
-  const endKey = parseDateKey(endDate);
+  const startKey = dateOnlyKey(startDate);
+  const endKey = dateOnlyKey(endDate);
   const todayKey = getDateKeyInTz(now, BUSINESS_TIME_ZONE);
 
   if (todayKey >= startKey && todayKey <= endKey) return "success";
@@ -147,7 +127,7 @@ export function getReservationTone(
  * Para fechas futuras retorna "Mañana", "Pasado mañana", "En N días".
  */
 export function formatRelativeDay(dateString: string, now: Date = new Date()): string {
-  const targetKey = parseDateKey(dateString);
+  const targetKey = dateOnlyKey(dateString);
   const todayKey = getDateKeyInTz(now, BUSINESS_TIME_ZONE);
 
   if (targetKey === todayKey) return "Hoy";
@@ -238,7 +218,7 @@ export function daysUntilStart(
   startDate: string,
   now: Date = new Date(),
 ): number {
-  const startKey = parseDateKey(startDate);
+  const startKey = dateOnlyKey(startDate);
   const todayKey = getDateKeyInTz(now, BUSINESS_TIME_ZONE);
   return dateKeyToDayIndex(startKey) - dateKeyToDayIndex(todayKey);
 }
@@ -252,7 +232,7 @@ export function daysUntilEnd(
   endDate: string,
   now: Date = new Date(),
 ): number {
-  const endKey = parseDateKey(endDate);
+  const endKey = dateOnlyKey(endDate);
   const todayKey = getDateKeyInTz(now, BUSINESS_TIME_ZONE);
   return dateKeyToDayIndex(endKey) - dateKeyToDayIndex(todayKey);
 }
@@ -269,15 +249,16 @@ export function daysUntilEnd(
  * que era frágil ante timezones extremos y no estaba alineado con `CONTEXT.md`.
  */
 export function getNights(startDate: string | Date, endDate: string | Date): number {
-  const startKey = parseDateKey(typeof startDate === "string" ? startDate : toDateKeyLocal(startDate));
-  const endKey = parseDateKey(typeof endDate === "string" ? endDate : toDateKeyLocal(endDate));
+  const startKey = dateOnlyKey(typeof startDate === "string" ? startDate : toDateKeyLocal(startDate));
+  const endKey = dateOnlyKey(typeof endDate === "string" ? endDate : toDateKeyLocal(endDate));
   return Math.max(1, dateKeyToDayIndex(endKey) - dateKeyToDayIndex(startKey) + 1);
 }
 
 /**
  * Para inputs Date (no strings), extrae el dateKey (`YYYY-MM-DD`) en
- * wall-time `America/Santiago`. Necesario porque `parseDateKey` solo
- * maneja strings — un `Date` siempre se interpreta con su zona.
+ * wall-time `America/Santiago`. Necesario porque `dateOnlyKey` (importado
+ * de `@/lib/domain/timezone`) solo hace slice directo para strings — un
+ * `Date` de este helper se interpreta con `getDateKeyInTz` en su zona.
  */
 function toDateKeyLocal(date: Date): string {
   return getDateKeyInTz(date, BUSINESS_TIME_ZONE);

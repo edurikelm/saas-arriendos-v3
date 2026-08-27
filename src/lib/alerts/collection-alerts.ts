@@ -1,4 +1,4 @@
-import { daysFromNowInBusinessTz } from "@/lib/domain/timezone";
+import { daysFromTodayDateOnly } from "@/lib/domain/timezone";
 
 export type ReservationStatus = "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED" | string;
 
@@ -64,7 +64,7 @@ export function classifyCollectionAlerts(
     if (!allowedReservationStatuses.has(payment.reservation.status)) continue;
     if (!payment.dueDate) continue;
 
-    const daysFromToday = daysFromNowInBusinessTz(new Date(payment.dueDate), now);
+    const daysFromToday = daysFromTodayDateOnly(payment.dueDate, now);
 
     const item: CollectionAlertItem = {
       paymentId: payment.id,

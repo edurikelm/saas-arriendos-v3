@@ -193,13 +193,15 @@ describe("selectRemindersForDispatch", () => {
   });
 
   describe("timezone boundary", () => {
-    it("respects timezone cut-off at midnight SCL", () => {
-      // now is 00:30 SCL May 20 (04:30 UTC)
-      // dueDate is 23:00 SCL May 19 (03:00 UTC May 20)
-      // Actually in May Santiago (UTC-4): 23:00 SCL = 03:00 UTC next day
-      // So dueDate May 19 23:00 SCL = May 20 03:00 UTC
-      const now = new Date("2026-05-20T04:30:00.000Z"); // 00:30 SCL May 20
-      const dueDate = new Date("2026-05-20T03:00:00.000Z"); // 23:00 SCL May 19 (UTC-4)
+    it("lee dueDate como dia calendario date-only, sin reinterpretar la hora en SCL", () => {
+      // dueDate es date-only (medianoche UTC, tal como lo persiste
+      // lib/payments/monthly.ts en produccion): representa "el dia 19 de mayo",
+      // no un instante. No debe reinterpretarse en wall-time America/Santiago
+      // — eso producia un off-by-one cuando dueDate caia justo despues de
+      // medianoche UTC. `now` si se interpreta como wall-time SCL (es un
+      // instante real).
+      const now = sclDateTime(2026, 5, 20); // 20-may mediodia SCL
+      const dueDate = new Date("2026-05-19T00:00:00.000Z"); // date-only: 19-may
 
       const payments = [
         buildPayment({ id: "pay-boundary", dueDate: dueDate.toISOString() }),
@@ -207,7 +209,7 @@ describe("selectRemindersForDispatch", () => {
 
       const result = selectRemindersForDispatch(payments, now, "America/Santiago", new Set());
 
-      // dueDate is May 19 23:00 SCL, now is May 20 00:30 SCL → 1 day overdue
+      // dueDate = dia calendario 19-may, hoy en SCL = 20-may → 1 dia vencido
       expect(result).toHaveLength(1);
       expect(result[0].milestone).toBe("OVERDUE_1_DAY");
     });

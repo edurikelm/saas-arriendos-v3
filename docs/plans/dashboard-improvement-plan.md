@@ -168,7 +168,7 @@ Dominio crítico (plata + agregados): `architect` + `implementer` + `tester` + `
 1. Crear un seam server-side `getDashboardSummary()` en `src/lib/actions/` que devuelva, en una sola llamada: KPIs del mes, totales de cobranza, ocupación de hoy, movimientos de hoy, ventana de reservas de 14 días. Reutiliza `decision-summary` / `getCollectionReport` / `getReservationsByDateRange`; **no** reimplementa aritmética.
 2. `page.tsx` pasa a consumir ese seam y pierde todo cálculo financiero inline (elimina C1 y C4 de raíz).
 3. Unificar los vencidos en `classifyCollectionAlerts` e incluir `vencenHoy` (C2, C3).
-4. Migrar las comparaciones de `dueDate` a wall-time SCL (ADR-0020).
+4. Migrar las comparaciones de `dueDate` a la convención date-only (`dateOnlyKey`/`daysFromTodayDateOnly` en `@/lib/domain/timezone`), no a wall-time SCL — `dueDate` es date-only, no un instante.
 
 Tests: reserva #11 en adelante entra en los KPIs; pago EXTRA no suma a ingresos; pago con `dueDate` = hoy aparece en cobranza; conteo y monto de vencidos siempre concuerdan; dashboard vs `/reports` coinciden en el mismo mes.
 

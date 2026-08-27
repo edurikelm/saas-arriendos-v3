@@ -9,6 +9,9 @@ import {
   nowKeyInBusinessTz,
   isBeforeTodayInBusinessTz,
   isOverdueInBusinessTz,
+  dateOnlyKey,
+  daysFromTodayDateOnly,
+  isOverdueDateOnly,
 } from "@/lib/domain/timezone";
 
 describe("BUSINESS_TIME_ZONE", () => {
@@ -210,5 +213,84 @@ describe("isOverdueInBusinessTz", () => {
 
   it("returns false for null dueDate", () => {
     expect(isOverdueInBusinessTz(null, "2026-05-20")).toBe(false);
+  });
+});
+
+describe("dateOnlyKey", () => {
+  it("extracts YYYY-MM-DD from an ISO string without reinterpreting in a timezone", () => {
+    expect(dateOnlyKey("2026-08-24T00:00:00.000Z")).toBe("2026-08-24");
+    expect(dateOnlyKey("2026-08-24T23:00:00.000Z")).toBe("2026-08-24");
+  });
+
+  it("extracts the UTC calendar day from a Date instance", () => {
+    expect(dateOnlyKey(new Date("2026-08-24T00:00:00.000Z"))).toBe("2026-08-24");
+  });
+
+  it("falls back to getDateKeyInTz for non-standard strings", () => {
+    // No debería ocurrir con campos date-only reales del dominio, pero el
+    // fallback evita reventar si llega un formato inesperado.
+    expect(dateOnlyKey("Aug 24 2026 00:00:00 GMT+0000")).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it(
+    "invariante: midnight UTC y mediodia UTC del mismo dia calendario producen la misma key " +
+      "(neutraliza la inconsistencia de escritura entre Reservation.startDate y Payment.dueDate)",
+    () => {
+      const midnight = dateOnlyKey("2026-08-24T00:00:00.000Z");
+      const noon = dateOnlyKey("2026-08-24T12:00:00.000Z");
+      expect(midnight).toBe(noon);
+      expect(midnight).toBe("2026-08-24");
+    }
+  );
+});
+
+describe("daysFromTodayDateOnly", () => {
+  it("returns 0 when the date-only field falls on today in SCL", () => {
+    const now = new Date("2026-08-24T18:00:00.000Z"); // 14:00 SCL (winter, UTC-4)
+    expect(daysFromTodayDateOnly("2026-08-24T00:00:00.000Z", now)).toBe(0);
+  });
+
+  it("does not reinterpret UTC-midnight dueDate as the prior SCL day", () => {
+    // Este es exactamente el bug H1: dueDate a medianoche UTC NO debe leerse
+    // como el dia anterior en SCL solo porque el instante cae temprano.
+    const now = new Date("2026-08-24T03:00:00.000Z"); // 23:00 SCL del 23-ago (dia anterior en zona)
+    expect(daysFromTodayDateOnly("2026-08-24T00:00:00.000Z", now)).toBe(1);
+  });
+
+  it(
+    "invariante: midnight UTC y mediodia UTC del mismo dia calendario dan el mismo resultado",
+    () => {
+      const now = new Date("2026-08-24T18:00:00.000Z");
+      const fromMidnight = daysFromTodayDateOnly("2026-08-24T00:00:00.000Z", now);
+      const fromNoon = daysFromTodayDateOnly("2026-08-24T12:00:00.000Z", now);
+      expect(fromMidnight).toBe(fromNoon);
+    }
+  );
+
+  it("returns negative for a past date-only field", () => {
+    const now = new Date("2026-08-24T18:00:00.000Z");
+    expect(daysFromTodayDateOnly("2026-08-20T00:00:00.000Z", now)).toBe(-4);
+  });
+});
+
+describe("isOverdueDateOnly", () => {
+  it("returns false when the date-only field is today", () => {
+    const nowKey = "2026-08-24";
+    expect(isOverdueDateOnly("2026-08-24T00:00:00.000Z", nowKey)).toBe(false);
+  });
+
+  it("returns true when the date-only field is strictly before nowKey", () => {
+    const nowKey = "2026-08-24";
+    expect(isOverdueDateOnly("2026-08-23T00:00:00.000Z", nowKey)).toBe(true);
+  });
+
+  it("returns false for null/undefined", () => {
+    expect(isOverdueDateOnly(null, "2026-08-24")).toBe(false);
+    expect(isOverdueDateOnly(undefined, "2026-08-24")).toBe(false);
+  });
+
+  it("defaults nowKey to today in SCL when omitted", () => {
+    const farPast = isOverdueDateOnly("2000-01-01T00:00:00.000Z");
+    expect(farPast).toBe(true);
   });
 });
