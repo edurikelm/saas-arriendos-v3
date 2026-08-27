@@ -13,6 +13,7 @@ import {
   daysFromTodayDateOnly,
   isOverdueDateOnly,
   formatDateOnly,
+  formatInstant,
 } from "@/lib/domain/timezone";
 
 describe("BUSINESS_TIME_ZONE", () => {
@@ -326,5 +327,43 @@ describe("formatDateOnly", () => {
     const fromMidnight = formatDateOnly("2026-08-24T00:00:00.000Z", { day: "numeric", month: "short" });
     const fromNoon = formatDateOnly("2026-08-24T12:00:00.000Z", { day: "numeric", month: "short" });
     expect(fromMidnight).toBe(fromNoon);
+  });
+
+  it("returns '—' instead of throwing for an empty string or an unparseable date", () => {
+    // Regression: antes de este guard, "" y "not-a-date" propagaban una
+    // RangeError sin capturar hasta el caller (crash de client component).
+    expect(formatDateOnly("")).toBe("—");
+    expect(formatDateOnly("not-a-date")).toBe("—");
+    expect(formatDateOnly(new Date("invalid"))).toBe("—");
+  });
+
+  it("forces UTC regardless of a conflicting timeZone passed in options", () => {
+    const result = formatDateOnly(
+      "2026-08-24T00:00:00.000Z",
+      { day: "numeric", month: "short", timeZone: "Pacific/Kiritimati" } as Intl.DateTimeFormatOptions,
+    );
+    expect(result).toContain("24");
+  });
+});
+
+describe("formatInstant", () => {
+  it("formats a paidAt instant in America/Santiago wall-time, not UTC calendar day", () => {
+    // Repro exacto del reviewer: pago marcado a las 22:00 SCL del 24-ago se
+    // persiste como 2026-08-25T02:00:00.000Z (ya es 25 en UTC). El resultado
+    // debe seguir siendo 24-ago, el dia en que realmente ocurrio en SCL.
+    const result = formatInstant("2026-08-25T02:00:00.000Z", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+    expect(result).toContain("24");
+    expect(result).not.toContain("25");
+  });
+
+  it("returns '—' for null/undefined/empty/unparseable", () => {
+    expect(formatInstant(null)).toBe("—");
+    expect(formatInstant(undefined)).toBe("—");
+    expect(formatInstant("")).toBe("—");
+    expect(formatInstant("not-a-date")).toBe("—");
   });
 });
