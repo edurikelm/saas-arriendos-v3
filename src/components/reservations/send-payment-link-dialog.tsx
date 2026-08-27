@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
 import { MessageCircle, Mail, Copy, Check } from "lucide-react";
+import { formatDateOnly } from "@/lib/domain/timezone";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -49,7 +48,7 @@ function formatAmount(amount: string | number): string {
 }
 
 function formatMonthYear(dateString: string): string {
-  return format(new Date(dateString), "MMMM yyyy", { locale: es });
+  return formatDateOnly(dateString, { month: "long", year: "numeric" });
 }
 
 function getDefaultTemplate(params: {
@@ -72,7 +71,7 @@ function getDefaultTemplate(params: {
   template += `Monto: ${amount}`;
   
   if (dueDate) {
-    template += `\nVencimiento: ${format(new Date(dueDate), "d MMM yyyy", { locale: es })}`;
+    template += `\nVencimiento: ${formatDateOnly(dueDate, { day: "numeric", month: "short", year: "numeric" })}`;
   } else if (month) {
     template += `\nCorrespondiente a: ${month}`;
   }

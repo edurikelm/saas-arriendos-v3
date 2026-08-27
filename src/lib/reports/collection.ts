@@ -1,4 +1,4 @@
-import { BUSINESS_TIME_ZONE, dateOnlyKey, daysFromTodayDateOnly, getDateKeyInTz, isOverdueDateOnly, nowKeyInBusinessTz } from "@/lib/domain/timezone";
+import { BUSINESS_TIME_ZONE, dateOnlyKey, daysFromTodayDateOnly, formatDateOnly, getDateKeyInTz, isOverdueDateOnly, nowKeyInBusinessTz } from "@/lib/domain/timezone";
 
 export type CollectionBillingFilter = "GENERAL" | "DAILY" | "MONTHLY";
 export type CollectionDebtStatusFilter = "ACTIVE" | "ALL" | "OVERDUE" | "UPCOMING" | "PAID";
@@ -92,12 +92,11 @@ export function getCollectionDueLabel(
   const nowKey = getDateKeyInTz(now, BUSINESS_TIME_ZONE);
   const dueKey = dateOnlyKey(nextDueDate);
   const sameYear = nowKey.startsWith(dueKey.slice(0, 4));
-  const fmt = new Intl.DateTimeFormat(locale, {
-    day: "2-digit",
-    month: "short",
-    year: sameYear ? undefined : "numeric",
-  });
-  return fmt.format(nextDueDate);
+  return formatDateOnly(
+    nextDueDate,
+    { day: "2-digit", month: "short", year: sameYear ? undefined : "numeric" },
+    locale,
+  );
 }
 
 export interface CollectionPaymentInput {

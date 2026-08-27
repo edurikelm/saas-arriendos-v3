@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { formatDateOnly } from "@/lib/domain/timezone";
 
 /**
  * Bucket de cobranza — alineado 1:1 con `DashboardCollectionBucket`
@@ -53,12 +54,8 @@ function formatCLP(amount: number): string {
   }).format(amount);
 }
 
-function formatDate(date: Date): string {
-  return date.toLocaleDateString("es-CL", {
-    day: "numeric",
-    month: "short",
-    timeZone: "America/Santiago",
-  });
+function formatDate(date: Date | null): string {
+  return formatDateOnly(date, { day: "numeric", month: "short" });
 }
 
 interface DashboardCobranzaListProps {

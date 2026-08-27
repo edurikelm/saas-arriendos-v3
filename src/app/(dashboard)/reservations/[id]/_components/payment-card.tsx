@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Payment } from "@/components/payments/payments-table";
+import { formatDateOnly } from "@/lib/domain/timezone";
 
 function formatAmount(amount: string | number): string {
   return new Intl.NumberFormat("es-CL", {
@@ -26,16 +27,7 @@ function formatAmount(amount: string | number): string {
 }
 
 function formatShortDate(dateString: string | null | undefined): string {
-  if (!dateString) return "—";
-  const key = String(dateString).slice(0, 10);
-  const [y, m, d] = key.split("-").map(Number);
-  const date = new Date(Date.UTC(y, m - 1, d, 12));
-  return date.toLocaleDateString("es-CL", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+  return formatDateOnly(dateString, { day: "numeric", month: "short", year: "numeric" });
 }
 
 const METHOD_LABELS: Record<string, string> = {

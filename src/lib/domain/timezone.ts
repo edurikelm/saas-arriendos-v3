@@ -171,3 +171,24 @@ export function isOverdueInBusinessTz(
 ): boolean {
   return isBeforeTodayInBusinessTz(dueDate, nowKey);
 }
+
+/**
+ * Formatea un campo DATE-ONLY del dominio (Reservation.startDate/endDate,
+ * Payment.dueDate) para mostrar al usuario, SIN reinterpretar zona horaria.
+ *
+ * Ancla al mediodia UTC del dia calendario y fuerza timeZone: "UTC" en el
+ * formateo, asi el resultado es el mismo sin importar la zona del
+ * navegador o del servidor. Para instantes reales (paidAt, createdAt) NO
+ * usar esta funcion — su formateo en zona local/navegador es correcto.
+ */
+export function formatDateOnly(
+  date: Date | string | null | undefined,
+  options: Intl.DateTimeFormatOptions = { day: "numeric", month: "short" },
+  locale: string = "es-CL",
+): string {
+  if (date == null) return "—";
+  const key = dateOnlyKey(date);
+  const [y, m, d] = key.split("-").map(Number);
+  const anchor = new Date(Date.UTC(y, m - 1, d, 12));
+  return anchor.toLocaleDateString(locale, { ...options, timeZone: "UTC" });
+}
