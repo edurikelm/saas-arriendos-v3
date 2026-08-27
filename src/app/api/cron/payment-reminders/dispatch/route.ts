@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { recordDomainEvent } from "@/lib/notifications/record-event";
 import { selectRemindersForDispatch } from "@/lib/notifications/select-reminders-for-dispatch";
 import type { ReminderPayment } from "@/lib/notifications/select-reminders-for-dispatch";
-import { getDateKeyInTz, BUSINESS_TIME_ZONE } from "@/lib/domain/timezone";
+import { dateOnlyKey, BUSINESS_TIME_ZONE } from "@/lib/domain/timezone";
 
 export const maxDuration = 300; // 5 min (Vercel Pro)
 
@@ -93,7 +93,7 @@ export async function POST(request: Request) {
     const clientName = paymentRow.reservation.client.name;
     const amount = String(paymentRow.amount);
     const dueDate = paymentRow.dueDate
-      ? getDateKeyInTz(paymentRow.dueDate, BUSINESS_TIME_ZONE)
+      ? dateOnlyKey(paymentRow.dueDate)
       : undefined;
 
     try {

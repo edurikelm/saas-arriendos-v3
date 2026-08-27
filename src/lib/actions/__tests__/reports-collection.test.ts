@@ -174,6 +174,28 @@ describe("buildCollectionReportRows", () => {
     expect(rows[0].nextDueDate).toBeNull();
   });
 
+  it("DAILY: una reserva cuyo startDate es hoy (medianoche UTC) no cuenta como overdue", () => {
+    // startDate a medianoche UTC del mismo dia que `now` (interpretado en SCL,
+    // agosto = invierno, UTC-4 sin ambiguedad de DST). Repro H1 para DAILY:
+    // antes del fix, la reinterpretacion en wall-time SCL podia leer el
+    // startDate como "ayer" y marcar overdue incorrectamente.
+    const todayNow = new Date("2026-08-24T18:00:00.000Z"); // tarde SCL del 24-ago
+    const rows = buildCollectionReportRows(
+      [
+        makeReservation({
+          billingType: "DAILY",
+          startDate: new Date("2026-08-24T00:00:00.000Z"),
+          totalPrice: 80000,
+          payments: [],
+        }),
+      ],
+      { now: todayNow, debtStatus: "ALL" }
+    );
+
+    expect(rows[0].pending).toBe(80000);
+    expect(rows[0].overdue).toBe(0);
+  });
+
   it("DAILY: nextInstallmentAmount = pending (no hay cuotas)", () => {
     // Reserva con pago parcial: $200k de $500k pagados, quedan $300k.
     const rows = buildCollectionReportRows(

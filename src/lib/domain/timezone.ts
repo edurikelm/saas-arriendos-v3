@@ -35,6 +35,43 @@ export function dateKeyToDayIndex(dateKey: string): number {
 }
 
 /**
+ * Clave de dia calendario (YYYY-MM-DD) de un campo DATE-ONLY del dominio
+ * (Reservation.startDate/endDate, Payment.dueDate).
+ *
+ * NO reinterpreta el instante en zona: un date-only representa "el dia X",
+ * no "un momento". Usar getDateKeyInTz sobre estos campos produce
+ * off-by-one cuando el valor esta anclado a medianoche UTC.
+ *
+ * Para instantes reales (paidAt, createdAt) usar getDateKeyInTz.
+ */
+export function dateOnlyKey(date: Date | string): string {
+  if (typeof date === "string") {
+    return /^\d{4}-\d{2}-\d{2}/.test(date) ? date.slice(0, 10) : getDateKeyInTz(date);
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Dias calendario entre un campo date-only y "hoy" en America/Santiago.
+ * 0 = hoy, mayor a 0 = futuro, menor a 0 = pasado.
+ *
+ * Asimetria deliberada: el target se lee como dia calendario, `now` se lee
+ * como wall-time SCL. Ese es el contrato correcto.
+ */
+export function daysFromTodayDateOnly(date: Date | string, now: Date = new Date()): number {
+  return dateKeyToDayIndex(dateOnlyKey(date)) - dateKeyToDayIndex(getDateKeyInTz(now));
+}
+
+/** Campo date-only estrictamente anterior a hoy (SCL). */
+export function isOverdueDateOnly(
+  date: Date | string | null | undefined,
+  nowKey?: string,
+): boolean {
+  if (date == null) return false;
+  return dateOnlyKey(date) < (nowKey ?? getDateKeyInTz(new Date()));
+}
+
+/**
  * Calculates full integer days between targetDate and now, both interpreted in tz.
  * Returns negative values if targetDate is in the past.
  *

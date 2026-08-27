@@ -226,12 +226,15 @@ describe("timezone", () => {
     expect(candidates[0].notificationKey).toBe("payment-reminder:pay-overdue:OVERDUE_1_DAY");
   });
 
-  it("route passa a recordDomainEvent o dueDate formatado en America/Santiago (no UTC) quando horas diferem de dia (fix getDateKeyInTz)", async () => {
+  it("route pasa a recordDomainEvent el dueDate como dia calendario date-only (dateOnlyKey), sin reinterpretar en zona", async () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-05-20T15:00:00.000Z"));
+    vi.setSystemTime(new Date("2026-05-20T15:00:00.000Z")); // mediodia SCL del 20-may
     vi.stubEnv("REMINDERS_CRON_SECRET", "correct-secret");
 
-    const dueDate = new Date("2026-05-20T03:00:00.000Z");
+    // dueDate es date-only (medianoche UTC, tal como lo persiste
+    // lib/payments/monthly.ts): representa "el dia 19 de mayo" directo, sin
+    // reinterpretar el instante en wall-time SCL.
+    const dueDate = new Date("2026-05-19T00:00:00.000Z");
     const paymentRow = {
       id: "pay-tz-fix",
       status: "PENDING",

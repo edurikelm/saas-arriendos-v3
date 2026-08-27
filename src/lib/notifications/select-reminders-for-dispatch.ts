@@ -17,7 +17,7 @@
  * Deduplication is based on alreadySentKeys (notificationKeys already dispatched).
  */
 
-import { daysFromNowInBusinessTz, BUSINESS_TIME_ZONE } from "@/lib/domain/timezone";
+import { daysFromTodayDateOnly, BUSINESS_TIME_ZONE } from "@/lib/domain/timezone";
 
 export const MILESTONE_VALUES = [
   "BEFORE_3_DAYS",
@@ -80,13 +80,16 @@ const ALLOWED_RESERVATION_STATUSES = new Set(["PENDING", "CONFIRMED"]);
  *
  * @param payments - Active payments with their reservations (from Prisma)
  * @param now - Current timestamp (for testability; defaults to Date.now())
- * @param timezone - Business timezone (defaults to America/Santiago)
+ * @param _timezone - Unused. `payment.dueDate` is date-only (re-trabajo Fase
+ *   1/Nivel 3, `dateOnlyKey`/`daysFromTodayDateOnly`), así que ya no se
+ *   reinterpreta contra una zona horaria. Se mantiene el parámetro solo para
+ *   no romper la firma de los callers existentes (route.ts, tests).
  * @param alreadySentKeys - Set of notificationKeys already dispatched
  */
 export function selectRemindersForDispatch(
   payments: ReminderPayment[],
   now: Date = new Date(),
-  timezone: string = BUSINESS_TIME_ZONE,
+  _timezone: string = BUSINESS_TIME_ZONE,
   alreadySentKeys: Set<string> = new Set(),
 ): ReminderCandidate[] {
   const candidates: ReminderCandidate[] = [];
@@ -104,11 +107,7 @@ export function selectRemindersForDispatch(
     // Filter: must have a dueDate
     if (!payment.dueDate) continue;
 
-    const daysFromToday = daysFromNowInBusinessTz(
-      new Date(payment.dueDate),
-      now,
-      timezone,
-    );
+    const daysFromToday = daysFromTodayDateOnly(payment.dueDate, now);
 
     const milestone = milestoneFromDays(daysFromToday);
     if (!milestone) continue;

@@ -2635,8 +2635,11 @@ describe('getPayments - derived fields (overdueDays + installmentLabel)', () => 
   });
 
   it('returns overdueDays > 0 for PENDING with past dueDate', async () => {
-    // Set a fixed mock time: July 10, 2025
-    const mockNow = new Date('2025-07-10T00:00:00.000Z');
+    // Fixed mock time at noon UTC → unambiguously July 10 wall-time in
+    // Santiago (UTC-4 winter): 00:00 UTC would read back as July 9 SCL.
+    // `today` is a real instant, so it IS reinterpreted in business tz
+    // (unlike `dueDate`, which is date-only — see comment below).
+    const mockNow = new Date('2025-07-10T12:00:00.000Z');
     vi.useFakeTimers();
     vi.setSystemTime(mockNow);
 
@@ -2651,7 +2654,9 @@ describe('getPayments - derived fields (overdueDays + installmentLabel)', () => 
         amount: 50000 as any,
         method: 'MERCADO_PAGO',
         status: 'PENDING',
-        // July 1 2025 UTC = July 1 2025 CLT (UTC-4 in winter) → 9 days past
+        // Payment.dueDate es date-only: se lee como "1 de julio" directo, sin
+        // reinterpretar el instante en zona (ver ADR de re-trabajo Fase 1/
+        // Nivel 3, dateOnlyKey/daysFromTodayDateOnly en @/lib/domain/timezone).
         dueDate: new Date('2025-07-01T00:00:00.000Z'),
         installmentIndex: null,
         initPoint: null,

@@ -1,4 +1,4 @@
-import { BUSINESS_TIME_ZONE, daysFromNowInBusinessTz, getDateKeyInTz, isOverdueInBusinessTz, nowKeyInBusinessTz } from "@/lib/domain/timezone";
+import { BUSINESS_TIME_ZONE, dateOnlyKey, daysFromTodayDateOnly, getDateKeyInTz, isOverdueDateOnly, nowKeyInBusinessTz } from "@/lib/domain/timezone";
 
 export type CollectionBillingFilter = "GENERAL" | "DAILY" | "MONTHLY";
 export type CollectionDebtStatusFilter = "ACTIVE" | "ALL" | "OVERDUE" | "UPCOMING" | "PAID";
@@ -53,7 +53,7 @@ export function getCollectionStatus(
   if (row.overdue > 0) return STATUS_INFO.OVERDUE;
 
   if (row.nextDueDate) {
-    const daysDiff = daysFromNowInBusinessTz(row.nextDueDate, now, BUSINESS_TIME_ZONE);
+    const daysDiff = daysFromTodayDateOnly(row.nextDueDate, now);
     if (daysDiff <= 0) {
       // daysDiff === 0 → hoy. < 0 sin overdue solo es posible si la fila
       // se renderiza justo en el cambio de día en Santiago; tratar como vence hoy.
@@ -84,13 +84,13 @@ export function getCollectionDueLabel(
 ): string {
   if (!nextDueDate) return "—";
 
-  const daysDiff = daysFromNowInBusinessTz(nextDueDate, now, BUSINESS_TIME_ZONE);
+  const daysDiff = daysFromTodayDateOnly(nextDueDate, now);
   if (daysDiff === 0) return "Hoy";
   if (daysDiff === 1) return "Mañana";
   if (daysDiff > 1 && daysDiff <= 7) return `En ${daysDiff} días`;
 
   const nowKey = getDateKeyInTz(now, BUSINESS_TIME_ZONE);
-  const dueKey = getDateKeyInTz(nextDueDate, BUSINESS_TIME_ZONE);
+  const dueKey = dateOnlyKey(nextDueDate);
   const sameYear = nowKey.startsWith(dueKey.slice(0, 4));
   const fmt = new Intl.DateTimeFormat(locale, {
     day: "2-digit",
@@ -209,7 +209,7 @@ export function buildCollectionReportRows(
         const unpaidInstallments = reservationPayments.filter((payment) => payment.status !== "COMPLETED");
         overdue = sumAmounts(
           unpaidInstallments,
-          (payment) => isOverdueInBusinessTz(payment.dueDate, nowKey)
+          (payment) => isOverdueDateOnly(payment.dueDate, nowKey)
         );
 
         const dueDates = unpaidInstallments
@@ -232,7 +232,7 @@ export function buildCollectionReportRows(
         // "la próxima" (un solo pago contra `startDate`).
         nextInstallmentAmount = pending;
         nextDueDate = reservation.startDate;
-        overdue = isOverdueInBusinessTz(reservation.startDate, nowKey) ? pending : 0;
+        overdue = isOverdueDateOnly(reservation.startDate, nowKey) ? pending : 0;
       }
 
       return {

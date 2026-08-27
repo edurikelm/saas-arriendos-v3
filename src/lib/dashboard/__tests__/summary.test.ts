@@ -15,6 +15,8 @@ import {
   type DashboardSummaryInput,
 } from "@/lib/dashboard/summary";
 import { buildDecisionSummary } from "@/lib/reports/decision-summary";
+import { daysUntilStart } from "@/components/reservations/reservation-status";
+import { daysFromTodayDateOnly } from "@/lib/domain/timezone";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -141,7 +143,11 @@ describe("buildDashboardSummary", () => {
             amount: 100_000,
             status: "PENDING",
             paymentType: "RESERVATION",
-            dueDate: new Date("2026-08-24T12:00:00.000Z"),
+            // Medianoche UTC: como lib/payments/monthly.ts persiste dueDate en
+            // produccion. Antes del fix de date-only (dateOnlyKey/isOverdueDateOnly),
+            // este ancla caia como OVERDUE en vez de DUE_TODAY por reinterpretacion
+            // en wall-time SCL (bug real, ver ADR de re-trabajo Fase 1/Nivel 3).
+            dueDate: new Date("2026-08-24T00:00:00.000Z"),
           }),
         ],
       }),
@@ -256,5 +262,21 @@ describe("buildDashboardSummary", () => {
     // Sanity: incluye cash de reservas CANCELLED (25.000) + activa (75.000) = 100.000,
     // excluye el pago de julio (40.000).
     expect(summary.income.currentMonth).toBe(100_000);
+  });
+});
+
+describe("coherencia cruzada: daysUntilStart vs daysFromTodayDateOnly", () => {
+  // Fija estructuralmente que las dos convenciones de "días hasta el inicio"
+  // (reservation-status.ts, usado por el Dashboard para "Llega en N días") y
+  // el nuevo helper date-only de timezone.ts no puedan volver a divergir.
+  // startDate es date-only (CONTEXT.md) — ambos helpers deben tratarlo igual
+  // sin importar si el ancla llega a medianoche o a mediodía UTC.
+  it.each([
+    ["startDate hoy (medianoche UTC)", "2026-08-24T00:00:00.000Z"],
+    ["startDate hoy (mediodía UTC)", "2026-08-24T12:00:00.000Z"],
+    ["startDate futuro (medianoche UTC)", "2026-08-27T00:00:00.000Z"],
+    ["startDate pasado (medianoche UTC)", "2026-08-20T00:00:00.000Z"],
+  ])("%s: daysUntilStart === daysFromTodayDateOnly", (_label, startDateIso) => {
+    expect(daysUntilStart(startDateIso, NOW)).toBe(daysFromTodayDateOnly(startDateIso, NOW));
   });
 });

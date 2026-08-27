@@ -38,6 +38,7 @@ import {
 import {
   BUSINESS_TIME_ZONE,
   daysFromNowInBusinessTz,
+  daysFromTodayDateOnly,
   getDateKeyInTz,
 } from "@/lib/domain/timezone";
 import {
@@ -430,7 +431,7 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
       dueDate: row.nextDueDate ? row.nextDueDate.toISOString() : null,
       initPoint: alert?.initPoint ?? null,
       expiresAt: alert?.expiresAt ?? null,
-      daysFromToday: row.nextDueDate ? daysFromNowInBusinessTz(row.nextDueDate, now) : null,
+      daysFromToday: row.nextDueDate ? daysFromTodayDateOnly(row.nextDueDate, now) : null,
     };
   }
 

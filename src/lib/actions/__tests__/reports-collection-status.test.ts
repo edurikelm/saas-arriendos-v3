@@ -198,4 +198,42 @@ describe("getCollectionStatus — integración con buildCollectionReportRows", (
     // Hay overdue → Vencido prevalece sobre "Próximo"
     expect(status.status).toBe("OVERDUE");
   });
+
+  it(
+    "repro H1: dueDate a medianoche UTC con now en la tarde del mismo dia SCL " +
+      "no cuenta como vencido y el estado es DUE_TODAY, no OVERDUE",
+    () => {
+      // dueDate se persiste a medianoche UTC (lib/payments/monthly.ts). Antes
+      // del fix de date-only, este ancla se reinterpretaba en wall-time SCL y
+      // caia como "el dia anterior" → bucket "vence hoy" era inalcanzable.
+      const bugNow = new Date("2026-08-24T18:00:00.000Z"); // tarde SCL del 24-ago
+      const reservation: CollectionReservationInput = {
+        id: "res-h1",
+        propertyId: "prop-1",
+        propertyName: "Edificio Centro",
+        clientId: "cli-1",
+        clientName: "Ana Perez",
+        billingType: "MONTHLY",
+        status: "CONFIRMED",
+        startDate: new Date("2026-08-01T00:00:00.000Z"),
+        totalPrice: 100000,
+        payments: [
+          {
+            amount: 100000,
+            status: "PENDING",
+            paymentType: "RESERVATION",
+            deletedAt: null,
+            dueDate: new Date("2026-08-24T00:00:00.000Z"),
+          },
+        ],
+      };
+
+      const [row] = buildCollectionReportRows([reservation], { now: bugNow, debtStatus: "ALL" });
+      expect(row).toBeDefined();
+      expect(row.overdue).toBe(0);
+
+      const status = getCollectionStatus(row, bugNow);
+      expect(status.status).toBe("DUE_TODAY");
+    }
+  );
 });
