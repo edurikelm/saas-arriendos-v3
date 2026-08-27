@@ -15,7 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Payment } from "@/components/payments/payments-table";
-import { formatDateOnly } from "@/lib/domain/timezone";
+import { formatDateOnly, formatInstant } from "@/lib/domain/timezone";
 
 function formatAmount(amount: string | number): string {
   return new Intl.NumberFormat("es-CL", {
@@ -26,8 +26,14 @@ function formatAmount(amount: string | number): string {
   }).format(Number(amount));
 }
 
+// dueDate es date-only (dia calendario) — formatDateOnly, sin reinterpretar zona.
 function formatShortDate(dateString: string | null | undefined): string {
   return formatDateOnly(dateString, { day: "numeric", month: "short", year: "numeric" });
+}
+
+// paidAt es un instante real — formatInstant, wall-time America/Santiago.
+function formatPaidDate(dateString: string | null | undefined): string {
+  return formatInstant(dateString, { day: "numeric", month: "short", year: "numeric" });
 }
 
 const METHOD_LABELS: Record<string, string> = {
@@ -289,7 +295,7 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
               cobrado, en el mismo verde del badge (Status Color Doctrine). */}
           {isCompleted && payment.paidAt && (
             <p className="text-[10px] font-medium text-success tabular-nums mt-0.5">
-              Pagado el {formatShortDate(payment.paidAt)}
+              Pagado el {formatPaidDate(payment.paidAt)}
             </p>
           )}
         </div>

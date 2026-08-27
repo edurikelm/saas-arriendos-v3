@@ -186,9 +186,31 @@ export function formatDateOnly(
   options: Intl.DateTimeFormatOptions = { day: "numeric", month: "short" },
   locale: string = "es-CL",
 ): string {
-  if (date == null) return "—";
-  const key = dateOnlyKey(date);
-  const [y, m, d] = key.split("-").map(Number);
-  const anchor = new Date(Date.UTC(y, m - 1, d, 12));
-  return anchor.toLocaleDateString(locale, { ...options, timeZone: "UTC" });
+  if (!date) return "—";
+  try {
+    const key = dateOnlyKey(date);
+    const [y, m, d] = key.split("-").map(Number);
+    if (!y || !m || !d) return "—";
+    const anchor = new Date(Date.UTC(y, m - 1, d, 12));
+    return anchor.toLocaleDateString(locale, { ...options, timeZone: "UTC" });
+  } catch {
+    return "—";
+  }
+}
+
+/**
+ * Formatea un INSTANTE real (Payment.paidAt, Reservation.createdAt) para
+ * mostrar al usuario, en wall-time America/Santiago. A diferencia de
+ * formatDateOnly, aqui SI corresponde reinterpretar la zona horaria — el
+ * instante representa "un momento", no "un dia calendario".
+ */
+export function formatInstant(
+  date: Date | string | null | undefined,
+  options: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" },
+  locale: string = "es-CL",
+): string {
+  if (!date) return "—";
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString(locale, { ...options, timeZone: BUSINESS_TIME_ZONE });
 }
