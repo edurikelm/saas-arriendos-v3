@@ -12,6 +12,7 @@ import {
   dateOnlyKey,
   daysFromTodayDateOnly,
   isOverdueDateOnly,
+  formatDateOnly,
 } from "@/lib/domain/timezone";
 
 describe("BUSINESS_TIME_ZONE", () => {
@@ -292,5 +293,38 @@ describe("isOverdueDateOnly", () => {
   it("defaults nowKey to today in SCL when omitted", () => {
     const farPast = isOverdueDateOnly("2000-01-01T00:00:00.000Z");
     expect(farPast).toBe(true);
+  });
+});
+
+describe("formatDateOnly", () => {
+  it("formats a UTC-midnight dueDate to the correct calendar day in es-CL, regardless of process TZ", () => {
+    // Bug H1 pattern: dueDate a medianoche UTC no debe mostrar el dia anterior.
+    const result = formatDateOnly("2026-08-24T00:00:00.000Z", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+    expect(result).toContain("24");
+    expect(result).not.toContain("23");
+  });
+
+  it("matches the local formatShortDate pattern for day/month/year", () => {
+    const result = formatDateOnly("2026-01-05T00:00:00.000Z", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+    expect(result).toBe("5 ene 2026");
+  });
+
+  it("returns '—' for null/undefined", () => {
+    expect(formatDateOnly(null)).toBe("—");
+    expect(formatDateOnly(undefined)).toBe("—");
+  });
+
+  it("is stable across UTC-midnight and UTC-noon representations of the same calendar day", () => {
+    const fromMidnight = formatDateOnly("2026-08-24T00:00:00.000Z", { day: "numeric", month: "short" });
+    const fromNoon = formatDateOnly("2026-08-24T12:00:00.000Z", { day: "numeric", month: "short" });
+    expect(fromMidnight).toBe(fromNoon);
   });
 });

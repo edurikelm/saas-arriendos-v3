@@ -1,12 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableHeader } from "@/components/ui/data-table";
 import { PaymentRowActions } from "./payment-row-actions";
 import { cn } from "@/lib/utils";
+import { formatDateOnly } from "@/lib/domain/timezone";
 
 /**
  * Variantes explícitas de la tabla de pagos.
@@ -70,8 +69,7 @@ function formatDate(dateString: string): string {
 }
 
 function formatDueDate(dateString: string | null | undefined): string {
-  if (!dateString) return "—";
-  return format(new Date(dateString), "d MMM yyyy", { locale: es });
+  return formatDateOnly(dateString, { day: "numeric", month: "short", year: "numeric" });
 }
 
 function formatAmount(amount: string | number): string {
