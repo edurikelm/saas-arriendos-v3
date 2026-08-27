@@ -17,7 +17,7 @@ const items: CobranzaItem[] = [
     amount: 400000,
     dueDate: new Date("2026-08-20T12:00:00Z"),
     daysFromToday: -7,
-    urgency: "overdue",
+    bucket: "OVERDUE",
   },
   {
     reservationId: "res-2",
@@ -26,7 +26,7 @@ const items: CobranzaItem[] = [
     amount: 185000,
     dueDate: new Date("2026-08-27T12:00:00Z"),
     daysFromToday: 0,
-    urgency: "today",
+    bucket: "DUE_TODAY",
   },
   {
     reservationId: "res-3",
@@ -35,7 +35,7 @@ const items: CobranzaItem[] = [
     amount: 1250000,
     dueDate: new Date("2026-09-01T12:00:00Z"),
     daysFromToday: 5,
-    urgency: "upcoming",
+    bucket: "UPCOMING_7D",
   },
 ];
 
@@ -89,5 +89,26 @@ describe("DashboardCobranzaList", () => {
 
     expectInDoc(screen.queryByText("Sin cobros pendientes"));
     expect(screen.queryByRole("list")).toBeNull();
+  });
+
+  it("maneja daysFromToday null (sin dueDate) sin reventar", () => {
+    render(
+      <DashboardCobranzaList
+        items={[
+          {
+            reservationId: "res-4",
+            clientName: "Pedro Soto",
+            propertyName: "Loft Sur",
+            amount: 90000,
+            dueDate: null,
+            daysFromToday: null,
+            bucket: "UPCOMING_7D",
+          },
+        ]}
+        viewAllHref="/payments"
+      />
+    );
+
+    expectInDoc(screen.queryByText("Sin fecha de vencimiento"));
   });
 });

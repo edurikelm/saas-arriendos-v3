@@ -8,25 +8,18 @@ import { formatDateOnly } from "@/lib/domain/timezone";
  * Bucket de cobranza — alineado 1:1 con `DashboardCollectionBucket`
  * (`@/lib/dashboard/summary`). Redefinido localmente para no acoplar este
  * componente puramente presentacional al seam de dominio.
+ *
+ * Dos colores, no tres: `info` (per DESIGN.md, "próximos 7 días") describe
+ * estados neutrales — duración DAILY/MONTHLY, próximo check-in — no dinero
+ * pendiente de cobro. Un cobro que vence en 5 días sigue siendo una acción
+ * pendiente, no un dato de contexto; pintarlo `info` lo hace leer como
+ * no-urgente cuando en realidad solo es "menos urgente que hoy". La
+ * distinción de urgencia entre "hoy" y "en N días" la carga el label y el
+ * peso del texto de vencimiento, no el color de la pill:
+ *   OVERDUE                 → destructive
+ *   DUE_TODAY / UPCOMING_7D → warning
  */
 export type CobranzaBucket = "OVERDUE" | "DUE_TODAY" | "UPCOMING_7D";
-
-/**
- * Urgencia de un cobro. Dos colores, no tres: `info` (per DESIGN.md, "próximos
- * 7 días") describe estados neutrales — duración DAILY/MONTHLY, próximo
- * check-in — no dinero pendiente de cobro. Un cobro que vence en 5 días sigue
- * siendo una acción pendiente, no un dato de contexto; pintarlo `info` lo
- * hace leer como no-urgente cuando en realidad solo es "menos urgente que
- * hoy". La distinción de urgencia entre "hoy" y "en N días" la carga el
- * label y el peso del texto de vencimiento, no el color de la pill:
- *   VENCIDO                    → destructive
- *   VENCE HOY / próximos 7 días → warning
- *
- * Reemplaza al antiguo boolean `isOverdue`, que colapsaba "vence hoy" y
- * "vence en 7 días" en un único estado "Pendiente" pintado con `warning`
- * (mismo resultado de color, pero sin distinguir "hoy" en el label).
- */
-export type CobranzaUrgency = "overdue" | "today" | "upcoming";
 
 export interface CobranzaItem {
   reservationId: string;
@@ -34,21 +27,21 @@ export interface CobranzaItem {
   propertyName: string;
   amount: number;
   dueDate: Date | null;
-  /** Días desde hoy hasta el vencimiento (negativo = vencido). Wall-time SCL per ADR-0020. */
-  daysFromToday: number;
-  urgency: CobranzaUrgency;
+  /** Días desde hoy hasta el vencimiento (negativo = vencido). `null` cuando no hay `dueDate`. */
+  daysFromToday: number | null;
+  bucket: CobranzaBucket;
 }
 
-const URGENCY_TONE: Record<CobranzaUrgency, PillTone> = {
-  overdue: "destructive",
-  today: "warning",
-  upcoming: "warning",
+const BUCKET_TONE: Record<CobranzaBucket, PillTone> = {
+  OVERDUE: "destructive",
+  DUE_TODAY: "warning",
+  UPCOMING_7D: "warning",
 };
 
-const URGENCY_LABEL: Record<CobranzaUrgency, string> = {
-  overdue: "Vencido",
-  today: "Vence hoy",
-  upcoming: "Pendiente",
+const BUCKET_LABEL: Record<CobranzaBucket, string> = {
+  OVERDUE: "Vencido",
+  DUE_TODAY: "Vence hoy",
+  UPCOMING_7D: "Pendiente",
 };
 
 /**
@@ -56,10 +49,10 @@ const URGENCY_LABEL: Record<CobranzaUrgency, string> = {
  * card, oscuro en light / claro en dark) y NO `--warning`, que es el token de
  * relleno: a 0.78 de lightness sobre card blanco no alcanza contraste AA.
  */
-const URGENCY_TEXT: Record<CobranzaUrgency, string> = {
-  overdue: "text-destructive",
-  today: "text-warning-foreground",
-  upcoming: "text-muted-foreground",
+const BUCKET_TEXT: Record<CobranzaBucket, string> = {
+  OVERDUE: "text-destructive",
+  DUE_TODAY: "text-warning-foreground",
+  UPCOMING_7D: "text-muted-foreground",
 };
 
 function formatCLP(amount: number): string {
@@ -71,16 +64,14 @@ function formatCLP(amount: number): string {
   }).format(amount);
 }
 
-function formatDate(date: Date | null): string {
-  return formatDateOnly(date, { day: "numeric", month: "short" });
-}
-
 /**
  * Línea de vencimiento: relativo primero (accionable), absoluto después (verificable).
  * "Vence en 3 días · 1 sept" escanea mejor que "Vence: 1 sept", que obliga al dueño
  * a calcular la urgencia mentalmente.
  */
-function dueLabel(daysFromToday: number, dueDate: Date | null): string {
+function dueLabel(daysFromToday: number | null, dueDate: Date | null): string {
+  if (daysFromToday === null) return "Sin fecha de vencimiento";
+
   const relative =
     daysFromToday < -1
       ? `Venció hace ${Math.abs(daysFromToday)} días`
@@ -92,7 +83,7 @@ function dueLabel(daysFromToday: number, dueDate: Date | null): string {
             ? "Vence mañana"
             : `Vence en ${daysFromToday} días`;
 
-  return dueDate ? `${relative} · ${formatDate(dueDate)}` : relative;
+  return dueDate ? `${relative} · ${formatDateOnly(dueDate)}` : relative;
 }
 
 interface DashboardCobranzaListProps {
@@ -108,21 +99,23 @@ interface DashboardCobranzaListProps {
   viewAllLabel?: string;
   /**
    * Total y cantidad de TODOS los cobros pendientes, no solo los visibles.
-   * `items` viene truncado (top 4), así que derivarlo de `items` mentiría cuando
-   * hay más cobros de los que caben. Si se omite, se deriva de `items`.
+   * `items` viene truncado (top N por `collectionLimit`), así que derivarlo
+   * de `items` mentiría cuando hay más cobros de los que caben. Si se omite,
+   * se deriva de `items`.
    */
   totalAmount?: number;
   totalCount?: number;
 }
 
 /**
- * Compact cobranza sidebar for /dashboard. Shows up to 4 items ordered by urgency
- * (vencidos → vencen hoy → próximos 7 días), each with client, propiedad, monto y
- * vencimiento relativo. Cada fila es un link a la reserva — la sección es una
- * lista de pendientes, no un reporte de solo lectura.
+ * Compact cobranza sidebar for /dashboard. Shows up to N items ordered by
+ * urgency (vencidos → vencen hoy → próximos 7 días), each with client,
+ * propiedad, monto y vencimiento relativo. Cada fila es un link a la
+ * reserva — la sección es una lista de pendientes, no un reporte de solo
+ * lectura.
  *
- * Standalone primitive — no server data fetching; data is computed by the
- * dashboard page and passed as props.
+ * Standalone primitive — no server data fetching; data is computed by
+ * `getDashboardSummary` (`@/lib/dashboard/summary`) and passed as props.
  */
 export function DashboardCobranzaList({
   items,
@@ -179,7 +172,7 @@ export function DashboardCobranzaList({
                 <li key={`${item.reservationId}-${idx}`}>
                   <Link
                     href={`/reservations/${item.reservationId}`}
-                    aria-label={`${item.clientName} — ${formatCLP(item.amount)} — ${URGENCY_LABEL[item.urgency]}`}
+                    aria-label={`${item.clientName} — ${formatCLP(item.amount)} — ${BUCKET_LABEL[item.bucket]}`}
                     className="flex items-start justify-between gap-3 px-4 py-3 transition-colors hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none"
                   >
                     <div className="min-w-0 flex-1">
@@ -190,7 +183,7 @@ export function DashboardCobranzaList({
                         {item.propertyName}
                       </p>
                       <p
-                        className={cn("mt-0.5 text-[10px] tabular-nums", URGENCY_TEXT[item.urgency])}
+                        className={cn("mt-0.5 text-[10px] tabular-nums", BUCKET_TEXT[item.bucket])}
                       >
                         {dueLabel(item.daysFromToday, item.dueDate)}
                       </p>
@@ -200,8 +193,8 @@ export function DashboardCobranzaList({
                         {formatCLP(item.amount)}
                       </p>
                       <ReservationPill
-                        tone={URGENCY_TONE[item.urgency]}
-                        label={URGENCY_LABEL[item.urgency]}
+                        tone={BUCKET_TONE[item.bucket]}
+                        label={BUCKET_LABEL[item.bucket]}
                       />
                     </div>
                   </Link>

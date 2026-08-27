@@ -15,11 +15,7 @@ import { ReservationPill } from "@/components/reservations/reservation-pill";
 import { getReservationTone, getTemporalStatus } from "@/components/reservations/reservation-status";
 import { OccupancyStrip } from "@/components/calendar/occupancy-strip";
 import { PlanAlertBanner } from "@/components/billing/plan-alert-banner";
-import {
-  DashboardCobranzaList,
-  type CobranzaItem,
-  type CobranzaUrgency,
-} from "./_components/dashboard-cobranza-list";
+import { DashboardCobranzaList, type CobranzaItem } from "./_components/dashboard-cobranza-list";
 import { DashboardReservasTable } from "./_components/dashboard-reservas-table";
 
 function formatDate(dateString: string): string {
@@ -141,175 +137,26 @@ export default async function DashboardPage() {
   const { income, collection, upcoming, occupancy, upcomingReservations, collectionItems, occupancyStrip } =
     dashboardSummary;
 
-  // activeReservations: hoy ∈ [start, end] (wall-time SCL per ADR-0020).
-  // Antes el filtro usaba `new Date(startDate) <= today` (con `today` en local midnight),
-  // lo cual era timezone-frágil: en zonas UTC+, una reserva con start_date = hoy
-  // caía en upcomingReservations en lugar de activeReservations.
-  const activeReservations = data.reservations
-    .filter((reservation) => {
-      if (reservation.status === "CANCELLED") return false;
-      const daysToStart = daysUntilStart(reservation.startDate, today);
-      const daysToEnd = daysUntilEnd(reservation.endDate, today);
-      return daysToStart <= 0 && daysToEnd >= 0;
-    })
-    .sort((a, b) => daysUntilEnd(a.endDate, today) - daysUntilEnd(b.endDate, today));
+  const cobranzaItems: CobranzaItem[] = collectionItems.map((item) => ({
+    reservationId: item.reservationId,
+    clientName: item.clientName,
+    amount: item.amount,
+    dueDate: item.dueDate ? new Date(item.dueDate) : null,
+    daysFromToday: item.daysFromToday,
+    bucket: item.bucket,
+    propertyName: item.propertyName,
+  }));
 
-  const upcomingReservations = data.reservations
-    .filter((reservation) => {
-      if (reservation.status === "CANCELLED") return false;
-      return daysUntilStart(reservation.startDate, today) > 0;
-    })
-    .sort((a, b) => daysUntilStart(a.startDate, today) - daysUntilStart(b.startDate, today));
-
-  const allPayments = data.reservations.flatMap((r) =>
-    r.payments.filter((p) => !p.deletedAt).map((p) => ({ ...p, reservation: r }))
-  );
-
-  // KPI 1: Ingresos Mensuales — suma de pagos COMPLETED con paidAt en el mes actual
-  const monthStart = startOfMonth(today);
-  const prevMonthStart = startOfMonth(addDays(monthStart, -1));
-  const monthlyIncome = allPayments
-    .filter(
-      (p) =>
-        p.status === "COMPLETED" &&
-        p.paidAt &&
-        new Date(p.paidAt) >= monthStart
-    )
-    .reduce((sum, p) => sum + Number(p.amount), 0);
-  const prevMonthIncome = allPayments
-    .filter(
-      (p) =>
-        p.status === "COMPLETED" &&
-        p.paidAt &&
-        new Date(p.paidAt) >= prevMonthStart &&
-        new Date(p.paidAt) < monthStart
-    )
-    .reduce((sum, p) => sum + Number(p.amount), 0);
-  const incomeChangePct =
-    prevMonthIncome > 0
-      ? Math.round(((monthlyIncome - prevMonthIncome) / prevMonthIncome) * 100)
-      : monthlyIncome > 0
-        ? 100
-        : 0;
-  const incomeChangeText =
-    incomeChangePct > 0
-      ? `+${incomeChangePct}% vs mes anterior`
-      : incomeChangePct < 0
-        ? `${incomeChangePct}% vs mes anterior`
-        : "Sin cambio vs mes anterior";
-  const incomeChangeVariant: "positive" | "warning" | "neutral" =
-    incomeChangePct > 0 ? "positive" : incomeChangePct < 0 ? "warning" : "neutral";
-
-  // KPI 2: Pagos Pendientes — count de PENDING + X vencidos
-  const pendingPaymentsList = allPayments.filter((p) => p.status === "PENDING");
-  const overdueCount = pendingPaymentsList.filter(
-    (p) => p.dueDate && new Date(p.dueDate) < today
-  ).length;
-
-  // KPI 3: Próximas Reservas — count + X para esta semana (≤7 días)
-  const next7Days = upcomingReservations.filter(
-    (reservation) => daysUntilStart(reservation.startDate, today) <= 7
-  ).length;
-
-  // KPI 4: Ocupación
-  const totalUnits = data.properties.reduce((sum, property) => sum + property.unitsAvailable, 0);
-  const occupiedUnits = activeReservations.reduce(
-    (sum, reservation) => sum + reservation.unitsBooked,
-    0
-  );
-  const occupancyRate = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0;
-
-  // Cobranza: items derivados de collectionAlerts (vencidos + proximos7Dias ordenados)
-  const collectionAlerts = classifyCollectionAlerts(
-    data.reservations.flatMap((reservation) =>
-      reservation.payments.map((payment) => ({
-        id: payment.id,
-        status: payment.status,
-        paymentType: payment.paymentType ?? null,
-        method: payment.method,
-        amount: Number(payment.amount),
-        dueDate: payment.dueDate ?? null,
-        initPoint: payment.initPoint ?? null,
-        expiresAt: payment.expiresAt ?? null,
-        reservation: {
-          id: reservation.id,
-          status: reservation.status,
-          client: { name: reservation.client.name },
-          property: { name: reservation.property.name },
-        },
-      }))
-    )
-  );
-
-  // Orden de urgencia: vencidos → vencen hoy → próximos 7 días.
-  // `vencenHoy` antes no se incluía: los cobros que vencen HOY —el bucket más
-  // accionable del día— quedaban invisibles en esta sección del dashboard.
-  const toCobranzaItem = (
-    alert: (typeof collectionAlerts)["vencidos"][number],
-    urgency: CobranzaUrgency,
-  ): CobranzaItem => ({
-    reservationId: alert.reservationId,
-    clientName: alert.clientName,
-    propertyName: alert.propertyName,
-    amount: alert.amount,
-    dueDate: alert.dueDate ? new Date(alert.dueDate) : null,
-    daysFromToday: alert.daysFromToday,
-    urgency,
-  });
-
-  const allCobranzaItems: CobranzaItem[] = [
-    ...collectionAlerts.vencidos.map((alert) => toCobranzaItem(alert, "overdue")),
-    ...collectionAlerts.vencenHoy.map((alert) => toCobranzaItem(alert, "today")),
-    ...collectionAlerts.proximos7Dias.map((alert) => toCobranzaItem(alert, "upcoming")),
-  ];
-
-  // El card muestra el top 4, pero el footer reporta el total real — mostrar la
-  // suma de los 4 visibles mentiría cuando hay más cobros abiertos.
-  const cobranzaItems = allCobranzaItems.slice(0, 4);
-  const cobranzaTotalAmount = allCobranzaItems.reduce((sum, item) => sum + item.amount, 0);
-  const cobranzaTotalCount = allCobranzaItems.length;
-
-  // Tabla Próximas reservas: solo reservas DAILY (mezcla activas + próximas, top 6).
-  // Las reservas MONTHLY no aparecen aquí — se gestionan en /reservations.
-  //
-  // Orden de filas (jerarquía descendente):
-  //   1) Reservas que LLEGAN HOY (`daysToStart === 0`) — la señal más accionable
-  //      del día; van arriba con highlight visual. Entre ellas, las que terminan
-  //      antes primero (la atención puede ser check-in + check-out el mismo día).
-  //   2) Reservas activas (`daysToStart < 0`, ya están en curso), ordenadas por
-  //      fecha de salida ascendente (las que terminan antes primero).
-  //   3) Reservas próximas (futuras), ordenadas por días faltantes ascendente.
-  // Las comparaciones son en wall-time SCL per ADR-0020 — no se reinterpretan
-  // fechas como UTC. Este sort es SOLO para la tabla — los KPIs
-  // (activeReservations, upcomingReservations) siguen el cómputo original arriba.
-  const tableReservations = [...activeReservations, ...upcomingReservations]
-    .filter((reservation) => reservation.billingType === "DAILY")
-    .map((reservation) => {
-      const daysToStart = daysUntilStart(reservation.startDate, today);
-      const daysToEnd = daysUntilEnd(reservation.endDate, today);
-      const isActive = daysToStart <= 0 && daysToEnd >= 0;
-      const isArrivingToday = daysToStart === 0;
-      return { reservation, isActive, isArrivingToday, daysToStart, daysToEnd };
-    })
-    .sort((a, b) => {
-      if (a.isArrivingToday !== b.isArrivingToday) {
-        return a.isArrivingToday ? -1 : 1;
-      }
-      if (a.isArrivingToday && b.isArrivingToday) {
-        // Entre las que llegan hoy, las que terminan antes primero (puede haber
-        // check-out el mismo día).
-        return a.daysToEnd - b.daysToEnd;
-      }
-      if (a.isActive !== b.isActive) {
-        return a.isActive ? -1 : 1;
-      }
-      if (a.isActive && b.isActive) {
-        return a.daysToEnd - b.daysToEnd;
-      }
-      return a.daysToStart - b.daysToStart;
-    })
-    .slice(0, 6)
-    .map((entry) => entry.reservation);
+  // El card muestra el top `collectionLimit` (default 4), pero el footer
+  // reporta el total real de vencido+hoy+próximos 7 días — mostrar la suma
+  // de los items visibles mentiría cuando hay más cobros abiertos en esa
+  // ventana. `collection.pendingCount`/`totalToCollect` NO sirven aquí:
+  // cubren TODA deuda pendiente sin ventana de tiempo (incluye cobros a
+  // 30+ días), que es un scope más amplio que lo que esta lista muestra.
+  const cobranzaTotalCount =
+    collection.overdueCount + collection.dueTodayCount + collection.upcoming7dCount;
+  const cobranzaTotalAmount =
+    collection.overdueAmount + collection.dueTodayAmount + collection.upcoming7dAmount;
 
   // Subtitle data-driven: prioriza la señal más accionable para el dueño.
   const subtitleText =
