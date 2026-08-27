@@ -24,7 +24,11 @@ import {
 } from "@/components/reservations/reservation-status";
 import { OccupancyStrip } from "@/components/calendar/occupancy-strip";
 import { PlanAlertBanner } from "@/components/billing/plan-alert-banner";
-import { DashboardCobranzaList, type CobranzaItem } from "./_components/dashboard-cobranza-list";
+import {
+  DashboardCobranzaList,
+  type CobranzaItem,
+  type CobranzaUrgency,
+} from "./_components/dashboard-cobranza-list";
 import { DashboardReservasTable } from "./_components/dashboard-reservas-table";
 
 interface Property {
@@ -291,24 +295,33 @@ export default async function DashboardPage() {
     )
   );
 
-  const cobranzaItems: CobranzaItem[] = [
-    ...collectionAlerts.vencidos.map<CobranzaItem>((alert) => ({
-      reservationId: alert.reservationId,
-      clientName: alert.clientName,
-      amount: alert.amount,
-      dueDate: alert.dueDate ? new Date(alert.dueDate) : null,
-      isOverdue: true,
-      propertyName: alert.propertyName,
-    })),
-    ...collectionAlerts.proximos7Dias.map<CobranzaItem>((alert) => ({
-      reservationId: alert.reservationId,
-      clientName: alert.clientName,
-      amount: alert.amount,
-      dueDate: alert.dueDate ? new Date(alert.dueDate) : null,
-      isOverdue: false,
-      propertyName: alert.propertyName,
-    })),
-  ].slice(0, 4);
+  // Orden de urgencia: vencidos → vencen hoy → próximos 7 días.
+  // `vencenHoy` antes no se incluía: los cobros que vencen HOY —el bucket más
+  // accionable del día— quedaban invisibles en esta sección del dashboard.
+  const toCobranzaItem = (
+    alert: (typeof collectionAlerts)["vencidos"][number],
+    urgency: CobranzaUrgency,
+  ): CobranzaItem => ({
+    reservationId: alert.reservationId,
+    clientName: alert.clientName,
+    propertyName: alert.propertyName,
+    amount: alert.amount,
+    dueDate: alert.dueDate ? new Date(alert.dueDate) : null,
+    daysFromToday: alert.daysFromToday,
+    urgency,
+  });
+
+  const allCobranzaItems: CobranzaItem[] = [
+    ...collectionAlerts.vencidos.map((alert) => toCobranzaItem(alert, "overdue")),
+    ...collectionAlerts.vencenHoy.map((alert) => toCobranzaItem(alert, "today")),
+    ...collectionAlerts.proximos7Dias.map((alert) => toCobranzaItem(alert, "upcoming")),
+  ];
+
+  // El card muestra el top 4, pero el footer reporta el total real — mostrar la
+  // suma de los 4 visibles mentiría cuando hay más cobros abiertos.
+  const cobranzaItems = allCobranzaItems.slice(0, 4);
+  const cobranzaTotalAmount = allCobranzaItems.reduce((sum, item) => sum + item.amount, 0);
+  const cobranzaTotalCount = allCobranzaItems.length;
 
   // Tabla Próximas reservas: solo reservas DAILY (mezcla activas + próximas, top 6).
   // Las reservas MONTHLY no aparecen aquí — se gestionan en /reservations.
@@ -587,7 +600,12 @@ export default async function DashboardPage() {
         </div>
 
         {/* Cobranza list — col-1 */}
-        <DashboardCobranzaList items={cobranzaItems} viewAllHref="/payments" />
+        <DashboardCobranzaList
+          items={cobranzaItems}
+          viewAllHref="/payments"
+          totalAmount={cobranzaTotalAmount}
+          totalCount={cobranzaTotalCount}
+        />
       </section>
 
       {/* 4. Calendario de ocupación — full width */}
