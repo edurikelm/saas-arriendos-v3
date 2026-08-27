@@ -149,6 +149,17 @@ describe("getCollectionDueLabel", () => {
     const otherYear = getCollectionDueLabel(new Date("2027-02-15T15:00:00.000Z"), now);
     expect(otherYear).toMatch(/2027/);
   });
+
+  it("con nextDueDate a medianoche UTC (como lo persiste la DB), no muestra el día anterior", () => {
+    // Bug de formateo (H2): antes, la rama >7 días formateaba el Date crudo
+    // sin forzar zona, así que un dueDate a medianoche UTC podía mostrar el
+    // día anterior según la zona del proceso que ejecuta el código. Fijamos
+    // un dueDate lejano (>7 días, cae en la rama que usa formatDateOnly) a
+    // medianoche UTC exacta para ejercitar ese boundary.
+    const label = getCollectionDueLabel(new Date("2026-02-20T00:00:00.000Z"), now);
+    expect(label).toMatch(/20/);
+    expect(label).not.toMatch(/\b19\b/);
+  });
 });
 
 describe("getCollectionStatus — integración con buildCollectionReportRows", () => {
