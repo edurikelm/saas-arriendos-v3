@@ -4,7 +4,7 @@ import { useRef } from "react";
 import { ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PaymentTimelineNode } from "./payment-timeline-node";
-import { daysFromNowInBusinessTz, isOverdueInBusinessTz, nowKeyInBusinessTz } from "@/lib/domain/timezone";
+import { daysFromTodayDateOnly, isOverdueDateOnly, nowKeyInBusinessTz } from "@/lib/domain/timezone";
 import type { Payment } from "@/components/payments/payments-table";
 
 function formatPrice(price: string | number): string {
@@ -54,7 +54,7 @@ export function PaymentsTimeline({
 
   // Find first overdue payment for focus
   const firstOverdueIdx = sorted.findIndex(
-    (p) => p.status === "PENDING" && isOverdueInBusinessTz(p.dueDate, nowKey),
+    (p) => p.status === "PENDING" && isOverdueDateOnly(p.dueDate, nowKey),
   );
   const firstOverdueId = firstOverdueIdx >= 0 ? sorted[firstOverdueIdx].id : null;
 
@@ -111,7 +111,7 @@ export function PaymentsTimeline({
         <div ref={focusRef} className="space-y-4">
           {sorted.map((payment, idx) => {
             const days = payment.dueDate
-              ? daysFromNowInBusinessTz(payment.dueDate, new Date(nowKey), "America/Santiago")
+              ? daysFromTodayDateOnly(payment.dueDate)
               : 999; // No due date → treat as far future
             return (
               <PaymentTimelineNode

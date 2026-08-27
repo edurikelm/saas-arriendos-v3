@@ -9,6 +9,11 @@ import {
   nowKeyInBusinessTz,
   isBeforeTodayInBusinessTz,
   isOverdueInBusinessTz,
+  dateOnlyKey,
+  daysFromTodayDateOnly,
+  isOverdueDateOnly,
+  formatDateOnly,
+  formatInstant,
 } from "@/lib/domain/timezone";
 
 describe("BUSINESS_TIME_ZONE", () => {
@@ -210,5 +215,155 @@ describe("isOverdueInBusinessTz", () => {
 
   it("returns false for null dueDate", () => {
     expect(isOverdueInBusinessTz(null, "2026-05-20")).toBe(false);
+  });
+});
+
+describe("dateOnlyKey", () => {
+  it("extracts YYYY-MM-DD from an ISO string without reinterpreting in a timezone", () => {
+    expect(dateOnlyKey("2026-08-24T00:00:00.000Z")).toBe("2026-08-24");
+    expect(dateOnlyKey("2026-08-24T23:00:00.000Z")).toBe("2026-08-24");
+  });
+
+  it("extracts the UTC calendar day from a Date instance", () => {
+    expect(dateOnlyKey(new Date("2026-08-24T00:00:00.000Z"))).toBe("2026-08-24");
+  });
+
+  it("falls back to getDateKeyInTz for non-standard strings", () => {
+    // No debería ocurrir con campos date-only reales del dominio, pero el
+    // fallback evita reventar si llega un formato inesperado.
+    expect(dateOnlyKey("Aug 24 2026 00:00:00 GMT+0000")).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it(
+    "invariante: midnight UTC y mediodia UTC del mismo dia calendario producen la misma key " +
+      "(neutraliza la inconsistencia de escritura entre Reservation.startDate y Payment.dueDate)",
+    () => {
+      const midnight = dateOnlyKey("2026-08-24T00:00:00.000Z");
+      const noon = dateOnlyKey("2026-08-24T12:00:00.000Z");
+      expect(midnight).toBe(noon);
+      expect(midnight).toBe("2026-08-24");
+    }
+  );
+});
+
+describe("daysFromTodayDateOnly", () => {
+  it("returns 0 when the date-only field falls on today in SCL", () => {
+    const now = new Date("2026-08-24T18:00:00.000Z"); // 14:00 SCL (winter, UTC-4)
+    expect(daysFromTodayDateOnly("2026-08-24T00:00:00.000Z", now)).toBe(0);
+  });
+
+  it("does not reinterpret UTC-midnight dueDate as the prior SCL day", () => {
+    // Este es exactamente el bug H1: dueDate a medianoche UTC NO debe leerse
+    // como el dia anterior en SCL solo porque el instante cae temprano.
+    const now = new Date("2026-08-24T03:00:00.000Z"); // 23:00 SCL del 23-ago (dia anterior en zona)
+    expect(daysFromTodayDateOnly("2026-08-24T00:00:00.000Z", now)).toBe(1);
+  });
+
+  it(
+    "invariante: midnight UTC y mediodia UTC del mismo dia calendario dan el mismo resultado",
+    () => {
+      const now = new Date("2026-08-24T18:00:00.000Z");
+      const fromMidnight = daysFromTodayDateOnly("2026-08-24T00:00:00.000Z", now);
+      const fromNoon = daysFromTodayDateOnly("2026-08-24T12:00:00.000Z", now);
+      expect(fromMidnight).toBe(fromNoon);
+    }
+  );
+
+  it("returns negative for a past date-only field", () => {
+    const now = new Date("2026-08-24T18:00:00.000Z");
+    expect(daysFromTodayDateOnly("2026-08-20T00:00:00.000Z", now)).toBe(-4);
+  });
+});
+
+describe("isOverdueDateOnly", () => {
+  it("returns false when the date-only field is today", () => {
+    const nowKey = "2026-08-24";
+    expect(isOverdueDateOnly("2026-08-24T00:00:00.000Z", nowKey)).toBe(false);
+  });
+
+  it("returns true when the date-only field is strictly before nowKey", () => {
+    const nowKey = "2026-08-24";
+    expect(isOverdueDateOnly("2026-08-23T00:00:00.000Z", nowKey)).toBe(true);
+  });
+
+  it("returns false for null/undefined", () => {
+    expect(isOverdueDateOnly(null, "2026-08-24")).toBe(false);
+    expect(isOverdueDateOnly(undefined, "2026-08-24")).toBe(false);
+  });
+
+  it("defaults nowKey to today in SCL when omitted", () => {
+    const farPast = isOverdueDateOnly("2000-01-01T00:00:00.000Z");
+    expect(farPast).toBe(true);
+  });
+});
+
+describe("formatDateOnly", () => {
+  it("formats a UTC-midnight dueDate to the correct calendar day in es-CL, regardless of process TZ", () => {
+    // Bug H1 pattern: dueDate a medianoche UTC no debe mostrar el dia anterior.
+    const result = formatDateOnly("2026-08-24T00:00:00.000Z", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+    expect(result).toContain("24");
+    expect(result).not.toContain("23");
+  });
+
+  it("matches the local formatShortDate pattern for day/month/year", () => {
+    const result = formatDateOnly("2026-01-05T00:00:00.000Z", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+    expect(result).toBe("5 ene 2026");
+  });
+
+  it("returns '—' for null/undefined", () => {
+    expect(formatDateOnly(null)).toBe("—");
+    expect(formatDateOnly(undefined)).toBe("—");
+  });
+
+  it("is stable across UTC-midnight and UTC-noon representations of the same calendar day", () => {
+    const fromMidnight = formatDateOnly("2026-08-24T00:00:00.000Z", { day: "numeric", month: "short" });
+    const fromNoon = formatDateOnly("2026-08-24T12:00:00.000Z", { day: "numeric", month: "short" });
+    expect(fromMidnight).toBe(fromNoon);
+  });
+
+  it("returns '—' instead of throwing for an empty string or an unparseable date", () => {
+    // Regression: antes de este guard, "" y "not-a-date" propagaban una
+    // RangeError sin capturar hasta el caller (crash de client component).
+    expect(formatDateOnly("")).toBe("—");
+    expect(formatDateOnly("not-a-date")).toBe("—");
+    expect(formatDateOnly(new Date("invalid"))).toBe("—");
+  });
+
+  it("forces UTC regardless of a conflicting timeZone passed in options", () => {
+    const result = formatDateOnly(
+      "2026-08-24T00:00:00.000Z",
+      { day: "numeric", month: "short", timeZone: "Pacific/Kiritimati" } as Intl.DateTimeFormatOptions,
+    );
+    expect(result).toContain("24");
+  });
+});
+
+describe("formatInstant", () => {
+  it("formats a paidAt instant in America/Santiago wall-time, not UTC calendar day", () => {
+    // Repro exacto del reviewer: pago marcado a las 22:00 SCL del 24-ago se
+    // persiste como 2026-08-25T02:00:00.000Z (ya es 25 en UTC). El resultado
+    // debe seguir siendo 24-ago, el dia en que realmente ocurrio en SCL.
+    const result = formatInstant("2026-08-25T02:00:00.000Z", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+    expect(result).toContain("24");
+    expect(result).not.toContain("25");
+  });
+
+  it("returns '—' for null/undefined/empty/unparseable", () => {
+    expect(formatInstant(null)).toBe("—");
+    expect(formatInstant(undefined)).toBe("—");
+    expect(formatInstant("")).toBe("—");
+    expect(formatInstant("not-a-date")).toBe("—");
   });
 });

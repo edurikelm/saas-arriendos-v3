@@ -26,7 +26,7 @@ import {
 } from "@/lib/payments/queries";
 import { confirmReservationIfPaid } from "@/lib/reservations/confirmation";
 import { recordDomainEvent } from "@/lib/notifications/record-event";
-import { daysFromNowInBusinessTz, startOfMonthInSantiago } from "@/lib/domain/timezone";
+import { daysFromTodayDateOnly, startOfMonthInSantiago } from "@/lib/domain/timezone";
 
 function buildMercadoPagoNotificationUrl(paymentId: string) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -167,8 +167,8 @@ export async function getPayments(filters?: {
   return {
     payments: payments.map((p) => {
       const isPending = p.status === "PENDING";
-      // daysFromNowInBusinessTz returns negative for past dates; negate so overdueDays is positive
-      const rawDays = isPending && p.dueDate ? daysFromNowInBusinessTz(p.dueDate, today) : null;
+      // daysFromTodayDateOnly returns negative for past dates; negate so overdueDays is positive
+      const rawDays = isPending && p.dueDate ? daysFromTodayDateOnly(p.dueDate, today) : null;
       const overdueDays: number | null = rawDays !== null ? -rawDays : null;
 
       const isMonthly = p.reservation.billingType === "MONTHLY";

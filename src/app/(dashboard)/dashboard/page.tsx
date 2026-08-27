@@ -4,24 +4,15 @@ import { buttonVariants } from "@/components/ui/button";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { classifyCollectionAlerts } from "@/lib/alerts/collection-alerts";
-import { getProperties } from "@/lib/actions/properties";
-import { getReservations } from "@/lib/actions/reservations";
+import { getDashboardSummary } from "@/lib/actions/dashboard";
+import type { DashboardSummary } from "@/lib/dashboard/summary";
 import {
   getCurrentSubscriptionAction,
   countOwnerUsage,
 } from "@/lib/actions/subscriptions";
 import { requireOwner } from "@/lib/auth/guards";
 import { ReservationPill } from "@/components/reservations/reservation-pill";
-import {
-  daysUntilEnd,
-  daysUntilStart,
-  getNights,
-  getReservationTone,
-  getTemporalStatus,
-  labelDaysUntilEnd,
-  labelDaysUntilStart,
-} from "@/components/reservations/reservation-status";
+import { getReservationTone, getTemporalStatus } from "@/components/reservations/reservation-status";
 import { OccupancyStrip } from "@/components/calendar/occupancy-strip";
 import { PlanAlertBanner } from "@/components/billing/plan-alert-banner";
 import {
@@ -30,53 +21,6 @@ import {
   type CobranzaUrgency,
 } from "./_components/dashboard-cobranza-list";
 import { DashboardReservasTable } from "./_components/dashboard-reservas-table";
-
-interface Property {
-  id: string;
-  name: string;
-  unitsAvailable: number;
-  dailyPrice: string;
-  monthlyPrice: string | null;
-  mainImage: string | null;
-  color: string;
-}
-
-interface Client {
-  id: string;
-  name: string;
-  email: string;
-  phone: string | null;
-}
-
-interface Payment {
-  id: string;
-  amount: string;
-  status: string;
-  paymentType?: string | null;
-  method: string;
-  paidAt: string | null;
-  deletedAt: string | null;
-  dueDate?: string | null;
-  initPoint?: string | null;
-  expiresAt?: string | null;
-}
-
-interface Reservation {
-  id: string;
-  propertyId: string;
-  clientId: string;
-  startDate: string;
-  endDate: string;
-  billingType: string;
-  unitsBooked: number;
-  totalPrice: string;
-  status: string;
-  notes: string | null;
-  createdAt: string;
-  property: Property;
-  client: Client;
-  payments: Payment[];
-}
 
 function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString("es-CL", {
@@ -95,21 +39,26 @@ function formatCLP(amount: number): string {
   }).format(amount);
 }
 
-function startOfMonth(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
-}
-
-function addDays(d: Date, n: number): Date {
-  const result = new Date(d);
-  result.setDate(result.getDate() + n);
-  return result;
+/**
+ * Etiqueta relativa "Mañana"/"Pasado mañana"/"En N días" a partir de un
+ * conteo de días ya calculado (wall-time SCL) por `buildDashboardSummary`.
+ * Puramente presentacional — no recalcula fechas, solo formatea el número
+ * que ya viene en `daysToStart`/`daysToEnd`. Réplica del wording de
+ * `labelDaysUntilStart`/`labelDaysUntilEnd` (reservation-status.ts) sin
+ * necesitar `now` en este Server Component.
+ */
+function relativeDayLabel(days: number): string {
+  if (days <= 0) return "Hoy";
+  if (days === 1) return "Mañana";
+  if (days === 2) return "Pasado mañana";
+  return `En ${days} días`;
 }
 
 export default async function DashboardPage() {
-  // Load principal data defensively. Si getReservations o getProperties lanzan,
-  // la página renderiza un fallback honesto en vez de un Next.js error page.
-  let reservations: Reservation[] = [];
-  let properties: Property[] = [];
+  // Load principal data defensively. Si getDashboardSummary lanza (o retorna
+  // null por sesión inválida), la página renderiza un fallback honesto en
+  // vez de un Next.js error page.
+  let dashboardSummary: DashboardSummary | null = null;
   let dataLoadError: string | null = null;
 
   // Plan/subscription + usage: cargados aparte para no acoplar el try/catch
@@ -126,12 +75,10 @@ export default async function DashboardPage() {
   const session = await requireOwner();
 
   try {
-    const [reservationsResult, propertiesResult] = await Promise.all([
-      getReservations(),
-      getProperties(),
-    ]);
-    reservations = (reservationsResult as unknown as { data: Reservation[] }).data ?? [];
-    properties = (propertiesResult as unknown as Property[]) ?? [];
+    dashboardSummary = await getDashboardSummary();
+    if (!dashboardSummary) {
+      dataLoadError = "No pudimos verificar tu sesión.";
+    }
   } catch (err) {
     console.error("[dashboard] failed to load initial data", err);
     dataLoadError = err instanceof Error ? err.message : "No pudimos cargar tus datos.";
@@ -149,11 +96,9 @@ export default async function DashboardPage() {
     // No-op: seguimos con defaults; el banner no se renderiza (variante null).
   }
 
-  const today = new Date();
-
   // Fallback de error: el dashboard es el home diario — un white-screen destruye
   // confianza. Renderizamos un Card con mensaje claro + CTA reintentar / soporte.
-  if (dataLoadError) {
+  if (dataLoadError || !dashboardSummary) {
     return (
       <div className="space-y-6 pb-10">
         <div>
@@ -176,7 +121,7 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-xs text-muted-foreground">
-              {dataLoadError}
+              {dataLoadError ?? "No pudimos cargar tus datos."}
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <Link href="/dashboard" className={buttonVariants({ size: "sm" })}>
@@ -193,7 +138,8 @@ export default async function DashboardPage() {
     );
   }
 
-  const data = { reservations, properties };
+  const { income, collection, upcoming, occupancy, upcomingReservations, collectionItems, occupancyStrip } =
+    dashboardSummary;
 
   // activeReservations: hoy ∈ [start, end] (wall-time SCL per ADR-0020).
   // Antes el filtro usaba `new Date(startDate) <= today` (con `today` en local midnight),
@@ -366,14 +312,13 @@ export default async function DashboardPage() {
     .map((entry) => entry.reservation);
 
   // Subtitle data-driven: prioriza la señal más accionable para el dueño.
-  const overdueAmount = collectionAlerts.vencidos.reduce((sum, a) => sum + a.amount, 0);
   const subtitleText =
-    overdueCount > 0
-      ? `Tienes ${overdueCount} ${overdueCount === 1 ? "cobro vencido" : "cobros vencidos"} por ${formatCLP(overdueAmount)}`
-      : next7Days > 0
-        ? `Todo al día. ${next7Days} ${next7Days === 1 ? "check-in" : "check-ins"} esta semana.`
-        : upcomingReservations.length > 0
-          ? `Todo al día. ${upcomingReservations.length} ${upcomingReservations.length === 1 ? "reserva en puerta" : "reservas en puerta"}.`
+    collection.overdueCount > 0
+      ? `Tienes ${collection.overdueCount} ${collection.overdueCount === 1 ? "cobro vencido" : "cobros vencidos"} por ${formatCLP(collection.overdueAmount)}`
+      : upcoming.next7Days > 0
+        ? `Todo al día. ${upcoming.next7Days} ${upcoming.next7Days === 1 ? "check-in" : "check-ins"} esta semana.`
+        : upcoming.total > 0
+          ? `Todo al día. ${upcoming.total} ${upcoming.total === 1 ? "reserva en puerta" : "reservas en puerta"}.`
           : "Sin reservas próximas. Crea una para empezar.";
 
   return (
@@ -401,39 +346,39 @@ export default async function DashboardPage() {
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
         <KpiCard
           label="Ingresos Mensuales"
-          value={formatCLP(monthlyIncome)}
+          value={formatCLP(income.currentMonth)}
           icon={Wallet}
           tone="success"
-          indicator={{ text: incomeChangeText, variant: incomeChangeVariant }}
+          indicator={{ text: income.delta.text, variant: income.delta.variant }}
         />
         <KpiCard
           label="Pagos Pendientes"
-          value={pendingPaymentsList.length}
+          value={collection.pendingCount}
           icon={Clock}
-          tone={overdueCount > 0 ? "warning" : "default"}
+          tone={collection.overdueCount > 0 ? "warning" : "default"}
           indicator={
-            overdueCount > 0
-              ? { text: `${overdueCount} vencidos`, variant: "warning" }
+            collection.overdueCount > 0
+              ? { text: `${collection.overdueCount} vencidos`, variant: "warning" }
               : { text: "Al día", variant: "neutral" }
           }
         />
         <KpiCard
           label="Próximas Reservas"
-          value={upcomingReservations.length}
+          value={upcoming.total}
           icon={CalendarCheck}
           tone="default"
           indicator={
-            next7Days > 0
-              ? { text: `${next7Days} para esta semana`, variant: "neutral" }
+            upcoming.next7Days > 0
+              ? { text: `${upcoming.next7Days} para esta semana`, variant: "neutral" }
               : { text: "Sin check-ins próximos", variant: "neutral" }
           }
         />
         <KpiCard
           label="Ocupación Actual"
-          value={`${occupancyRate}%`}
+          value={`${occupancy.rate}%`}
           icon={TrendingUp}
           tone="default"
-          progressBar={{ value: occupancyRate }}
+          progressBar={{ value: occupancy.rate }}
         />
       </section>
 
@@ -467,28 +412,15 @@ export default async function DashboardPage() {
               </div>
             }
           >
-            {tableReservations.map((reservation) => {
-              // Per ADR-0020: status, days restantes y label se calculan en wall-time SCL.
-              // Antes: `start <= today && end >= today` con `today` en local midnight
-              // era timezone-frágil → reserva con start_date = hoy podía caer en
-              // "Llega en 1 día" en zonas UTC+.
-              const daysToStart = daysUntilStart(reservation.startDate, today);
-              const daysToEnd = daysUntilEnd(reservation.endDate, today);
-              const isActive = daysToStart <= 0 && daysToEnd >= 0;
-              // "Llega hoy" = el huésped hace check-in HOY (start_date = hoy en SCL),
-              // sin importar cuándo termina. Esto es operativamente distinto de
-              // "Activa" (huésped ya está durmiendo) y es la señal más urgente para
-              // el dueño: preparar check-in, llaves, limpieza. La lógica de
-              // activeReservations / upcomingReservations arriba NO se altera — los
-              // KPIs siguen considerando la reserva como activa (ocupa unidades hoy),
-              // pero en la tabla la destacamos por encima del resto.
-              const isArrivingToday = daysToStart === 0;
-              const nights = getNights(reservation.startDate, reservation.endDate);
+            {upcomingReservations.map((reservation) => {
+              // `daysToStart`/`daysToEnd`/`isActive`/`isArrivingToday`/`nights` ya vienen
+              // precalculados por `buildDashboardSummary` (wall-time SCL, ADR-0020).
+              const { daysToStart, daysToEnd, isActive, isArrivingToday, nights } = reservation;
               const arrivalLabel = isArrivingToday
                 ? "Llega hoy"
                 : isActive
-                  ? `Finaliza ${labelDaysUntilEnd(reservation.endDate, today)}`
-                  : `Llega ${labelDaysUntilStart(reservation.startDate, today)}`;
+                  ? `Finaliza ${relativeDayLabel(daysToEnd)}`
+                  : `Llega ${relativeDayLabel(daysToStart)}`;
               // Codificamos DOS dimensiones semánticas con atributos visuales distintos
               // para que el dueño pueda escanear tanto la dirección (llega vs sale)
               // como la urgencia (hoy vs pronto vs lejano) sin ambigüedad:
@@ -520,7 +452,6 @@ export default async function DashboardPage() {
                 reservation.endDate,
                 reservation.billingType,
                 reservation.status,
-                today,
               );
               const statusLabel = temporalStatus.label;
               const statusSublabel = temporalStatus.sublabel;
@@ -528,7 +459,6 @@ export default async function DashboardPage() {
                 reservation.status,
                 reservation.startDate,
                 reservation.endDate,
-                today,
               );
 
               return (
@@ -543,7 +473,7 @@ export default async function DashboardPage() {
                         href={`/reservations/${reservation.id}`}
                         className="text-xs font-bold text-foreground hover:text-primary hover:underline"
                       >
-                        {reservation.property.name}
+                        {reservation.propertyName}
                       </Link>
                       {/* Mini-label mobile: muestra el mismo arrivalLabel que la columna
                           Llegada/Salida en desktop (que está oculta en <sm). El color
@@ -560,7 +490,7 @@ export default async function DashboardPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">
-                    {reservation.client.name}
+                    {reservation.clientName}
                   </td>
                   <td className="px-4 py-3">
                     <div className="whitespace-nowrap text-xs font-bold text-foreground tabular-nums">
@@ -591,7 +521,7 @@ export default async function DashboardPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-right text-xs font-bold text-foreground tabular-nums">
-                    {formatCLP(Number(reservation.totalPrice))}
+                    {formatCLP(reservation.totalPrice)}
                   </td>
                 </tr>
               );
@@ -610,8 +540,8 @@ export default async function DashboardPage() {
 
       {/* 4. Calendario de ocupación — full width */}
       <OccupancyStrip
-        reservations={data.reservations}
-        properties={data.properties}
+        reservations={occupancyStrip.reservations}
+        properties={occupancyStrip.properties}
         days={14}
         viewAllHref="/calendar"
       />

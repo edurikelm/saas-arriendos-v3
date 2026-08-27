@@ -58,6 +58,19 @@ Antes de empezar una tarea, clasifícala en uno de los tres niveles definidos en
 
 Si hay duda entre Nivel 1 y Nivel 2, escalar hacia arriba. Ver ADR-0017 para los criterios completos.
 
+`architect`, `implementer`, `tester`, `reviewer`, `explorer` y `docs-writer` existen como
+definiciones espejadas en dos herramientas — mismo rol, mismo texto de instrucciones, modelo
+propio de cada plataforma:
+
+- OpenCode → `.opencode/agent/*.md` (modelos MiniMax).
+- Claude Code → `.claude/agents/*.md` (modelos Claude: `architect`/`reviewer` → Opus por ser los
+  gates de calidad de Nivel 3; `implementer`/`tester`/`docs-writer` → Sonnet; `explorer` → Haiku
+  por ser búsqueda read-only de alto volumen).
+
+`rentalpro-orchestrator` (`.opencode/agent/rentalpro-orchestrator.md`) es específico de OpenCode
+— en Claude Code ese rol lo cumple la sesión principal, que ya lee este archivo. Al editar el
+comportamiento de un rol, actualizar ambas copias.
+
 ## Artefactos de verificación
 
 Screenshots, traces de performance, heap snapshots, archivos `.network-request`, `.network-response`, `.heapsnapshot` y otros generados durante la verificación visual o de red **no son parte del producto**. Después de usarlos, eliminarlos del worktree o moverlos a `C:\Users\eduri\AppData\Local\Temp\opencode` (directorio temporal pre-aprobado). Nunca dejarlos en la raíz del repo ni en `src/`.

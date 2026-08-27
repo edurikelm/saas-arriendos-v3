@@ -16,6 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Payment } from "@/components/payments/payments-table";
+import { formatDateOnly, formatInstant } from "@/lib/domain/timezone";
 
 function formatAmount(amount: string | number): string {
   return new Intl.NumberFormat("es-CL", {
@@ -26,27 +27,21 @@ function formatAmount(amount: string | number): string {
   }).format(Number(amount));
 }
 
+// dueDate es date-only (dia calendario) — formatDateOnly, sin reinterpretar zona.
 function formatShortDate(dateString: string | null | undefined): string {
-  if (!dateString) return "—";
-  const key = String(dateString).slice(0, 10);
-  const [y, m, d] = key.split("-").map(Number);
-  const date = new Date(Date.UTC(y, m - 1, d, 12));
-  return date.toLocaleDateString("es-CL", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+  return formatDateOnly(dateString, { day: "numeric", month: "short", year: "numeric" });
+}
+
+// paidAt es un instante real — formatInstant, wall-time America/Santiago.
+function formatPaidDate(dateString: string | null | undefined): string {
+  return formatInstant(dateString, { day: "numeric", month: "short", year: "numeric" });
 }
 
 function formatMonthLabel(dateString: string | null | undefined): string {
   if (!dateString) return "";
-  const key = String(dateString).slice(0, 10);
-  const [y, m] = key.split("-").map(Number);
-  const date = new Date(Date.UTC(y, m - 1, 1, 12));
-  return date
-    .toLocaleDateString("es-CL", { month: "long", year: "numeric", timeZone: "UTC" })
-    .replace(/^./, (c) => c.toUpperCase());
+  return formatDateOnly(dateString, { month: "long", year: "numeric" }).replace(/^./, (c) =>
+    c.toUpperCase(),
+  );
 }
 
 const METHOD_LABELS: Record<string, string> = {
@@ -338,7 +333,7 @@ export function PaymentTimelineNode({
                 Color Doctrine: COMPLETED → success). */}
             {isCompleted && payment.paidAt && (
               <p className="text-[10px] font-medium text-success tabular-nums mt-0.5">
-                Pagado el {formatShortDate(payment.paidAt)}
+                Pagado el {formatPaidDate(payment.paidAt)}
               </p>
             )}
           </div>

@@ -57,8 +57,13 @@ describe("classifyCollectionAlerts", () => {
   });
 
   it("respeta zona horaria America/Santiago en el corte del dia", () => {
+    // now = 2026-05-20T03:30 UTC = 2026-05-19 23:30 SCL (todavia 19-may en zona
+    // de negocio). dueDate es date-only (medianoche UTC persistida por
+    // lib/payments/monthly.ts) → se lee como dia calendario "2026-05-19", sin
+    // reinterpretar el instante en SCL. Coincide con "hoy" en zona de negocio,
+    // asi que debe caer en vencenHoy.
     const now = new Date("2026-05-20T03:30:00.000Z");
-    const payment = buildPayment({ id: "scl-today", dueDate: "2026-05-20T03:00:00.000Z" });
+    const payment = buildPayment({ id: "scl-today", dueDate: "2026-05-19T00:00:00.000Z" });
 
     const result = classifyCollectionAlerts([payment], now);
 

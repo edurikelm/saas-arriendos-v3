@@ -149,6 +149,17 @@ describe("getCollectionDueLabel", () => {
     const otherYear = getCollectionDueLabel(new Date("2027-02-15T15:00:00.000Z"), now);
     expect(otherYear).toMatch(/2027/);
   });
+
+  it("con nextDueDate a medianoche UTC (como lo persiste la DB), no muestra el día anterior", () => {
+    // Bug de formateo (H2): antes, la rama >7 días formateaba el Date crudo
+    // sin forzar zona, así que un dueDate a medianoche UTC podía mostrar el
+    // día anterior según la zona del proceso que ejecuta el código. Fijamos
+    // un dueDate lejano (>7 días, cae en la rama que usa formatDateOnly) a
+    // medianoche UTC exacta para ejercitar ese boundary.
+    const label = getCollectionDueLabel(new Date("2026-02-20T00:00:00.000Z"), now);
+    expect(label).toMatch(/20/);
+    expect(label).not.toMatch(/\b19\b/);
+  });
 });
 
 describe("getCollectionStatus — integración con buildCollectionReportRows", () => {
@@ -198,4 +209,42 @@ describe("getCollectionStatus — integración con buildCollectionReportRows", (
     // Hay overdue → Vencido prevalece sobre "Próximo"
     expect(status.status).toBe("OVERDUE");
   });
+
+  it(
+    "repro H1: dueDate a medianoche UTC con now en la tarde del mismo dia SCL " +
+      "no cuenta como vencido y el estado es DUE_TODAY, no OVERDUE",
+    () => {
+      // dueDate se persiste a medianoche UTC (lib/payments/monthly.ts). Antes
+      // del fix de date-only, este ancla se reinterpretaba en wall-time SCL y
+      // caia como "el dia anterior" → bucket "vence hoy" era inalcanzable.
+      const bugNow = new Date("2026-08-24T18:00:00.000Z"); // tarde SCL del 24-ago
+      const reservation: CollectionReservationInput = {
+        id: "res-h1",
+        propertyId: "prop-1",
+        propertyName: "Edificio Centro",
+        clientId: "cli-1",
+        clientName: "Ana Perez",
+        billingType: "MONTHLY",
+        status: "CONFIRMED",
+        startDate: new Date("2026-08-01T00:00:00.000Z"),
+        totalPrice: 100000,
+        payments: [
+          {
+            amount: 100000,
+            status: "PENDING",
+            paymentType: "RESERVATION",
+            deletedAt: null,
+            dueDate: new Date("2026-08-24T00:00:00.000Z"),
+          },
+        ],
+      };
+
+      const [row] = buildCollectionReportRows([reservation], { now: bugNow, debtStatus: "ALL" });
+      expect(row).toBeDefined();
+      expect(row.overdue).toBe(0);
+
+      const status = getCollectionStatus(row, bugNow);
+      expect(status.status).toBe("DUE_TODAY");
+    }
+  );
 });

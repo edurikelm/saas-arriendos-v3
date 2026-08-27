@@ -2,7 +2,7 @@
 
 import { AlertCircle, CheckCircle2, Wallet } from "lucide-react";
 import { KpiCard } from "@/components/ui/kpi-card";
-import { isOverdueInBusinessTz, nowKeyInBusinessTz } from "@/lib/domain/timezone";
+import { isOverdueDateOnly, nowKeyInBusinessTz } from "@/lib/domain/timezone";
 import { getReservationPaidAmount, getReservationPendingAmount } from "@/lib/payments/calculations";
 import { PaymentsCardsList } from "./payments-cards-list";
 import { PaymentsTimeline } from "./payments-timeline";
@@ -18,8 +18,9 @@ function formatPrice(price: string | number): string {
 }
 
 /** Pagos pendientes (RESERVATION, no EXTRA) cuya fecha de vencimiento ya pasó.
- *  Usa `isOverdueInBusinessTz` (ADR-0020) para evitar sensibilidad a la zona
- *  del servidor (Vercel corre en UTC, negocio opera en America/Santiago). */
+ *  `dueDate` es date-only (ADR-0020 / dominio): `isOverdueDateOnly` lee su
+ *  día calendario directo, sin reinterpretar en zona, y lo compara contra
+ *  "hoy" en wall-time America/Santiago. */
 function getOverdueAmount(payments: Payment[]): number {
   const nowKey = nowKeyInBusinessTz();
   return payments
@@ -28,7 +29,7 @@ function getOverdueAmount(payments: Payment[]): number {
         p.status === "PENDING" &&
         !p.deletedAt &&
         (p.paymentType ?? "RESERVATION") !== "EXTRA" &&
-        isOverdueInBusinessTz(p.dueDate, nowKey),
+        isOverdueDateOnly(p.dueDate, nowKey),
     )
     .reduce((sum, p) => sum + Number(p.amount || 0), 0);
 }
@@ -40,7 +41,7 @@ function getOverdueCount(payments: Payment[]): number {
       p.status === "PENDING" &&
       !p.deletedAt &&
       (p.paymentType ?? "RESERVATION") !== "EXTRA" &&
-      isOverdueInBusinessTz(p.dueDate, nowKey),
+      isOverdueDateOnly(p.dueDate, nowKey),
   ).length;
 }
 
