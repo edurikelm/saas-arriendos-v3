@@ -20,7 +20,7 @@ const baseUsage: OwnerUsage = {
 function makeSub(overrides: Partial<Subscription> = {}): Subscription {
   const now = new Date();
   const future = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   return {
     id: "sub_1",
     userId: "user_1",
