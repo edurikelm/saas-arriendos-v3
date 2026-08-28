@@ -129,7 +129,7 @@ export function DashboardCobranzaList({
     totalAmount ?? items.reduce((sum, item) => sum + item.amount, 0);
 
   return (
-    <section aria-labelledby="cobros-pendientes-heading">
+    <section aria-labelledby="cobros-pendientes-heading" className="flex h-full flex-col">
       {viewAllHref && (
         <div className="mb-4 flex items-center justify-between">
           <h2
@@ -146,7 +146,7 @@ export function DashboardCobranzaList({
           </Link>
         </div>
       )}
-      <div className="flex flex-col overflow-hidden rounded-md border border-border bg-card">
+      <div className="flex flex-1 flex-col overflow-hidden rounded-md border border-border bg-card">
         {viewAllHref ? null : (
           <div className="border-b border-border px-4 py-3">
             <h2
@@ -158,7 +158,7 @@ export function DashboardCobranzaList({
           </div>
         )}
         {items.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 py-10 text-center">
             <CheckCircle2 className="size-5 text-success" aria-hidden="true" />
             <p className="text-xs font-bold text-foreground">Sin cobros pendientes</p>
             <p className="text-[10px] text-muted-foreground">
