@@ -83,6 +83,23 @@ function formatCLP(amount: number): string {
 }
 
 /**
+ * Plazo relativo de una cuota que vence dentro de la ventana de 7 días
+ * (`0 <= days <= 7` por construcción de `dueSoon` en
+ * `@/lib/reports/collection`): 0 → "hoy", 1 → "mañana", N → "en N días".
+ *
+ * Existe para que el segundo tramo de `dueLabel` comparta la misma escalera
+ * que la rama sin vencidos, que ya resolvía esos dos casos. Sin ella el
+ * sufijo salía como "vence en 0 días" / "vence en 1 días" — y no es un borde
+ * raro: `generateMonthlyPayments` fija todos los `dueDate` al día 1, así que
+ * ocurría cada día 1 y cada último día de mes.
+ */
+function plazoRelativo(days: number): string {
+  if (days === 0) return "hoy";
+  if (days === 1) return "mañana";
+  return `en ${days} días`;
+}
+
+/**
  * Línea de vencimiento: relativo primero (accionable), absoluto después (verificable).
  * "Vence en 3 días · 1 sept" escanea mejor que "Vence: 1 sept", que obliga al dueño
  * a calcular la urgencia mentalmente.
@@ -144,7 +161,7 @@ function dueLabel(item: {
     const verb = dueSoonCount > 1 ? "vencen" : "vence";
     secondSegment =
       dueSoonDaysFromToday !== null
-        ? `+${dueSoonCount} ${verb} en ${dueSoonDaysFromToday} días`
+        ? `+${dueSoonCount} ${verb} ${plazoRelativo(dueSoonDaysFromToday)}`
         : `+${dueSoonCount} por vencer`;
   } else if (dueDate) {
     secondSegment = overdueCount >= 2 ? `desde ${formatDateOnly(dueDate)}` : formatDateOnly(dueDate);

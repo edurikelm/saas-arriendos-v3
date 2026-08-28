@@ -147,4 +147,61 @@ describe("DashboardCobranzaList", () => {
 
     expectInDoc(screen.queryByText("2 cuotas vencidas · +1 vence en 4 días"));
   });
+
+  // `generateMonthlyPayments` fija todos los `dueDate` al día 1, así que
+  // `dueSoonDaysFromToday` vale 0 cada día 1 y 1 cada último día de mes:
+  // son los dos valores más frecuentes de la ventana, no bordes raros.
+  it.each([
+    [0, "2 cuotas vencidas · +1 vence hoy"],
+    [1, "2 cuotas vencidas · +1 vence mañana"],
+  ])(
+    "dueSoonDaysFromToday = %i no produce «en N días» sino la escalera relativa",
+    (dueSoonDaysFromToday, expected) => {
+      render(
+        <DashboardCobranzaList
+          items={[
+            {
+              reservationId: "res-6",
+              clientName: "Alejandra Mayorga",
+              propertyName: "Teja 2",
+              amount: 750000,
+              dueDate: new Date("2026-07-01T00:00:00Z"),
+              daysFromToday: -62,
+              bucket: "OVERDUE",
+              overdueCount: 2,
+              dueSoonCount: 1,
+              dueSoonDaysFromToday,
+            },
+          ]}
+          viewAllHref="/payments"
+        />
+      );
+
+      expectInDoc(screen.queryByText(expected));
+    }
+  );
+
+  it("pluraliza el verbo del segundo tramo cuando vencen varias cuotas", () => {
+    render(
+      <DashboardCobranzaList
+        items={[
+          {
+            reservationId: "res-7",
+            clientName: "Alejandra Mayorga",
+            propertyName: "Teja 2",
+            amount: 1000000,
+            dueDate: new Date("2026-07-01T00:00:00Z"),
+            daysFromToday: -62,
+            bucket: "OVERDUE",
+            overdueCount: 2,
+            dueSoonCount: 2,
+            dueSoonDaysFromToday: 0,
+          },
+        ]}
+        viewAllHref="/payments"
+      />
+    );
+
+    expectInDoc(screen.queryByText("2 cuotas vencidas · +2 vencen hoy"));
+  });
 });

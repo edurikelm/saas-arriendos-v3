@@ -196,6 +196,11 @@ export interface CollectionReportRow {
    * tiempo — cuenta TODA cuota/extra impago, incluidos los que vencen a
    * 30+ días. Alimenta el KPI "Pagos Pendientes" del dashboard, que cuenta
    * cobros (no reservas).
+   *
+   * Invariante: `totalToCollect > 0` ⟹ `pendingChargesCount >= 1`. Se
+   * clampea porque este campo cuenta registros de Payment mientras
+   * `pending` sale de `totalPrice - paid`, y las dos fuentes divergen
+   * (reserva extendida sin regenerar cuotas, cuota PENDING soft-borrada).
    */
   pendingChargesCount: number;
 }
@@ -326,6 +331,20 @@ export function buildCollectionReportRows(
       }
 
       const extrasPendingCount = extraPayments.filter((payment) => payment.status !== "COMPLETED").length;
+      const totalToCollect = pending + extrasPending;
+
+      // Invariante: una reserva con deuda tiene al menos UN cobro pendiente.
+      // `pendingChargesCount` se deriva de registros de Payment, mientras
+      // `pending` se deriva de `totalPrice - paid`. Las dos fuentes divergen
+      // cuando una reserva se extiende sin regenerar cuotas
+      // (`updateReservation` recalcula `totalPrice`, pero
+      // `generateMonthlyPayments` solo corre en `createReservation`) o cuando
+      // se soft-borra una cuota PENDING desde /payments. Sin este clamp el
+      // KPI "Pagos Pendientes" reportaba 0 con deuda real a la vista.
+      const pendingChargesCount = Math.max(
+        unpaidChargesCount + extrasPendingCount,
+        totalToCollect > 0 ? 1 : 0,
+      );
 
       return {
         reservationId: reservation.id,
@@ -343,13 +362,13 @@ export function buildCollectionReportRows(
         nextInstallmentAmount,
         extrasPaid,
         extrasPending,
-        totalToCollect: pending + extrasPending,
+        totalToCollect,
         overdueCount,
         dueSoon,
         dueSoonCount,
         dueSoonNextDueDate,
         extrasPendingCount,
-        pendingChargesCount: unpaidChargesCount + extrasPendingCount,
+        pendingChargesCount,
       } satisfies CollectionReportRow;
     })
     .filter((row) => {
