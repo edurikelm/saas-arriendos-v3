@@ -100,6 +100,16 @@ describe("DashboardCobranzaList", () => {
     expect(screen.queryByRole("list")).toBeNull();
   });
 
+  // El footer con el total va siempre al fondo de la card, incluso sin
+  // cobros — el dueño no debería inferir el estado de su cartera por la
+  // ausencia de ese bloque.
+  it("el total sigue en el fondo de la card aunque no haya cobros", () => {
+    render(<DashboardCobranzaList items={[]} viewAllHref="/payments" />);
+
+    expectInDoc(screen.queryByText(/0 cobros/i));
+    expectInDoc(screen.queryByText("$0"));
+  });
+
   it("maneja daysFromToday null (sin dueDate) sin reventar", () => {
     render(
       <DashboardCobranzaList
