@@ -21,9 +21,12 @@ type PlanAlertBannerProps = {
  * 2. CANCELLED con `currentPeriodEnd > now` → empujar reactivación mientras
  *    el período pagado sigue vigente.
  *
- * El icon container sigue la regla del design system:
- * `size-9 rounded-xl bg-{tone}/10 text-{tone}` en la misma posición que
- * otros alerts del dashboard (ver `dashboard/page.tsx:131`).
+ * Formato compacto (explorado en /design junto al usuario): título y body en
+ * una sola línea de texto, ícono sin caja de fondo y padding reducido — un
+ * aviso que el dueño ve todos los días no necesita el mismo peso visual que
+ * una alerta puntual. El CTA reusa `buttonVariants({ size: "sm" })` tal cual
+ * (no una variante achicada) para no divergir de los botones "sm" del resto
+ * de la app.
  */
 export function PlanAlertBanner({
   subscription,
@@ -45,16 +48,14 @@ export function PlanAlertBanner({
   return (
     <div
       role="status"
-      className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-warning/20 bg-warning/10 p-4"
+      className="flex flex-col gap-2 sm:flex-row sm:items-center rounded-lg border border-warning/20 bg-warning/10 px-3 py-2"
     >
-      <div className="flex items-start gap-3">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-warning/10 text-warning">
-          <Icon className="size-4" />
-        </div>
-        <div className="space-y-1">
-          <p className="text-sm font-medium text-foreground">{title}</p>
-          <p className="text-xs text-muted-foreground">{body}</p>
-        </div>
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <Icon className="size-4 shrink-0 text-warning" />
+        <p className="text-xs text-foreground">
+          <span className="font-medium">{title}</span>
+          <span className="text-muted-foreground"> · {body}</span>
+        </p>
       </div>
       <Link
         href="/settings/billing"
