@@ -215,4 +215,132 @@ describe("buildCollectionReportRows", () => {
     expect(rows[0].pending).toBe(300000);
     expect(rows[0].nextInstallmentAmount).toBe(300000);  // todo el pending es "la próxima"
   });
+
+  it("MONTHLY: 2 cuotas vencidas + 1 dentro de los próximos 7 días", () => {
+    // now = 2026-01-15. Vencidas: dic-1, ene-1. Por vencer: ene-20 (5 días).
+    const rows = buildCollectionReportRows(
+      [
+        makeReservation({
+          billingType: "MONTHLY",
+          startDate: new Date("2025-12-01T00:00:00.000Z"),
+          totalPrice: 300000,
+          payments: [
+            { amount: 100000, status: "PENDING", paymentType: "RESERVATION", deletedAt: null, dueDate: new Date("2025-12-01T00:00:00.000Z") },
+            { amount: 100000, status: "PENDING", paymentType: "RESERVATION", deletedAt: null, dueDate: new Date("2026-01-01T00:00:00.000Z") },
+            { amount: 100000, status: "PENDING", paymentType: "RESERVATION", deletedAt: null, dueDate: new Date("2026-01-20T00:00:00.000Z") },
+          ],
+        }),
+      ],
+      { now, debtStatus: "ALL" }
+    );
+
+    expect(rows[0].overdueCount).toBe(2);
+    expect(rows[0].dueSoon).toBe(100000);
+    expect(rows[0].dueSoonCount).toBe(1);
+    expect(rows[0].dueSoonNextDueDate?.toISOString()).toBe("2026-01-20T00:00:00.000Z");
+    expect(rows[0].pendingChargesCount).toBe(3);
+  });
+
+  it("MONTHLY: próxima cuota a 30 días → dueSoonCount es 0 (fuera de la ventana de 7 días)", () => {
+    const rows = buildCollectionReportRows(
+      [
+        makeReservation({
+          billingType: "MONTHLY",
+          startDate: new Date("2026-01-01T00:00:00.000Z"),
+          totalPrice: 100000,
+          payments: [
+            { amount: 100000, status: "PENDING", paymentType: "RESERVATION", deletedAt: null, dueDate: new Date("2026-02-14T00:00:00.000Z") },
+          ],
+        }),
+      ],
+      { now, debtStatus: "ALL" }
+    );
+
+    expect(rows[0].overdueCount).toBe(0);
+    expect(rows[0].dueSoon).toBe(0);
+    expect(rows[0].dueSoonCount).toBe(0);
+    expect(rows[0].dueSoonNextDueDate).toBeNull();
+  });
+
+  it("MONTHLY: cuota impaga sin dueDate no cuenta en overdue ni dueSoon, pero sí en pendingChargesCount", () => {
+    const rows = buildCollectionReportRows(
+      [
+        makeReservation({
+          billingType: "MONTHLY",
+          startDate: new Date("2026-01-01T00:00:00.000Z"),
+          totalPrice: 100000,
+          payments: [
+            { amount: 100000, status: "PENDING", paymentType: "RESERVATION", deletedAt: null, dueDate: null },
+          ],
+        }),
+      ],
+      { now, debtStatus: "ALL" }
+    );
+
+    expect(rows[0].overdueCount).toBe(0);
+    expect(rows[0].dueSoonCount).toBe(0);
+    expect(rows[0].dueSoon).toBe(0);
+    expect(rows[0].pendingChargesCount).toBe(1);
+  });
+
+  it("DAILY: reserva vencida cuenta overdueCount = 1 y no aporta a dueSoon", () => {
+    const rows = buildCollectionReportRows(
+      [
+        makeReservation({
+          billingType: "DAILY",
+          startDate: new Date("2026-01-01T00:00:00.000Z"), // muy anterior a now (15-ene)
+          totalPrice: 80000,
+          payments: [],
+        }),
+      ],
+      { now, debtStatus: "ALL" }
+    );
+
+    expect(rows[0].overdueCount).toBe(1);
+    expect(rows[0].dueSoonCount).toBe(0);
+    expect(rows[0].dueSoon).toBe(0);
+    expect(rows[0].pendingChargesCount).toBe(1);
+  });
+
+  it("DAILY: reserva por vencer dentro de 7 días cuenta en dueSoon, no en overdue", () => {
+    const rows = buildCollectionReportRows(
+      [
+        makeReservation({
+          billingType: "DAILY",
+          startDate: new Date("2026-01-20T00:00:00.000Z"), // 5 días después de now (15-ene)
+          totalPrice: 80000,
+          payments: [],
+        }),
+      ],
+      { now, debtStatus: "ALL" }
+    );
+
+    expect(rows[0].overdueCount).toBe(0);
+    expect(rows[0].dueSoonCount).toBe(1);
+    expect(rows[0].dueSoon).toBe(80000);
+    expect(rows[0].dueSoonNextDueDate?.toISOString()).toBe("2026-01-20T00:00:00.000Z");
+  });
+
+  it("extras impagos se cuentan en extrasPendingCount y suman a pendingChargesCount", () => {
+    const rows = buildCollectionReportRows(
+      [
+        makeReservation({
+          billingType: "MONTHLY",
+          startDate: new Date("2026-01-01T00:00:00.000Z"),
+          totalPrice: 100000,
+          payments: [
+            { amount: 100000, status: "COMPLETED", paymentType: "RESERVATION", deletedAt: null, dueDate: new Date("2026-01-01T00:00:00.000Z") },
+            { amount: 20000, status: "PENDING", paymentType: "EXTRA", deletedAt: null },
+            { amount: 15000, status: "FAILED", paymentType: "EXTRA", deletedAt: null },
+            { amount: 10000, status: "COMPLETED", paymentType: "EXTRA", deletedAt: null },
+          ],
+        }),
+      ],
+      { now, debtStatus: "ALL" }
+    );
+
+    expect(rows[0].extrasPendingCount).toBe(2);
+    // Sin cuotas RESERVATION impagas (0) + 2 extras impagos = 2.
+    expect(rows[0].pendingChargesCount).toBe(2);
+  });
 });

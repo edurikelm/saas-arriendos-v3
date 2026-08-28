@@ -210,6 +210,90 @@ describe("buildDashboardSummary", () => {
     expect(summary.collection.overdueCount).toBe(1);
   });
 
+  it("reserva MONTHLY con 3 cuotas (2 vencidas + 1 por vencer en 4 días) reporta el monto real de la ventana, no una sola cuota — repro bug reportado", () => {
+    // Alejandra Mayorga, Teja 2: 1 jul → 30 sept 2026, 3 cuotas de $250.000
+    // (jul, ago, sept), ninguna pagada. `now` = 28 ago 2026 → jul y ago
+    // vencidas, sept vence en 4 días (dentro de la ventana de 7 días).
+    const now = new Date("2026-08-28T18:00:00.000Z"); // tarde SCL, sin ambigüedad DST
+    const reservations = [
+      makeReservation({
+        billingType: "MONTHLY",
+        status: "CONFIRMED",
+        startDate: new Date("2026-07-01T00:00:00.000Z"),
+        endDate: new Date("2026-09-30T00:00:00.000Z"),
+        totalPrice: 750_000,
+        payments: [
+          makePayment({ amount: 250_000, status: "PENDING", paymentType: "RESERVATION", dueDate: new Date("2026-07-01T00:00:00.000Z") }),
+          makePayment({ amount: 250_000, status: "PENDING", paymentType: "RESERVATION", dueDate: new Date("2026-08-01T00:00:00.000Z") }),
+          makePayment({ amount: 250_000, status: "PENDING", paymentType: "RESERVATION", dueDate: new Date("2026-09-01T00:00:00.000Z") }),
+        ],
+      }),
+    ];
+
+    const summary = buildDashboardSummary(buildInput(reservations, { now }));
+
+    expect(summary.collectionItems).toHaveLength(1);
+    const item = summary.collectionItems[0];
+    expect(item.bucket).toBe("OVERDUE");
+    expect(item.amount).toBe(750_000); // 2 vencidas (500k) + 1 por vencer en 4 días (250k)
+    expect(item.overdueCount).toBe(2);
+    expect(item.dueSoonCount).toBe(1);
+    expect(item.dueSoonDaysFromToday).toBe(4);
+
+    expect(summary.collection.windowCount).toBe(3); // 2 vencidas + 1 por vencer
+    expect(summary.collection.windowAmount).toBe(750_000);
+    expect(summary.collection.overdueInstallmentsCount).toBe(2); // cuotas, no reservas
+    expect(summary.collection.overdueAmount).toBe(500_000);
+    expect(summary.collection.pendingCount).toBe(3); // 3 cobros (cuotas), no 1 reserva
+  });
+
+  it("contrato MONTHLY largo (12 cuotas, 2 vencidas, próxima a 30 días) usa el monto de la ventana, NO totalToCollect del año completo", () => {
+    const now = new Date("2026-08-28T18:00:00.000Z");
+    // 2 cuotas vencidas ($250k c/u) + 10 cuotas futuras, la más próxima a
+    // exactamente 30 días de `now` (fuera de la ventana de 7 días).
+    const overdueDueDates = ["2026-06-01T00:00:00.000Z", "2026-07-01T00:00:00.000Z"];
+    const futureDueDates = [
+      "2026-09-27T00:00:00.000Z", // exactamente +30 días de 28-ago
+      "2026-10-27T00:00:00.000Z",
+      "2026-11-27T00:00:00.000Z",
+      "2026-12-27T00:00:00.000Z",
+      "2027-01-27T00:00:00.000Z",
+      "2027-02-27T00:00:00.000Z",
+      "2027-03-27T00:00:00.000Z",
+      "2027-04-27T00:00:00.000Z",
+      "2027-05-27T00:00:00.000Z",
+      "2027-06-27T00:00:00.000Z",
+    ];
+    const allDueDates = [...overdueDueDates, ...futureDueDates];
+    expect(allDueDates).toHaveLength(12);
+
+    const reservations = [
+      makeReservation({
+        billingType: "MONTHLY",
+        status: "CONFIRMED",
+        startDate: new Date("2026-06-01T00:00:00.000Z"),
+        endDate: new Date("2027-06-30T00:00:00.000Z"),
+        totalPrice: 3_000_000, // 12 × 250k
+        payments: allDueDates.map((dueDate) =>
+          makePayment({ amount: 250_000, status: "PENDING", paymentType: "RESERVATION", dueDate: new Date(dueDate) }),
+        ),
+      }),
+    ];
+
+    const summary = buildDashboardSummary(buildInput(reservations, { now }));
+
+    expect(summary.collectionItems).toHaveLength(1);
+    const item = summary.collectionItems[0];
+    expect(item.bucket).toBe("OVERDUE");
+    // Solo las 2 vencidas — la próxima cuota está a 30 días, fuera de la
+    // ventana de 7 días. NO debe ser totalToCollect (3.000.000, el año
+    // completo del contrato).
+    expect(item.amount).toBe(500_000);
+    expect(item.overdueCount).toBe(2);
+    expect(item.dueSoonCount).toBe(0);
+    expect(item.dueSoonDaysFromToday).toBeNull();
+  });
+
   it("income.currentMonth coincide exacto con buildDecisionSummary(mismo rango).collectedCash", () => {
     const reservations = [
       makeReservation({

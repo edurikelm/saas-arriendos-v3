@@ -30,6 +30,24 @@ export interface CobranzaItem {
   /** Días desde hoy hasta el vencimiento (negativo = vencido). `null` cuando no hay `dueDate`. */
   daysFromToday: number | null;
   bucket: CobranzaBucket;
+  /**
+   * Cantidad de cuotas vencidas detrás de esta fila (una fila = una
+   * reserva, puede agrupar varias cuotas MONTHLY). `dueDate`/`daysFromToday`
+   * ya describen la cuota vencida más temprana; este campo permite decir
+   * "2 cuotas vencidas" en vez de "1 cobro vencido" cuando hay más de una.
+   */
+  overdueCount: number;
+  /**
+   * Cantidad de cuotas que vencen hoy o dentro de los próximos 7 días,
+   * detrás de la cuota vencida más temprana ya representada por `dueDate`.
+   */
+  dueSoonCount: number;
+  /**
+   * Días hasta la cuota más temprana de `dueSoonCount`. `null` cuando
+   * `dueSoonCount === 0` o cuando esa cuota no tiene `dueDate` atribuible
+   * (degrada el sufijo a "+N por vencer" sin plazo).
+   */
+  dueSoonDaysFromToday: number | null;
 }
 
 const BUCKET_TONE: Record<CobranzaBucket, PillTone> = {
@@ -68,22 +86,71 @@ function formatCLP(amount: number): string {
  * Línea de vencimiento: relativo primero (accionable), absoluto después (verificable).
  * "Vence en 3 días · 1 sept" escanea mejor que "Vence: 1 sept", que obliga al dueño
  * a calcular la urgencia mentalmente.
+ *
+ * Una fila = una reserva, que puede agrupar varias cuotas MONTHLY impagas.
+ * `daysFromToday`/`dueDate` siempre describen la cuota impaga MÁS temprana
+ * (la vencida, si hay una); `overdueCount`/`dueSoonCount` revelan cuántas
+ * cuotas más hay detrás, para no mentir con "1 cobro" cuando en realidad
+ * son 2 vencidas + 1 por vencer.
+ *
+ * No-overdue (`overdueCount === 0`): comportamiento sin cambios respecto a
+ * la versión anterior de este componente (bucket DUE_TODAY / UPCOMING_7D /
+ * sin fecha).
+ *
+ * Overdue (`overdueCount >= 1`):
+ *  - 1 cuota vencida  → "Venció hace N días" (igual que antes).
+ *  - ≥2 cuotas vencidas → "N cuotas vencidas".
+ *  - Segundo tramo: si hay cuotas por vencer dentro de 7 días, sufijo
+ *    "+N vence/vencen en X días" (degrada a "+N por vencer" sin plazo si
+ *    no hay `dueSoonDaysFromToday`); si no, la fecha absoluta de la cuota
+ *    vencida más temprana ("desde <fecha>" cuando son ≥2 cuotas, para
+ *    dejar claro que es el inicio del rango, no una fecha puntual).
  */
-function dueLabel(daysFromToday: number | null, dueDate: Date | null): string {
+function dueLabel(item: {
+  daysFromToday: number | null;
+  dueDate: Date | null;
+  overdueCount: number;
+  dueSoonCount: number;
+  dueSoonDaysFromToday: number | null;
+}): string {
+  const { daysFromToday, dueDate, overdueCount, dueSoonCount, dueSoonDaysFromToday } = item;
+
   if (daysFromToday === null) return "Sin fecha de vencimiento";
 
-  const relative =
-    daysFromToday < -1
-      ? `Venció hace ${Math.abs(daysFromToday)} días`
+  if (overdueCount === 0) {
+    const relative =
+      daysFromToday < -1
+        ? `Venció hace ${Math.abs(daysFromToday)} días`
+        : daysFromToday === -1
+          ? "Venció ayer"
+          : daysFromToday === 0
+            ? "Vence hoy"
+            : daysFromToday === 1
+              ? "Vence mañana"
+              : `Vence en ${daysFromToday} días`;
+
+    return dueDate ? `${relative} · ${formatDateOnly(dueDate)}` : relative;
+  }
+
+  const firstSegment =
+    overdueCount >= 2
+      ? `${overdueCount} cuotas vencidas`
       : daysFromToday === -1
         ? "Venció ayer"
-        : daysFromToday === 0
-          ? "Vence hoy"
-          : daysFromToday === 1
-            ? "Vence mañana"
-            : `Vence en ${daysFromToday} días`;
+        : `Venció hace ${Math.abs(daysFromToday)} días`;
 
-  return dueDate ? `${relative} · ${formatDateOnly(dueDate)}` : relative;
+  let secondSegment: string | null = null;
+  if (dueSoonCount > 0) {
+    const verb = dueSoonCount > 1 ? "vencen" : "vence";
+    secondSegment =
+      dueSoonDaysFromToday !== null
+        ? `+${dueSoonCount} ${verb} en ${dueSoonDaysFromToday} días`
+        : `+${dueSoonCount} por vencer`;
+  } else if (dueDate) {
+    secondSegment = overdueCount >= 2 ? `desde ${formatDateOnly(dueDate)}` : formatDateOnly(dueDate);
+  }
+
+  return secondSegment ? `${firstSegment} · ${secondSegment}` : firstSegment;
 }
 
 interface DashboardCobranzaListProps {
@@ -185,7 +252,7 @@ export function DashboardCobranzaList({
                       <p
                         className={cn("mt-0.5 text-[10px] tabular-nums", BUCKET_TEXT[item.bucket])}
                       >
-                        {dueLabel(item.daysFromToday, item.dueDate)}
+                        {dueLabel(item)}
                       </p>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1.5">
