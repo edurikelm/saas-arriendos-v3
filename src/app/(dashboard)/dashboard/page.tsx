@@ -247,11 +247,12 @@ export default async function DashboardPage() {
           <DashboardReservasTable
             caption="Próximas reservas"
             emptyState={
-              <div className="py-6 text-center">
-                <p className="text-sm text-muted-foreground">No hay reservas próximas.</p>
-                <p className="mt-1 text-xs text-muted-foreground">
+              <div className="flex flex-col items-center gap-2 text-center">
+                <CalendarCheck className="size-5 text-muted-foreground" aria-hidden="true" />
+                <p className="text-xs font-bold text-foreground">No hay reservas próximas</p>
+                <p className="text-[10px] text-muted-foreground">
                   Las reservas mensuales se gestionan en{" "}
-                  <Link href="/reservations" className="font-medium text-primary hover:underline">
+                  <Link href="/reservations" className="font-bold text-primary hover:underline">
                     /reservations
                   </Link>
                   .
