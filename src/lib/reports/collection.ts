@@ -1,4 +1,4 @@
-import { BUSINESS_TIME_ZONE, dateOnlyKey, daysFromTodayDateOnly, formatDateOnly, getDateKeyInTz, isOverdueDateOnly, nowKeyInBusinessTz } from "@/lib/domain/timezone";
+import { BUSINESS_TIME_ZONE, dateKeyToDayIndex, dateOnlyKey, daysFromTodayDateOnly, formatDateOnly, getDateKeyInTz, isOverdueDateOnly, nowKeyInBusinessTz } from "@/lib/domain/timezone";
 
 export type CollectionBillingFilter = "GENERAL" | "DAILY" | "MONTHLY";
 export type CollectionDebtStatusFilter = "ACTIVE" | "ALL" | "OVERDUE" | "UPCOMING" | "PAID";
@@ -147,6 +147,57 @@ export interface CollectionReportRow {
   extrasPaid: number;
   extrasPending: number;
   totalToCollect: number;
+  /**
+   * Cantidad de cuotas RESERVATION impagas con `dueDate` ya vencido —
+   * granularidad de cuota, mientras `overdue` es la suma en $.
+   *  - MONTHLY: cuenta de unpaid installments con `dueDate` estrictamente
+   *    anterior a hoy (misma regla que `isOverdueDateOnly`; ambos campos se
+   *    calculan sobre el mismo predicate para no divergir). Cuotas impagas
+   *    sin `dueDate` no cuentan (no hay forma de saber si están vencidas).
+   *  - DAILY: 1 si `overdue > 0` (la deuda entera es un solo cobro contra
+   *    `startDate`), si no 0.
+   *
+   * Existe para que la UI pueda decir "2 cuotas vencidas" en vez de "1 cobro
+   * vencido" cuando una fila (una reserva) agrupa varias cuotas MONTHLY.
+   */
+  overdueCount: number;
+  /**
+   * Suma de cuotas RESERVATION impagas que vencen HOY o dentro de los
+   * próximos 7 días (`0 <= delta <= 7` días calendario, wall-time SCL,
+   * ADR-0020).
+   *  - MONTHLY: suma de amounts de unpaid installments en esa ventana.
+   *  - DAILY: `pending` si `startDate` cae en la ventana y la deuda no está
+   *    vencida (`overdue === 0`); si no, 0.
+   *
+   * Junto con `overdue` y `extrasPending`, compone el monto real de la
+   * ventana "vencido + vence hoy + próximos 7 días" que usa el dashboard
+   * (ver `amountForRow` en `@/lib/dashboard/summary`). Deliberadamente NO es
+   * `totalToCollect`: en un contrato MONTHLY largo (12 cuotas) eso sumaría
+   * el arriendo del año completo, el mismo error que este campo corrige.
+   */
+  dueSoon: number;
+  /** Cantidad de cuotas que componen `dueSoon`. */
+  dueSoonCount: number;
+  /**
+   * `dueDate` de la cuota impaga más temprana dentro de la ventana de
+   * `dueSoon` (HOY..+7 días). `null` cuando `dueSoonCount === 0`. Permite
+   * mostrar "vence en N días" en el sufijo "+N vence en X días" sin
+   * rederivar la búsqueda desde `payments` crudos en la capa de UI.
+   */
+  dueSoonNextDueDate: Date | null;
+  /** Cantidad de cobros EXTRA impagos (los que componen `extrasPending`). */
+  extrasPendingCount: number;
+  /**
+   * Cantidad total de cobros impagos de la reserva: cuotas RESERVATION
+   * impagas (MONTHLY: todas las unpaid installments, con o sin `dueDate`;
+   * DAILY: 1 si `pending > 0`, si no 0) + `extrasPendingCount`.
+   *
+   * A diferencia de `overdueCount`/`dueSoonCount`, no tiene ventana de
+   * tiempo — cuenta TODA cuota/extra impago, incluidos los que vencen a
+   * 30+ días. Alimenta el KPI "Pagos Pendientes" del dashboard, que cuenta
+   * cobros (no reservas).
+   */
+  pendingChargesCount: number;
 }
 
 export interface BuildCollectionOptions {
@@ -203,13 +254,41 @@ export function buildCollectionReportRows(
       let overdue = 0;
       let nextDueDate: Date | null = null;
       let nextInstallmentAmount = 0;
+      let overdueCount = 0;
+      let dueSoon = 0;
+      let dueSoonCount = 0;
+      let dueSoonNextDueDate: Date | null = null;
+      // Cuotas RESERVATION impagas (sin contar extras) — alimenta
+      // pendingChargesCount junto con extrasPendingCount, calculado más abajo.
+      let unpaidChargesCount = 0;
 
       if (reservation.billingType === "MONTHLY") {
         const unpaidInstallments = reservationPayments.filter((payment) => payment.status !== "COMPLETED");
+        unpaidChargesCount = unpaidInstallments.length;
+
         overdue = sumAmounts(
           unpaidInstallments,
           (payment) => isOverdueDateOnly(payment.dueDate, nowKey)
         );
+        overdueCount = unpaidInstallments.filter((payment) =>
+          isOverdueDateOnly(payment.dueDate, nowKey)
+        ).length;
+
+        // Ventana "vence hoy + próximos 7 días": aritmética date-only
+        // (dateKeyToDayIndex/dateOnlyKey) consistente con isOverdueDateOnly.
+        // Cuotas impagas sin dueDate no entran a esta ventana (no hay forma
+        // de saber si caen dentro), pero siguen contando en unpaidChargesCount.
+        const nowDayIndex = dateKeyToDayIndex(nowKey);
+        for (const payment of unpaidInstallments) {
+          if (!payment.dueDate) continue;
+          const delta = dateKeyToDayIndex(dateOnlyKey(payment.dueDate)) - nowDayIndex;
+          if (delta < 0 || delta > 7) continue;
+          dueSoon += Number(payment.amount || 0);
+          dueSoonCount += 1;
+          if (!dueSoonNextDueDate || payment.dueDate.getTime() < dueSoonNextDueDate.getTime()) {
+            dueSoonNextDueDate = payment.dueDate;
+          }
+        }
 
         const dueDates = unpaidInstallments
           .map((payment) => payment.dueDate)
@@ -232,7 +311,21 @@ export function buildCollectionReportRows(
         nextInstallmentAmount = pending;
         nextDueDate = reservation.startDate;
         overdue = isOverdueDateOnly(reservation.startDate, nowKey) ? pending : 0;
+        overdueCount = overdue > 0 ? 1 : 0;
+        unpaidChargesCount = 1;
+
+        if (overdue === 0) {
+          const delta =
+            dateKeyToDayIndex(dateOnlyKey(reservation.startDate)) - dateKeyToDayIndex(nowKey);
+          if (delta >= 0 && delta <= 7) {
+            dueSoon = pending;
+            dueSoonCount = 1;
+            dueSoonNextDueDate = reservation.startDate;
+          }
+        }
       }
+
+      const extrasPendingCount = extraPayments.filter((payment) => payment.status !== "COMPLETED").length;
 
       return {
         reservationId: reservation.id,
@@ -251,6 +344,12 @@ export function buildCollectionReportRows(
         extrasPaid,
         extrasPending,
         totalToCollect: pending + extrasPending,
+        overdueCount,
+        dueSoon,
+        dueSoonCount,
+        dueSoonNextDueDate,
+        extrasPendingCount,
+        pendingChargesCount: unpaidChargesCount + extrasPendingCount,
       } satisfies CollectionReportRow;
     })
     .filter((row) => {

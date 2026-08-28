@@ -133,6 +133,33 @@ export interface DashboardCollectionKpi {
    */
   upcoming7dCount: number;
   upcoming7dAmount: number;
+  /**
+   * Cantidad de CUOTAS vencidas (granularidad de cuota, no de reserva) —
+   * suma de `row.overdueCount` sobre las filas OVERDUE. Alimenta el
+   * subtítulo del header ("Tienes N cuotas vencidas") y el indicador del
+   * KPI "Pagos Pendientes", ambos wording en cuotas para no mentir cuando
+   * una reserva MONTHLY agrupa varias cuotas vencidas en una sola fila.
+   * `overdueCount` (arriba) se queda contando RESERVAS — lo usan el tono
+   * del KPI y su `indicator` previo, sin cambiar de significado.
+   */
+  overdueInstallmentsCount: number;
+  /**
+   * Monto real que muestra el footer de `DashboardCobranzaList`: suma de
+   * `amountForRow` (vencido + vence-hoy/próximos-7-días + extras) sobre las
+   * 3 buckets (OVERDUE, DUE_TODAY, UPCOMING). Reemplaza el cálculo legacy en
+   * `page.tsx` que sumaba `overdueAmount + dueTodayAmount + upcoming7dAmount`
+   * — equivalente en valor, pero ahora vive junto a `amountForRow` (misma
+   * fuente de verdad) en vez de reimplementarse en la página.
+   */
+  windowAmount: number;
+  /**
+   * Cantidad de cobros (cuotas + extras) de esa misma ventana: suma de
+   * `overdueCount + dueSoonCount + extrasPendingCount` sobre las 3 buckets.
+   * Reemplaza el `overdueCount + dueTodayCount + upcoming7dCount` (conteo de
+   * RESERVAS) que usaba `page.tsx` — ahora cuenta cobros, coherente con
+   * `windowAmount`.
+   */
+  windowCount: number;
 }
 
 export interface DashboardUpcomingKpi {
@@ -202,6 +229,21 @@ export interface DashboardCollectionItem {
   initPoint: string | null;
   expiresAt: string | null;
   daysFromToday: number | null;
+  /** Cantidad de cuotas vencidas detrás de esta fila (`row.overdueCount`). */
+  overdueCount: number;
+  /**
+   * Cantidad de cuotas que vencen hoy o dentro de los próximos 7 días
+   * detrás de esta fila (`row.dueSoonCount`). No incluye la cuota vencida
+   * más temprana que ya representa `dueDate`/`daysFromToday`.
+   */
+  dueSoonCount: number;
+  /**
+   * Días hasta la cuota impaga más temprana dentro de la ventana de
+   * `dueSoonCount` (`row.dueSoonNextDueDate` convertido a días). `null`
+   * cuando `dueSoonCount === 0`. Distinto de `daysFromToday`, que siempre
+   * apunta a la cuota impaga MÁS temprana (la vencida, si existe una).
+   */
+  dueSoonDaysFromToday: number | null;
 }
 
 export interface DashboardOccupancyStripReservation {
@@ -373,8 +415,23 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     0,
   );
 
+  // `pendingCount` cuenta COBROS (cuotas + extras impagos), no reservas —
+  // el KPI se llama "Pagos Pendientes". `sumCollectionTotals.pendingInvoices`
+  // cuenta reservas con deuda (correcto para /reports, donde ese es el
+  // significado esperado); NO se toca ese helper.
+  const pendingCount = collectionRows.reduce((sum, row) => sum + row.pendingChargesCount, 0);
+
+  // Ventana real del card (vencido + vence hoy + próximos 7 días): monto y
+  // cantidad de COBROS, no de reservas. `windowAmount` reemplaza el cálculo
+  // legacy de `page.tsx` (`overdueAmount + dueTodayAmount + upcoming7dAmount`,
+  // que sub-contaba cuando una fila OVERDUE tenía además cuotas por vencer
+  // dentro de los 7 días — el bug que este cambio corrige). Se computa con
+  // `amountForRow`, definida más abajo (function declaration, hoisted).
+  const windowRows = [...overdueRows, ...dueTodayRows, ...upcoming7dRows];
+  const overdueInstallmentsCount = overdueRows.reduce((sum, { row }) => sum + row.overdueCount, 0);
+
   const collection: DashboardCollectionKpi = {
-    pendingCount: collectionTotals.pendingInvoices,
+    pendingCount,
     totalToCollect: collectionTotals.totalToCollect,
     overdueCount: overdueRows.length,
     overdueAmount: collectionTotals.totalOverdue,
@@ -382,6 +439,12 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     dueTodayAmount,
     upcoming7dCount: upcoming7dRows.length,
     upcoming7dAmount,
+    overdueInstallmentsCount,
+    windowAmount: windowRows.reduce((sum, { row }) => sum + amountForRow(row), 0),
+    windowCount: windowRows.reduce(
+      (sum, { row }) => sum + row.overdueCount + row.dueSoonCount + row.extrasPendingCount,
+      0,
+    ),
   };
 
   // ── Enriquecimiento (solo MONTHLY): paymentId/initPoint/expiresAt vía
@@ -426,8 +489,24 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     input.reservations.map((r) => [r.id, r.billingType] as const),
   );
 
+  /**
+   * Monto real de la fila dentro de la ventana de cobranza del dashboard
+   * (vencido + vence-hoy/próximos-7-días + extras impagos). Reemplaza el
+   * cálculo legacy `overdue > 0 ? overdue : nextInstallmentAmount +
+   * extrasPending`, que en una reserva MONTHLY con varias cuotas colapsaba
+   * el monto a UNA sola cuota — origen del bug reportado ("1 cobro ·
+   * $500.000" quedándose corto en las cuotas por vencer). Deliberadamente
+   * NO usa `totalToCollect`: en un contrato de 12 meses eso mostraría el
+   * arriendo del año entero.
+   */
   function amountForRow(row: CollectionReportRow): number {
-    return row.overdue > 0 ? row.overdue : row.nextInstallmentAmount + row.extrasPending;
+    const windowed = row.overdue + row.dueSoon + row.extrasPending;
+    if (windowed > 0) return windowed;
+    // Fallback defensivo: fila DUE_TODAY por el caso borde documentado en
+    // `getCollectionStatus` (daysDiff < 0 sin overdue, cambio de día en
+    // Santiago) donde `overdue` y `dueSoon` dan 0 aunque la fila sí tenga
+    // una próxima cuota. Preserva el comportamiento previo en vez de $0.
+    return row.nextInstallmentAmount + row.extrasPending;
   }
 
   function buildCollectionItem(
@@ -448,6 +527,11 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
       initPoint: alert?.initPoint ?? null,
       expiresAt: alert?.expiresAt ?? null,
       daysFromToday: row.nextDueDate ? daysFromTodayDateOnly(row.nextDueDate, now) : null,
+      overdueCount: row.overdueCount,
+      dueSoonCount: row.dueSoonCount,
+      dueSoonDaysFromToday: row.dueSoonNextDueDate
+        ? daysFromTodayDateOnly(row.dueSoonNextDueDate, now)
+        : null,
     };
   }
 

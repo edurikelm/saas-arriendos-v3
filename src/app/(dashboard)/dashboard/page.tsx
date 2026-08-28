@@ -145,6 +145,9 @@ export default async function DashboardPage() {
     daysFromToday: item.daysFromToday,
     bucket: item.bucket,
     propertyName: item.propertyName,
+    overdueCount: item.overdueCount,
+    dueSoonCount: item.dueSoonCount,
+    dueSoonDaysFromToday: item.dueSoonDaysFromToday,
   }));
 
   // El card muestra el top `collectionLimit` (default 4), pero el footer
@@ -153,15 +156,19 @@ export default async function DashboardPage() {
   // ventana. `collection.pendingCount`/`totalToCollect` NO sirven aquí:
   // cubren TODA deuda pendiente sin ventana de tiempo (incluye cobros a
   // 30+ días), que es un scope más amplio que lo que esta lista muestra.
-  const cobranzaTotalCount =
-    collection.overdueCount + collection.dueTodayCount + collection.upcoming7dCount;
-  const cobranzaTotalAmount =
-    collection.overdueAmount + collection.dueTodayAmount + collection.upcoming7dAmount;
+  // `windowAmount`/`windowCount` vienen precalculados de `buildDashboardSummary`
+  // (`@/lib/dashboard/summary`, `amountForRow`) — reemplaza el cálculo local
+  // anterior (`overdueAmount + dueTodayAmount + upcoming7dAmount`), que
+  // sub-contaba una reserva OVERDUE con cuotas adicionales por vencer dentro
+  // de los 7 días (colapsaba varias cuotas MONTHLY en una sola fila).
 
   // Subtitle data-driven: prioriza la señal más accionable para el dueño.
+  // El conteo de "cuotas vencidas" (no de reservas) viene de
+  // `collection.overdueInstallmentsCount`, alineado con el banner de detalle
+  // de reserva ("Tienes N cuotas vencidas").
   const subtitleText =
     collection.overdueCount > 0
-      ? `Tienes ${collection.overdueCount} ${collection.overdueCount === 1 ? "cobro vencido" : "cobros vencidos"} por ${formatCLP(collection.overdueAmount)}`
+      ? `Tienes ${collection.overdueInstallmentsCount} ${collection.overdueInstallmentsCount === 1 ? "cuota vencida" : "cuotas vencidas"} por ${formatCLP(collection.overdueAmount)}`
       : upcoming.next7Days > 0
         ? `Todo al día. ${upcoming.next7Days} ${upcoming.next7Days === 1 ? "check-in" : "check-ins"} esta semana.`
         : upcoming.total > 0
@@ -205,7 +212,7 @@ export default async function DashboardPage() {
           tone={collection.overdueCount > 0 ? "warning" : "default"}
           indicator={
             collection.overdueCount > 0
-              ? { text: `${collection.overdueCount} vencidos`, variant: "warning" }
+              ? { text: `${collection.overdueInstallmentsCount} vencidos`, variant: "warning" }
               : { text: "Al día", variant: "neutral" }
           }
         />
@@ -381,8 +388,8 @@ export default async function DashboardPage() {
         <DashboardCobranzaList
           items={cobranzaItems}
           viewAllHref="/payments"
-          totalAmount={cobranzaTotalAmount}
-          totalCount={cobranzaTotalCount}
+          totalAmount={collection.windowAmount}
+          totalCount={collection.windowCount}
         />
       </section>
 

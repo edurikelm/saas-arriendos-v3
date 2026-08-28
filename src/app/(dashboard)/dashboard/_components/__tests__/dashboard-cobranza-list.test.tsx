@@ -18,6 +18,9 @@ const items: CobranzaItem[] = [
     dueDate: new Date("2026-08-20T12:00:00Z"),
     daysFromToday: -7,
     bucket: "OVERDUE",
+    overdueCount: 1,
+    dueSoonCount: 0,
+    dueSoonDaysFromToday: null,
   },
   {
     reservationId: "res-2",
@@ -27,6 +30,9 @@ const items: CobranzaItem[] = [
     dueDate: new Date("2026-08-27T12:00:00Z"),
     daysFromToday: 0,
     bucket: "DUE_TODAY",
+    overdueCount: 0,
+    dueSoonCount: 0,
+    dueSoonDaysFromToday: null,
   },
   {
     reservationId: "res-3",
@@ -36,6 +42,9 @@ const items: CobranzaItem[] = [
     dueDate: new Date("2026-09-01T12:00:00Z"),
     daysFromToday: 5,
     bucket: "UPCOMING_7D",
+    overdueCount: 0,
+    dueSoonCount: 0,
+    dueSoonDaysFromToday: null,
   },
 ];
 
@@ -103,6 +112,9 @@ describe("DashboardCobranzaList", () => {
             dueDate: null,
             daysFromToday: null,
             bucket: "UPCOMING_7D",
+            overdueCount: 0,
+            dueSoonCount: 0,
+            dueSoonDaysFromToday: null,
           },
         ]}
         viewAllHref="/payments"
@@ -110,5 +122,29 @@ describe("DashboardCobranzaList", () => {
     );
 
     expectInDoc(screen.queryByText("Sin fecha de vencimiento"));
+  });
+
+  it("una reserva con varias cuotas vencidas y una por vencer combina ambos tramos en el label", () => {
+    render(
+      <DashboardCobranzaList
+        items={[
+          {
+            reservationId: "res-5",
+            clientName: "Alejandra Mayorga",
+            propertyName: "Teja 2",
+            amount: 750000,
+            dueDate: new Date("2026-07-01T00:00:00Z"),
+            daysFromToday: -58,
+            bucket: "OVERDUE",
+            overdueCount: 2,
+            dueSoonCount: 1,
+            dueSoonDaysFromToday: 4,
+          },
+        ]}
+        viewAllHref="/payments"
+      />
+    );
+
+    expectInDoc(screen.queryByText("2 cuotas vencidas · +1 vence en 4 días"));
   });
 });
