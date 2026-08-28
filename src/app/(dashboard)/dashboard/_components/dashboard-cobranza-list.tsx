@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Clock } from "lucide-react";
 import { ReservationPill, type PillTone } from "@/components/reservations/reservation-pill";
 import { cn } from "@/lib/utils";
 import { formatDateOnly } from "@/lib/domain/timezone";
@@ -259,7 +259,7 @@ export function DashboardCobranzaList({
           </div>
         )}
         {items.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 py-10 text-center">
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 py-6 text-center">
             <CheckCircle2 className="size-5 text-success" aria-hidden="true" />
             <p className="text-xs font-bold text-foreground">Sin cobros pendientes</p>
             <p className="text-[10px] text-muted-foreground">
@@ -267,59 +267,75 @@ export function DashboardCobranzaList({
             </p>
           </div>
         ) : (
-          <>
-            <ul className="divide-y divide-border">
-              {items.map((item, idx) => {
-                const { primary, chip } = dueLabelParts(item);
-                return (
-                  <li key={`${item.reservationId}-${idx}`}>
-                    <Link
-                      href={`/reservations/${item.reservationId}`}
-                      aria-label={`${item.clientName} — ${formatCLP(item.amount)} — ${BUCKET_LABEL[item.bucket]}`}
-                      className="flex items-start justify-between gap-3 px-4 py-3 transition-colors hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-bold text-foreground">
-                          {item.clientName}
-                        </p>
-                        <p className="truncate text-[10px] text-muted-foreground">
-                          {item.propertyName}
-                        </p>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1">
-                          <span className={cn("text-[10px] tabular-nums", BUCKET_TEXT[item.bucket])}>
-                            {primary}
-                          </span>
-                          {chip && (
-                            <span className="inline-flex items-center whitespace-nowrap rounded border border-warning/25 bg-warning/10 px-1.5 py-0.5 text-[9px] font-bold text-warning-foreground">
-                              {chip}
-                            </span>
+          <ul className="divide-y divide-border">
+            {items.map((item, idx) => {
+              const { primary, chip } = dueLabelParts(item);
+              return (
+                <li key={`${item.reservationId}-${idx}`}>
+                  <Link
+                    href={`/reservations/${item.reservationId}`}
+                    aria-label={`${item.clientName} — ${formatCLP(item.amount)} — ${BUCKET_LABEL[item.bucket]}`}
+                    className="flex items-start justify-between gap-3 px-4 py-3 transition-colors hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-bold text-foreground">
+                        {item.clientName}
+                      </p>
+                      <p className="truncate text-[10px] text-muted-foreground">
+                        {item.propertyName}
+                      </p>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1 text-[10px] tabular-nums",
+                            BUCKET_TEXT[item.bucket]
                           )}
-                        </div>
+                        >
+                          <Clock className="size-2.5 shrink-0" aria-hidden="true" />
+                          {primary}
+                        </span>
+                        {chip && (
+                          <span className="inline-flex items-center whitespace-nowrap rounded border border-warning/25 bg-warning/10 px-1.5 py-0.5 text-[9px] font-bold text-warning-foreground">
+                            {chip}
+                          </span>
+                        )}
                       </div>
-                      <div className="flex shrink-0 flex-col items-end gap-1.5">
-                        <p className="text-xs font-bold text-foreground tabular-nums">
-                          {formatCLP(item.amount)}
-                        </p>
-                        <ReservationPill
-                          tone={BUCKET_TONE[item.bucket]}
-                          label={BUCKET_LABEL[item.bucket]}
-                        />
-                      </div>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-            <div className="flex items-center justify-between gap-3 border-t border-border bg-muted/30 px-4 py-3">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Total · {resolvedCount} {resolvedCount === 1 ? "cobro" : "cobros"}
-              </span>
-              <span className="text-xs font-bold text-foreground tabular-nums">
-                {formatCLP(resolvedTotal)}
-              </span>
-            </div>
-          </>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1.5">
+                      {/*
+                        El monto hereda el color de urgencia del bucket (mismo
+                        token que el due-label) en vez de `text-foreground`
+                        neutral: es el dato accionable de la fila y debía
+                        competir en jerarquía visual con el nombre del
+                        cliente, no quedar igualado a él.
+                      */}
+                      <p className={cn("text-xs font-bold tabular-nums", BUCKET_TEXT[item.bucket])}>
+                        {formatCLP(item.amount)}
+                      </p>
+                      <ReservationPill
+                        tone={BUCKET_TONE[item.bucket]}
+                        label={BUCKET_LABEL[item.bucket]}
+                      />
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
         )}
+        {/*
+          El total siempre va al fondo de la card, incluso sin cobros
+          (0 · $0) — el dueño no debería tener que inferir el estado de su
+          cartera por la ausencia de este bloque.
+        */}
+        <div className="flex items-center justify-between gap-3 border-t border-border bg-muted/30 px-4 py-3">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            Total · {resolvedCount} {resolvedCount === 1 ? "cobro" : "cobros"}
+          </span>
+          <span className="text-xs font-bold text-foreground tabular-nums">
+            {formatCLP(resolvedTotal)}
+          </span>
+        </div>
       </div>
     </section>
   );
