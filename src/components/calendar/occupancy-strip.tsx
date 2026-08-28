@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Building2 } from "lucide-react";
 import { useState } from "react";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
@@ -347,8 +348,26 @@ export function OccupancyStrip({
           {/* Property rows */}
           <div className="divide-y divide-border">
             {calendarProperties.length === 0 ? (
-              <div className="px-6 py-8 text-center text-xs text-muted-foreground">
-                Sin propiedades registradas
+              <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
+                <Building2 className="size-5 text-muted-foreground" aria-hidden="true" />
+                <p className="text-xs font-bold text-foreground">
+                  {properties.length === 0
+                    ? "Sin propiedades registradas"
+                    : "Sin reservas en este rango"}
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  {properties.length === 0 ? (
+                    <>
+                      Agrega tu primera propiedad en{" "}
+                      <Link href="/properties" className="font-bold text-primary hover:underline">
+                        /properties
+                      </Link>{" "}
+                      para ver su ocupación aquí.
+                    </>
+                  ) : (
+                    "Ninguna propiedad tiene reservas en las fechas visibles."
+                  )}
+                </p>
               </div>
             ) : (
               calendarProperties.map((property) => {
