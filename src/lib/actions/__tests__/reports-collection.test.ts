@@ -343,4 +343,71 @@ describe("buildCollectionReportRows", () => {
     // Sin cuotas RESERVATION impagas (0) + 2 extras impagos = 2.
     expect(rows[0].pendingChargesCount).toBe(2);
   });
+
+  // Invariante: `pendingChargesCount` cuenta registros de Payment, `pending`
+  // sale de `totalPrice - paid`. Divergen cuando la reserva se extiende sin
+  // regenerar cuotas (`updateReservation` recalcula `totalPrice`, pero
+  // `generateMonthlyPayments` solo corre en `createReservation`) o cuando se
+  // soft-borra una cuota PENDING. Sin clamp el KPI "Pagos Pendientes"
+  // reportaba 0 con deuda real a la vista.
+  it("totalToCollect > 0 implica pendingChargesCount >= 1 aunque no queden cuotas impagas", () => {
+    const rows = buildCollectionReportRows(
+      [
+        makeReservation({
+          billingType: "MONTHLY",
+          startDate: new Date("2026-01-01T00:00:00.000Z"),
+          // Extendida de 3 a 6 meses: totalPrice subió, las cuotas no se regeneraron.
+          totalPrice: 1500000,
+          payments: [
+            { amount: 250000, status: "COMPLETED", paymentType: "RESERVATION", deletedAt: null, dueDate: new Date("2026-01-01T00:00:00.000Z") },
+            { amount: 250000, status: "COMPLETED", paymentType: "RESERVATION", deletedAt: null, dueDate: new Date("2026-02-01T00:00:00.000Z") },
+            { amount: 250000, status: "COMPLETED", paymentType: "RESERVATION", deletedAt: null, dueDate: new Date("2026-03-01T00:00:00.000Z") },
+          ],
+        }),
+      ],
+      { now, debtStatus: "ALL" }
+    );
+
+    expect(rows[0].totalToCollect).toBe(750000);
+    expect(rows[0].pendingChargesCount).toBe(1);
+  });
+
+  it("una cuota PENDING soft-borrada no deja la reserva en 0 cobros pendientes", () => {
+    const rows = buildCollectionReportRows(
+      [
+        makeReservation({
+          billingType: "MONTHLY",
+          startDate: new Date("2026-01-01T00:00:00.000Z"),
+          totalPrice: 200000,
+          payments: [
+            { amount: 100000, status: "COMPLETED", paymentType: "RESERVATION", deletedAt: null, dueDate: new Date("2026-01-01T00:00:00.000Z") },
+            { amount: 100000, status: "PENDING", paymentType: "RESERVATION", deletedAt: new Date("2026-02-10T00:00:00.000Z"), dueDate: new Date("2026-02-01T00:00:00.000Z") },
+          ],
+        }),
+      ],
+      { now, debtStatus: "ALL" }
+    );
+
+    expect(rows[0].totalToCollect).toBe(100000);
+    expect(rows[0].pendingChargesCount).toBe(1);
+  });
+
+  it("una reserva sin deuda mantiene pendingChargesCount en 0 (el clamp no inventa cobros)", () => {
+    const rows = buildCollectionReportRows(
+      [
+        makeReservation({
+          billingType: "MONTHLY",
+          startDate: new Date("2026-01-01T00:00:00.000Z"),
+          totalPrice: 100000,
+          payments: [
+            { amount: 100000, status: "COMPLETED", paymentType: "RESERVATION", deletedAt: null, dueDate: new Date("2026-01-01T00:00:00.000Z") },
+          ],
+        }),
+      ],
+      { now, debtStatus: "ALL" }
+    );
+
+    expect(rows[0].totalToCollect).toBe(0);
+    expect(rows[0].pendingChargesCount).toBe(0);
+  });
 });
