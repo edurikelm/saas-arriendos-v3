@@ -99,6 +99,19 @@ function plazoRelativo(days: number): string {
   return `en ${days} días`;
 }
 
+interface DueLabelParts {
+  /** Texto principal: siempre en la línea, mismo color que `BUCKET_TEXT[bucket]`. */
+  primary: string;
+  /**
+   * Sufijo "+N por vencer" cuando existe. Se renderiza como chip aparte (no
+   * concatenado al texto de `primary`) para que envuelva como unidad — un
+   * texto corrido tipo "2 cuotas vencidas · +1 vence en 4 días" (38+
+   * caracteres a `text-[10px]` en una columna de ~110-120px) desbordaba a
+   * 2-3 líneas y empujaba la altura del card. `null` cuando no aplica.
+   */
+  chip: string | null;
+}
+
 /**
  * Línea de vencimiento: relativo primero (accionable), absoluto después (verificable).
  * "Vence en 3 días · 1 sept" escanea mejor que "Vence: 1 sept", que obliga al dueño
@@ -112,27 +125,28 @@ function plazoRelativo(days: number): string {
  *
  * No-overdue (`overdueCount === 0`): comportamiento sin cambios respecto a
  * la versión anterior de este componente (bucket DUE_TODAY / UPCOMING_7D /
- * sin fecha).
+ * sin fecha) — siempre `chip: null`.
  *
  * Overdue (`overdueCount >= 1`):
  *  - 1 cuota vencida  → "Venció hace N días" (igual que antes).
  *  - ≥2 cuotas vencidas → "N cuotas vencidas".
- *  - Segundo tramo: si hay cuotas por vencer dentro de 7 días, sufijo
- *    "+N vence/vencen en X días" (degrada a "+N por vencer" sin plazo si
- *    no hay `dueSoonDaysFromToday`); si no, la fecha absoluta de la cuota
- *    vencida más temprana ("desde <fecha>" cuando son ≥2 cuotas, para
- *    dejar claro que es el inicio del rango, no una fecha puntual).
+ *  - Si hay cuotas por vencer dentro de 7 días, el chip lleva "+N
+ *    vence/vencen en X días" (degrada a "+N por vencer" sin plazo si no hay
+ *    `dueSoonDaysFromToday`); si no, `primary` incorpora la fecha absoluta
+ *    de la cuota vencida más temprana ("desde <fecha>" cuando son ≥2
+ *    cuotas, para dejar claro que es el inicio del rango, no una fecha
+ *    puntual) y `chip` queda `null`.
  */
-function dueLabel(item: {
+function dueLabelParts(item: {
   daysFromToday: number | null;
   dueDate: Date | null;
   overdueCount: number;
   dueSoonCount: number;
   dueSoonDaysFromToday: number | null;
-}): string {
+}): DueLabelParts {
   const { daysFromToday, dueDate, overdueCount, dueSoonCount, dueSoonDaysFromToday } = item;
 
-  if (daysFromToday === null) return "Sin fecha de vencimiento";
+  if (daysFromToday === null) return { primary: "Sin fecha de vencimiento", chip: null };
 
   if (overdueCount === 0) {
     const relative =
@@ -146,28 +160,31 @@ function dueLabel(item: {
               ? "Vence mañana"
               : `Vence en ${daysFromToday} días`;
 
-    return dueDate ? `${relative} · ${formatDateOnly(dueDate)}` : relative;
+    return { primary: dueDate ? `${relative} · ${formatDateOnly(dueDate)}` : relative, chip: null };
   }
 
-  const firstSegment =
+  const primary =
     overdueCount >= 2
       ? `${overdueCount} cuotas vencidas`
       : daysFromToday === -1
         ? "Venció ayer"
         : `Venció hace ${Math.abs(daysFromToday)} días`;
 
-  let secondSegment: string | null = null;
   if (dueSoonCount > 0) {
     const verb = dueSoonCount > 1 ? "vencen" : "vence";
-    secondSegment =
+    const chip =
       dueSoonDaysFromToday !== null
         ? `+${dueSoonCount} ${verb} ${plazoRelativo(dueSoonDaysFromToday)}`
         : `+${dueSoonCount} por vencer`;
-  } else if (dueDate) {
-    secondSegment = overdueCount >= 2 ? `desde ${formatDateOnly(dueDate)}` : formatDateOnly(dueDate);
+    return { primary, chip };
   }
 
-  return secondSegment ? `${firstSegment} · ${secondSegment}` : firstSegment;
+  if (dueDate) {
+    const suffix = overdueCount >= 2 ? `desde ${formatDateOnly(dueDate)}` : formatDateOnly(dueDate);
+    return { primary: `${primary} · ${suffix}`, chip: null };
+  }
+
+  return { primary, chip: null };
 }
 
 interface DashboardCobranzaListProps {
@@ -252,38 +269,46 @@ export function DashboardCobranzaList({
         ) : (
           <>
             <ul className="divide-y divide-border">
-              {items.map((item, idx) => (
-                <li key={`${item.reservationId}-${idx}`}>
-                  <Link
-                    href={`/reservations/${item.reservationId}`}
-                    aria-label={`${item.clientName} — ${formatCLP(item.amount)} — ${BUCKET_LABEL[item.bucket]}`}
-                    className="flex items-start justify-between gap-3 px-4 py-3 transition-colors hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-bold text-foreground">
-                        {item.clientName}
-                      </p>
-                      <p className="truncate text-[10px] text-muted-foreground">
-                        {item.propertyName}
-                      </p>
-                      <p
-                        className={cn("mt-0.5 text-[10px] tabular-nums", BUCKET_TEXT[item.bucket])}
-                      >
-                        {dueLabel(item)}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 flex-col items-end gap-1.5">
-                      <p className="text-xs font-bold text-foreground tabular-nums">
-                        {formatCLP(item.amount)}
-                      </p>
-                      <ReservationPill
-                        tone={BUCKET_TONE[item.bucket]}
-                        label={BUCKET_LABEL[item.bucket]}
-                      />
-                    </div>
-                  </Link>
-                </li>
-              ))}
+              {items.map((item, idx) => {
+                const { primary, chip } = dueLabelParts(item);
+                return (
+                  <li key={`${item.reservationId}-${idx}`}>
+                    <Link
+                      href={`/reservations/${item.reservationId}`}
+                      aria-label={`${item.clientName} — ${formatCLP(item.amount)} — ${BUCKET_LABEL[item.bucket]}`}
+                      className="flex items-start justify-between gap-3 px-4 py-3 transition-colors hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-bold text-foreground">
+                          {item.clientName}
+                        </p>
+                        <p className="truncate text-[10px] text-muted-foreground">
+                          {item.propertyName}
+                        </p>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                          <span className={cn("text-[10px] tabular-nums", BUCKET_TEXT[item.bucket])}>
+                            {primary}
+                          </span>
+                          {chip && (
+                            <span className="inline-flex items-center whitespace-nowrap rounded border border-warning/25 bg-warning/10 px-1.5 py-0.5 text-[9px] font-bold text-warning-foreground">
+                              {chip}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1.5">
+                        <p className="text-xs font-bold text-foreground tabular-nums">
+                          {formatCLP(item.amount)}
+                        </p>
+                        <ReservationPill
+                          tone={BUCKET_TONE[item.bucket]}
+                          label={BUCKET_LABEL[item.bucket]}
+                        />
+                      </div>
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
             <div className="flex items-center justify-between gap-3 border-t border-border bg-muted/30 px-4 py-3">
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">

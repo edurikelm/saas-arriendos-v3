@@ -124,7 +124,11 @@ describe("DashboardCobranzaList", () => {
     expectInDoc(screen.queryByText("Sin fecha de vencimiento"));
   });
 
-  it("una reserva con varias cuotas vencidas y una por vencer combina ambos tramos en el label", () => {
+  // El sufijo "+N ..." se renderiza como chip separado del texto principal
+  // (no concatenado en un solo nodo de texto): un texto corrido de 38+
+  // caracteres a `text-[10px]` en la columna angosta del card desbordaba a
+  // 2-3 líneas. El chip envuelve como unidad en vez de partirse.
+  it("una reserva con varias cuotas vencidas y una por vencer separa ambos tramos en nodos distintos", () => {
     render(
       <DashboardCobranzaList
         items={[
@@ -145,18 +149,19 @@ describe("DashboardCobranzaList", () => {
       />
     );
 
-    expectInDoc(screen.queryByText("2 cuotas vencidas · +1 vence en 4 días"));
+    expectInDoc(screen.queryByText("2 cuotas vencidas"));
+    expectInDoc(screen.queryByText("+1 vence en 4 días"));
   });
 
   // `generateMonthlyPayments` fija todos los `dueDate` al día 1, así que
   // `dueSoonDaysFromToday` vale 0 cada día 1 y 1 cada último día de mes:
   // son los dos valores más frecuentes de la ventana, no bordes raros.
   it.each([
-    [0, "2 cuotas vencidas · +1 vence hoy"],
-    [1, "2 cuotas vencidas · +1 vence mañana"],
+    [0, "+1 vence hoy"],
+    [1, "+1 vence mañana"],
   ])(
     "dueSoonDaysFromToday = %i no produce «en N días» sino la escalera relativa",
-    (dueSoonDaysFromToday, expected) => {
+    (dueSoonDaysFromToday, expectedChip) => {
       render(
         <DashboardCobranzaList
           items={[
@@ -177,11 +182,11 @@ describe("DashboardCobranzaList", () => {
         />
       );
 
-      expectInDoc(screen.queryByText(expected));
+      expectInDoc(screen.queryByText(expectedChip));
     }
   );
 
-  it("pluraliza el verbo del segundo tramo cuando vencen varias cuotas", () => {
+  it("pluraliza el verbo del chip cuando vencen varias cuotas", () => {
     render(
       <DashboardCobranzaList
         items={[
@@ -202,6 +207,31 @@ describe("DashboardCobranzaList", () => {
       />
     );
 
-    expectInDoc(screen.queryByText("2 cuotas vencidas · +2 vencen hoy"));
+    expectInDoc(screen.queryByText("+2 vencen hoy"));
+  });
+
+  it("sin cuotas por vencer, la fila vencida no renderiza chip", () => {
+    render(
+      <DashboardCobranzaList
+        items={[
+          {
+            reservationId: "res-8",
+            clientName: "Alejandra Mayorga",
+            propertyName: "Teja 2",
+            amount: 500000,
+            dueDate: new Date("2026-07-01T00:00:00Z"),
+            daysFromToday: -58,
+            bucket: "OVERDUE",
+            overdueCount: 2,
+            dueSoonCount: 0,
+            dueSoonDaysFromToday: null,
+          },
+        ]}
+        viewAllHref="/payments"
+      />
+    );
+
+    expectInDoc(screen.queryByText(/desde 1 jul/i));
+    expect(screen.queryByText(/vence/i)).toBeNull();
   });
 });
