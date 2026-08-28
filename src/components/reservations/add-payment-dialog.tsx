@@ -238,7 +238,7 @@ export function AddPaymentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-sm">
+      <DialogContent className="w-[95vw] max-w-sm sm:max-w-lg lg:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Plus className="h-4 w-4" />
@@ -246,7 +246,7 @@ export function AddPaymentDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-2 relative">
+        <div className="space-y-4 py-1 relative">
           {/* paymentType toggle — Controller for re-render isolation */}
           <Controller
             control={control}
@@ -285,165 +285,180 @@ export function AddPaymentDialog({
             )}
           />
 
-          <div className="p-3 rounded-md bg-muted/50 border border-border text-sm">
-            <div className="flex justify-between mb-1">
-              <span className="text-muted-foreground">Total reserva:</span>
-              <span className="font-medium tabular-nums">
-                {formatAmount(Number(totalPrice))}
-              </span>
-            </div>
-            <div className="flex justify-between mb-1">
-              <span className="text-muted-foreground">Ya pagado:</span>
-              <span className="font-medium text-success tabular-nums">
-                {formatAmount(paidAmount)}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Pendiente:</span>
-              <span className="font-medium text-warning tabular-nums">
-                {formatAmount(pendingAmount)}
-              </span>
+          {/* Summary — 3-up horizontal panel, full width */}
+          <div className="rounded-md border border-border bg-muted/50 divide-y divide-border sm:divide-y-0 sm:divide-x">
+            <div className="grid grid-cols-1 sm:grid-cols-3 sm:divide-x sm:divide-border">
+              <div className="p-3 flex flex-col gap-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Total reserva:
+                </span>
+                <span className="text-xl font-bold tabular-nums text-foreground">
+                  {formatAmount(Number(totalPrice))}
+                </span>
+              </div>
+              <div className="p-3 flex flex-col gap-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Ya pagado:
+                </span>
+                <span className="text-xl font-bold tabular-nums text-success">
+                  {formatAmount(paidAmount)}
+                </span>
+              </div>
+              <div className="p-3 flex flex-col gap-1 bg-warning/5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Pendiente:
+                </span>
+                <span className="text-xl font-bold tabular-nums text-warning">
+                  {formatAmount(pendingAmount)}
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* method Select — wired with onValueChange (integ-shadcn-select-wiring) */}
-          <Controller
-            control={control}
-            name="method"
-            render={({ field }) => (
-              <div className="space-y-2">
-                <Label htmlFor="method" className="text-xs">Método de Pago</Label>
-                <Select
-                  value={field.value}
-                  onValueChange={field.onChange}
-                >
-                  <SelectTrigger id="method" className="h-9">
-                    <SelectValue>
-                      {field.value === "MERCADO_PAGO" ? (
-                        <div className="flex items-center gap-2">
-                          <CreditCard className="h-3 w-3" />
-                          Mercado Pago
-                        </div>
-                      ) : field.value === "CASH" ? (
-                        "Efectivo"
-                      ) : (
-                        "Transferencia"
-                      )}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="MERCADO_PAGO">
-                      <div className="flex items-center gap-2">
-                        <CreditCard className="h-3 w-3" />
-                        Mercado Pago
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="CASH">Efectivo</SelectItem>
-                    <SelectItem value="TRANSFER">Transferencia</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          />
-
-          {/* amount — Controller storing formatted string (preserve UX) */}
-          <Controller
-            control={control}
-            name="amount"
-            render={({ field }) => (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="amount" className="text-xs">Monto</Label>
-                  {!isExtra && (
-                    <button
-                      type="button"
-                      onClick={() => handleMaxClick(field.onChange)}
-                      className="text-xs px-2 py-0.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer font-medium"
+          {/* Form fields — 2-col grid on sm+ */}
+          <div className="space-y-4">
+            {/* method + amount — 2-col on sm+ */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* method Select — wired with onValueChange (integ-shadcn-select-wiring) */}
+              <Controller
+                control={control}
+                name="method"
+                render={({ field }) => (
+                  <div className="space-y-2">
+                    <Label htmlFor="method" className="text-xs">Método de Pago</Label>
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
                     >
-                      Máximo: <span className="tabular-nums">{formatAmount(pendingAmount)}</span>
-                    </button>
-                  )}
-                </div>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
-                    $
-                  </span>
-                  <Input
-                    id="amount"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="0"
-                    value={field.value}
-                    onChange={(e) => {
-                      const rawValue = e.target.value;
-                      // Preserve backspace behavior (handle shorter value + no trailing dot)
-                      if (
-                        rawValue.length < field.value.length &&
-                        !rawValue.endsWith(".")
-                      ) {
-                        const cleaned = rawValue.replace(/\D/g, "");
-                        field.onChange(cleaned ? formatCurrencyInput(cleaned) : "");
-                        return;
-                      }
-                      field.onChange(formatCurrencyInput(rawValue));
-                    }}
-                    className="h-9 pl-7"
-                  />
-                </div>
-              </div>
-            )}
-          />
-
-          {isExtra && (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="title" className="text-xs">
-                  Título <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="title"
-                  type="text"
-                  placeholder="Ej: Limpieza extra, Daños menores"
-                  {...register("title")}
-                  aria-invalid={!!errors.title}
-                  aria-describedby={errors.title ? "title-error" : undefined}
-                  className="h-9"
-                />
-                {errors.title && (
-                  <p id="title-error" className="text-xs text-destructive mt-1">{errors.title.message}</p>
+                      <SelectTrigger id="method" className="h-9">
+                        <SelectValue>
+                          {field.value === "MERCADO_PAGO" ? (
+                            <div className="flex items-center gap-2">
+                              <CreditCard className="h-3 w-3" />
+                              Mercado Pago
+                            </div>
+                          ) : field.value === "CASH" ? (
+                            "Efectivo"
+                          ) : (
+                            "Transferencia"
+                          )}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="MERCADO_PAGO">
+                          <div className="flex items-center gap-2">
+                            <CreditCard className="h-3 w-3" />
+                            Mercado Pago
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="CASH">Efectivo</SelectItem>
+                        <SelectItem value="TRANSFER">Transferencia</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 )}
-              </div>
+              />
 
-              <div className="space-y-2">
-                <Label htmlFor="description" className="text-xs">Descripción (opcional)</Label>
-                <Textarea
-                  id="description"
-                  placeholder="Descripción opcional"
-                  {...register("description")}
-                  className="min-h-[60px]"
-                />
-              </div>
-            </>
-          )}
-
-          {showPaidAtAndReceipt && (
-            <div className="space-y-2">
-              <Label htmlFor="paidAt" className="text-xs">Fecha de Pago</Label>
-              <Input
-                id="paidAt"
-                type="date"
-                {...register("paidAt")}
-                className="h-9"
+              {/* amount — Controller storing formatted string (preserve UX) */}
+              <Controller
+                control={control}
+                name="amount"
+                render={({ field }) => (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <Label htmlFor="amount" className="text-xs">Monto</Label>
+                      {!isExtra && (
+                        <button
+                          type="button"
+                          onClick={() => handleMaxClick(field.onChange)}
+                          className="text-xs px-2 py-0.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer font-medium"
+                        >
+                          Máximo: <span className="tabular-nums">{formatAmount(pendingAmount)}</span>
+                        </button>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                        $
+                      </span>
+                      <Input
+                        id="amount"
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="0"
+                        value={field.value}
+                        onChange={(e) => {
+                          const rawValue = e.target.value;
+                          // Preserve backspace behavior (handle shorter value + no trailing dot)
+                          if (
+                            rawValue.length < field.value.length &&
+                            !rawValue.endsWith(".")
+                          ) {
+                            const cleaned = rawValue.replace(/\D/g, "");
+                            field.onChange(cleaned ? formatCurrencyInput(cleaned) : "");
+                            return;
+                          }
+                          field.onChange(formatCurrencyInput(rawValue));
+                        }}
+                        className="h-9 pl-7"
+                      />
+                    </div>
+                  </div>
+                )}
               />
             </div>
-          )}
 
-          {showPaidAtAndReceipt && (
-            <div className="space-y-2">
-              <Label htmlFor="receipt" className="text-xs">Comprobante (opcional)</Label>
-              <ReceiptUpload onFileSelect={setReceiptFile} id="receipt" />
-            </div>
-          )}
+            {isExtra && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="title" className="text-xs">
+                    Título <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="title"
+                    type="text"
+                    placeholder="Ej: Limpieza extra, Daños menores"
+                    {...register("title")}
+                    aria-invalid={!!errors.title}
+                    aria-describedby={errors.title ? "title-error" : undefined}
+                    className="h-9"
+                  />
+                  {errors.title && (
+                    <p id="title-error" className="text-xs text-destructive mt-1">{errors.title.message}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="description" className="text-xs">Descripción (opcional)</Label>
+                  <Textarea
+                    id="description"
+                    placeholder="Descripción opcional"
+                    {...register("description")}
+                    className="min-h-[60px]"
+                  />
+                </div>
+              </>
+            )}
+
+            {showPaidAtAndReceipt && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="paidAt" className="text-xs">Fecha de Pago</Label>
+                  <Input
+                    id="paidAt"
+                    type="date"
+                    {...register("paidAt")}
+                    className="h-9"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="receipt" className="text-xs">Comprobante (opcional)</Label>
+                  <ReceiptUpload onFileSelect={setReceiptFile} id="receipt" />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {isSubmitting && (
@@ -457,7 +472,7 @@ export function AddPaymentDialog({
           </div>
         )}
 
-        <div className="flex gap-2 justify-end">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end pt-2 border-t border-border">
           <Button
             variant="ghost"
             size="sm"
