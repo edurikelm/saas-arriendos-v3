@@ -15,7 +15,7 @@ const HEADERS = [
   "Cliente",
   "Fechas",
   "Estado",
-  { label: "Monto Total", align: "right" as const },
+  { label: "Monto", align: "right" as const },
 ];
 
 /**

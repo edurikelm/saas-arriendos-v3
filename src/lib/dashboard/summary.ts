@@ -46,6 +46,7 @@ import {
   daysUntilStart,
   getNights,
 } from "@/components/reservations/reservation-status";
+import { getInclusiveMonths } from "@/lib/reservation-dates";
 
 // ─── Constantes ─────────────────────────────────────────────────────────────
 
@@ -209,6 +210,13 @@ export interface DashboardUpcomingReservation {
   totalPrice: number;
   unitsBooked: number;
   nights: number;
+  /** Meses inclusivos (`getInclusiveMonths`). `0` para `DAILY`. */
+  months: number;
+  /**
+   * Monto de UNA cuota mensual (no el contrato completo). `null` para
+   * `DAILY`. Ver `computeInstallmentAmount` para la derivación.
+   */
+  installmentAmount: number | null;
   daysToStart: number;
   daysToEnd: number;
   isActive: boolean;
@@ -603,20 +611,38 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     activeMonthlyContracts,
   };
 
-  // ── Upcoming KPI (todo billing type, sin ventana) ─────────────────────────
+  // ── Upcoming KPI ─────────────────────────────────────────────────────────
+  // Alineado con la misma regla de población y la misma ventana
+  // (`upcomingWindowDays`) que `upcomingReservations` (tabla, más abajo):
+  // cuenta reservas que AÚN NO llegan (`daysToStart > 0`) dentro de la
+  // ventana, sin distinguir billing type. Para MONTHLY esto es exactamente
+  // el "evento de inicio en la ventana" — un contrato mensual solo tiene
+  // `daysToStart > 0` mientras no ha arrancado, así que no hace falta un
+  // chequeo de billing type aparte: la misma condición de ventana YA es el
+  // filtro de población.
+  //
+  // Relación con la tabla homónima (antes irreconciliable — bug real): este
+  // KPI cuenta las filas "Próxima" (futuras); la tabla muestra esas mismas
+  // filas MÁS las que ya están en curso (`isActive`). Antes el KPI contaba
+  // AMBOS billing types sin ventana y sin activas, mientras la tabla contaba
+  // solo DAILY con ventana e incluía activas — con contratos mensuales
+  // futuros el KPI podía decir 5 mientras la tabla mostraba 2, sin relación
+  // explicable entre ambos números.
   let upcomingTotal = 0;
   let upcomingNext7Days = 0;
   for (const r of input.reservations) {
     if (r.status === "CANCELLED") continue;
     const daysToStart = daysUntilStart(r.startDate.toISOString(), now);
-    if (daysToStart > 0) {
+    if (daysToStart > 0 && daysToStart <= upcomingWindowDays) {
       upcomingTotal += 1;
       if (daysToStart <= 7) upcomingNext7Days += 1;
     }
   }
   const upcoming: DashboardUpcomingKpi = { total: upcomingTotal, next7Days: upcomingNext7Days };
 
-  // ── upcomingReservations (tabla): ventana `upcomingWindowDays`, DAILY. ────
+  // ── upcomingReservations (tabla): ventana `upcomingWindowDays`. DAILY entra
+  // por duración (activa o próxima); MONTHLY entra por evento (inicio o
+  // término dentro de la ventana) — ver el filtro `withinWindow` abajo.
   interface UpcomingCandidate {
     reservation: DashboardReservationInput;
     daysToStart: number;
@@ -627,14 +653,27 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
 
   const upcomingCandidates: UpcomingCandidate[] = [];
   for (const r of input.reservations) {
-    if (r.status === "CANCELLED" || r.billingType !== "DAILY") continue;
+    if (r.status === "CANCELLED") continue;
     const startIso = r.startDate.toISOString();
     const endIso = r.endDate.toISOString();
     const daysToStart = daysUntilStart(startIso, now);
     const daysToEnd = daysUntilEnd(endIso, now);
     const isActive = daysToStart <= 0 && daysToEnd >= 0;
-    const withinWindow = isActive || (daysToStart > 0 && daysToStart <= upcomingWindowDays);
+
+    let withinWindow: boolean;
+    if (r.billingType === "DAILY") {
+      withinWindow = isActive || (daysToStart > 0 && daysToStart <= upcomingWindowDays);
+    } else {
+      // MONTHLY entra por EVENTO, no por duración: un contrato en curso sin
+      // evento cercano es estado estable (no noticia) y ocuparía una de las
+      // `upcomingLimit` filas por meses. Solo entra si inicia o termina
+      // dentro de la ventana.
+      const hasStartEvent = daysToStart >= 0 && daysToStart <= upcomingWindowDays;
+      const hasEndEvent = daysToEnd >= 0 && daysToEnd <= upcomingWindowDays;
+      withinWindow = hasStartEvent || hasEndEvent;
+    }
     if (!withinWindow) continue;
+
     upcomingCandidates.push({
       reservation: r,
       daysToStart,
@@ -654,12 +693,39 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     return a.daysToStart - b.daysToStart;
   });
 
+  /**
+   * Monto de UNA cuota mensual (no el contrato completo). `generateMonthlyPayments`
+   * (`@/lib/payments/monthly`) genera cuotas de monto idéntico
+   * (`monthlyPrice × unitsBooked`), así que basta tomar el `amount` de la
+   * cuota `RESERVATION` (no `EXTRA`, no soft-deleted) con el `dueDate` más
+   * temprano. Fallback defensivo cuando la reserva MONTHLY no tiene filas de
+   * `Payment` (no debería pasar en producción, pero el tipo lo permite):
+   * `totalPrice / months`, redondeado.
+   */
+  function computeInstallmentAmount(
+    r: DashboardReservationInput,
+    months: number,
+  ): number | null {
+    if (r.billingType !== "MONTHLY") return null;
+    const installments = r.payments.filter(
+      (p) => p.paymentType === "RESERVATION" && p.deletedAt == null && p.dueDate !== null,
+    );
+    if (installments.length > 0) {
+      const earliest = installments.reduce((min, p) =>
+        (p.dueDate as Date) < (min.dueDate as Date) ? p : min,
+      );
+      return earliest.amount;
+    }
+    return months > 0 ? Math.round(r.totalPrice / months) : null;
+  }
+
   const upcomingReservations: DashboardUpcomingReservation[] = upcomingCandidates
     .slice(0, upcomingLimit)
     .map((c) => {
       const r = c.reservation;
       const startIso = r.startDate.toISOString();
       const endIso = r.endDate.toISOString();
+      const months = r.billingType === "MONTHLY" ? getInclusiveMonths(startIso, endIso) : 0;
       return {
         id: r.id,
         propertyId: r.propertyId,
@@ -674,6 +740,8 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
         totalPrice: r.totalPrice,
         unitsBooked: r.unitsBooked,
         nights: getNights(startIso, endIso),
+        months,
+        installmentAmount: computeInstallmentAmount(r, months),
         daysToStart: c.daysToStart,
         daysToEnd: c.daysToEnd,
         isActive: c.isActive,
