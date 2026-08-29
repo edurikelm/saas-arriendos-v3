@@ -1,7 +1,4 @@
-"use client";
-
 import { DataTable } from "@/components/ui/data-table";
-import { useMediaQuery } from "@/hooks/use-media-query";
 import type { ReactNode } from "react";
 
 interface DashboardReservasTableProps {
@@ -13,40 +10,30 @@ interface DashboardReservasTableProps {
   caption?: string;
 }
 
+const HEADERS = [
+  "Propiedad",
+  "Cliente",
+  "Fechas",
+  "Estado",
+  { label: "Monto Total", align: "right" as const },
+];
+
 /**
- * Wrapper Client Component del <DataTable> para la sección "Próximas reservas"
- * del /dashboard. Responsabilidad única: ocultar la columna "Llegada/Salida"
- * en mobile (<640px) para reducir el scroll horizontal en pantallas pequeñas.
- *
- * Mantiene los mismos headers y comportamiento en desktop. El render es
- * condicional al viewport detectado vía useMediaQuery.
+ * Wrapper del <DataTable> para la sección "Próximas reservas" del /dashboard.
+ * Mismos headers en todos los viewports — la columna "Llegada/Salida" que
+ * antes existía solo en desktop se eliminó (era redundante con el sublabel
+ * de "Estado": "Llega en 5 días" vs. "Próxima" + "En 5 días" decían lo mismo
+ * en dos columnas). Sin acento superior (`accentTop={false}`): el color
+ * primary/warning ya lo usa la columna "Fechas" para dirección de llegada/
+ * salida, y el borde teal por defecto de `DataTable` competía con esa señal.
  */
 export function DashboardReservasTable({
   children,
   emptyState,
   caption,
 }: DashboardReservasTableProps) {
-  const isMobile = useMediaQuery("(max-width: 639px)");
-
-  const headers = isMobile
-    ? [
-        "Propiedad",
-        "Cliente",
-        "Fechas",
-        "Estado",
-        { label: "Monto Total", align: "right" as const },
-      ]
-    : [
-        "Propiedad",
-        "Cliente",
-        "Fechas",
-        "Llegada/Salida",
-        "Estado",
-        { label: "Monto Total", align: "right" as const },
-      ];
-
   return (
-    <DataTable headers={headers} caption={caption} emptyState={emptyState}>
+    <DataTable headers={HEADERS} caption={caption} emptyState={emptyState} accentTop={false}>
       {children}
     </DataTable>
   );
