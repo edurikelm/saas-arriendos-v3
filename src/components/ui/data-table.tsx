@@ -17,6 +17,14 @@ interface DataTableProps {
    * natural horizontal scroll on mobile viewports (e.g. 375px) without truncating
    * column content. */
   minWidth?: string;
+  /**
+   * Acento superior `border-t-2 border-t-primary` que distingue una tabla de
+   * los demás cards del layout. Default `true` (comportamiento histórico).
+   * Poner en `false` cuando la fila ya usa el color primary/warning para otra
+   * cosa (p. ej. dirección de llegada/salida en `/dashboard`) — el acento
+   * compite con esa señal en vez de sumarle jerarquía.
+   */
+  accentTop?: boolean;
 }
 
 function normalizeHeader(header: DataTableHeader): { label: string; align: DataTableHeaderAlign } {
@@ -32,9 +40,15 @@ function alignClass(align: DataTableHeaderAlign): string {
   return "text-left";
 }
 
-export function DataTable({ headers, children, emptyState, caption, className, minWidth = "640px" }: DataTableProps) {
+export function DataTable({ headers, children, emptyState, caption, className, minWidth = "640px", accentTop = true }: DataTableProps) {
   return (
-    <div className={cn("overflow-hidden rounded-md border border-t-2 border-t-primary border-border bg-card", className)}>
+    <div
+      className={cn(
+        "overflow-hidden rounded-md border bg-card",
+        accentTop ? "border-t-2 border-t-primary border-border" : "border-border",
+        className
+      )}
+    >
       <div className="overflow-x-auto">
         <table className="w-full" style={{ minWidth }}>
           {caption && <caption className="sr-only">{caption}</caption>}

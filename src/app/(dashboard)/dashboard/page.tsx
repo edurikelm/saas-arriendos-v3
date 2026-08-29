@@ -35,21 +35,6 @@ function formatCLP(amount: number): string {
   }).format(amount);
 }
 
-/**
- * Etiqueta relativa "Mañana"/"Pasado mañana"/"En N días" a partir de un
- * conteo de días ya calculado (wall-time SCL) por `buildDashboardSummary`.
- * Puramente presentacional — no recalcula fechas, solo formatea el número
- * que ya viene en `daysToStart`/`daysToEnd`. Réplica del wording de
- * `labelDaysUntilStart`/`labelDaysUntilEnd` (reservation-status.ts) sin
- * necesitar `now` en este Server Component.
- */
-function relativeDayLabel(days: number): string {
-  if (days <= 0) return "Hoy";
-  if (days === 1) return "Mañana";
-  if (days === 2) return "Pasado mañana";
-  return `En ${days} días`;
-}
-
 export default async function DashboardPage() {
   // Load principal data defensively. Si getDashboardSummary lanza (o retorna
   // null por sesión inválida), la página renderiza un fallback honesto en
@@ -271,11 +256,6 @@ export default async function DashboardPage() {
               // `daysToStart`/`daysToEnd`/`isActive`/`isArrivingToday`/`nights` ya vienen
               // precalculados por `buildDashboardSummary` (wall-time SCL, ADR-0020).
               const { daysToStart, daysToEnd, isActive, isArrivingToday, nights } = reservation;
-              const arrivalLabel = isArrivingToday
-                ? "Llega hoy"
-                : isActive
-                  ? `Finaliza ${relativeDayLabel(daysToEnd)}`
-                  : `Llega ${relativeDayLabel(daysToStart)}`;
               // Codificamos DOS dimensiones semánticas con atributos visuales distintos
               // para que el dueño pueda escanear tanto la dirección (llega vs sale)
               // como la urgencia (hoy vs pronto vs lejano) sin ambigüedad:
@@ -289,8 +269,10 @@ export default async function DashboardPage() {
               //     1-2 días               → font-medium
               //     ≥3 días                → normal   (sin bold/medium)
               //
-              // Reutilizado por el <td> Llegada/Salida (desktop) y el mini-label bajo
-              // el nombre de propiedad (mobile, cuando la columna está oculta).
+              // Aplicado directo al rango de fechas (columna "Fechas"): ya no existe
+              // una columna "Llegada/Salida" separada — era redundante con el sublabel
+              // de "Estado" ("Llega en 5 días" vs. "Próxima" + "En 5 días" decían lo
+              // mismo dos veces).
               const arrivalTone = isArrivingToday
                 ? "font-bold text-primary"
                 : isActive
@@ -323,32 +305,18 @@ export default async function DashboardPage() {
                   className="border-b last:border-0 hover:bg-muted/30 transition-colors"
                 >
                   <td className="px-4 py-3">
-                    <div className="flex flex-col gap-1">
-                      <Link
-                        href={`/reservations/${reservation.id}`}
-                        className="text-xs font-bold text-foreground hover:text-primary hover:underline"
-                      >
-                        {reservation.propertyName}
-                      </Link>
-                      {/* Mini-label mobile: muestra el mismo arrivalLabel que la columna
-                          Llegada/Salida en desktop (que está oculta en <sm). El color
-                          sigue arrivalTone, así la jerarquía de urgencia se conserva. */}
-                      <span
-                        className={cn(
-                          "sm:hidden w-fit text-[10px] uppercase tracking-wider",
-                          arrivalTone
-                        )}
-                        aria-label={arrivalLabel}
-                      >
-                        {arrivalLabel}
-                      </span>
-                    </div>
+                    <Link
+                      href={`/reservations/${reservation.id}`}
+                      className="text-xs font-bold text-foreground hover:text-primary hover:underline"
+                    >
+                      {reservation.propertyName}
+                    </Link>
                   </td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">
+                  <td className="px-4 py-3 text-xs font-bold text-foreground">
                     {reservation.clientName}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="whitespace-nowrap text-xs font-bold text-foreground tabular-nums">
+                    <div className={cn("whitespace-nowrap text-xs tabular-nums", arrivalTone)}>
                       {formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}
                     </div>
                     <div className="mt-1">
@@ -356,14 +324,6 @@ export default async function DashboardPage() {
                         {nights} noches
                       </span>
                     </div>
-                  </td>
-                  <td
-                    className={cn(
-                      "hidden sm:table-cell px-4 py-3 text-xs",
-                      arrivalTone
-                    )}
-                  >
-                    {arrivalLabel}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-col items-start gap-1">
@@ -375,7 +335,7 @@ export default async function DashboardPage() {
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-right text-xs font-bold text-foreground tabular-nums">
+                  <td className="px-4 py-3 text-right text-[13.5px] font-bold text-foreground tabular-nums">
                     {formatCLP(reservation.totalPrice)}
                   </td>
                 </tr>
