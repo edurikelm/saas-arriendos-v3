@@ -349,6 +349,161 @@ describe("buildDashboardSummary", () => {
   });
 });
 
+describe("buildDashboardSummary — MONTHLY entra por evento en upcomingReservations/upcoming KPI", () => {
+  // NOW = 2026-08-24 (America/Santiago). `daysUntilStart`/`daysUntilEnd`
+  // comparan por dateKey directo del ISO string (date-only, sin conversión
+  // TZ) — construir `startDate`/`endDate` a medianoche UTC en la fecha
+  // deseada basta para controlar `daysToStart`/`daysToEnd` con precisión.
+
+  it("MONTHLY activo SIN evento en la ventana no aparece en upcomingReservations ni en upcoming.total", () => {
+    const reservations = [
+      makeReservation({
+        billingType: "MONTHLY",
+        status: "CONFIRMED",
+        startDate: new Date("2026-01-01T00:00:00.000Z"), // muy en el pasado
+        endDate: new Date("2027-06-30T00:00:00.000Z"), // muy en el futuro (fuera de ventana)
+        totalPrice: 5_400_000,
+      }),
+    ];
+
+    const summary = buildDashboardSummary(buildInput(reservations));
+
+    expect(summary.upcomingReservations.find((r) => r.id === reservations[0].id)).toBeUndefined();
+    expect(summary.upcoming.total).toBe(0);
+    expect(summary.upcoming.next7Days).toBe(0);
+  });
+
+  it("MONTHLY que INICIA dentro de la ventana aparece, con months correcto e installmentAmount = monto de una cuota (no totalPrice)", () => {
+    const reservations = [
+      makeReservation({
+        billingType: "MONTHLY",
+        status: "CONFIRMED",
+        startDate: new Date("2026-09-01T00:00:00.000Z"), // +8 días de NOW, dentro de la ventana de 14
+        endDate: new Date("2026-11-30T00:00:00.000Z"), // 3 meses inclusivos (ej. canónico ADR)
+        totalPrice: 900_000, // 3 × 300.000
+        payments: [
+          // Orden deliberadamente desordenado — el helper debe encontrar la
+          // cuota de dueDate MÁS temprano, no la primera del array.
+          makePayment({ amount: 300_000, status: "PENDING", paymentType: "RESERVATION", dueDate: new Date("2026-11-01T00:00:00.000Z") }),
+          makePayment({ amount: 300_000, status: "PENDING", paymentType: "RESERVATION", dueDate: new Date("2026-09-01T00:00:00.000Z") }),
+          makePayment({ amount: 300_000, status: "PENDING", paymentType: "RESERVATION", dueDate: new Date("2026-10-01T00:00:00.000Z") }),
+        ],
+      }),
+    ];
+
+    const summary = buildDashboardSummary(buildInput(reservations));
+
+    const item = summary.upcomingReservations.find((r) => r.id === reservations[0].id);
+    expect(item).toBeDefined();
+    expect(item?.months).toBe(3);
+    expect(item?.installmentAmount).toBe(300_000);
+    expect(item?.installmentAmount).not.toBe(item?.totalPrice);
+  });
+
+  it("MONTHLY activo que TERMINA dentro de la ventana aparece y se ordena entre las activas por daysToEnd asc", () => {
+    const monthlyEndingSoon = makeReservation({
+      billingType: "MONTHLY",
+      status: "CONFIRMED",
+      startDate: new Date("2026-01-01T00:00:00.000Z"),
+      endDate: new Date("2026-08-29T00:00:00.000Z"), // +5 días de NOW → activo, termina pronto
+      totalPrice: 2_400_000,
+    });
+    const dailyEndingSooner = makeReservation({
+      billingType: "DAILY",
+      status: "CONFIRMED",
+      startDate: new Date("2026-08-20T00:00:00.000Z"),
+      endDate: new Date("2026-08-26T00:00:00.000Z"), // +2 días de NOW → activa, termina antes
+      totalPrice: 120_000,
+    });
+
+    const summary = buildDashboardSummary(buildInput([monthlyEndingSoon, dailyEndingSooner]));
+
+    const monthlyItem = summary.upcomingReservations.find((r) => r.id === monthlyEndingSoon.id);
+    const dailyItem = summary.upcomingReservations.find((r) => r.id === dailyEndingSooner.id);
+    expect(monthlyItem).toBeDefined();
+    expect(dailyItem).toBeDefined();
+    expect(monthlyItem?.isActive).toBe(true);
+    expect(monthlyItem?.daysToEnd).toBe(5);
+    expect(dailyItem?.daysToEnd).toBe(2);
+
+    const monthlyIndex = summary.upcomingReservations.findIndex((r) => r.id === monthlyEndingSoon.id);
+    const dailyIndex = summary.upcomingReservations.findIndex((r) => r.id === dailyEndingSooner.id);
+    // Ambas activas → ordenan por daysToEnd asc: la que termina antes (2) va primero.
+    expect(dailyIndex).toBeLessThan(monthlyIndex);
+  });
+
+  it("regresión DAILY: activas + futuras en ventana siguen apareciendo con nights/totalPrice, months=0 e installmentAmount=null", () => {
+    const reservations = [
+      makeReservation({
+        billingType: "DAILY",
+        status: "CONFIRMED",
+        startDate: new Date("2026-08-29T00:00:00.000Z"), // +5 días de NOW
+        endDate: new Date("2026-09-02T00:00:00.000Z"),
+        totalPrice: 200_000,
+      }),
+    ];
+
+    const summary = buildDashboardSummary(buildInput(reservations));
+
+    const item = summary.upcomingReservations.find((r) => r.id === reservations[0].id);
+    expect(item).toBeDefined();
+    expect(item?.nights).toBe(5);
+    expect(item?.totalPrice).toBe(200_000);
+    expect(item?.months).toBe(0);
+    expect(item?.installmentAmount).toBeNull();
+  });
+
+  it("installmentAmount usa el fallback totalPrice/months cuando la reserva MONTHLY no tiene filas de Payment", () => {
+    const reservations = [
+      makeReservation({
+        billingType: "MONTHLY",
+        status: "CONFIRMED",
+        startDate: new Date("2026-09-01T00:00:00.000Z"),
+        endDate: new Date("2026-11-30T00:00:00.000Z"), // 3 meses
+        totalPrice: 900_000,
+        payments: [], // sin cuotas generadas (edge case defensivo)
+      }),
+    ];
+
+    const summary = buildDashboardSummary(buildInput(reservations));
+
+    const item = summary.upcomingReservations.find((r) => r.id === reservations[0].id);
+    expect(item?.months).toBe(3);
+    expect(item?.installmentAmount).toBe(300_000); // 900_000 / 3
+  });
+
+  it("upcoming.total/next7Days: cuenta el MONTHLY con inicio futuro en ventana, ignora el MONTHLY activo sin evento y la reserva a 30 días", () => {
+    const monthlyStartingSoon = makeReservation({
+      billingType: "MONTHLY",
+      status: "CONFIRMED",
+      startDate: new Date("2026-08-29T00:00:00.000Z"), // +5 días de NOW → dentro de ventana y de next7Days
+      endDate: new Date("2026-11-28T00:00:00.000Z"),
+      totalPrice: 900_000,
+    });
+    const monthlyActiveNoEvent = makeReservation({
+      billingType: "MONTHLY",
+      status: "CONFIRMED",
+      startDate: new Date("2026-01-01T00:00:00.000Z"),
+      endDate: new Date("2027-06-30T00:00:00.000Z"),
+      totalPrice: 5_400_000,
+    });
+    const dailyFarOut = makeReservation({
+      billingType: "DAILY",
+      status: "CONFIRMED",
+      startDate: new Date("2026-09-23T00:00:00.000Z"), // +30 días de NOW → fuera de la ventana de 14
+      endDate: new Date("2026-09-25T00:00:00.000Z"),
+      totalPrice: 60_000,
+    });
+
+    const summary = buildDashboardSummary(
+      buildInput([monthlyStartingSoon, monthlyActiveNoEvent, dailyFarOut]),
+    );
+
+    expect(summary.upcoming.total).toBe(1);
+    expect(summary.upcoming.next7Days).toBe(1);
+  });
+});
+
 describe("coherencia cruzada: daysUntilStart vs daysFromTodayDateOnly", () => {
   // Fija estructuralmente que las dos convenciones de "días hasta el inicio"
   // (reservation-status.ts, usado por el Dashboard para "Llega en N días") y

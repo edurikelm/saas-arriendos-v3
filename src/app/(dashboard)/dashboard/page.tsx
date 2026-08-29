@@ -243,7 +243,8 @@ export default async function DashboardPage() {
                 <CalendarCheck className="size-5 text-muted-foreground" aria-hidden="true" />
                 <p className="text-xs font-bold text-foreground">No hay reservas próximas</p>
                 <p className="text-[10px] text-muted-foreground">
-                  Las reservas mensuales se gestionan en{" "}
+                  Aquí solo aparecen las que inician o terminan pronto. Los
+                  contratos mensuales en curso se gestionan en{" "}
                   <Link href="/reservations" className="font-bold text-primary hover:underline">
                     /reservations
                   </Link>
@@ -255,7 +256,9 @@ export default async function DashboardPage() {
             {upcomingReservations.map((reservation) => {
               // `daysToStart`/`daysToEnd`/`isActive`/`isArrivingToday`/`nights` ya vienen
               // precalculados por `buildDashboardSummary` (wall-time SCL, ADR-0020).
-              const { daysToStart, daysToEnd, isActive, isArrivingToday, nights } = reservation;
+              const { daysToStart, daysToEnd, isActive, isArrivingToday, nights, months, installmentAmount } =
+                reservation;
+              const isMonthly = reservation.billingType === "MONTHLY";
               // Codificamos DOS dimensiones semánticas con atributos visuales distintos
               // para que el dueño pueda escanear tanto la dirección (llega vs sale)
               // como la urgencia (hoy vs pronto vs lejano) sin ambigüedad:
@@ -319,9 +322,12 @@ export default async function DashboardPage() {
                     <div className={cn("whitespace-nowrap text-xs tabular-nums", arrivalTone)}>
                       {formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}
                     </div>
-                    <div className="mt-1">
+                    <div className="mt-1 flex flex-wrap items-center gap-1">
                       <span className="inline-flex rounded bg-muted px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-tight text-muted-foreground">
-                        {nights} noches
+                        {isMonthly ? `${months} meses` : `${nights} noches`}
+                      </span>
+                      <span className="inline-flex rounded bg-muted px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-tight text-muted-foreground">
+                        {isMonthly ? "mensual" : "diaria"}
                       </span>
                     </div>
                   </td>
@@ -335,8 +341,19 @@ export default async function DashboardPage() {
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-right text-[13.5px] font-bold text-foreground tabular-nums">
-                    {formatCLP(reservation.totalPrice)}
+                  <td className="px-4 py-3 text-right">
+                    {isMonthly && installmentAmount !== null ? (
+                      <>
+                        <div className="text-[13.5px] font-bold text-foreground tabular-nums">
+                          {formatCLP(installmentAmount)}
+                        </div>
+                        <div className="text-[9px] text-muted-foreground">/mes</div>
+                      </>
+                    ) : (
+                      <div className="text-[13.5px] font-bold text-foreground tabular-nums">
+                        {formatCLP(reservation.totalPrice)}
+                      </div>
+                    )}
                   </td>
                 </tr>
               );
