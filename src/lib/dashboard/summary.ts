@@ -53,6 +53,14 @@ import { getInclusiveMonths } from "@/lib/reservation-dates";
 const DEFAULT_UPCOMING_WINDOW_DAYS = 14;
 const DEFAULT_UPCOMING_LIMIT = 6;
 const DEFAULT_COLLECTION_LIMIT = 4;
+/**
+ * Ventana de aviso de término de contrato mensual (`today.monthlyEndingSoon`).
+ * 30 días es la anticipación estándar de aviso de término/renovación en un
+ * arriendo — deliberadamente distinta de `upcomingWindowDays` (14): el ritmo
+ * de decisión de un contrato mensual (renovar o no) no es el de la rotación
+ * diaria que alimenta la tabla "Próximas reservas".
+ */
+const DEFAULT_MONTHLY_ENDING_WINDOW_DAYS = 30;
 
 // ─── Tipos de input ─────────────────────────────────────────────────────────
 
@@ -101,6 +109,11 @@ export interface DashboardSummaryInput {
   upcomingLimit?: number;
   /** Tope de items de `collectionItems`. Default 4. */
   collectionLimit?: number;
+  /**
+   * Ventana de días para `today.monthlyEndingSoon` (contratos MONTHLY que
+   * terminan pronto). Default 30 — ver `DEFAULT_MONTHLY_ENDING_WINDOW_DAYS`.
+   */
+  monthlyEndingWindowDays?: number;
 }
 
 // ─── Tipos de output ────────────────────────────────────────────────────────
@@ -187,6 +200,22 @@ export interface DashboardMovement {
   unitsBooked: number;
 }
 
+/**
+ * Contrato MONTHLY que termina dentro de `monthlyEndingWindowDays` (default
+ * 30). A diferencia de un inicio de contrato (llegada, evento de agenda), un
+ * término es una DECISIÓN (renovar o no) — no pertenece a la tabla
+ * "Próximas reservas" (ver el filtro de `upcomingCandidates` más abajo);
+ * vive en el bloque "Hoy" para que el owner lo vea con semanas de
+ * anticipación sin que sature la agenda diaria.
+ */
+export interface DashboardMonthlyContractEnding {
+  reservationId: string;
+  propertyName: string;
+  clientName: string;
+  endDate: string;
+  daysToEnd: number;
+}
+
 export interface DashboardToday {
   arrivals: DashboardMovement[];
   departures: DashboardMovement[];
@@ -194,6 +223,8 @@ export interface DashboardToday {
   pendingConfirmationCount: number;
   oldestPendingConfirmationDays: number | null;
   activeMonthlyContracts: number;
+  /** Ordenado por `daysToEnd` ascendente. */
+  monthlyEndingSoon: DashboardMonthlyContractEnding[];
 }
 
 export interface DashboardUpcomingReservation {
@@ -313,6 +344,8 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
   const upcomingWindowDays = input.upcomingWindowDays ?? DEFAULT_UPCOMING_WINDOW_DAYS;
   const upcomingLimit = input.upcomingLimit ?? DEFAULT_UPCOMING_LIMIT;
   const collectionLimit = input.collectionLimit ?? DEFAULT_COLLECTION_LIMIT;
+  const monthlyEndingWindowDays =
+    input.monthlyEndingWindowDays ?? DEFAULT_MONTHLY_ENDING_WINDOW_DAYS;
 
   // ── Rangos de fecha derivados de `todayKey` (America/Santiago), NUNCA de
   // `now` directo — evita el bug de epoch-day UTC cerca de medianoche SCL.
@@ -556,6 +589,7 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
   let pendingConfirmationCount = 0;
   let oldestPendingConfirmationDays: number | null = null;
   let activeMonthlyContracts = 0;
+  const monthlyEndingSoon: DashboardMonthlyContractEnding[] = [];
 
   for (const r of input.reservations) {
     if (r.status === "CANCELLED") continue;
@@ -592,6 +626,19 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     }
     if (isActive) inStayCount += 1;
     if (r.billingType === "MONTHLY" && isActive) activeMonthlyContracts += 1;
+    if (
+      r.billingType === "MONTHLY" &&
+      daysToEnd >= 0 &&
+      daysToEnd <= monthlyEndingWindowDays
+    ) {
+      monthlyEndingSoon.push({
+        reservationId: r.id,
+        propertyName: r.property.name,
+        clientName: r.client.name,
+        endDate: endIso,
+        daysToEnd,
+      });
+    }
 
     if (r.status === "PENDING") {
       pendingConfirmationCount += 1;
@@ -602,6 +649,8 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     }
   }
 
+  monthlyEndingSoon.sort((a, b) => a.daysToEnd - b.daysToEnd);
+
   const today: DashboardToday = {
     arrivals,
     departures,
@@ -609,6 +658,7 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     pendingConfirmationCount,
     oldestPendingConfirmationDays,
     activeMonthlyContracts,
+    monthlyEndingSoon,
   };
 
   // ── Upcoming KPI ─────────────────────────────────────────────────────────
@@ -641,8 +691,8 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
   const upcoming: DashboardUpcomingKpi = { total: upcomingTotal, next7Days: upcomingNext7Days };
 
   // ── upcomingReservations (tabla): ventana `upcomingWindowDays`. DAILY entra
-  // por duración (activa o próxima); MONTHLY entra por evento (inicio o
-  // término dentro de la ventana) — ver el filtro `withinWindow` abajo.
+  // por duración (activa o próxima); MONTHLY entra por evento de INICIO
+  // (llegada) — ver el filtro `withinWindow` abajo.
   interface UpcomingCandidate {
     reservation: DashboardReservationInput;
     daysToStart: number;
@@ -666,11 +716,16 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     } else {
       // MONTHLY entra por EVENTO, no por duración: un contrato en curso sin
       // evento cercano es estado estable (no noticia) y ocuparía una de las
-      // `upcomingLimit` filas por meses. Solo entra si inicia o termina
-      // dentro de la ventana.
+      // `upcomingLimit` filas por meses. Solo entra si INICIA dentro de la
+      // ventana — un inicio de contrato es una llegada (check-in, hay que
+      // entregar llaves), operacionalmente equivalente a un evento de
+      // rotación diaria. Un TÉRMINO de contrato no es un evento de agenda:
+      // no pasa nada ese día, lo que hay que hacer es decidir (renovar o no)
+      // con semanas de anticipación. Mostrarlo como fila de tabla 30 días
+      // seguidos satura la agenda diaria; ese aviso vive en
+      // `today.monthlyEndingSoon` (bloque "Hoy"), no aquí.
       const hasStartEvent = daysToStart >= 0 && daysToStart <= upcomingWindowDays;
-      const hasEndEvent = daysToEnd >= 0 && daysToEnd <= upcomingWindowDays;
-      withinWindow = hasStartEvent || hasEndEvent;
+      withinWindow = hasStartEvent;
     }
     if (!withinWindow) continue;
 
