@@ -17,6 +17,7 @@ import { OccupancyStrip } from "@/components/calendar/occupancy-strip";
 import { PlanAlertBanner } from "@/components/billing/plan-alert-banner";
 import { DashboardCobranzaList, type CobranzaItem } from "./_components/dashboard-cobranza-list";
 import { DashboardReservasTable } from "./_components/dashboard-reservas-table";
+import { DashboardTodayStrip } from "./_components/dashboard-today-strip";
 
 function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString("es-CL", {
@@ -119,7 +120,7 @@ export default async function DashboardPage() {
     );
   }
 
-  const { income, collection, upcoming, occupancy, upcomingReservations, collectionItems, occupancyStrip } =
+  const { income, collection, upcoming, occupancy, today, upcomingReservations, collectionItems, occupancyStrip } =
     dashboardSummary;
 
   const cobranzaItems: CobranzaItem[] = collectionItems.map((item) => ({
@@ -177,6 +178,13 @@ export default async function DashboardPage() {
       {/* 1b. Plan alert banner — solo aparece si FREE cerca del límite
             o CANCELLED con período vigente. self-nulling en estado estable. */}
       <PlanAlertBanner subscription={subscription} usage={usage} />
+
+      {/* 1c. Franja "Hoy" — agenda del día (llegadas, salidas, en curso, por
+            confirmar, contratos mensuales, vencimientos de contrato). Va
+            ANTES de los KPIs porque el dueño entra a actuar sobre movimientos,
+            no a leer métricas; el `PlanAlertBanner` se queda arriba porque es
+            una alerta de cuenta, no de operación diaria. Nunca retorna null. */}
+      <DashboardTodayStrip today={today} />
 
       {/* 2. KPI Grid (4 cards estilo Stitch).
             Mobile: 2 columnas (2x2 grid) para reducir la altura antes de "Próximas

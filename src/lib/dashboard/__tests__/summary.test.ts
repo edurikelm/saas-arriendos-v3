@@ -400,7 +400,10 @@ describe("buildDashboardSummary — MONTHLY entra por evento en upcomingReservat
     expect(item?.installmentAmount).not.toBe(item?.totalPrice);
   });
 
-  it("MONTHLY activo que TERMINA dentro de la ventana aparece y se ordena entre las activas por daysToEnd asc", () => {
+  it("MONTHLY activo que SOLO termina dentro de la ventana (sin evento de inicio) NO aparece en upcomingReservations", () => {
+    // Decisión de dominio: un término de contrato mensual no es un evento de
+    // agenda (no pasa nada ese día) — vive en `today.monthlyEndingSoon`, no
+    // en la tabla "Próximas reservas". Solo el INICIO (llegada) entra por evento.
     const monthlyEndingSoon = makeReservation({
       billingType: "MONTHLY",
       status: "CONFIRMED",
@@ -420,16 +423,8 @@ describe("buildDashboardSummary — MONTHLY entra por evento en upcomingReservat
 
     const monthlyItem = summary.upcomingReservations.find((r) => r.id === monthlyEndingSoon.id);
     const dailyItem = summary.upcomingReservations.find((r) => r.id === dailyEndingSooner.id);
-    expect(monthlyItem).toBeDefined();
+    expect(monthlyItem).toBeUndefined();
     expect(dailyItem).toBeDefined();
-    expect(monthlyItem?.isActive).toBe(true);
-    expect(monthlyItem?.daysToEnd).toBe(5);
-    expect(dailyItem?.daysToEnd).toBe(2);
-
-    const monthlyIndex = summary.upcomingReservations.findIndex((r) => r.id === monthlyEndingSoon.id);
-    const dailyIndex = summary.upcomingReservations.findIndex((r) => r.id === dailyEndingSooner.id);
-    // Ambas activas → ordenan por daysToEnd asc: la que termina antes (2) va primero.
-    expect(dailyIndex).toBeLessThan(monthlyIndex);
   });
 
   it("regresión DAILY: activas + futuras en ventana siguen apareciendo con nights/totalPrice, months=0 e installmentAmount=null", () => {
@@ -501,6 +496,126 @@ describe("buildDashboardSummary — MONTHLY entra por evento en upcomingReservat
 
     expect(summary.upcoming.total).toBe(1);
     expect(summary.upcoming.next7Days).toBe(1);
+  });
+});
+
+describe("buildDashboardSummary — today.monthlyEndingSoon", () => {
+  // NOW = 2026-08-24 (America/Santiago). Offsets calculados igual que en el
+  // describe anterior: 2026-09-23 = +30 días, 2026-09-24 = +31 días,
+  // 2026-10-25 = +62 días.
+
+  it("incluye un contrato MONTHLY que termina exactamente a 30 días (borde inclusivo)", () => {
+    const reservations = [
+      makeReservation({
+        billingType: "MONTHLY",
+        status: "CONFIRMED",
+        startDate: new Date("2026-01-01T00:00:00.000Z"),
+        endDate: new Date("2026-09-23T00:00:00.000Z"), // +30 días de NOW
+        totalPrice: 900_000,
+      }),
+    ];
+
+    const summary = buildDashboardSummary(buildInput(reservations));
+
+    const item = summary.today.monthlyEndingSoon.find((m) => m.reservationId === reservations[0].id);
+    expect(item).toBeDefined();
+    expect(item?.daysToEnd).toBe(30);
+  });
+
+  it("excluye un contrato MONTHLY que termina a 31 días (fuera de la ventana de 30)", () => {
+    const reservations = [
+      makeReservation({
+        billingType: "MONTHLY",
+        status: "CONFIRMED",
+        startDate: new Date("2026-01-01T00:00:00.000Z"),
+        endDate: new Date("2026-09-24T00:00:00.000Z"), // +31 días de NOW
+        totalPrice: 900_000,
+      }),
+    ];
+
+    const summary = buildDashboardSummary(buildInput(reservations));
+
+    expect(
+      summary.today.monthlyEndingSoon.find((m) => m.reservationId === reservations[0].id),
+    ).toBeUndefined();
+  });
+
+  it("excluye un contrato MONTHLY que termina a 62 días", () => {
+    const reservations = [
+      makeReservation({
+        billingType: "MONTHLY",
+        status: "CONFIRMED",
+        startDate: new Date("2026-01-01T00:00:00.000Z"),
+        endDate: new Date("2026-10-25T00:00:00.000Z"), // +62 días de NOW
+        totalPrice: 900_000,
+      }),
+    ];
+
+    const summary = buildDashboardSummary(buildInput(reservations));
+
+    expect(
+      summary.today.monthlyEndingSoon.find((m) => m.reservationId === reservations[0].id),
+    ).toBeUndefined();
+  });
+
+  it("ordena por daysToEnd ascendente cuando hay dos contratos dentro de la ventana", () => {
+    const endsFarther = makeReservation({
+      billingType: "MONTHLY",
+      status: "CONFIRMED",
+      startDate: new Date("2026-01-01T00:00:00.000Z"),
+      endDate: new Date("2026-09-13T00:00:00.000Z"), // +20 días de NOW
+      totalPrice: 900_000,
+    });
+    const endsSooner = makeReservation({
+      billingType: "MONTHLY",
+      status: "CONFIRMED",
+      startDate: new Date("2026-01-01T00:00:00.000Z"),
+      endDate: new Date("2026-09-03T00:00:00.000Z"), // +10 días de NOW
+      totalPrice: 900_000,
+    });
+
+    const summary = buildDashboardSummary(buildInput([endsFarther, endsSooner]));
+
+    expect(summary.today.monthlyEndingSoon.map((m) => m.reservationId)).toEqual([
+      endsSooner.id,
+      endsFarther.id,
+    ]);
+  });
+
+  it("excluye reservas CANCELLED y contratos ya terminados (daysToEnd < 0)", () => {
+    const cancelled = makeReservation({
+      billingType: "MONTHLY",
+      status: "CANCELLED",
+      startDate: new Date("2026-01-01T00:00:00.000Z"),
+      endDate: new Date("2026-09-03T00:00:00.000Z"), // +10 días de NOW, pero CANCELLED
+      totalPrice: 900_000,
+    });
+    const alreadyEnded = makeReservation({
+      billingType: "MONTHLY",
+      status: "CONFIRMED",
+      startDate: new Date("2026-01-01T00:00:00.000Z"),
+      endDate: new Date("2026-08-20T00:00:00.000Z"), // -4 días de NOW → ya terminó
+      totalPrice: 900_000,
+    });
+
+    const summary = buildDashboardSummary(buildInput([cancelled, alreadyEnded]));
+
+    expect(summary.today.monthlyEndingSoon).toHaveLength(0);
+  });
+
+  it("no rompe activeMonthlyContracts al agregar monthlyEndingSoon", () => {
+    const activeMonthly = makeReservation({
+      billingType: "MONTHLY",
+      status: "CONFIRMED",
+      startDate: new Date("2026-01-01T00:00:00.000Z"),
+      endDate: new Date("2026-09-03T00:00:00.000Z"), // activo y dentro de la ventana de 30
+      totalPrice: 900_000,
+    });
+
+    const summary = buildDashboardSummary(buildInput([activeMonthly]));
+
+    expect(summary.today.activeMonthlyContracts).toBe(1);
+    expect(summary.today.monthlyEndingSoon).toHaveLength(1);
   });
 });
 
