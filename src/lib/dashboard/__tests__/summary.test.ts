@@ -400,10 +400,12 @@ describe("buildDashboardSummary — MONTHLY entra por evento en upcomingReservat
     expect(item?.installmentAmount).not.toBe(item?.totalPrice);
   });
 
-  it("MONTHLY activo que SOLO termina dentro de la ventana (sin evento de inicio) NO aparece en upcomingReservations", () => {
+  it("MONTHLY activo que SOLO termina dentro de la ventana (sin evento de inicio) NO aparece en upcomingReservations, pero SÍ en activeReservations", () => {
     // Decisión de dominio: un término de contrato mensual no es un evento de
-    // agenda (no pasa nada ese día) — vive en `today.monthlyEndingSoon`, no
-    // en la tabla "Próximas reservas". Solo el INICIO (llegada) entra por evento.
+    // agenda (no pasa nada ese día) — no pertenece a la vista "Próximas".
+    // Sigue siendo una reserva EN CURSO (pill "Activa"), así que vive en
+    // `activeReservations` — es justo la diferencia que introduce separar
+    // las dos vistas.
     const monthlyEndingSoon = makeReservation({
       billingType: "MONTHLY",
       status: "CONFIRMED",
@@ -411,20 +413,23 @@ describe("buildDashboardSummary — MONTHLY entra por evento en upcomingReservat
       endDate: new Date("2026-08-29T00:00:00.000Z"), // +5 días de NOW → activo, termina pronto
       totalPrice: 2_400_000,
     });
-    const dailyEndingSooner = makeReservation({
+    const dailyFuture = makeReservation({
       billingType: "DAILY",
       status: "CONFIRMED",
-      startDate: new Date("2026-08-20T00:00:00.000Z"),
-      endDate: new Date("2026-08-26T00:00:00.000Z"), // +2 días de NOW → activa, termina antes
+      startDate: new Date("2026-08-27T00:00:00.000Z"), // +3 días de NOW → futura, entra por ventana
+      endDate: new Date("2026-08-30T00:00:00.000Z"),
       totalPrice: 120_000,
     });
 
-    const summary = buildDashboardSummary(buildInput([monthlyEndingSoon, dailyEndingSooner]));
+    const summary = buildDashboardSummary(buildInput([monthlyEndingSoon, dailyFuture]));
 
-    const monthlyItem = summary.upcomingReservations.find((r) => r.id === monthlyEndingSoon.id);
-    const dailyItem = summary.upcomingReservations.find((r) => r.id === dailyEndingSooner.id);
-    expect(monthlyItem).toBeUndefined();
-    expect(dailyItem).toBeDefined();
+    const monthlyUpcomingItem = summary.upcomingReservations.find((r) => r.id === monthlyEndingSoon.id);
+    const dailyUpcomingItem = summary.upcomingReservations.find((r) => r.id === dailyFuture.id);
+    expect(monthlyUpcomingItem).toBeUndefined();
+    expect(dailyUpcomingItem).toBeDefined();
+
+    const monthlyActiveItem = summary.activeReservations.find((r) => r.id === monthlyEndingSoon.id);
+    expect(monthlyActiveItem).toBeDefined();
   });
 
   it("regresión DAILY: activas + futuras en ventana siguen apareciendo con nights/totalPrice, months=0 e installmentAmount=null", () => {
@@ -499,123 +504,167 @@ describe("buildDashboardSummary — MONTHLY entra por evento en upcomingReservat
   });
 });
 
-describe("buildDashboardSummary — today.monthlyEndingSoon", () => {
-  // NOW = 2026-08-24 (America/Santiago). Offsets calculados igual que en el
-  // describe anterior: 2026-09-23 = +30 días, 2026-09-24 = +31 días,
-  // 2026-10-25 = +62 días.
+describe("buildDashboardSummary — vistas Próximas / Activas (upcomingReservations vs activeReservations)", () => {
+  // NOW = 2026-08-24 (America/Santiago). La regla que separa las dos vistas
+  // coincide 1:1 con el pill de estado temporal (`getTemporalStatus`): pill
+  // "Próxima" (daysToStart > 0) → upcomingReservations; pill "Activa"
+  // (daysToStart <= 0 && daysToEnd >= 0) → activeReservations.
 
-  it("incluye un contrato MONTHLY que termina exactamente a 30 días (borde inclusivo)", () => {
-    const reservations = [
-      makeReservation({
-        billingType: "MONTHLY",
-        status: "CONFIRMED",
-        startDate: new Date("2026-01-01T00:00:00.000Z"),
-        endDate: new Date("2026-09-23T00:00:00.000Z"), // +30 días de NOW
-        totalPrice: 900_000,
-      }),
-    ];
-
-    const summary = buildDashboardSummary(buildInput(reservations));
-
-    const item = summary.today.monthlyEndingSoon.find((m) => m.reservationId === reservations[0].id);
-    expect(item).toBeDefined();
-    expect(item?.daysToEnd).toBe(30);
-  });
-
-  it("excluye un contrato MONTHLY que termina a 31 días (fuera de la ventana de 30)", () => {
-    const reservations = [
-      makeReservation({
-        billingType: "MONTHLY",
-        status: "CONFIRMED",
-        startDate: new Date("2026-01-01T00:00:00.000Z"),
-        endDate: new Date("2026-09-24T00:00:00.000Z"), // +31 días de NOW
-        totalPrice: 900_000,
-      }),
-    ];
-
-    const summary = buildDashboardSummary(buildInput(reservations));
-
-    expect(
-      summary.today.monthlyEndingSoon.find((m) => m.reservationId === reservations[0].id),
-    ).toBeUndefined();
-  });
-
-  it("excluye un contrato MONTHLY que termina a 62 días", () => {
-    const reservations = [
-      makeReservation({
-        billingType: "MONTHLY",
-        status: "CONFIRMED",
-        startDate: new Date("2026-01-01T00:00:00.000Z"),
-        endDate: new Date("2026-10-25T00:00:00.000Z"), // +62 días de NOW
-        totalPrice: 900_000,
-      }),
-    ];
-
-    const summary = buildDashboardSummary(buildInput(reservations));
-
-    expect(
-      summary.today.monthlyEndingSoon.find((m) => m.reservationId === reservations[0].id),
-    ).toBeUndefined();
-  });
-
-  it("ordena por daysToEnd ascendente cuando hay dos contratos dentro de la ventana", () => {
-    const endsFarther = makeReservation({
-      billingType: "MONTHLY",
+  it("upcomingReservations NO contiene reservas activas ni las que llegan hoy", () => {
+    const arrivingToday = makeReservation({
+      billingType: "DAILY",
       status: "CONFIRMED",
-      startDate: new Date("2026-01-01T00:00:00.000Z"),
-      endDate: new Date("2026-09-13T00:00:00.000Z"), // +20 días de NOW
-      totalPrice: 900_000,
+      startDate: new Date("2026-08-24T00:00:00.000Z"), // hoy
+      endDate: new Date("2026-08-27T00:00:00.000Z"),
+      totalPrice: 90_000,
     });
-    const endsSooner = makeReservation({
-      billingType: "MONTHLY",
+    const alreadyActive = makeReservation({
+      billingType: "DAILY",
       status: "CONFIRMED",
-      startDate: new Date("2026-01-01T00:00:00.000Z"),
-      endDate: new Date("2026-09-03T00:00:00.000Z"), // +10 días de NOW
-      totalPrice: 900_000,
+      startDate: new Date("2026-08-20T00:00:00.000Z"), // -4 días, en curso
+      endDate: new Date("2026-08-28T00:00:00.000Z"),
+      totalPrice: 150_000,
     });
 
-    const summary = buildDashboardSummary(buildInput([endsFarther, endsSooner]));
+    const summary = buildDashboardSummary(buildInput([arrivingToday, alreadyActive]));
 
-    expect(summary.today.monthlyEndingSoon.map((m) => m.reservationId)).toEqual([
-      endsSooner.id,
-      endsFarther.id,
-    ]);
+    expect(summary.upcomingReservations.find((r) => r.id === arrivingToday.id)).toBeUndefined();
+    expect(summary.upcomingReservations.find((r) => r.id === alreadyActive.id)).toBeUndefined();
   });
 
-  it("excluye reservas CANCELLED y contratos ya terminados (daysToEnd < 0)", () => {
-    const cancelled = makeReservation({
-      billingType: "MONTHLY",
-      status: "CANCELLED",
-      startDate: new Date("2026-01-01T00:00:00.000Z"),
-      endDate: new Date("2026-09-03T00:00:00.000Z"), // +10 días de NOW, pero CANCELLED
-      totalPrice: 900_000,
-    });
-    const alreadyEnded = makeReservation({
-      billingType: "MONTHLY",
+  it("activeReservations contiene DAILY en curso y MONTHLY en curso", () => {
+    const activeDaily = makeReservation({
+      billingType: "DAILY",
       status: "CONFIRMED",
-      startDate: new Date("2026-01-01T00:00:00.000Z"),
-      endDate: new Date("2026-08-20T00:00:00.000Z"), // -4 días de NOW → ya terminó
-      totalPrice: 900_000,
+      startDate: new Date("2026-08-20T00:00:00.000Z"),
+      endDate: new Date("2026-08-28T00:00:00.000Z"),
+      totalPrice: 150_000,
     });
-
-    const summary = buildDashboardSummary(buildInput([cancelled, alreadyEnded]));
-
-    expect(summary.today.monthlyEndingSoon).toHaveLength(0);
-  });
-
-  it("no rompe activeMonthlyContracts al agregar monthlyEndingSoon", () => {
     const activeMonthly = makeReservation({
       billingType: "MONTHLY",
       status: "CONFIRMED",
       startDate: new Date("2026-01-01T00:00:00.000Z"),
-      endDate: new Date("2026-09-03T00:00:00.000Z"), // activo y dentro de la ventana de 30
+      endDate: new Date("2027-06-30T00:00:00.000Z"),
+      totalPrice: 5_400_000,
+    });
+
+    const summary = buildDashboardSummary(buildInput([activeDaily, activeMonthly]));
+
+    expect(summary.activeReservations.find((r) => r.id === activeDaily.id)).toBeDefined();
+    expect(summary.activeReservations.find((r) => r.id === activeMonthly.id)).toBeDefined();
+  });
+
+  it("una reserva que llega hoy (daysToStart === 0) está en activeReservations y va primera en el orden", () => {
+    const alreadyActive = makeReservation({
+      billingType: "DAILY",
+      status: "CONFIRMED",
+      startDate: new Date("2026-08-20T00:00:00.000Z"),
+      endDate: new Date("2026-08-28T00:00:00.000Z"), // termina antes que "hoy" en daysToEnd
+      totalPrice: 150_000,
+    });
+    const arrivingToday = makeReservation({
+      billingType: "DAILY",
+      status: "CONFIRMED",
+      startDate: new Date("2026-08-24T00:00:00.000Z"), // hoy
+      endDate: new Date("2026-08-30T00:00:00.000Z"),
+      totalPrice: 90_000,
+    });
+
+    const summary = buildDashboardSummary(buildInput([alreadyActive, arrivingToday]));
+
+    expect(summary.activeReservations[0]?.id).toBe(arrivingToday.id);
+    expect(summary.activeReservations[0]?.isArrivingToday).toBe(true);
+  });
+
+  it("activeReservations ordena por daysToEnd ascendente después de las que llegan hoy", () => {
+    const endsLater = makeReservation({
+      billingType: "DAILY",
+      status: "CONFIRMED",
+      startDate: new Date("2026-08-20T00:00:00.000Z"),
+      endDate: new Date("2026-08-30T00:00:00.000Z"), // +6 días de NOW
+      totalPrice: 150_000,
+    });
+    const endsSooner = makeReservation({
+      billingType: "DAILY",
+      status: "CONFIRMED",
+      startDate: new Date("2026-08-22T00:00:00.000Z"),
+      endDate: new Date("2026-08-26T00:00:00.000Z"), // +2 días de NOW
+      totalPrice: 90_000,
+    });
+
+    const summary = buildDashboardSummary(buildInput([endsLater, endsSooner]));
+
+    expect(summary.activeReservations.map((r) => r.id)).toEqual([endsSooner.id, endsLater.id]);
+  });
+
+  it("activeReservations excluye CANCELLED y las ya terminadas", () => {
+    const cancelled = makeReservation({
+      billingType: "DAILY",
+      status: "CANCELLED",
+      startDate: new Date("2026-08-20T00:00:00.000Z"),
+      endDate: new Date("2026-08-28T00:00:00.000Z"), // en rango, pero CANCELLED
+      totalPrice: 150_000,
+    });
+    const alreadyEnded = makeReservation({
+      billingType: "DAILY",
+      status: "CONFIRMED",
+      startDate: new Date("2026-08-10T00:00:00.000Z"),
+      endDate: new Date("2026-08-20T00:00:00.000Z"), // -4 días de NOW → ya terminó
+      totalPrice: 100_000,
+    });
+
+    const summary = buildDashboardSummary(buildInput([cancelled, alreadyEnded]));
+
+    expect(summary.activeReservations).toHaveLength(0);
+  });
+
+  it("un MONTHLY que inicia dentro de la ventana está en upcomingReservations y NO en activeReservations", () => {
+    const monthlyStartingSoon = makeReservation({
+      billingType: "MONTHLY",
+      status: "CONFIRMED",
+      startDate: new Date("2026-09-01T00:00:00.000Z"), // +8 días de NOW
+      endDate: new Date("2026-11-30T00:00:00.000Z"),
       totalPrice: 900_000,
     });
 
-    const summary = buildDashboardSummary(buildInput([activeMonthly]));
+    const summary = buildDashboardSummary(buildInput([monthlyStartingSoon]));
 
-    expect(summary.today.activeMonthlyContracts).toBe(1);
-    expect(summary.today.monthlyEndingSoon).toHaveLength(1);
+    expect(summary.upcomingReservations.find((r) => r.id === monthlyStartingSoon.id)).toBeDefined();
+    expect(summary.activeReservations.find((r) => r.id === monthlyStartingSoon.id)).toBeUndefined();
+  });
+
+  it("el KPI upcoming.total coincide con la cantidad de upcomingReservations cuando no hay tope de por medio", () => {
+    // 3 reservas futuras en ventana, menos que `upcomingLimit` (default 6) —
+    // ninguna se recorta, así que el KPI (sin tope) y la vista (topada)
+    // deben coincidir exactamente.
+    const reservations = [
+      makeReservation({
+        billingType: "DAILY",
+        status: "CONFIRMED",
+        startDate: new Date("2026-08-27T00:00:00.000Z"), // +3 días
+        endDate: new Date("2026-08-29T00:00:00.000Z"),
+        totalPrice: 90_000,
+      }),
+      makeReservation({
+        billingType: "MONTHLY",
+        status: "CONFIRMED",
+        startDate: new Date("2026-09-01T00:00:00.000Z"), // +8 días
+        endDate: new Date("2026-11-30T00:00:00.000Z"),
+        totalPrice: 900_000,
+      }),
+      makeReservation({
+        billingType: "DAILY",
+        status: "CONFIRMED",
+        startDate: new Date("2026-09-05T00:00:00.000Z"), // +12 días
+        endDate: new Date("2026-09-07T00:00:00.000Z"),
+        totalPrice: 60_000,
+      }),
+    ];
+
+    const summary = buildDashboardSummary(buildInput(reservations));
+
+    expect(summary.upcoming.total).toBe(summary.upcomingReservations.length);
+    expect(summary.upcoming.total).toBe(3);
   });
 });
 

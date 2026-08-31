@@ -53,14 +53,6 @@ import { getInclusiveMonths } from "@/lib/reservation-dates";
 const DEFAULT_UPCOMING_WINDOW_DAYS = 14;
 const DEFAULT_UPCOMING_LIMIT = 6;
 const DEFAULT_COLLECTION_LIMIT = 4;
-/**
- * Ventana de aviso de término de contrato mensual (`today.monthlyEndingSoon`).
- * 30 días es la anticipación estándar de aviso de término/renovación en un
- * arriendo — deliberadamente distinta de `upcomingWindowDays` (14): el ritmo
- * de decisión de un contrato mensual (renovar o no) no es el de la rotación
- * diaria que alimenta la tabla "Próximas reservas".
- */
-const DEFAULT_MONTHLY_ENDING_WINDOW_DAYS = 30;
 
 // ─── Tipos de input ─────────────────────────────────────────────────────────
 
@@ -109,11 +101,6 @@ export interface DashboardSummaryInput {
   upcomingLimit?: number;
   /** Tope de items de `collectionItems`. Default 4. */
   collectionLimit?: number;
-  /**
-   * Ventana de días para `today.monthlyEndingSoon` (contratos MONTHLY que
-   * terminan pronto). Default 30 — ver `DEFAULT_MONTHLY_ENDING_WINDOW_DAYS`.
-   */
-  monthlyEndingWindowDays?: number;
 }
 
 // ─── Tipos de output ────────────────────────────────────────────────────────
@@ -200,22 +187,6 @@ export interface DashboardMovement {
   unitsBooked: number;
 }
 
-/**
- * Contrato MONTHLY que termina dentro de `monthlyEndingWindowDays` (default
- * 30). A diferencia de un inicio de contrato (llegada, evento de agenda), un
- * término es una DECISIÓN (renovar o no) — no pertenece a la tabla
- * "Próximas reservas" (ver el filtro de `upcomingCandidates` más abajo);
- * vive en el bloque "Hoy" para que el owner lo vea con semanas de
- * anticipación sin que sature la agenda diaria.
- */
-export interface DashboardMonthlyContractEnding {
-  reservationId: string;
-  propertyName: string;
-  clientName: string;
-  endDate: string;
-  daysToEnd: number;
-}
-
 export interface DashboardToday {
   arrivals: DashboardMovement[];
   departures: DashboardMovement[];
@@ -223,8 +194,6 @@ export interface DashboardToday {
   pendingConfirmationCount: number;
   oldestPendingConfirmationDays: number | null;
   activeMonthlyContracts: number;
-  /** Ordenado por `daysToEnd` ascendente. */
-  monthlyEndingSoon: DashboardMonthlyContractEnding[];
 }
 
 export interface DashboardUpcomingReservation {
@@ -304,6 +273,14 @@ export interface DashboardSummary {
   occupancy: DashboardOccupancyKpi;
   today: DashboardToday;
   upcomingReservations: DashboardUpcomingReservation[];
+  /**
+   * Reservas EN CURSO hoy (`isActive`), ambos billing types, sin ventana —
+   * una reserva en curso lo está sin importar cuán lejos esté su fin. Vista
+   * "Activas" de la tabla de agenda: coincide 1:1 con el pill de estado
+   * "Activa" (`getTemporalStatus`), igual que `upcomingReservations` coincide
+   * con el pill "Próxima".
+   */
+  activeReservations: DashboardUpcomingReservation[];
   collectionItems: DashboardCollectionItem[];
   occupancyStrip: {
     properties: Array<{ id: string; name: string; unitsAvailable: number }>;
@@ -344,8 +321,6 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
   const upcomingWindowDays = input.upcomingWindowDays ?? DEFAULT_UPCOMING_WINDOW_DAYS;
   const upcomingLimit = input.upcomingLimit ?? DEFAULT_UPCOMING_LIMIT;
   const collectionLimit = input.collectionLimit ?? DEFAULT_COLLECTION_LIMIT;
-  const monthlyEndingWindowDays =
-    input.monthlyEndingWindowDays ?? DEFAULT_MONTHLY_ENDING_WINDOW_DAYS;
 
   // ── Rangos de fecha derivados de `todayKey` (America/Santiago), NUNCA de
   // `now` directo — evita el bug de epoch-day UTC cerca de medianoche SCL.
@@ -589,7 +564,6 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
   let pendingConfirmationCount = 0;
   let oldestPendingConfirmationDays: number | null = null;
   let activeMonthlyContracts = 0;
-  const monthlyEndingSoon: DashboardMonthlyContractEnding[] = [];
 
   for (const r of input.reservations) {
     if (r.status === "CANCELLED") continue;
@@ -626,19 +600,6 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     }
     if (isActive) inStayCount += 1;
     if (r.billingType === "MONTHLY" && isActive) activeMonthlyContracts += 1;
-    if (
-      r.billingType === "MONTHLY" &&
-      daysToEnd >= 0 &&
-      daysToEnd <= monthlyEndingWindowDays
-    ) {
-      monthlyEndingSoon.push({
-        reservationId: r.id,
-        propertyName: r.property.name,
-        clientName: r.client.name,
-        endDate: endIso,
-        daysToEnd,
-      });
-    }
 
     if (r.status === "PENDING") {
       pendingConfirmationCount += 1;
@@ -649,8 +610,6 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     }
   }
 
-  monthlyEndingSoon.sort((a, b) => a.daysToEnd - b.daysToEnd);
-
   const today: DashboardToday = {
     arrivals,
     departures,
@@ -658,7 +617,6 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     pendingConfirmationCount,
     oldestPendingConfirmationDays,
     activeMonthlyContracts,
-    monthlyEndingSoon,
   };
 
   // ── Upcoming KPI ─────────────────────────────────────────────────────────
@@ -671,13 +629,13 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
   // chequeo de billing type aparte: la misma condición de ventana YA es el
   // filtro de población.
   //
-  // Relación con la tabla homónima (antes irreconciliable — bug real): este
-  // KPI cuenta las filas "Próxima" (futuras); la tabla muestra esas mismas
-  // filas MÁS las que ya están en curso (`isActive`). Antes el KPI contaba
-  // AMBOS billing types sin ventana y sin activas, mientras la tabla contaba
-  // solo DAILY con ventana e incluía activas — con contratos mensuales
-  // futuros el KPI podía decir 5 mientras la tabla mostraba 2, sin relación
-  // explicable entre ambos números.
+  // Relación con la vista homónima de la tabla: este KPI es el conteo SIN
+  // TOPE (`upcomingLimit`) de exactamente la misma población que la vista
+  // "Próximas" — misma condición (`daysToStart > 0 && <= upcomingWindowDays`),
+  // ambos billing types. Ya no hace falta la salvedad de "más las activas":
+  // desde que la tabla separó "Próximas" (pill "Próxima") de "Activas" (pill
+  // "Activa") en dos vistas distintas, el KPI y la vista "Próximas" cuentan
+  // exactamente lo mismo, solo que una topada y la otra no.
   let upcomingTotal = 0;
   let upcomingNext7Days = 0;
   for (const r of input.reservations) {
@@ -690,10 +648,17 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
   }
   const upcoming: DashboardUpcomingKpi = { total: upcomingTotal, next7Days: upcomingNext7Days };
 
-  // ── upcomingReservations (tabla): ventana `upcomingWindowDays`. DAILY entra
-  // por duración (activa o próxima); MONTHLY entra por evento de INICIO
-  // (llegada) — ver el filtro `withinWindow` abajo.
-  interface UpcomingCandidate {
+  // ── upcomingReservations / activeReservations (tabla "Agenda de reservas"):
+  // dos poblaciones disjuntas que coinciden 1:1 con el pill de estado
+  // temporal que ve el dueño en cada fila (`getTemporalStatus`,
+  // `@/components/reservations/reservation-status`):
+  //   - "Próxima" (`daysToStart > 0`) → vista `upcomingReservations`.
+  //   - "Activa"  (`daysToStart <= 0 && daysToEnd >= 0`) → vista `activeReservations`.
+  // Nunca al revés — si una fila con pill "Activa" apareciera en la vista
+  // "Próximas", la tabla se contradice sola. Por eso ambas poblaciones se
+  // derivan del MISMO cómputo de `daysToStart`/`daysToEnd`/`isActive` sobre
+  // el mismo dataset, en vez de reglas independientes que podrían divergir.
+  interface ReservationCandidate {
     reservation: DashboardReservationInput;
     daysToStart: number;
     daysToEnd: number;
@@ -701,7 +666,7 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     isArrivingToday: boolean;
   }
 
-  const upcomingCandidates: UpcomingCandidate[] = [];
+  const candidates: ReservationCandidate[] = [];
   for (const r of input.reservations) {
     if (r.status === "CANCELLED") continue;
     const startIso = r.startDate.toISOString();
@@ -710,26 +675,7 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     const daysToEnd = daysUntilEnd(endIso, now);
     const isActive = daysToStart <= 0 && daysToEnd >= 0;
 
-    let withinWindow: boolean;
-    if (r.billingType === "DAILY") {
-      withinWindow = isActive || (daysToStart > 0 && daysToStart <= upcomingWindowDays);
-    } else {
-      // MONTHLY entra por EVENTO, no por duración: un contrato en curso sin
-      // evento cercano es estado estable (no noticia) y ocuparía una de las
-      // `upcomingLimit` filas por meses. Solo entra si INICIA dentro de la
-      // ventana — un inicio de contrato es una llegada (check-in, hay que
-      // entregar llaves), operacionalmente equivalente a un evento de
-      // rotación diaria. Un TÉRMINO de contrato no es un evento de agenda:
-      // no pasa nada ese día, lo que hay que hacer es decidir (renovar o no)
-      // con semanas de anticipación. Mostrarlo como fila de tabla 30 días
-      // seguidos satura la agenda diaria; ese aviso vive en
-      // `today.monthlyEndingSoon` (bloque "Hoy"), no aquí.
-      const hasStartEvent = daysToStart >= 0 && daysToStart <= upcomingWindowDays;
-      withinWindow = hasStartEvent;
-    }
-    if (!withinWindow) continue;
-
-    upcomingCandidates.push({
+    candidates.push({
       reservation: r,
       daysToStart,
       daysToEnd,
@@ -738,14 +684,25 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     });
   }
 
-  // Orden (idéntico al legacy page.tsx): llegan hoy primero (por daysToEnd asc
-  // entre ellas), luego activas por daysToEnd asc, luego futuras por daysToStart asc.
-  upcomingCandidates.sort((a, b) => {
+  // "Próximas": estrictamente futuras, ambos billing types, dentro de la
+  // ventana. Para MONTHLY el inicio de contrato es una llegada (mudanza,
+  // evento de agenda) — misma condición que DAILY, sin chequeo de billing
+  // type aparte. Un contrato MONTHLY en curso sin evento cercano NO entra
+  // aquí (no tiene `daysToStart > 0`); un término de contrato tampoco es un
+  // evento de agenda (no pasa nada ese día) y queda fuera de la tabla.
+  const upcomingCandidates = candidates.filter(
+    (c) => c.daysToStart > 0 && c.daysToStart <= upcomingWindowDays,
+  );
+  upcomingCandidates.sort((a, b) => a.daysToStart - b.daysToStart);
+
+  // "Activas": en curso hoy (incluye las que llegan hoy — `daysToStart === 0`
+  // cae dentro de `[start, end]`, así que su pill es "Activa"), ambos billing
+  // types, SIN ventana — una reserva en curso lo está sin importar cuán lejos
+  // esté su fin.
+  const activeCandidates = candidates.filter((c) => c.isActive);
+  activeCandidates.sort((a, b) => {
     if (a.isArrivingToday !== b.isArrivingToday) return a.isArrivingToday ? -1 : 1;
-    if (a.isArrivingToday && b.isArrivingToday) return a.daysToEnd - b.daysToEnd;
-    if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
-    if (a.isActive && b.isActive) return a.daysToEnd - b.daysToEnd;
-    return a.daysToStart - b.daysToStart;
+    return a.daysToEnd - b.daysToEnd;
   });
 
   /**
@@ -774,35 +731,41 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     return months > 0 ? Math.round(r.totalPrice / months) : null;
   }
 
+  function mapCandidateToRow(c: ReservationCandidate): DashboardUpcomingReservation {
+    const r = c.reservation;
+    const startIso = r.startDate.toISOString();
+    const endIso = r.endDate.toISOString();
+    const months = r.billingType === "MONTHLY" ? getInclusiveMonths(startIso, endIso) : 0;
+    return {
+      id: r.id,
+      propertyId: r.propertyId,
+      propertyName: r.property.name,
+      propertyColor: r.property.color,
+      clientName: r.client.name,
+      clientPhone: r.client.phone,
+      startDate: startIso,
+      endDate: endIso,
+      billingType: r.billingType,
+      status: r.status,
+      totalPrice: r.totalPrice,
+      unitsBooked: r.unitsBooked,
+      nights: getNights(startIso, endIso),
+      months,
+      installmentAmount: computeInstallmentAmount(r, months),
+      daysToStart: c.daysToStart,
+      daysToEnd: c.daysToEnd,
+      isActive: c.isActive,
+      isArrivingToday: c.isArrivingToday,
+    };
+  }
+
   const upcomingReservations: DashboardUpcomingReservation[] = upcomingCandidates
     .slice(0, upcomingLimit)
-    .map((c) => {
-      const r = c.reservation;
-      const startIso = r.startDate.toISOString();
-      const endIso = r.endDate.toISOString();
-      const months = r.billingType === "MONTHLY" ? getInclusiveMonths(startIso, endIso) : 0;
-      return {
-        id: r.id,
-        propertyId: r.propertyId,
-        propertyName: r.property.name,
-        propertyColor: r.property.color,
-        clientName: r.client.name,
-        clientPhone: r.client.phone,
-        startDate: startIso,
-        endDate: endIso,
-        billingType: r.billingType,
-        status: r.status,
-        totalPrice: r.totalPrice,
-        unitsBooked: r.unitsBooked,
-        nights: getNights(startIso, endIso),
-        months,
-        installmentAmount: computeInstallmentAmount(r, months),
-        daysToStart: c.daysToStart,
-        daysToEnd: c.daysToEnd,
-        isActive: c.isActive,
-        isArrivingToday: c.isArrivingToday,
-      };
-    });
+    .map(mapCandidateToRow);
+
+  const activeReservations: DashboardUpcomingReservation[] = activeCandidates
+    .slice(0, upcomingLimit)
+    .map(mapCandidateToRow);
 
   // ── OccupancyStrip: dataset completo (el componente filtra DAILY + rango). ─
   const propertiesById = new Map(input.properties.map((p) => [p.id, p] as const));
@@ -836,6 +799,7 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     occupancy,
     today,
     upcomingReservations,
+    activeReservations,
     collectionItems,
     occupancyStrip,
     isEmpty: {
