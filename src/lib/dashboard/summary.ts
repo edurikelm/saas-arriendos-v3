@@ -161,6 +161,27 @@ export interface DashboardCollectionKpi {
    * `windowAmount`.
    */
   windowCount: number;
+  /**
+   * Desglose de `windowAmount`/`windowCount` en los DOS grupos que renderiza
+   * `DashboardCobranzaList` (vencidos · por vencer). Se computan con las
+   * mismas dos expresiones que sus totales (`amountForRow` y
+   * `overdueCount + dueSoonCount + extrasPendingCount`), asi que por
+   * construccion `overdueWindow* + dueSoonWindow* === window*`.
+   *
+   * Existen porque los encabezados de grupo del card muestran subtotal: se
+   * derivan de la ventana COMPLETA, no de los `collectionLimit` items
+   * visibles. Derivarlos de los items visibles mentiria en cuanto hay mas
+   * cobros de los que caben — el mismo motivo por el que el footer usa
+   * `windowAmount` y no la suma de `items`.
+   *
+   * Granularidad de COBRO (cuota o extra), no de reserva: coherente con el
+   * footer, e intencionalmente distinta de `overdueCount`/`dueTodayCount`
+   * (que cuentan reservas y alimentan el tono del KPI).
+   */
+  overdueWindowAmount: number;
+  overdueWindowCount: number;
+  dueSoonWindowAmount: number;
+  dueSoonWindowCount: number;
 }
 
 export interface DashboardUpcomingKpi {
@@ -252,6 +273,12 @@ export interface DashboardCollectionItem {
    * apunta a la cuota impaga MÁS temprana (la vencida, si existe una).
    */
   dueSoonDaysFromToday: number | null;
+  /**
+   * Tipo de arriendo de la reserva detras del cobro. El card lo muestra como
+   * label junto a la propiedad ("Teja 1 · Mensual") — es el dato que explica
+   * por que una fila puede agrupar varias cuotas y la otra no.
+   */
+  billingType: "DAILY" | "MONTHLY";
 }
 
 export interface DashboardOccupancyStripReservation {
@@ -446,6 +473,20 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
   const windowRows = [...overdueRows, ...dueTodayRows, ...upcoming7dRows];
   const overdueInstallmentsCount = overdueRows.reduce((sum, { row }) => sum + row.overdueCount, 0);
 
+  // Desglose por grupo visual del card (vencidos · por vencer). `dueSoonRows`
+  // fusiona DUE_TODAY y UPCOMING porque el card los agrupa bajo un solo
+  // encabezado: la distincion "hoy" vs "en N dias" ya la carga el texto de
+  // vencimiento de cada fila, y un tercer grupo para 4 filas visibles suma
+  // mas encabezado que informacion.
+  const dueSoonRows = [...dueTodayRows, ...upcoming7dRows];
+  const sumWindowAmount = (rows: typeof windowRows) =>
+    rows.reduce((sum, { row }) => sum + amountForRow(row), 0);
+  const sumWindowCount = (rows: typeof windowRows) =>
+    rows.reduce(
+      (sum, { row }) => sum + row.overdueCount + row.dueSoonCount + row.extrasPendingCount,
+      0,
+    );
+
   const collection: DashboardCollectionKpi = {
     pendingCount,
     totalToCollect: collectionTotals.totalToCollect,
@@ -456,11 +497,12 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     upcoming7dCount: upcoming7dRows.length,
     upcoming7dAmount,
     overdueInstallmentsCount,
-    windowAmount: windowRows.reduce((sum, { row }) => sum + amountForRow(row), 0),
-    windowCount: windowRows.reduce(
-      (sum, { row }) => sum + row.overdueCount + row.dueSoonCount + row.extrasPendingCount,
-      0,
-    ),
+    windowAmount: sumWindowAmount(windowRows),
+    windowCount: sumWindowCount(windowRows),
+    overdueWindowAmount: sumWindowAmount(overdueRows),
+    overdueWindowCount: sumWindowCount(overdueRows),
+    dueSoonWindowAmount: sumWindowAmount(dueSoonRows),
+    dueSoonWindowCount: sumWindowCount(dueSoonRows),
   };
 
   // ── Enriquecimiento (solo MONTHLY): paymentId/initPoint/expiresAt vía
@@ -529,10 +571,12 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     row: CollectionReportRow,
     bucket: DashboardCollectionBucket,
   ): DashboardCollectionItem {
-    const isMonthly = billingTypeByReservationId.get(row.reservationId) === "MONTHLY";
+    const billingType = billingTypeByReservationId.get(row.reservationId) ?? row.billingType;
+    const isMonthly = billingType === "MONTHLY";
     const alert = isMonthly ? alertsByReservationId.get(row.reservationId) : undefined;
     return {
       bucket,
+      billingType,
       reservationId: row.reservationId,
       paymentId: alert?.paymentId ?? null,
       clientName: row.clientName,

@@ -240,6 +240,7 @@ export default async function DashboardPage() {
   const cobranzaItems: CobranzaItem[] = collectionItems.map((item) => ({
     reservationId: item.reservationId,
     clientName: item.clientName,
+    billingType: item.billingType,
     amount: item.amount,
     dueDate: item.dueDate ? new Date(item.dueDate) : null,
     daysFromToday: item.daysFromToday,
@@ -384,6 +385,16 @@ export default async function DashboardPage() {
           viewAllHref="/payments"
           totalAmount={collection.windowAmount}
           totalCount={collection.windowCount}
+          groupTotals={{
+            OVERDUE: {
+              amount: collection.overdueWindowAmount,
+              count: collection.overdueWindowCount,
+            },
+            DUE_SOON: {
+              amount: collection.dueSoonWindowAmount,
+              count: collection.dueSoonWindowCount,
+            },
+          }}
         />
       </section>
 
