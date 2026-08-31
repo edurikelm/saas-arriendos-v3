@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { CheckCircle2, Clock } from "lucide-react";
-import { ReservationPill, type PillTone } from "@/components/reservations/reservation-pill";
+import { CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateOnly } from "@/lib/domain/timezone";
 
@@ -9,15 +8,11 @@ import { formatDateOnly } from "@/lib/domain/timezone";
  * (`@/lib/dashboard/summary`). Redefinido localmente para no acoplar este
  * componente puramente presentacional al seam de dominio.
  *
- * Dos colores, no tres: `info` (per DESIGN.md, "próximos 7 días") describe
- * estados neutrales — duración DAILY/MONTHLY, próximo check-in — no dinero
- * pendiente de cobro. Un cobro que vence en 5 días sigue siendo una acción
- * pendiente, no un dato de contexto; pintarlo `info` lo hace leer como
- * no-urgente cuando en realidad solo es "menos urgente que hoy". La
- * distinción de urgencia entre "hoy" y "en N días" la carga el label y el
- * peso del texto de vencimiento, no el color de la pill:
- *   OVERDUE                 → destructive
- *   DUE_TODAY / UPCOMING_7D → warning
+ * Los tres buckets sobreviven en el dato porque describen tres estados
+ * distintos del dominio; la UI los colapsa en DOS grupos visuales (ver
+ * `GROUP_OF_BUCKET`). La distinción entre "vence hoy" y "vence en N días"
+ * la carga el texto de vencimiento de cada fila, que es más preciso que un
+ * encabezado, y no un tercer grupo.
  */
 export type CobranzaBucket = "OVERDUE" | "DUE_TODAY" | "UPCOMING_7D";
 
@@ -25,6 +20,14 @@ export interface CobranzaItem {
   reservationId: string;
   clientName: string;
   propertyName: string;
+  /**
+   * Tipo de arriendo de la reserva. Se muestra como label junto a la
+   * propiedad, nunca como color: `info` (el token que DESIGN.md asigna a
+   * DAILY/MONTHLY) reintroduciría un tercer eje cromático en una sección
+   * cuyo problema era exactamente ese. DESIGN.md, sección Colors:
+   * "Diferencia DAILY vs MONTHLY por label, no por color".
+   */
+  billingType: "DAILY" | "MONTHLY";
   amount: number;
   dueDate: Date | null;
   /** Días desde hoy hasta el vencimiento (negativo = vencido). `null` cuando no hay `dueDate`. */
@@ -50,27 +53,59 @@ export interface CobranzaItem {
   dueSoonDaysFromToday: number | null;
 }
 
-const BUCKET_TONE: Record<CobranzaBucket, PillTone> = {
-  OVERDUE: "destructive",
-  DUE_TODAY: "warning",
-  UPCOMING_7D: "warning",
+/** Grupo visual del card. Dos, no tres: ver `CobranzaBucket`. */
+type CobranzaGroupKey = "OVERDUE" | "DUE_SOON";
+
+const GROUP_OF_BUCKET: Record<CobranzaBucket, CobranzaGroupKey> = {
+  OVERDUE: "OVERDUE",
+  DUE_TODAY: "DUE_SOON",
+  UPCOMING_7D: "DUE_SOON",
 };
 
+const GROUP_LABEL: Record<CobranzaGroupKey, string> = {
+  OVERDUE: "Vencidos",
+  DUE_SOON: "Por vencer",
+};
+
+/**
+ * El ÚNICO portador de color de la sección.
+ *
+ * La lista llega ordenada por urgencia y ahora está agrupada por ella, así
+ * que el estado de una fila se deduce del grupo que la contiene: repetirlo
+ * en la fila (pill + monto teñido + texto teñido, como hacía la versión
+ * anterior) codificaba el mismo hecho tres veces en el mismo color y dejaba
+ * ~7 zonas cromáticas en un card de 400px. Ahora el color aparece una vez
+ * por grupo — dos veces en todo el card — y el monto recupera
+ * `text-foreground`, que es lo que permite compararlo entre filas.
+ *
+ * `warning` usa su `*-foreground` (el token legible sobre card, oscuro en
+ * light / claro en dark) y NO `--warning`, que es el token de relleno: a
+ * 0.78 de lightness sobre card blanco no alcanza contraste AA.
+ */
+const GROUP_TEXT: Record<CobranzaGroupKey, string> = {
+  OVERDUE: "text-destructive",
+  DUE_SOON: "text-warning-foreground",
+};
+
+/** Orden de render de los grupos. `items` ya llega en este orden. */
+const GROUP_ORDER: CobranzaGroupKey[] = ["OVERDUE", "DUE_SOON"];
+
+/**
+ * Label de estado por bucket. Sin representación visual propia desde que el
+ * grupo carga el estado; sobrevive en el `aria-label` de cada fila para que
+ * un lector de pantalla reciba el estado exacto (incluida la distinción
+ * "vence hoy" vs "pendiente", que el encabezado de grupo fusiona) sin
+ * depender de haber leído el encabezado.
+ */
 const BUCKET_LABEL: Record<CobranzaBucket, string> = {
   OVERDUE: "Vencido",
   DUE_TODAY: "Vence hoy",
   UPCOMING_7D: "Pendiente",
 };
 
-/**
- * Color del texto de vencimiento. Usa `*-foreground` (el token legible sobre
- * card, oscuro en light / claro en dark) y NO `--warning`, que es el token de
- * relleno: a 0.78 de lightness sobre card blanco no alcanza contraste AA.
- */
-const BUCKET_TEXT: Record<CobranzaBucket, string> = {
-  OVERDUE: "text-destructive",
-  DUE_TODAY: "text-warning-foreground",
-  UPCOMING_7D: "text-muted-foreground",
+const BILLING_LABEL: Record<CobranzaItem["billingType"], string> = {
+  DAILY: "Diaria",
+  MONTHLY: "Mensual",
 };
 
 function formatCLP(amount: number): string {
@@ -100,14 +135,13 @@ function plazoRelativo(days: number): string {
 }
 
 interface DueLabelParts {
-  /** Texto principal: siempre en la línea, mismo color que `BUCKET_TEXT[bucket]`. */
+  /** Texto principal: siempre en la línea. */
   primary: string;
   /**
-   * Sufijo "+N por vencer" cuando existe. Se renderiza como chip aparte (no
-   * concatenado al texto de `primary`) para que envuelva como unidad — un
-   * texto corrido tipo "2 cuotas vencidas · +1 vence en 4 días" (38+
-   * caracteres a `text-[10px]` en una columna de ~110-120px) desbordaba a
-   * 2-3 líneas y empujaba la altura del card. `null` cuando no aplica.
+   * Sufijo "+N por vencer" cuando existe. Se mantiene como nodo separado de
+   * `primary` (no concatenado) para poder darle `whitespace-nowrap`: el
+   * tramo envuelve como unidad en vez de partirse a mitad de "+1 vence en 4
+   * días". `null` cuando no aplica.
    */
   chip: string | null;
 }
@@ -123,12 +157,11 @@ interface DueLabelParts {
  * cuotas más hay detrás, para no mentir con "1 cobro" cuando en realidad
  * son 2 vencidas + 1 por vencer.
  *
- * No-overdue (`overdueCount === 0`): comportamiento sin cambios respecto a
- * la versión anterior de este componente (bucket DUE_TODAY / UPCOMING_7D /
- * sin fecha) — siempre `chip: null`.
+ * No-overdue (`overdueCount === 0`): bucket DUE_TODAY / UPCOMING_7D / sin
+ * fecha — siempre `chip: null`.
  *
  * Overdue (`overdueCount >= 1`):
- *  - 1 cuota vencida  → "Venció hace N días" (igual que antes).
+ *  - 1 cuota vencida  → "Venció hace N días".
  *  - ≥2 cuotas vencidas → "N cuotas vencidas".
  *  - Si hay cuotas por vencer dentro de 7 días, el chip lleva "+N
  *    vence/vencen en X días" (degrada a "+N por vencer" sin plazo si no hay
@@ -187,6 +220,12 @@ function dueLabelParts(item: {
   return { primary, chip: null };
 }
 
+/** Subtotal real de un grupo (ventana completa, no solo los items visibles). */
+export interface CobranzaGroupTotal {
+  amount: number;
+  count: number;
+}
+
 interface DashboardCobranzaListProps {
   items: CobranzaItem[];
   /**
@@ -206,14 +245,25 @@ interface DashboardCobranzaListProps {
    */
   totalAmount?: number;
   totalCount?: number;
+  /**
+   * Subtotales por grupo, con el mismo criterio que `totalAmount`/`totalCount`:
+   * cubren la ventana completa, no los items visibles. Vienen de
+   * `collection.overdueWindow*` / `collection.dueSoonWindow*`
+   * (`@/lib/dashboard/summary`), que por construcción suman `windowAmount` /
+   * `windowCount`. Si se omiten, se derivan de los items visibles.
+   */
+  groupTotals?: Partial<Record<CobranzaGroupKey, CobranzaGroupTotal>>;
 }
 
 /**
- * Compact cobranza sidebar for /dashboard. Shows up to N items ordered by
- * urgency (vencidos → vencen hoy → próximos 7 días), each with client,
- * propiedad, monto y vencimiento relativo. Cada fila es un link a la
- * reserva — la sección es una lista de pendientes, no un reporte de solo
- * lectura.
+ * Cobranza sidebar for /dashboard. Muestra hasta N cobros agrupados por
+ * urgencia (vencidos → por vencer), cada uno con cliente, propiedad, tipo de
+ * arriendo, monto y vencimiento relativo. Cada fila es un link a la reserva —
+ * la sección es una lista de pendientes, no un reporte de solo lectura.
+ *
+ * El agrupamiento es lo que permite que la sección sea plana en color: el
+ * encabezado dice el estado UNA vez para todas sus filas, así que ninguna
+ * fila necesita pill ni monto teñido.
  *
  * Standalone primitive — no server data fetching; data is computed by
  * `getDashboardSummary` (`@/lib/dashboard/summary`) and passed as props.
@@ -224,10 +274,23 @@ export function DashboardCobranzaList({
   viewAllLabel = "Ver todas",
   totalAmount,
   totalCount,
+  groupTotals,
 }: DashboardCobranzaListProps) {
   const resolvedCount = totalCount ?? items.length;
-  const resolvedTotal =
-    totalAmount ?? items.reduce((sum, item) => sum + item.amount, 0);
+  const resolvedTotal = totalAmount ?? items.reduce((sum, item) => sum + item.amount, 0);
+
+  // Un grupo se renderiza solo si tiene filas VISIBLES. `items` llega
+  // truncado en orden de urgencia, así que un grupo sin filas visibles no
+  // recibe encabezado aunque su subtotal sea > 0; ese remanente sigue
+  // contado en el footer y accesible vía "Ver todas".
+  const groups = GROUP_ORDER.map((key) => {
+    const groupItems = items.filter((item) => GROUP_OF_BUCKET[item.bucket] === key);
+    const fallback: CobranzaGroupTotal = {
+      amount: groupItems.reduce((sum, item) => sum + item.amount, 0),
+      count: groupItems.length,
+    };
+    return { key, items: groupItems, total: groupTotals?.[key] ?? fallback };
+  }).filter((group) => group.items.length > 0);
 
   return (
     <section aria-labelledby="cobros-pendientes-heading" className="flex h-full flex-col">
@@ -258,7 +321,7 @@ export function DashboardCobranzaList({
             </h2>
           </div>
         )}
-        {items.length === 0 ? (
+        {groups.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 py-6 text-center">
             <CheckCircle2 className="size-5 text-success" aria-hidden="true" />
             <p className="text-xs font-bold text-foreground">Sin cobros pendientes</p>
@@ -267,61 +330,92 @@ export function DashboardCobranzaList({
             </p>
           </div>
         ) : (
-          <ul className="divide-y divide-border">
-            {items.map((item, idx) => {
-              const { primary, chip } = dueLabelParts(item);
+          <div className="flex-1">
+            {groups.map((group, groupIdx) => {
+              const headingId = `cobros-grupo-${group.key.toLowerCase()}`;
               return (
-                <li key={`${item.reservationId}-${idx}`}>
-                  <Link
-                    href={`/reservations/${item.reservationId}`}
-                    aria-label={`${item.clientName} — ${formatCLP(item.amount)} — ${BUCKET_LABEL[item.bucket]}`}
-                    className="flex items-start justify-between gap-3 px-4 py-3 transition-colors hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none"
+                <div key={group.key}>
+                  {/*
+                    Encabezado de grupo: label + cantidad a la izquierda,
+                    subtotal a la derecha, ambos en el color del grupo. Una
+                    sola banda cromática por grupo — el reemplazo de las ~7
+                    zonas de color que dejaba una pill por fila.
+
+                    La cantidad está en COBROS (cuotas + extras), igual que el
+                    footer, no en filas: una fila MONTHLY puede agrupar varias
+                    cuotas, así que "Vencidos · 4" sobre 2 filas es correcto y
+                    consistente con "Total · 6 cobros".
+                  */}
+                  <div
+                    className={cn(
+                      "flex items-baseline justify-between gap-2 border-b border-border px-4 pb-2",
+                      groupIdx === 0 ? "pt-3" : "pt-5"
+                    )}
                   >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-bold text-foreground">
-                        {item.clientName}
-                      </p>
-                      <p className="truncate text-[10px] text-muted-foreground">
-                        {item.propertyName}
-                      </p>
-                      <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1">
-                        <span
-                          className={cn(
-                            "inline-flex items-center gap-1 text-[10px] tabular-nums",
-                            BUCKET_TEXT[item.bucket]
-                          )}
-                        >
-                          <Clock className="size-2.5 shrink-0" aria-hidden="true" />
-                          {primary}
-                        </span>
-                        {chip && (
-                          <span className="inline-flex items-center whitespace-nowrap rounded border border-warning/25 bg-warning/10 px-1.5 py-0.5 text-[9px] font-bold text-warning-foreground">
-                            {chip}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 flex-col items-end gap-1.5">
-                      {/*
-                        El monto hereda el color de urgencia del bucket (mismo
-                        token que el due-label) en vez de `text-foreground`
-                        neutral: es el dato accionable de la fila y debía
-                        competir en jerarquía visual con el nombre del
-                        cliente, no quedar igualado a él.
-                      */}
-                      <p className={cn("text-xs font-bold tabular-nums", BUCKET_TEXT[item.bucket])}>
-                        {formatCLP(item.amount)}
-                      </p>
-                      <ReservationPill
-                        tone={BUCKET_TONE[item.bucket]}
-                        label={BUCKET_LABEL[item.bucket]}
-                      />
-                    </div>
-                  </Link>
-                </li>
+                    <h3
+                      id={headingId}
+                      className={cn(
+                        "text-[10px] font-bold uppercase tracking-widest tabular-nums",
+                        GROUP_TEXT[group.key]
+                      )}
+                    >
+                      {GROUP_LABEL[group.key]} · {group.total.count}
+                    </h3>
+                    <span
+                      className={cn(
+                        "shrink-0 text-[10px] font-bold tabular-nums",
+                        GROUP_TEXT[group.key]
+                      )}
+                    >
+                      {formatCLP(group.total.amount)}
+                    </span>
+                  </div>
+                  <ul aria-labelledby={headingId} className="py-1">
+                    {group.items.map((item, idx) => {
+                      const { primary, chip } = dueLabelParts(item);
+                      return (
+                        <li key={`${item.reservationId}-${idx}`}>
+                          <Link
+                            href={`/reservations/${item.reservationId}`}
+                            aria-label={`${item.clientName} — ${formatCLP(item.amount)} — ${BUCKET_LABEL[item.bucket]}`}
+                            className="block px-4 py-2 transition-colors hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none"
+                          >
+                            <div className="flex items-baseline justify-between gap-3">
+                              <p className="min-w-0 flex-1 truncate text-xs font-bold text-foreground">
+                                {item.clientName}
+                              </p>
+                              {/*
+                                Monto en `text-foreground`, no en el color del
+                                bucket: es el dato que el dueño compara ENTRE
+                                filas, y un monto que cambia de color por fila
+                                no se puede escanear como columna. La urgencia
+                                ya la carga el grupo.
+                              */}
+                              <p className="shrink-0 text-xs font-bold tabular-nums text-foreground">
+                                {formatCLP(item.amount)}
+                              </p>
+                            </div>
+                            <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                              {item.propertyName} · {BILLING_LABEL[item.billingType]}
+                            </p>
+                            <p className="text-[10px] tabular-nums text-muted-foreground">
+                              <span>{primary}</span>
+                              {chip && (
+                                <>
+                                  {" · "}
+                                  <span className="whitespace-nowrap">{chip}</span>
+                                </>
+                              )}
+                            </p>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
               );
             })}
-          </ul>
+          </div>
         )}
         {/*
           El total siempre va al fondo de la card, incluso sin cobros
@@ -332,7 +426,7 @@ export function DashboardCobranzaList({
           <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
             Total · {resolvedCount} {resolvedCount === 1 ? "cobro" : "cobros"}
           </span>
-          <span className="text-xs font-bold text-foreground tabular-nums">
+          <span className="text-xs font-bold tabular-nums text-foreground">
             {formatCLP(resolvedTotal)}
           </span>
         </div>

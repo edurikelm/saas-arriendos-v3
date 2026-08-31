@@ -365,10 +365,35 @@ const session = await requireSuperAdmin();
 Patrón canónico:
 - Página de lista → `PageHeader` + barra de filtros + `<DataTable>` directo (sin Card)
 - Sección de página (ej: `/admin/users/[id]` tab "Reservas") → título/descripción como bloque standalone + `<DataTable>` directo
-- `/dashboard` sección "Reservas Diarias" → título + link "Ver todas" como bloque standalone + `<DataTable>` directo
+- `/dashboard` sección "Agenda de reservas" → título + link "Ver todas" como bloque standalone + `<DataTable>` directo
 - `/reports` sección "Reporte de Cobranza" → título + filtros standalone + `<DataTable>` directo
 
 `<Card>` se reserva para: KPIs (no tablas), settings, forms, secciones de detalle sin tabla, integración de Mercado Pago. **NO** usar Card para envolver tablas.
+
+### `/dashboard` — sección "Cobros pendientes"
+
+`DashboardCobranzaList` (`src/app/(dashboard)/dashboard/_components/dashboard-cobranza-list.tsx`)
+agrupa los cobros por urgencia en **dos** grupos visuales — `OVERDUE` y `DUE_SOON`
+(`DUE_TODAY` + `UPCOMING_7D`) — y el color del estado vive **solo** en el encabezado del grupo.
+Las filas no llevan pill ni monto teñido. Ver ADR-0033 y la regla "The Grouped Status Rule" de
+`DESIGN.md` antes de agregar color a una fila.
+
+**Subtotales:** los encabezados usan `collection.overdueWindow*` / `collection.dueSoonWindow*`
+(prop `groupTotals`), no la suma de `items`. `collectionItems` viene truncado a `collectionLimit`
+(default 4), así que derivar el subtotal de los items visibles mentiría cuando hay más cobros de
+los que caben. Invariante garantizada por construcción en `buildDashboardSummary`:
+
+```
+overdueWindow* + dueSoonWindow* === window*
+```
+
+**Granularidad:** `window*` y `*Window*` cuentan **cobros** (cuotas + extras), no reservas —
+coherente con el footer. `collection.overdueCount` / `dueTodayCount` / `upcoming7dCount` siguen
+contando **reservas** y alimentan el tono del KPI; no son intercambiables. Una fila MONTHLY puede
+agrupar varias cuotas, así que "Vencidos · 4" sobre 2 filas visibles es correcto.
+
+**Tipo de reserva:** se muestra como label junto a la propiedad (`Teja 1 · Mensual`), nunca como
+color — per `DESIGN.md`, "Diferencia DAILY vs MONTHLY por label, no por color".
 
 ### Diseño Responsive
 
@@ -409,6 +434,7 @@ Grid de 7 columnas en todas las resoluciones. Celdas: `min-h-12 sm:min-h-20 lg:m
   - ADR-0025: `docs/adr/0025-reservations-domain-seam.md` — `src/lib/reservations/` como seam canónico de lógica de dominio de Reservation (transiciones de estado, confirmación, validaciones)
   - ADR-0028: `docs/adr/0028-reports-kpi-semantics.md` — decisiones semánticas de KPIs financieros (Ingresos cobrados, Ocupación, Collection totals, propertyId scope, FREE plan constraints)
   - ADR-0030: `docs/adr/0030-reports-financial-series-source-of-truth.md` — serie de ingresos cash-basis source of truth: `revenue-series.ts` como seam puro, `buildDecisionSummary` como adapter, `getYearlySummary` reescrito, UI simplificada, exportación on-demand
+  - ADR-0033: `docs/adr/0033-cobranza-status-grouping.md` — cobranza del dashboard agrupada por urgencia: el estado se expresa en el encabezado del grupo, no por fila; subtotales de ventana completa; tipo de reserva como label
 
 ## Seams de dominio en `src/lib/`
 

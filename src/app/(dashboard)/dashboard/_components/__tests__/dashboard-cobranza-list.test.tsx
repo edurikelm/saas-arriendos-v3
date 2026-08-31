@@ -14,6 +14,7 @@ const items: CobranzaItem[] = [
     reservationId: "res-1",
     clientName: "Camila Rojas",
     propertyName: "Cabaña del Lago",
+    billingType: "MONTHLY",
     amount: 400000,
     dueDate: new Date("2026-08-20T12:00:00Z"),
     daysFromToday: -7,
@@ -26,6 +27,7 @@ const items: CobranzaItem[] = [
     reservationId: "res-2",
     clientName: "Juan Pérez",
     propertyName: "Depto Centro 802",
+    billingType: "DAILY",
     amount: 185000,
     dueDate: new Date("2026-08-27T12:00:00Z"),
     daysFromToday: 0,
@@ -38,6 +40,7 @@ const items: CobranzaItem[] = [
     reservationId: "res-3",
     clientName: "Marta Silva",
     propertyName: "Casa Playa Norte",
+    billingType: "MONTHLY",
     amount: 1250000,
     dueDate: new Date("2026-09-01T12:00:00Z"),
     daysFromToday: 5,
@@ -53,16 +56,78 @@ describe("DashboardCobranzaList", () => {
     render(<DashboardCobranzaList items={items} viewAllHref="/payments" />);
 
     expectInDoc(screen.queryByText("Camila Rojas"));
-    expectInDoc(screen.queryByText("Cabaña del Lago"));
-    expectInDoc(screen.queryByText("$400.000"));
+    expectInDoc(screen.queryByText(/Cabaña del Lago/));
+    // Sin `groupTotals`, el subtotal del grupo se deriva de los items
+    // visibles — con un solo cobro vencido coincide con el monto de la fila,
+    // asi que el importe aparece dos veces (encabezado + fila).
+    expect(screen.getAllByText("$400.000").length).toBeGreaterThan(0);
   });
 
-  it("distingue vencido / vence hoy / pendiente por label", () => {
+  // El estado dejo de repetirse por fila (pill + monto tenido + texto
+  // tenido): ahora lo dice UNA vez el encabezado del grupo que contiene la
+  // fila. Los tres buckets del dominio se agrupan en dos encabezados.
+  it("agrupa los cobros bajo un encabezado de urgencia por grupo", () => {
     render(<DashboardCobranzaList items={items} viewAllHref="/payments" />);
 
-    expectInDoc(screen.queryByText("Vencido"));
-    expectInDoc(screen.queryByText("Vence hoy"));
-    expectInDoc(screen.queryByText("Pendiente"));
+    expectInDoc(screen.queryByRole("heading", { name: /Vencidos/ }));
+    expectInDoc(screen.queryByRole("heading", { name: /Por vencer/ }));
+  });
+
+  it("no repite el estado como pill en cada fila", () => {
+    render(<DashboardCobranzaList items={items} viewAllHref="/payments" />);
+
+    expect(screen.queryByText("Vencido")).toBeNull();
+    expect(screen.queryByText("Pendiente")).toBeNull();
+  });
+
+  // El estado exacto por fila (incluida la distincion "vence hoy" vs
+  // "pendiente", que el encabezado fusiona) sigue disponible para lectores
+  // de pantalla via el aria-label del link.
+  it("preserva el estado exacto de cada fila en el aria-label", () => {
+    render(<DashboardCobranzaList items={items} viewAllHref="/payments" />);
+
+    expectInDoc(screen.queryByRole("link", { name: /Juan Perez|Juan Pérez/ }));
+    expect(
+      screen.getByRole("link", { name: /Camila Rojas/ }).getAttribute("aria-label")
+    ).toContain("Vencido");
+    expect(
+      screen.getByRole("link", { name: /Marta Silva/ }).getAttribute("aria-label")
+    ).toContain("Pendiente");
+  });
+
+  it("muestra el tipo de arriendo junto a la propiedad", () => {
+    render(<DashboardCobranzaList items={items} viewAllHref="/payments" />);
+
+    expectInDoc(screen.queryByText(/Cabaña del Lago · Mensual/));
+    expectInDoc(screen.queryByText(/Depto Centro 802 · Diaria/));
+  });
+
+  // Los subtotales por grupo cubren la ventana completa, no los items
+  // visibles — mismo criterio que el footer. Derivarlos de `items` mentiria
+  // en cuanto hay mas cobros de los que caben en el card.
+  it("usa los subtotales de grupo provistos, no la suma de los items visibles", () => {
+    render(
+      <DashboardCobranzaList
+        items={items}
+        viewAllHref="/payments"
+        groupTotals={{
+          OVERDUE: { amount: 3750000, count: 4 },
+          DUE_SOON: { amount: 410000, count: 2 },
+        }}
+      />
+    );
+
+    expectInDoc(screen.queryByRole("heading", { name: "Vencidos · 4" }));
+    expectInDoc(screen.queryByText("$3.750.000"));
+    expectInDoc(screen.queryByRole("heading", { name: "Por vencer · 2" }));
+    expectInDoc(screen.queryByText("$410.000"));
+  });
+
+  it("deriva el subtotal de grupo de los items visibles cuando no se provee", () => {
+    render(<DashboardCobranzaList items={items} viewAllHref="/payments" />);
+
+    expectInDoc(screen.queryByRole("heading", { name: "Vencidos · 1" }));
+    expectInDoc(screen.queryByRole("heading", { name: "Por vencer · 2" }));
   });
 
   it("expresa el vencimiento en términos relativos además de la fecha", () => {
@@ -118,6 +183,7 @@ describe("DashboardCobranzaList", () => {
             reservationId: "res-4",
             clientName: "Pedro Soto",
             propertyName: "Loft Sur",
+            billingType: "MONTHLY",
             amount: 90000,
             dueDate: null,
             daysFromToday: null,
@@ -146,6 +212,7 @@ describe("DashboardCobranzaList", () => {
             reservationId: "res-5",
             clientName: "Alejandra Mayorga",
             propertyName: "Teja 2",
+            billingType: "MONTHLY",
             amount: 750000,
             dueDate: new Date("2026-07-01T00:00:00Z"),
             daysFromToday: -58,
@@ -179,6 +246,7 @@ describe("DashboardCobranzaList", () => {
               reservationId: "res-6",
               clientName: "Alejandra Mayorga",
               propertyName: "Teja 2",
+              billingType: "MONTHLY",
               amount: 750000,
               dueDate: new Date("2026-07-01T00:00:00Z"),
               daysFromToday: -62,
@@ -204,6 +272,7 @@ describe("DashboardCobranzaList", () => {
             reservationId: "res-7",
             clientName: "Alejandra Mayorga",
             propertyName: "Teja 2",
+            billingType: "MONTHLY",
             amount: 1000000,
             dueDate: new Date("2026-07-01T00:00:00Z"),
             daysFromToday: -62,
@@ -228,6 +297,7 @@ describe("DashboardCobranzaList", () => {
             reservationId: "res-8",
             clientName: "Alejandra Mayorga",
             propertyName: "Teja 2",
+            billingType: "MONTHLY",
             amount: 500000,
             dueDate: new Date("2026-07-01T00:00:00Z"),
             daysFromToday: -58,

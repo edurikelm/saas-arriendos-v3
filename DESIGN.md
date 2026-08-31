@@ -232,6 +232,8 @@ La paleta es de baja saturación en neutros (gris-verdoso apenas perceptible, no
 
 **The Status Color Doctrine.** Cada estado del dominio se mapea a exactamente un token semántico, sin excepciones: CONFIRMED → `success`, VENCE HOY → `warning`, VENCIDO → `destructive`, próximos 7 días → `info`. La UI no inventa estados intermedios — si la semántica no cabe en los cuatro, se usa `secondary` o `outline`. Esta regla cubre badges, icon containers, KpiCard `tone`, borders de alert-boxes, y color de texto en sublabels. **El `ReservationPill` es la única excepción tipográfica legítima:** usa los mismos tokens pero renderiza como pill inline porque admite sublabel debajo del label principal, lo que `<Badge>` no soporta nativamente.
 
+**The Grouped Status Rule.** Cuando una lista está **agrupada por estado**, el color del estado vive en el encabezado del grupo y **las filas no llevan ninguno**: sin pill, sin monto teñido, sin chip. El encabezado lo dice una vez para todas sus filas. Repetirlo por fila codifica el mismo hecho varias veces en el mismo color y satura la sección sin agregar información — la lista ya está ordenada y agrupada por urgencia, así que el estado de una fila se deduce del grupo que la contiene. Caso canónico: `DashboardCobranzaList` (ver ADR-0033), donde el encabezado lleva `text-destructive` o `text-warning-foreground` y cada fila queda en `text-foreground` (monto) + `text-muted-foreground` (metadata). **El monto nunca se tiñe con el color del estado:** es el dato que el usuario compara ENTRE filas, y un monto que cambia de color por fila deja de ser escaneable como columna. El estado exacto de cada fila sobrevive en su `aria-label`, para que un lector de pantalla no dependa de haber leído el encabezado.
+
 **The Verdigris Rarity Rule.** Verdigris aparece en ≤10% del área visible de cualquier pantalla. Su función es señalar navegación activa o resultado primario; si ocupa más, deja de señalar y empieza a decorar. Los `bg-primary/10` y `text-primary` para active state son la única excepción a esta regla de rareza — el 10% sigue siendo rareza cuando el fondo apenas se ve.
 
 ---
@@ -444,7 +446,7 @@ Primitive único para KPIs del producto. API: `label`, `value`, `unit?`, `icon?`
 
 ### ReservationPill (signature)
 
-Pill inline para estado temporal de reservas en la tabla de reservas. **Solo se usa dentro de `reservation-table.tsx`** — para pagos, propiedades y otros contextos, usar `<Badge variant>`.
+Pill inline para estado temporal de **reservas**. Callsites legítimos: `reservation-table.tsx`, el renderer de filas de la agenda en `dashboard/page.tsx`, y `reservation-detail-client.tsx` — todos muestran el estado temporal de una reserva. **Para pagos, cobranza, propiedades y otros contextos, usar `<Badge variant>`.** En listas agrupadas por estado no se usa pill en absoluto: el color va en el encabezado del grupo (ver The Grouped Status Rule y ADR-0033).
 
 - **Tones:** `success` (Activa, Finalizada), `info` (Próxima ≤7 días), `info-strong` (Hoy/Mañana), `warning` (Vence hoy), `destructive` (Cancelada, Vencida), `neutral` (Inactiva).
 - **Shape:** `inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[9px] font-bold uppercase tracking-tight`.
@@ -499,7 +501,7 @@ Guardrails consolidados. Las reglas validadas por el audit de uso real viven aqu
 - **Do** usar `<DataTable>` para toda tabla de datos del producto. El wrapper externo ya provee framing (`overflow-hidden rounded-md border border-t-2 border-t-primary border-border bg-card`) — no envolver de nuevo en `<Card>` ni en `<div className="overflow-x-auto">`.
 - **Do** usar `<KpiCard>` como primitive único para KPIs. Si necesitas algo "diferente", es una señal de que el KPI no calza — replantéalo, no inventes un primitive paralelo.
 - **Do** usar `<Badge variant="success|warning|info|destructive">` para todo estado del dominio. El mapeo es: CONFIRMED → success, VENCE HOY → warning, VENCIDO → destructive, próximos 7 días → info. No inventar tokens intermedios.
-- **Do** usar `<ReservationPill>` solo dentro de la tabla de reservas. Para badges de estado en otros contextos, usar `<Badge variant>`.
+- **Do** usar `<ReservationPill>` solo para el estado temporal de una reserva (tabla de reservas, agenda del dashboard, detalle de reserva). Para badges de estado en otros contextos — pagos, cobranza, propiedades — usar `<Badge variant>`. En una lista agrupada por estado, ninguno de los dos: el color va en el encabezado del grupo (ADR-0033).
 - **Do** usar `text-[10px] font-bold uppercase tracking-wider` para labels de sección, headers de tabla, KPI labels, y filter pills. Es la firma — su repetición es lo que hace el sistema coherente.
 - **Do** usar `tabular-nums` en cualquier cifra (monto, contador, porcentaje, fecha corta). Las cifras sin esto "bailan" entre renders.
 - **Do** usar `border-border` o `ring-1 ring-foreground/10` para jerarquía en producto. Las sombras son prerrogativa de Dialog, Dropdown, Tooltip, Sheet, y `property-card` hover con imagen.
