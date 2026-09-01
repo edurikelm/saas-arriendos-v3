@@ -50,7 +50,13 @@ function indicatorClasses(variant: KpiIndicatorVariant): string {
   // text-success-foreground (oklch 0.30 0.10 150, dark green) passes WCAG AA on white card bg;
   // text-primary (verdigris #22c55e) is too light for normal-size text (2.27:1 fail).
   if (variant === "positive") return "text-success-foreground";
-  if (variant === "warning") return "text-destructive-foreground";
+  // text-warning-foreground (oklch 0.30 0.10 60), NOT text-destructive-foreground: the
+  // *-foreground tokens are normally a dark, readable-on-card color (13.93:1 light /
+  // 10.43:1 dark for warning), but --destructive-foreground breaks that pattern — it's
+  // white (oklch 1.0000 0 0), because --destructive doubles as a solid fill for
+  // destructive buttons. On --card (also white in light mode) that's 1.00:1, i.e.
+  // invisible text. See issue #235 for the sibling problem on --destructive itself.
+  if (variant === "warning") return "text-warning-foreground";
   return "text-muted-foreground";
 }
 

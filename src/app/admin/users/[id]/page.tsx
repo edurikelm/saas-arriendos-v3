@@ -399,7 +399,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                 )
               ) : (
                 <div className="flex items-start gap-3">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive-foreground">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
                     <XCircle className="size-5" />
                   </div>
                   <div className="space-y-0.5">

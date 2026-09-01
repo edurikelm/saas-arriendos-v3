@@ -135,7 +135,7 @@ export function MercadoPagoSettings({ oauthStatus }: MercadoPagoSettingsProps) {
             className={`rounded-md border px-3 py-2 text-sm ${
               oauthMessage.tone === "success"
                 ? "border-success/20 bg-success/10 text-success-foreground"
-                : "border-destructive/20 bg-destructive/10 text-destructive-foreground"
+                : "border-destructive/20 bg-destructive/10 text-destructive"
             }`}
           >
             {oauthMessage.text}
