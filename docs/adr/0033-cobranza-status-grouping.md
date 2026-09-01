@@ -65,16 +65,30 @@ una por encabezado de grupo.
 
 El `<ReservationPill>` desaparece de este componente, resolviendo el drift con `DESIGN.md`.
 
-### 3. El estado exacto sobrevive para lectores de pantalla
+### 3. El `aria-label` por fila es un defecto conocido, no una victoria de accesibilidad
 
-El `aria-label` de cada fila conserva el label del bucket original — incluida la distinción
-"Vence hoy" vs "Pendiente" que el encabezado fusiona:
+Cada fila es un `<Link>` cuyo contenido interno visible es cliente, monto, propiedad, tipo de
+arriendo (`Teja 1 · Mensual`) y la línea de vencimiento completa (por ejemplo "2 cuotas vencidas ·
++1 vence mañana"). Ese mismo `<Link>` lleva además:
 
 ```
-`${clientName} — ${formatCLP(amount)} — ${BUCKET_LABEL[bucket]}`
+aria-label={`${clientName} — ${formatCLP(amount)} — ${BUCKET_LABEL[bucket]}`}
 ```
 
-Un lector de pantalla recibe el estado exacto sin depender de haber leído el encabezado del grupo.
+Un `aria-label` en un elemento no **complementa** su contenido interno como nombre accesible: lo
+**reemplaza**. Por especificación de accessible name computation, cuando un elemento tiene
+`aria-label`, el contenido de texto de sus descendientes deja de formar parte del nombre accesible.
+El resultado es que un lector de pantalla anuncia únicamente `"<cliente> — <monto> — <bucket>"` y
+**pierde** la propiedad, el tipo de arriendo y toda la línea de vencimiento de esa fila — exactamente
+la información que distingue una fila de otra dentro del mismo grupo. Lo único que "sobrevive" es
+una sola palabra (`Vencido` / `Vence hoy` / `Pendiente`) que el encabezado del grupo ya comunica una
+vez para todas sus filas del grupo.
+
+**Esto no está arreglado en este cambio.** El fix correcto es quitar el `aria-label` del `<Link>` y
+agregar la palabra del bucket como texto visible-solo-a-lector-de-pantalla dentro de la fila (por
+ejemplo un `<span className="sr-only">{BUCKET_LABEL[bucket]}</span>`), de modo que el nombre
+accesible del link se siga construyendo desde su contenido completo (cliente, monto, propiedad,
+tipo, vencimiento) más el estado, en vez de que tres fragmentos lo reemplacen.
 
 ### 4. Los subtotales de grupo cubren la ventana completa
 
@@ -102,6 +116,28 @@ exactamente el motivo por el que el footer ya usaba `windowAmount` y no la suma 
 el footer ("Total · 6 cobros"), e intencionalmente distintos de `overdueCount` / `dueTodayCount`,
 que cuentan reservas y alimentan el tono del KPI. Una fila MONTHLY puede agrupar varias cuotas, así
 que "Vencidos · 4" sobre 2 filas visibles es correcto, no un error de conteo.
+
+**Defecto conocido: el subtotal "Vencidos" no es puro.** `sumWindowCount`/`sumWindowAmount` suman,
+para cada fila de `overdueRows`, `row.overdueCount + row.dueSoonCount + row.extrasPendingCount`
+(y el monto equivalente vía `amountForRow(row) = row.overdue + row.dueSoon + row.extrasPending`).
+Eso significa que el encabezado **"Vencidos · N · $X" incluye cuotas que no están vencidas**: las
+`dueSoon` y los extras pendientes de cualquier reserva que además tenga al menos una cuota vencida
+(por eso cae en `overdueRows`). Ejemplo: una fila con 2 cuotas vencidas + 1 por vencer, más otra
+fila con 1 cuota vencida, producen `Vencidos · 4`, cuando las cuotas efectivamente vencidas son 3.
+
+Esto contrasta con el subtítulo del header de la página (`subtitleText` en `page.tsx`, "Tienes N
+cuotas vencidas por $X"), que usa `collection.overdueInstallmentsCount` — suma solo
+`row.overdueCount`, sin `dueSoon` ni extras — y por lo tanto **sí** es honesto. El resultado: la
+misma pantalla puede mostrar dos números distintos bajo la palabra "vencido" (el subtítulo arriba,
+el encabezado de grupo "Vencidos" en el card de cobranza), sin que ninguno de los dos esté mal
+computado individualmente — miden cosas distintas con el mismo nombre.
+
+La invariante `overdueWindow* + dueSoonWindow* === window*` (la sección 4 de más arriba) sigue
+cumpliéndose y es la que este ADR protege: la partición entre los dos grupos visuales suma el total
+de la ventana. Lo que **no** está protegido es que `overdueWindow*` contenga *solo* cobros vencidos.
+Corregirlo requeriría separar, dentro de cada fila de `overdueRows`, el monto/cantidad estrictamente
+vencido del monto/cantidad `dueSoon`/extra que esa misma fila arrastra — un cambio de `summary.ts`
+fuera de alcance de este documento; queda registrado aquí como deuda, no resuelto en este cambio.
 
 ### 5. Tipo de reserva como label, nunca como color
 
@@ -153,6 +189,10 @@ el resto de props del componente, que siguen el mismo patrón).
   el componente ya exponía con "2 cuotas vencidas".
 - Un grupo cuyo subtotal es > 0 pero sin filas visibles no aparece. Mitigado por el footer y
   "Ver todas".
+- El subtotal del encabezado "Vencidos" no es puro: para una fila que tiene cuotas vencidas y
+  además `dueSoon`/extras, suma también esas cuotas no vencidas (ver detalle en la sección 4). Puede
+  diferir del conteo honesto que usa el subtítulo del header de la página
+  (`collection.overdueInstallmentsCount`). No resuelto en este cambio.
 
 ### Deuda registrada (no resuelta acá)
 

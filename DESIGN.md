@@ -458,7 +458,7 @@ Pill inline para estado temporal de **reservas**. Callsites legítimos: `reserva
 Segmented control compacto para filtros de estado inline en headers de sección (3-7 opciones).
 
 - **Container:** `flex items-center gap-1 rounded-full border border-border bg-muted p-1`.
-- **Pill activo:** `rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground`. **Sin shadow** — el `bg-primary` teal provee contraste suficiente.
+- **Pill activo:** `rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground`. **Sin shadow** — consistente con la regla Calm Water: las superficies en reposo son planas y el shadow acá sería decorativo, no funcional. **Contraste medido:** `text-primary-foreground` sobre `bg-primary` da **2.28:1 en claro** y **2.17:1 en oscuro** — el único par de tokens del sistema que falla AA (4.5:1 mínimo para texto normal) en **ambos** temas. Aplica al pill activo (`dashboard-reservas-table.tsx:91`) y a la barra activa de `OccupancyStrip`. Es deuda abierta, no resuelta acá: `bg-primary`/`text-primary-foreground` es el par de color de marca, usado también en botones primarios y otras superficies — cambiarlo es una decisión de sistema, no un fix local de este componente.
 - **Pill inactivo:** `rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground` (fondo transparente).
 - **Layout del row:** 3 children directos en `flex justify-between gap-3` — `[título] [filtros] [acción]`.
 
@@ -522,7 +522,7 @@ Guardrails consolidados. Las reglas validadas por el audit de uso real viven aqu
   - `src/lib/payments/receipt-pdf.tsx` — documento PDF renderizado con `@react-pdf/renderer`, no UI del navegador. Son colores internos del PDF, no del producto.
   - Tests (`__tests__/*`) — mock data.
 - **Don't** usar `bg-amber-50 border-amber-200`, `bg-green-50 border-green-200` ni similares para alert-boxes informativas. Usar `bg-warning/10 border-warning/20 text-warning-foreground` (o el tone que corresponda). Hoy hay 3 instancias en `billing-client.tsx` y `cancel-subscription-dialog.tsx` que requieren migración — registradas como drift conocido.
-- **Don't** usar `shadow-sm` en filter pills activos. El `bg-primary` teal provee contraste suficiente; el shadow es decorativo y rompe la regla Calm Water.
+- **Don't** usar `shadow-sm` en filter pills activos. El shadow es decorativo y rompe la regla Calm Water; el pill activo ya se distingue por `bg-primary`. El contraste **no** es la razón — `text-primary-foreground` sobre `bg-primary` falla AA en ambos temas (ver medición en la sección FilterPill), deuda abierta sin fix de token todavía.
 - **Don't** usar `onClick` que navegue en `<tr>` de tabla. Solo el botón/link de la columna de acciones navega. Esto previene selección accidental de texto, doble-trigger, y problemas de accesibilidad.
 - **Don't** duplicar token values entre el frontmatter YAML y la prosa. Si un color está en `colors.verdigris`, la prosa puede nombrarlo pero no redefinir el valor oklch. El frontmatter es normativo.
 - **Don't** usar `rounded-none` salvo en casos extremos justificados (e.g., inputs que se funden con el contenedor). Por defecto, todo radio es ≥4px.
