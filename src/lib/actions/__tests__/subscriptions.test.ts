@@ -759,6 +759,46 @@ describe("countOwnerUsage", () => {
     });
   });
 
+  // El plan efectivo, no el cacheado: entre que vence el periodo y corre el
+  // cron `expired-check` pueden pasar ~24h. Si este helper leyera
+  // `UserProfile.plan` crudo, el banner del dashboard mostraria "sin limites"
+  // mientras los gates ya bloquean por limite FREE.
+  it("PRO con periodo vencido y cron sin correr: retorna limites FREE", async () => {
+    mocks.propertyCount.mockResolvedValue(5);
+    mocks.reservationClientCount.mockResolvedValue(9);
+    mocks.userProfileFindUnique.mockResolvedValue({
+      plan: "PRO",
+      subscription: {
+        status: "AUTHORIZED",
+        currentPeriodEnd: new Date(Date.now() - 60 * 60 * 1000), // vencio hace 1h
+      },
+    });
+
+    const result = await countOwnerUsage("user-1");
+
+    expect(result.propertiesLimit).toBe(3);
+    expect(result.clientsLimit).toBe(5);
+    // El uso real se sigue reportando tal cual, aunque exceda el limite.
+    expect(result.properties).toBe(5);
+  });
+
+  it("PRO con periodo vigente: mantiene limites Infinity", async () => {
+    mocks.propertyCount.mockResolvedValue(10);
+    mocks.reservationClientCount.mockResolvedValue(50);
+    mocks.userProfileFindUnique.mockResolvedValue({
+      plan: "PRO",
+      subscription: {
+        status: "AUTHORIZED",
+        currentPeriodEnd: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      },
+    });
+
+    const result = await countOwnerUsage("user-1");
+
+    expect(result.propertiesLimit).toBe(Infinity);
+    expect(result.clientsLimit).toBe(Infinity);
+  });
+
   it("FREE sin plan en DB: asume FREE", async () => {
     mocks.propertyCount.mockResolvedValue(0);
     mocks.reservationClientCount.mockResolvedValue(0);
