@@ -385,16 +385,7 @@ export default async function DashboardPage() {
           viewAllHref="/payments"
           totalAmount={collection.windowAmount}
           totalCount={collection.windowCount}
-          groupTotals={{
-            OVERDUE: {
-              amount: collection.overdueWindowAmount,
-              count: collection.overdueWindowCount,
-            },
-            DUE_SOON: {
-              amount: collection.dueSoonWindowAmount,
-              count: collection.dueSoonWindowCount,
-            },
-          }}
+          groupTotals={collection.windowGroups}
         />
       </section>
 

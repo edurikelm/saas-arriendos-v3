@@ -117,6 +117,43 @@ export interface DashboardIncomeKpi {
   delta: DashboardKpiDelta;
 }
 
+/**
+ * Reparto de los cobros de una fila entre los dos grupos del card.
+ * Interno: la UI consume `DashboardCollectionGroupTotal`, ya agregado.
+ */
+interface CollectionWindowSplit {
+  overdueAmount: number;
+  overdueCount: number;
+  dueSoonAmount: number;
+  dueSoonCount: number;
+}
+
+/**
+ * Los DOS grupos visuales del card de cobranza. Deliberadamente dos y no
+ * tres: la distincion "vence hoy" vs "vence en N dias" la carga el texto de
+ * vencimiento de cada fila, mas preciso que un encabezado.
+ */
+export type DashboardCollectionGroup = "OVERDUE" | "DUE_SOON";
+
+export interface DashboardCollectionGroupTotal {
+  /** Monto de los cobros del grupo en la ventana completa. */
+  amount: number;
+  /** Cantidad de cobros (cuotas o extras) del grupo en la ventana completa. */
+  count: number;
+  /**
+   * Porcion de `amount`/`count` que pertenece a filas truncadas por
+   * `collectionLimit` — cobros que NO tienen ninguna representacion visible
+   * en el card. Los cobros de una fila visible NO cuentan como ocultos
+   * aunque su grupo no sea el que la contiene: viven en el monto y en la
+   * linea de vencimiento de esa fila ("+1 vence en 4 dias").
+   *
+   * Alimenta la afordancia "+N cobros mas" al pie del grupo, para que la
+   * aritmetica del card nunca cierre en falso.
+   */
+  hiddenAmount: number;
+  hiddenCount: number;
+}
+
 export interface DashboardCollectionKpi {
   pendingCount: number;
   totalToCollect: number;
@@ -163,10 +200,10 @@ export interface DashboardCollectionKpi {
   windowCount: number;
   /**
    * Desglose de `windowAmount`/`windowCount` en los DOS grupos que renderiza
-   * `DashboardCobranzaList` (vencidos · por vencer). Se computan con las
-   * mismas dos expresiones que sus totales (`amountForRow` y
-   * `overdueCount + dueSoonCount + extrasPendingCount`), asi que por
-   * construccion `overdueWindow* + dueSoonWindow* === window*`.
+   * `DashboardCobranzaList` (vencidos · por vencer). El reparto es por
+   * COBRO, no por reserva: una reserva con 2 cuotas vencidas + 1 por vencer
+   * aporta 2 cobros a OVERDUE y 1 a DUE_SOON, aunque su fila se renderice
+   * entera bajo "Vencidos". Ver `windowSplitForRow`.
    *
    * Existen porque los encabezados de grupo del card muestran subtotal: se
    * derivan de la ventana COMPLETA, no de los `collectionLimit` items
@@ -174,14 +211,10 @@ export interface DashboardCollectionKpi {
    * cobros de los que caben — el mismo motivo por el que el footer usa
    * `windowAmount` y no la suma de `items`.
    *
-   * Granularidad de COBRO (cuota o extra), no de reserva: coherente con el
-   * footer, e intencionalmente distinta de `overdueCount`/`dueTodayCount`
-   * (que cuentan reservas y alimentan el tono del KPI).
+   * Invariante: `windowGroups.OVERDUE.<f> + windowGroups.DUE_SOON.<f> ===
+   * window<F>` para amount y count.
    */
-  overdueWindowAmount: number;
-  overdueWindowCount: number;
-  dueSoonWindowAmount: number;
-  dueSoonWindowCount: number;
+  windowGroups: Record<DashboardCollectionGroup, DashboardCollectionGroupTotal>;
 }
 
 export interface DashboardUpcomingKpi {
@@ -468,24 +501,54 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
   // cantidad de COBROS, no de reservas. `windowAmount` reemplaza el cálculo
   // legacy de `page.tsx` (`overdueAmount + dueTodayAmount + upcoming7dAmount`,
   // que sub-contaba cuando una fila OVERDUE tenía además cuotas por vencer
-  // dentro de los 7 días — el bug que este cambio corrige). Se computa con
-  // `amountForRow`, definida más abajo (function declaration, hoisted).
-  const windowRows = [...overdueRows, ...dueTodayRows, ...upcoming7dRows];
-  const overdueInstallmentsCount = overdueRows.reduce((sum, { row }) => sum + row.overdueCount, 0);
+  // dentro de los 7 días). Se computa con `windowSplitForRow`, definida más
+  // abajo (function declaration, hoisted).
+  //
+  // El orden de esta lista ES el orden de render del card, y `collectionItems`
+  // sale de cortarla en `collectionLimit`: por eso vive acá y no junto a los
+  // items — el desglose por grupo necesita saber qué filas quedaron fuera
+  // para poder reportar la porción sin representación visible.
+  const orderedWindowRows: Array<{
+    row: CollectionReportRow;
+    bucket: DashboardCollectionBucket;
+  }> = [
+    ...overdueRows.map(({ row }) => ({ row, bucket: "OVERDUE" as const })),
+    ...dueTodayRows.map(({ row }) => ({ row, bucket: "DUE_TODAY" as const })),
+    ...upcoming7dRows.map(({ row }) => ({ row, bucket: "UPCOMING_7D" as const })),
+  ];
+  const visibleWindowRows = orderedWindowRows.slice(0, collectionLimit);
+  const hiddenWindowRows = orderedWindowRows.slice(collectionLimit);
 
-  // Desglose por grupo visual del card (vencidos · por vencer). `dueSoonRows`
-  // fusiona DUE_TODAY y UPCOMING porque el card los agrupa bajo un solo
-  // encabezado: la distincion "hoy" vs "en N dias" ya la carga el texto de
-  // vencimiento de cada fila, y un tercer grupo para 4 filas visibles suma
-  // mas encabezado que informacion.
-  const dueSoonRows = [...dueTodayRows, ...upcoming7dRows];
-  const sumWindowAmount = (rows: typeof windowRows) =>
-    rows.reduce((sum, { row }) => sum + amountForRow(row), 0);
-  const sumWindowCount = (rows: typeof windowRows) =>
-    rows.reduce(
-      (sum, { row }) => sum + row.overdueCount + row.dueSoonCount + row.extrasPendingCount,
-      0,
-    );
+  // Desglose por grupo visual del card (vencidos · por vencer), repartiendo
+  // cada fila POR COBRO — no metiendo la fila entera en el grupo de su
+  // estado. La versión anterior sumaba `overdue + dueSoon + extrasPending`
+  // de cada fila OVERDUE al encabezado "Vencidos", así que ese encabezado
+  // contaba plata que no estaba vencida (issue #238): una fila con 2 cuotas
+  // vencidas + 1 por vencer aportaba 3 a "Vencidos · N". Ahora aporta 2 a
+  // OVERDUE y 1 a DUE_SOON, y la palabra del encabezado dice la verdad sin
+  // que se rompa la suma con el footer.
+  const windowTotals = sumWindowSplit(orderedWindowRows);
+  const hiddenTotals = sumWindowSplit(hiddenWindowRows);
+  const windowGroups: Record<DashboardCollectionGroup, DashboardCollectionGroupTotal> = {
+    OVERDUE: {
+      amount: windowTotals.overdueAmount,
+      count: windowTotals.overdueCount,
+      hiddenAmount: hiddenTotals.overdueAmount,
+      hiddenCount: hiddenTotals.overdueCount,
+    },
+    DUE_SOON: {
+      amount: windowTotals.dueSoonAmount,
+      count: windowTotals.dueSoonCount,
+      hiddenAmount: hiddenTotals.dueSoonAmount,
+      hiddenCount: hiddenTotals.dueSoonCount,
+    },
+  };
+
+  // Una sola fuente para el número de cuotas vencidas: el subtítulo del
+  // header ("Tienes N cuotas vencidas") y el encabezado "Vencidos · N" del
+  // card son EL MISMO valor, no dos agregaciones parecidas. Que difirieran
+  // bajo la misma palabra era el corazón de #238.
+  const overdueInstallmentsCount = windowGroups.OVERDUE.count;
 
   const collection: DashboardCollectionKpi = {
     pendingCount,
@@ -497,12 +560,11 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     upcoming7dCount: upcoming7dRows.length,
     upcoming7dAmount,
     overdueInstallmentsCount,
-    windowAmount: sumWindowAmount(windowRows),
-    windowCount: sumWindowCount(windowRows),
-    overdueWindowAmount: sumWindowAmount(overdueRows),
-    overdueWindowCount: sumWindowCount(overdueRows),
-    dueSoonWindowAmount: sumWindowAmount(dueSoonRows),
-    dueSoonWindowCount: sumWindowCount(dueSoonRows),
+    // Suma de los dos grupos, no una tercera agregación: el footer del card
+    // cierra con sus encabezados por construcción.
+    windowAmount: windowTotals.overdueAmount + windowTotals.dueSoonAmount,
+    windowCount: windowTotals.overdueCount + windowTotals.dueSoonCount,
+    windowGroups,
   };
 
   // ── Enriquecimiento (solo MONTHLY): paymentId/initPoint/expiresAt vía
@@ -548,23 +610,64 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
   );
 
   /**
-   * Monto real de la fila dentro de la ventana de cobranza del dashboard
-   * (vencido + vence-hoy/próximos-7-días + extras impagos). Reemplaza el
-   * cálculo legacy `overdue > 0 ? overdue : nextInstallmentAmount +
-   * extrasPending`, que en una reserva MONTHLY con varias cuotas colapsaba
-   * el monto a UNA sola cuota — origen del bug reportado ("1 cobro ·
-   * $500.000" quedándose corto en las cuotas por vencer). Deliberadamente
-   * NO usa `totalToCollect`: en un contrato de 12 meses eso mostraría el
-   * arriendo del año entero.
+   * Reparte los cobros de UNA fila (una reserva) entre los dos grupos
+   * visuales del card, en granularidad de cobro (cuota o extra).
+   *
+   * El monto total de la fila —lo que se muestra en su columna de dinero—
+   * es la suma de las dos mitades: vencido + vence-hoy/próximos-7-días +
+   * extras impagos. Deliberadamente NO usa `totalToCollect`: en un contrato
+   * de 12 meses eso mostraría el arriendo del año entero. Y deliberadamente
+   * no colapsa a `overdue > 0 ? overdue : nextInstallmentAmount`, que en una
+   * reserva MONTHLY con varias cuotas dejaba el monto en UNA sola cuota.
+   *
+   * Los extras impagos caen en DUE_SOON: no tienen `dueDate`, así que no hay
+   * forma de saber si están vencidos, y el grupo "por vencer" es el que no
+   * afirma una fecha pasada. El encuadre de los extras en esta ventana es
+   * una pregunta abierta aparte (issue #232).
    */
-  function amountForRow(row: CollectionReportRow): number {
+  function windowSplitForRow(row: CollectionReportRow): CollectionWindowSplit {
     const windowed = row.overdue + row.dueSoon + row.extrasPending;
-    if (windowed > 0) return windowed;
+    if (windowed > 0) {
+      return {
+        overdueAmount: row.overdue,
+        overdueCount: row.overdueCount,
+        dueSoonAmount: row.dueSoon + row.extrasPending,
+        dueSoonCount: row.dueSoonCount + row.extrasPendingCount,
+      };
+    }
     // Fallback defensivo: fila DUE_TODAY por el caso borde documentado en
     // `getCollectionStatus` (daysDiff < 0 sin overdue, cambio de día en
     // Santiago) donde `overdue` y `dueSoon` dan 0 aunque la fila sí tenga
-    // una próxima cuota. Preserva el comportamiento previo en vez de $0.
-    return row.nextInstallmentAmount + row.extrasPending;
+    // una próxima cuota. Preserva el monto previo en vez de $0, y cuenta esa
+    // cuota como UN cobro: antes aportaba monto con conteo 0, así que el
+    // footer podía decir "0 cobros · $250.000".
+    return {
+      overdueAmount: 0,
+      overdueCount: 0,
+      dueSoonAmount: row.nextInstallmentAmount + row.extrasPending,
+      dueSoonCount: (row.nextInstallmentAmount > 0 ? 1 : 0) + row.extrasPendingCount,
+    };
+  }
+
+  /** Monto de la fila dentro de la ventana: las dos mitades del split. */
+  function amountForRow(row: CollectionReportRow): number {
+    const split = windowSplitForRow(row);
+    return split.overdueAmount + split.dueSoonAmount;
+  }
+
+  function sumWindowSplit(rows: Array<{ row: CollectionReportRow }>): CollectionWindowSplit {
+    return rows.reduce<CollectionWindowSplit>(
+      (acc, { row }) => {
+        const split = windowSplitForRow(row);
+        return {
+          overdueAmount: acc.overdueAmount + split.overdueAmount,
+          overdueCount: acc.overdueCount + split.overdueCount,
+          dueSoonAmount: acc.dueSoonAmount + split.dueSoonAmount,
+          dueSoonCount: acc.dueSoonCount + split.dueSoonCount,
+        };
+      },
+      { overdueAmount: 0, overdueCount: 0, dueSoonAmount: 0, dueSoonCount: 0 },
+    );
   }
 
   function buildCollectionItem(
@@ -595,11 +698,12 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     };
   }
 
-  const collectionItems: DashboardCollectionItem[] = [
-    ...overdueRows.map(({ row }) => buildCollectionItem(row, "OVERDUE")),
-    ...dueTodayRows.map(({ row }) => buildCollectionItem(row, "DUE_TODAY")),
-    ...upcoming7dRows.map(({ row }) => buildCollectionItem(row, "UPCOMING_7D")),
-  ].slice(0, collectionLimit);
+  // El corte por `collectionLimit` ya está hecho en `visibleWindowRows`, que
+  // es también la base de `hiddenWindowRows` — así el desglose por grupo y la
+  // lista visible no pueden divergir sobre qué filas se muestran.
+  const collectionItems: DashboardCollectionItem[] = visibleWindowRows.map(({ row, bucket }) =>
+    buildCollectionItem(row, bucket),
+  );
 
   // ── "Hoy": movimientos, estadías en curso, pendientes de confirmación. ───
   const arrivals: DashboardMovement[] = [];

@@ -92,21 +92,42 @@ tipo, vencimiento) más el estado, en vez de que tres fragmentos lo reemplacen.
 
 ### 4. Los subtotales de grupo cubren la ventana completa
 
-`DashboardCollectionKpi` gana cuatro campos:
+> **Corregido el 2026-09-02 (issue #238).** La versión original de esta sección repartía cada fila
+> ENTERA al grupo de su estado, lo que hacía que el encabezado "Vencidos" contara plata no vencida.
+> El texto de abajo describe el comportamiento vigente; el defecto original y su razón se conservan
+> al final de la sección.
+
+`DashboardCollectionKpi` gana un campo:
 
 ```ts
-overdueWindowAmount: number;
-overdueWindowCount: number;
-dueSoonWindowAmount: number;
-dueSoonWindowCount: number;
+windowGroups: Record<"OVERDUE" | "DUE_SOON", {
+  amount: number;
+  count: number;
+  hiddenAmount: number;  // porción sin fila visible (truncada por collectionLimit)
+  hiddenCount: number;
+}>;
 ```
 
-Se computan en `buildDashboardSummary` con **las mismas dos expresiones** que `windowAmount` /
-`windowCount` (`amountForRow(row)` y `row.overdueCount + row.dueSoonCount +
-row.extrasPendingCount`), sobre las particiones `overdueRows` y `dueSoonRows = [...dueTodayRows,
-...upcoming7dRows]`.
+Se computa en `buildDashboardSummary` repartiendo cada fila **por cobro**, no por fila
+(`windowSplitForRow`): las cuotas vencidas de la fila van a OVERDUE (`row.overdue` /
+`row.overdueCount`) y las que vencen hoy o dentro de 7 días más los extras impagos van a DUE_SOON
+(`row.dueSoon + row.extrasPending` / `row.dueSoonCount + row.extrasPendingCount`). Una reserva con
+2 cuotas vencidas + 1 por vencer aporta 2 cobros a un grupo y 1 al otro, aunque su fila se
+renderice entera bajo "Vencidos".
 
-**Invariante:** `overdueWindow* + dueSoonWindow* === window*`.
+Los extras impagos caen en DUE_SOON porque no tienen `dueDate` — no hay forma de afirmar que están
+vencidos. Su encuadre en esta ventana es una pregunta abierta aparte (issue #232).
+
+**Invariante:** `windowGroups.OVERDUE.<f> + windowGroups.DUE_SOON.<f> === window<F>`, y además
+`windowGroups.OVERDUE.count === collection.overdueInstallmentsCount` **por construcción** — el
+subtítulo del header de la página y el encabezado del card leen el mismo valor, no dos agregaciones
+parecidas.
+
+**Consecuencia visual aceptada:** el subtotal de un grupo puede ser menor que la suma de las filas
+que lo acompañan (la fila de arriba lleva plata que se contabilizó en el otro grupo). Lo reconcilia
+la línea de vencimiento de cada fila, que ya dice "2 cuotas vencidas · +1 vence en 4 días". La
+alternativa —contar la fila entera— produce un encabezado más fácil de sumar y una palabra que
+miente; entre las dos, manda la palabra.
 
 Por qué no derivarlos de `items`: `collectionItems` viene truncado a `collectionLimit` (default 4),
 así que sumar los items visibles mentiría en cuanto hay más cobros de los que caben en el card. Es
@@ -117,7 +138,7 @@ el footer ("Total · 6 cobros"), e intencionalmente distintos de `overdueCount` 
 que cuentan reservas y alimentan el tono del KPI. Una fila MONTHLY puede agrupar varias cuotas, así
 que "Vencidos · 4" sobre 2 filas visibles es correcto, no un error de conteo.
 
-**Defecto conocido: el subtotal "Vencidos" no es puro.** `sumWindowCount`/`sumWindowAmount` suman,
+**Defecto original, ya resuelto (#238): el subtotal "Vencidos" no era puro.** `sumWindowCount`/`sumWindowAmount` suman,
 para cada fila de `overdueRows`, `row.overdueCount + row.dueSoonCount + row.extrasPendingCount`
 (y el monto equivalente vía `amountForRow(row) = row.overdue + row.dueSoon + row.extrasPending`).
 Eso significa que el encabezado **"Vencidos · N · $X" incluye cuotas que no están vencidas**: las
@@ -131,6 +152,9 @@ cuotas vencidas por $X"), que usa `collection.overdueInstallmentsCount` — suma
 misma pantalla puede mostrar dos números distintos bajo la palabra "vencido" (el subtítulo arriba,
 el encabezado de grupo "Vencidos" en el card de cobranza), sin que ninguno de los dos esté mal
 computado individualmente — miden cosas distintas con el mismo nombre.
+
+Se protegió la invariante de suma y no la etiqueta: un caso de optimizar la aritmética por sobre el
+significado de la palabra. El reparto por cobro descrito arriba conserva las dos.
 
 La invariante `overdueWindow* + dueSoonWindow* === window*` (la sección 4 de más arriba) sigue
 cumpliéndose y es la que este ADR protege: la partición entre los dos grupos visuales suma el total
@@ -152,18 +176,21 @@ que no hubo consultas nuevas.
 
 ## Implementation
 
-- `src/lib/dashboard/summary.ts` — 4 campos nuevos en `DashboardCollectionKpi`, helpers
-  `sumWindowAmount` / `sumWindowCount` (extraídos de las expresiones inline previas de
-  `windowAmount` / `windowCount`, sin cambiar su valor), partición `dueSoonRows`, y `billingType`
-  en `DashboardCollectionItem`.
+- `src/lib/dashboard/summary.ts` — campo `windowGroups` en `DashboardCollectionKpi`, helpers
+  `windowSplitForRow` / `sumWindowSplit` / `amountForRow`, particiones `orderedWindowRows` /
+  `visibleWindowRows` / `hiddenWindowRows` (el corte por `collectionLimit` alimenta tanto la lista
+  visible como el `hidden*` de cada grupo, así no pueden divergir), y `billingType` en
+  `DashboardCollectionItem`.
 - `src/app/(dashboard)/dashboard/_components/dashboard-cobranza-list.tsx` — `GROUP_OF_BUCKET`,
   `GROUP_LABEL`, `GROUP_TEXT`, `GROUP_ORDER`, prop `groupTotals`, render agrupado. `BUCKET_TEXT` y
   el import de `ReservationPill` / `Clock` desaparecen.
 - `src/app/(dashboard)/dashboard/page.tsx` — pasa `billingType` y `groupTotals`.
 
-Un grupo se renderiza **solo si tiene filas visibles**. Como `items` llega ordenado por urgencia y
-truncado después, un grupo sin filas visibles no recibe encabezado aunque su subtotal sea > 0; ese
-remanente sigue contado en el footer y accesible vía "Ver todas".
+Un grupo se renderiza si tiene filas visibles **o** si su subtotal de ventana es > 0 (corregido en
+#238: antes se exigía lo primero, así que con 4+ reservas vencidas el grupo "Por vencer"
+desaparecía entero y su plata aparecía solo en el footer, sin señal de por qué). Un grupo sin filas
+visibles se renderiza como encabezado + la línea "+N cobros más · $X", que enlaza a "Ver todas".
+Esa misma línea aparece al pie de cualquier grupo con cobros truncados.
 
 `groupTotals` es opcional: sin él, los subtotales se derivan de los items visibles (back-compat con
 el resto de props del componente, que siguen el mismo patrón).
@@ -187,12 +214,13 @@ el resto de props del componente, que siguen el mismo patrón).
 - El conteo del encabezado (cobros) no es comparable con la cantidad de filas visibles (reservas).
   Es correcto pero requiere el modelo mental "una fila puede agrupar varias cuotas" — el mismo que
   el componente ya exponía con "2 cuotas vencidas".
-- Un grupo cuyo subtotal es > 0 pero sin filas visibles no aparece. Mitigado por el footer y
-  "Ver todas".
-- El subtotal del encabezado "Vencidos" no es puro: para una fila que tiene cuotas vencidas y
-  además `dueSoon`/extras, suma también esas cuotas no vencidas (ver detalle en la sección 4). Puede
-  diferir del conteo honesto que usa el subtítulo del header de la página
-  (`collection.overdueInstallmentsCount`). No resuelto en este cambio.
+- ~~Un grupo cuyo subtotal es > 0 pero sin filas visibles no aparece.~~ Resuelto en #238: se
+  renderiza como encabezado + "+N cobros más".
+- ~~El subtotal del encabezado "Vencidos" no es puro.~~ Resuelto en #238 con el reparto por cobro
+  (sección 4).
+- El subtotal de un grupo puede ser menor que la suma de las filas visibles bajo él, porque una
+  fila reparte sus cobros entre los dos grupos. Es el precio de que la palabra del encabezado sea
+  verdadera; lo reconcilia la línea de vencimiento de la fila.
 
 ### Deuda registrada (no resuelta acá)
 

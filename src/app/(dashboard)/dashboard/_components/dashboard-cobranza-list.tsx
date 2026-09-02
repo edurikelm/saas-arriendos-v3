@@ -224,6 +224,15 @@ function dueLabelParts(item: {
 export interface CobranzaGroupTotal {
   amount: number;
   count: number;
+  /**
+   * Porción del subtotal que no tiene fila visible en el card (filas
+   * truncadas por `collectionLimit`). Alimenta la línea "+N cobros más" al
+   * pie del grupo: sin ella el encabezado puede decir 8 cobros sobre cuatro
+   * filas y la aritmética del card no cierra a la vista. Opcional — la
+   * derivación desde items visibles no tiene truncamiento que reportar.
+   */
+  hiddenAmount?: number;
+  hiddenCount?: number;
 }
 
 interface DashboardCobranzaListProps {
@@ -248,9 +257,17 @@ interface DashboardCobranzaListProps {
   /**
    * Subtotales por grupo, con el mismo criterio que `totalAmount`/`totalCount`:
    * cubren la ventana completa, no los items visibles. Vienen de
-   * `collection.overdueWindow*` / `collection.dueSoonWindow*`
-   * (`@/lib/dashboard/summary`), que por construcción suman `windowAmount` /
-   * `windowCount`. Si se omiten, se derivan de los items visibles.
+   * `collection.windowGroups` (`@/lib/dashboard/summary`), que por
+   * construcción suman `windowAmount` / `windowCount`.
+   *
+   * El reparto es por COBRO, no por fila: una fila con 2 cuotas vencidas + 1
+   * por vencer aporta 2 al subtotal de "Vencidos" y 1 al de "Por vencer",
+   * aunque se renderice entera bajo "Vencidos". Por eso un subtotal de grupo
+   * puede ser menor que la suma de las filas que lo acompañan — la línea de
+   * vencimiento de cada fila ("+1 vence en 4 días") es la que reconcilia.
+   *
+   * Si se omiten, se derivan de los items visibles (aproximación de
+   * back-compat: cuenta filas, no cobros).
    */
   groupTotals?: Partial<Record<CobranzaGroupKey, CobranzaGroupTotal>>;
 }
@@ -279,10 +296,12 @@ export function DashboardCobranzaList({
   const resolvedCount = totalCount ?? items.length;
   const resolvedTotal = totalAmount ?? items.reduce((sum, item) => sum + item.amount, 0);
 
-  // Un grupo se renderiza solo si tiene filas VISIBLES. `items` llega
-  // truncado en orden de urgencia, así que un grupo sin filas visibles no
-  // recibe encabezado aunque su subtotal sea > 0; ese remanente sigue
-  // contado en el footer y accesible vía "Ver todas".
+  // Un grupo se renderiza si tiene filas visibles O si su subtotal de
+  // ventana es > 0. Antes se exigía lo primero, así que con 4+ reservas
+  // vencidas el grupo "Por vencer" desaparecía entero y su plata aparecía
+  // solo en el footer: el dueño veía un total mayor que la suma de los
+  // grupos, sin ninguna señal de por qué. Un grupo sin filas visibles se
+  // renderiza como encabezado + la línea "+N cobros más".
   const groups = GROUP_ORDER.map((key) => {
     const groupItems = items.filter((item) => GROUP_OF_BUCKET[item.bucket] === key);
     const fallback: CobranzaGroupTotal = {
@@ -290,7 +309,7 @@ export function DashboardCobranzaList({
       count: groupItems.length,
     };
     return { key, items: groupItems, total: groupTotals?.[key] ?? fallback };
-  }).filter((group) => group.items.length > 0);
+  }).filter((group) => group.items.length > 0 || group.total.count > 0);
 
   return (
     <section aria-labelledby="cobros-pendientes-heading" className="flex h-full flex-col">
@@ -333,6 +352,12 @@ export function DashboardCobranzaList({
           <div className="flex-1">
             {groups.map((group, groupIdx) => {
               const headingId = `cobros-grupo-${group.key.toLowerCase()}`;
+              // Cobros del grupo que ninguna fila representa (filas cortadas
+              // por el límite del card). Los cobros de una fila VISIBLE no
+              // entran acá aunque pertenezcan al otro grupo: ya se leen en su
+              // monto y en su línea de vencimiento.
+              const hiddenCount = group.total.hiddenCount ?? 0;
+              const hiddenAmount = group.total.hiddenAmount ?? 0;
               return (
                 <div key={group.key}>
                   {/*
@@ -343,8 +368,12 @@ export function DashboardCobranzaList({
 
                     La cantidad está en COBROS (cuotas + extras), igual que el
                     footer, no en filas: una fila MONTHLY puede agrupar varias
-                    cuotas, así que "Vencidos · 4" sobre 2 filas es correcto y
-                    consistente con "Total · 6 cobros".
+                    cuotas, así que "Vencidos · 3" sobre 2 filas es correcto y
+                    consistente con "Total · 6 cobros". Y una fila reparte sus
+                    cobros entre los dos grupos según venzan o no — por eso el
+                    subtotal puede ser menor que la suma de las filas de abajo
+                    (issue #238); la línea de vencimiento de cada fila es la
+                    que reconcilia la diferencia.
                   */}
                   <div
                     className={cn(
@@ -411,6 +440,24 @@ export function DashboardCobranzaList({
                         </li>
                       );
                     })}
+                    {hiddenCount > 0 && (
+                      <li>
+                        {viewAllHref ? (
+                          <Link
+                            href={viewAllHref}
+                            className="block px-4 py-2 text-[10px] font-bold tabular-nums text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground focus-visible:bg-muted/40 focus-visible:outline-none"
+                          >
+                            +{hiddenCount} {hiddenCount === 1 ? "cobro" : "cobros"} más ·{" "}
+                            {formatCLP(hiddenAmount)}
+                          </Link>
+                        ) : (
+                          <p className="px-4 py-2 text-[10px] font-bold tabular-nums text-muted-foreground">
+                            +{hiddenCount} {hiddenCount === 1 ? "cobro" : "cobros"} más ·{" "}
+                            {formatCLP(hiddenAmount)}
+                          </p>
+                        )}
+                      </li>
+                    )}
                   </ul>
                 </div>
               );
