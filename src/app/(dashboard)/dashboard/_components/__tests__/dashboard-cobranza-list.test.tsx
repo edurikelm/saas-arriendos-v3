@@ -73,26 +73,42 @@ describe("DashboardCobranzaList", () => {
     expectInDoc(screen.queryByRole("heading", { name: /Por vencer/ }));
   });
 
-  it("no repite el estado como pill en cada fila", () => {
+  it("no repite el estado visualmente en cada fila", () => {
     render(<DashboardCobranzaList items={items} viewAllHref="/payments" />);
 
-    expect(screen.queryByText("Vencido")).toBeNull();
-    expect(screen.queryByText("Pendiente")).toBeNull();
+    // El label del bucket existe en el DOM, pero solo para lectores de
+    // pantalla: nada de pill ni texto tenido repitiendo lo que ya dice el
+    // encabezado del grupo.
+    expect(screen.getByText("Vencido").className).toContain("sr-only");
+    expect(screen.getByText("Pendiente").className).toContain("sr-only");
   });
 
-  // El estado exacto por fila (incluida la distincion "vence hoy" vs
-  // "pendiente", que el encabezado fusiona) sigue disponible para lectores
-  // de pantalla via el aria-label del link.
-  it("preserva el estado exacto de cada fila en el aria-label", () => {
+  // El nombre accesible del link se calcula del CONTENIDO de la fila. La
+  // version anterior ponia un aria-label en el <Link>, que lo REEMPLAZA en
+  // vez de complementarlo: se anunciaba "cliente — monto — estado" y
+  // desaparecian propiedad, tipo de arriendo y linea de vencimiento (#237).
+  // Cada query de abajo falla con ese aria-label puesto.
+  it("expone toda la fila en el nombre accesible del link, no solo cliente y monto", () => {
     render(<DashboardCobranzaList items={items} viewAllHref="/payments" />);
 
-    expectInDoc(screen.queryByRole("link", { name: /Juan Perez|Juan Pérez/ }));
-    expect(
-      screen.getByRole("link", { name: /Camila Rojas/ }).getAttribute("aria-label")
-    ).toContain("Vencido");
-    expect(
-      screen.getByRole("link", { name: /Marta Silva/ }).getAttribute("aria-label")
-    ).toContain("Pendiente");
+    // Propiedad y tipo de arriendo (la fila los muestra en una sola linea).
+    expectInDoc(screen.queryByRole("link", { name: /Cabaña del Lago · Mensual/ }));
+    // Linea de vencimiento — el dato accionable.
+    expectInDoc(screen.queryByRole("link", { name: /Venció hace 7 días/ }));
+    // Y el estado del bucket sigue presente, sin depender del encabezado.
+    expectInDoc(screen.queryByRole("link", { name: /Vencido/ }));
+    expectInDoc(screen.queryByRole("link", { name: /Pendiente/ }));
+  });
+
+  // WCAG 1.4.11: el indicador de foco no puede ser solo un cambio de fondo
+  // —medía ~1.04:1 contra el card— y menos si es la MISMA clase que hover,
+  // que deja a un usuario de teclado sin forma de distinguirlos.
+  it("da un indicador de foco propio a las filas, no solo el fondo de hover", () => {
+    render(<DashboardCobranzaList items={items} viewAllHref="/payments" />);
+
+    const link = screen.getByRole("link", { name: /Camila Rojas/ });
+    expect(link.className).toContain("focus-visible:outline-[color:var(--foreground)]!");
+    expect(link.className).not.toContain("focus-visible:outline-none");
   });
 
   it("muestra el tipo de arriendo junto a la propiedad", () => {

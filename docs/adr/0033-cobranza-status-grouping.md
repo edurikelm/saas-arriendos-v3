@@ -65,7 +65,11 @@ una por encabezado de grupo.
 
 El `<ReservationPill>` desaparece de este componente, resolviendo el drift con `DESIGN.md`.
 
-### 3. El `aria-label` por fila es un defecto conocido, no una victoria de accesibilidad
+### 3. El estado por fila va como `sr-only` dentro de la fila, no como `aria-label`
+
+> **Corregido el 2026-09-02 (issue #237).** La versión original de esta sección documentaba el
+> `aria-label` por fila como defecto conocido y sin arreglar. Ya está arreglado: el detalle del
+> defecto se conserva abajo porque explica por qué el patrón correcto es el que hay hoy.
 
 Cada fila es un `<Link>` cuyo contenido interno visible es cliente, monto, propiedad, tipo de
 arriendo (`Teja 1 · Mensual`) y la línea de vencimiento completa (por ejemplo "2 cuotas vencidas ·
@@ -84,11 +88,29 @@ la información que distingue una fila de otra dentro del mismo grupo. Lo único
 una sola palabra (`Vencido` / `Vence hoy` / `Pendiente`) que el encabezado del grupo ya comunica una
 vez para todas sus filas del grupo.
 
-**Esto no está arreglado en este cambio.** El fix correcto es quitar el `aria-label` del `<Link>` y
-agregar la palabra del bucket como texto visible-solo-a-lector-de-pantalla dentro de la fila (por
-ejemplo un `<span className="sr-only">{BUCKET_LABEL[bucket]}</span>`), de modo que el nombre
-accesible del link se siga construyendo desde su contenido completo (cliente, monto, propiedad,
-tipo, vencimiento) más el estado, en vez de que tres fragmentos lo reemplacen.
+**Resuelto en #237.** El `aria-label` salió del `<Link>` y la palabra del bucket entró como
+`<span className="sr-only">{BUCKET_LABEL[bucket]}</span>` dentro de la fila, así que el nombre
+accesible se construye otra vez desde el contenido completo (estado, cliente, monto, propiedad,
+tipo, vencimiento) en vez de que tres fragmentos lo reemplacen.
+
+En el mismo cambio se arregló un segundo defecto de la misma línea de clases, previo a este ADR:
+`focus-visible:outline-none` eliminaba el anillo de foco y lo reemplazaba por
+`focus-visible:bg-muted/40`, que mide ~1.04:1 contra el card (WCAG 1.4.11 exige 3:1 para
+indicadores no textuales) y que además es **la misma clase que `hover:`**, así que un usuario de
+teclado no podía distinguir "tengo el foco acá" de "el mouse está encima". Ahora la fila lleva
+`focus-visible:outline-2 focus-visible:outline-offset-[-2px]
+focus-visible:outline-[color:var(--foreground)]!`. Tres decisiones, todas medidas:
+
+- **`outline` y no `ring`**: el card tiene `overflow-hidden`, así que un ring exterior en una fila
+  full-bleed se recorta en los bordes laterales. El offset negativo lo dibuja adentro.
+- **Color `--foreground` y no `--ring`**: el teal de marca sobre card mide **2.28:1 en claro**
+  (opaco) — falla el 3:1 de WCAG 1.4.11. `--foreground` da **16.95:1 en claro / 15.7:1 en oscuro**.
+- **El `!` es necesario**: `globals.css` tiene `* { @apply outline-ring/50 }` en `@layer base`, que
+  le gana a la utilidad. Sin el `!` el anillo vuelve al teal — verificado en el navegador, no
+  deducido.
+
+Ese anillo por defecto falla 1.4.11 en toda la app (1.55:1 en claro al 50% de alfa), no solo acá:
+registrado aparte, fuera del alcance de este fix local.
 
 ### 4. Los subtotales de grupo cubren la ventana completa
 
