@@ -107,7 +107,7 @@ export function ReceiptUpload({ onFileSelect, maxSizeMb = 5, accept = "image/jpe
         id={id}
       />
       {error && (
-        <p className="text-xs text-destructive">{error}</p>
+        <p className="text-xs text-destructive-text">{error}</p>
       )}
     </div>
   );

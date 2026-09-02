@@ -105,7 +105,7 @@ export function ActionHistory({ ownerId }: ActionHistoryProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-destructive text-center py-8">{error}</p>
+          <p className="text-destructive-text text-center py-8">{error}</p>
         </CardContent>
       </Card>
     );

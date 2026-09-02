@@ -101,7 +101,7 @@ export function PropertyCardGrid({ property, onEdit, onDelete }: PropertyCardBas
             onClick={onDelete}
             aria-label="Eliminar propiedad"
           >
-            <Trash2 className="size-4 text-destructive" />
+            <Trash2 className="size-4 text-destructive-text" />
           </Button>
         </div>
       </div>

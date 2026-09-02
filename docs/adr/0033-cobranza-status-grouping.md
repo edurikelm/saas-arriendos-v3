@@ -244,7 +244,7 @@ el resto de props del componente, que siguen el mismo patrón).
   fila reparte sus cobros entre los dos grupos. Es el precio de que la palabra del encabezado sea
   verdadera; lo reconcilia la línea de vencimiento de la fila.
 
-### Deuda registrada (no resuelta acá)
+### Deuda registrada (resuelta después, en #235)
 
 `--destructive` en light mode es `oklch(0.6368 0.2078 25.3313)` = `#ef4444`, que sobre `--card`
 (blanco) mide **3.76:1** — bajo el mínimo WCAG AA de 4.5:1 para texto normal. El sistema ya resuelve
@@ -257,9 +257,12 @@ Este cambio **reduce** la superficie afectada en esta sección de ~8 elementos p
 lo elimina. Dark mode pasa (4.57:1 sobre `#0d1c2d`), igual que el ámbar en ambos temas (13.93:1 en
 light, 10.67:1 en dark).
 
-Registrado en **issue #235** con la medición, el token propuesto (`--destructive-text`,
-`oklch(0.55 0.19 25.3313)` = `#c92f32`, 5.35:1 sobre blanco) y el script de verificación. No se
-resuelve acá porque agregar un token global excede el alcance de esta sección.
+Registrado en **issue #235** y **resuelto ahí**: `--destructive-text` existe desde entonces
+(`oklch(0.55 0.19 25.3313)` en claro, `oklch(0.68 0.19 25.3313)` en oscuro) y los 106 usos de
+`text-destructive` como color de texto migraron. El valor oscuro terminó siendo más claro que el
+propuesto en el issue: el rojo de relleno alcanzaba 4.63:1 sobre card pero solo 4.16:1 sobre
+`bg-destructive/10`, un combo real del producto que la propuesta original no medía. Ver
+`DESIGN.md`, The Fill-vs-Text Rule.
 
 ## Related
 

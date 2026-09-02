@@ -56,7 +56,7 @@ const toneClasses: Record<Tone, { bar: string; text: string }> = {
   success: { bar: "bg-success", text: "text-success" },
   info: { bar: "bg-info", text: "text-info" },
   warning: { bar: "bg-warning", text: "text-warning" },
-  destructive: { bar: "bg-destructive", text: "text-destructive" },
+  destructive: { bar: "bg-destructive", text: "text-destructive-text" },
 };
 
 /** Mapas de variante del Badge por tono — el Badge es el lenguaje canónico de estado. */
@@ -221,7 +221,7 @@ export function PaymentTimelineNode({
     delete: {
       label: "Eliminar pago",
       icon: Trash2,
-      className: "text-muted-foreground hover:text-destructive",
+      className: "text-muted-foreground hover:text-destructive-text",
       onClick: () => onDeletePayment?.(payment.id),
     },
   };

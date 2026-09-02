@@ -30,11 +30,11 @@ describe("CalendarLegend", () => {
       const { container } = render(<CalendarLegend />);
       // PENDING → text-warning (Amber Hour, per DESIGN.md:209 — "reservas con saldo pendiente")
       // CONFIRMED → text-success (matches bg-primary bar)
-      // CANCELLED → text-destructive (matches bg-destructive bar)
+      // CANCELLED → text-destructive-text (matches bg-destructive bar)
       // COMPLETADA → text-muted-foreground (matches bg-muted bar)
       expect(container.querySelectorAll(".text-warning").length).toBeGreaterThan(0);
       expect(container.querySelectorAll(".text-success").length).toBeGreaterThan(0);
-      expect(container.querySelectorAll(".text-destructive").length).toBeGreaterThan(0);
+      expect(container.querySelectorAll(".text-destructive-text").length).toBeGreaterThan(0);
       expect(container.querySelectorAll(".text-muted-foreground").length).toBeGreaterThan(0);
     });
 

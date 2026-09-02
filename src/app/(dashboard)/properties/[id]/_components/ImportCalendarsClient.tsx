@@ -151,7 +151,7 @@ function AddCalendarDialog({ propertyId, onCreated }: { propertyId: string; onCr
               {...register("name")}
             />
             {errors.name && (
-              <p className="text-sm text-destructive">{errors.name.message}</p>
+              <p className="text-sm text-destructive-text">{errors.name.message}</p>
             )}
           </div>
 
@@ -173,7 +173,7 @@ function AddCalendarDialog({ propertyId, onCreated }: { propertyId: string; onCr
               </SelectContent>
             </Select>
             {errors.channel && (
-              <p className="text-sm text-destructive">{errors.channel.message}</p>
+              <p className="text-sm text-destructive-text">{errors.channel.message}</p>
             )}
           </div>
 
@@ -186,7 +186,7 @@ function AddCalendarDialog({ propertyId, onCreated }: { propertyId: string; onCr
               {...register("feedUrl")}
             />
             {errors.feedUrl && (
-              <p className="text-sm text-destructive">{errors.feedUrl.message}</p>
+              <p className="text-sm text-destructive-text">{errors.feedUrl.message}</p>
             )}
             <p className="text-xs text-muted-foreground">
               Debe ser una URL HTTPS pública.
@@ -301,7 +301,7 @@ function CalendarRow({
               variant="ghost"
               size="icon-sm"
               onClick={() => setShowDeleteConfirm(true)}
-              className="text-muted-foreground hover:text-destructive"
+              className="text-muted-foreground hover:text-destructive-text"
               aria-label={`Eliminar ${calendar.name}`}
             >
               <Trash2 />
@@ -322,7 +322,7 @@ function CalendarRow({
       </div>
 
       {calendar.lastSyncError && (
-        <div className="flex items-start gap-2 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <div className="flex items-start gap-2 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive-text">
           <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
           <span className="break-all">{calendar.lastSyncError}</span>
         </div>

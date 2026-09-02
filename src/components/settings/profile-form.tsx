@@ -123,7 +123,7 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
                 placeholder="Juan Pérez"
               />
               {errors.name && (
-                <p className="text-sm text-destructive">{errors.name.message}</p>
+                <p className="text-sm text-destructive-text">{errors.name.message}</p>
               )}
             </div>
 
@@ -140,7 +140,7 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
                 Para cambiar tu email, contacta a soporte.
               </p>
               {errors.email && (
-                <p className="text-sm text-destructive">{errors.email.message}</p>
+                <p className="text-sm text-destructive-text">{errors.email.message}</p>
               )}
             </div>
 
@@ -152,7 +152,7 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
                 placeholder="+56 9 1234 5678"
               />
               {errors.phone && (
-                <p className="text-sm text-destructive">{errors.phone.message}</p>
+                <p className="text-sm text-destructive-text">{errors.phone.message}</p>
               )}
             </div>
           </div>
@@ -174,7 +174,7 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
                 placeholder="Mi Empresa Ltda."
               />
               {errors.companyName && (
-                <p className="text-sm text-destructive">{errors.companyName.message}</p>
+                <p className="text-sm text-destructive-text">{errors.companyName.message}</p>
               )}
             </div>
 
@@ -186,7 +186,7 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
                 placeholder="12.345.678-9"
               />
               {errors.companyRut && (
-                <p className="text-sm text-destructive">{errors.companyRut.message}</p>
+                <p className="text-sm text-destructive-text">{errors.companyRut.message}</p>
               )}
             </div>
 
@@ -198,7 +198,7 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
                 placeholder="Av. Principal 123, Santiago"
               />
               {errors.companyAddress && (
-                <p className="text-sm text-destructive">{errors.companyAddress.message}</p>
+                <p className="text-sm text-destructive-text">{errors.companyAddress.message}</p>
               )}
             </div>
           </div>
@@ -229,7 +229,7 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
                 </SelectContent>
               </Select>
               {errors.language && (
-                <p className="text-sm text-destructive">{errors.language.message}</p>
+                <p className="text-sm text-destructive-text">{errors.language.message}</p>
               )}
             </div>
 
@@ -250,7 +250,7 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
                 </SelectContent>
               </Select>
               {errors.currency && (
-                <p className="text-sm text-destructive">{errors.currency.message}</p>
+                <p className="text-sm text-destructive-text">{errors.currency.message}</p>
               )}
             </div>
 
@@ -275,7 +275,7 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
                 </SelectContent>
               </Select>
               {errors.timezone && (
-                <p className="text-sm text-destructive">{errors.timezone.message}</p>
+                <p className="text-sm text-destructive-text">{errors.timezone.message}</p>
               )}
             </div>
           </div>

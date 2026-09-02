@@ -651,7 +651,7 @@ export function CalendarList({ reservations, currentMonth, onSelectReservation }
                 <h3 className="font-semibold text-foreground truncate">
                   {res.client.name}
                 </h3>
-                <StatusIcon className={`h-4 w-4 shrink-0 ${status.variant === "destructive" ? "text-destructive" : status.variant === "success" ? "text-success" : "text-muted-foreground"}`} />
+                <StatusIcon className={`h-4 w-4 shrink-0 ${status.variant === "destructive" ? "text-destructive-text" : status.variant === "success" ? "text-success" : "text-muted-foreground"}`} />
               </div>
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1">

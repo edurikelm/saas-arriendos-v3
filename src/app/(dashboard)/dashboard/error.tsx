@@ -21,7 +21,7 @@ export default function DashboardError({
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 p-6 text-center">
       <div className="rounded-full bg-destructive/10 p-4">
-        <AlertCircle className="h-8 w-8 text-destructive" />
+        <AlertCircle className="h-8 w-8 text-destructive-text" />
       </div>
       <div className="space-y-2 max-w-md">
         <h2 className="text-xl font-bold tracking-tight">No se pudo cargar el Dashboard</h2>

@@ -134,7 +134,7 @@ export function ReservationTable({ reservations, onEdit, onCancel, onDelete }: {
                   <div className="flex items-stretch gap-3">
 <div className={`w-0.5 rounded-full ${reservationPillDotClass[paymentTone]}`} />
                     <div className="flex flex-col">
-                      <p className={`text-xs font-bold tabular-nums ${paymentTone === "success" ? "text-success" : paymentTone === "warning" ? "text-foreground" : "text-destructive"}`}>
+                      <p className={`text-xs font-bold tabular-nums ${paymentTone === "success" ? "text-success" : paymentTone === "warning" ? "text-foreground" : "text-destructive-text"}`}>
                         {finLabel}
                       </p>
                       <p className="text-[10px] text-muted-foreground tabular-nums">{finSubtext}</p>

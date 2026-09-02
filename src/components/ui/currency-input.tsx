@@ -74,7 +74,7 @@ export function CurrencyInput({
           className="text-xs font-bold text-muted-foreground uppercase tracking-tighter"
         >
           {label}
-          {required && <span className="text-destructive"> *</span>}
+          {required && <span className="text-destructive-text"> *</span>}
         </Label>
       )}
       <div className="relative">
@@ -93,7 +93,7 @@ export function CurrencyInput({
           className="pl-7"
         />
       </div>
-      {error && <p className="text-xs text-destructive mt-1">{error}</p>}
+      {error && <p className="text-xs text-destructive-text mt-1">{error}</p>}
     </div>
   );
 }

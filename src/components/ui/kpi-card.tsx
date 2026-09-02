@@ -27,7 +27,7 @@ const iconContainerToneClass: Record<KpiTone, string> = {
   success: "bg-success/10 text-success",
   info: "bg-info/10 text-info",
   warning: "bg-warning/10 text-warning",
-  destructive: "bg-destructive/10 text-destructive",
+  destructive: "bg-destructive/10 text-destructive-text",
 };
 
 // Tonos para el value text — success/warning/destructive colorean el número;
@@ -37,7 +37,7 @@ const valueToneClass: Record<KpiTone, string> = {
   success: "text-success",
   info: "text-foreground",
   warning: "text-warning",
-  destructive: "text-destructive",
+  destructive: "text-destructive-text",
 };
 
 function IndicatorIcon({ variant }: { variant: KpiIndicatorVariant }) {

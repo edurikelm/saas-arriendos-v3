@@ -314,7 +314,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                   <span className="font-medium">Uso de propiedades</span>
                   <span
                     className={`tabular-nums font-semibold ${
-                      isAtLimit ? "text-destructive" : "text-foreground"
+                      isAtLimit ? "text-destructive-text" : "text-foreground"
                     }`}
                   >
                     {stats.properties} / {stats.propertiesLimit}
@@ -333,7 +333,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                   />
                 </div>
                 {isAtLimit && (
-                  <div className="flex items-center gap-2 text-xs text-destructive">
+                  <div className="flex items-center gap-2 text-xs text-destructive-text">
                     <AlertTriangle className="size-3.5" />
                     Al límite del plan FREE — considera actualizar a PRO
                   </div>
@@ -399,11 +399,11 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                 )
               ) : (
                 <div className="flex items-start gap-3">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive-text">
                     <XCircle className="size-5" />
                   </div>
                   <div className="space-y-0.5">
-                    <p className="text-sm font-medium text-destructive">
+                    <p className="text-sm font-medium text-destructive-text">
                       No configurado
                     </p>
                     <p className="text-xs text-muted-foreground">
@@ -458,7 +458,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                   <span className="size-2 rounded-full bg-destructive" />
                   <span className="text-sm text-muted-foreground">Vencido</span>
                 </div>
-                <span className="font-semibold tabular-nums text-destructive">
+                <span className="font-semibold tabular-nums text-destructive-text">
                   {formatCLP(stats.overdueAmount)}
                 </span>
               </div>
@@ -806,7 +806,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">
                       Vencido
                     </p>
-                    <p className="mt-1 font-heading text-xl font-semibold tabular-nums text-destructive">
+                    <p className="mt-1 font-heading text-xl font-semibold tabular-nums text-destructive-text">
                       {formatCLP(stats.overdueAmount)}
                     </p>
                   </div>

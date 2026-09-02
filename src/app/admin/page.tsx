@@ -72,7 +72,7 @@ const activityVisuals: Record<
 
 function activityVisual(item: SystemActivityItem) {
   if (item.type === "SUPPORT_TICKET" && item.priority === "HIGH") {
-    return { icon: AlertCircle, container: "bg-destructive/10 text-destructive" };
+    return { icon: AlertCircle, container: "bg-destructive/10 text-destructive-text" };
   }
   return activityVisuals[item.type];
 }

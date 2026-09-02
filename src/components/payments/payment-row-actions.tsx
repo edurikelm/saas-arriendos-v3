@@ -320,7 +320,7 @@ export function PaymentRowActions({
         className={cn(
           iconBtnSize,
           "p-0",
-          cfg.destructive && "text-muted-foreground hover:text-destructive hover:bg-destructive/10",
+          cfg.destructive && "text-muted-foreground hover:text-destructive-text hover:bg-destructive/10",
         )}
         title={label}
         aria-label={label}

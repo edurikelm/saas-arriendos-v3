@@ -92,7 +92,7 @@ export function ForgotPasswordForm() {
               {...register("email")}
             />
             {errors.email && (
-              <p className="text-sm text-destructive">{errors.email.message}</p>
+              <p className="text-sm text-destructive-text">{errors.email.message}</p>
             )}
           </div>
           <Button type="submit" className="w-full" disabled={isSubmitting}>

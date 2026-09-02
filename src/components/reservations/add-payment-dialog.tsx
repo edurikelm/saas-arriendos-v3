@@ -412,7 +412,7 @@ export function AddPaymentDialog({
               <>
                 <div className="space-y-2">
                   <Label htmlFor="title" className="text-xs">
-                    Título <span className="text-destructive">*</span>
+                    Título <span className="text-destructive-text">*</span>
                   </Label>
                   <Input
                     id="title"
@@ -424,7 +424,7 @@ export function AddPaymentDialog({
                     className="h-9"
                   />
                   {errors.title && (
-                    <p id="title-error" className="text-xs text-destructive mt-1">{errors.title.message}</p>
+                    <p id="title-error" className="text-xs text-destructive-text mt-1">{errors.title.message}</p>
                   )}
                 </div>
 
