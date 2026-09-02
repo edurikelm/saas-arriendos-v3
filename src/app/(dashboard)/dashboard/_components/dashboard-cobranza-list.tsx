@@ -92,10 +92,11 @@ const GROUP_ORDER: CobranzaGroupKey[] = ["OVERDUE", "DUE_SOON"];
 
 /**
  * Label de estado por bucket. Sin representación visual propia desde que el
- * grupo carga el estado; sobrevive en el `aria-label` de cada fila para que
- * un lector de pantalla reciba el estado exacto (incluida la distinción
- * "vence hoy" vs "pendiente", que el encabezado de grupo fusiona) sin
- * depender de haber leído el encabezado.
+ * grupo carga el estado; sobrevive en un `<span className="sr-only">` dentro
+ * de cada fila, para que un lector de pantalla reciba el estado exacto
+ * (incluida la distinción "vence hoy" vs "pendiente", que el encabezado de
+ * grupo fusiona) sin depender de haber leído el encabezado y sin perder el
+ * resto del contenido de la fila. Ver el comentario en el `<Link>`.
  */
 const BUCKET_LABEL: Record<CobranzaBucket, string> = {
   OVERDUE: "Vencido",
@@ -406,9 +407,34 @@ export function DashboardCobranzaList({
                         <li key={`${item.reservationId}-${idx}`}>
                           <Link
                             href={`/reservations/${item.reservationId}`}
-                            aria-label={`${item.clientName} — ${formatCLP(item.amount)} — ${BUCKET_LABEL[item.bucket]}`}
-                            className="block px-4 py-2 transition-colors hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none"
+                            className="block px-4 py-2 transition-colors hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[color:var(--foreground)]!"
                           >
+                            {/*
+                              El estado del grupo viaja acá para que el nombre
+                              accesible del link no dependa de haber leído el
+                              encabezado. Va como `sr-only` DENTRO de la fila y
+                              NO como `aria-label` en el contenedor: un
+                              `aria-label` REEMPLAZA el contenido como nombre
+                              accesible en vez de complementarlo, así que la
+                              versión anterior anunciaba solo "cliente — monto —
+                              estado" y se llevaba por delante la propiedad, el
+                              tipo de arriendo y la línea de vencimiento — el
+                              60% de la fila, incluido el dato accionable
+                              (cuántas cuotas y cuándo vence la próxima).
+                              Issue #237.
+
+                              El foco: `outline` (no `ring`) con offset
+                              negativo, porque el card tiene `overflow-hidden`
+                              y un ring exterior en una fila full-bleed se
+                              recorta en los bordes. El color va con `!` porque
+                              `globals.css` tiene un `* { outline-color:
+                              var(--ring)/50 }` en `@layer base` que le gana a
+                              la utilidad; sin el `!` el anillo vuelve al teal
+                              de marca, que sobre card mide 2.28:1 en claro
+                              (WCAG 1.4.11 pide 3:1). Con `--foreground`:
+                              16.95:1 claro / 15.7:1 oscuro, medido.
+                            */}
+                            <span className="sr-only">{BUCKET_LABEL[item.bucket]}</span>
                             <div className="flex items-baseline justify-between gap-3">
                               <p className="min-w-0 flex-1 truncate text-xs font-bold text-foreground">
                                 {item.clientName}
@@ -445,7 +471,7 @@ export function DashboardCobranzaList({
                         {viewAllHref ? (
                           <Link
                             href={viewAllHref}
-                            className="block px-4 py-2 text-[10px] font-bold tabular-nums text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground focus-visible:bg-muted/40 focus-visible:outline-none"
+                            className="block px-4 py-2 text-[10px] font-bold tabular-nums text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground focus-visible:bg-muted/40 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[color:var(--foreground)]!"
                           >
                             +{hiddenCount} {hiddenCount === 1 ? "cobro" : "cobros"} más ·{" "}
                             {formatCLP(hiddenAmount)}
