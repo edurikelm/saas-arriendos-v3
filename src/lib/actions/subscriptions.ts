@@ -31,6 +31,7 @@ import {
   reactivateSubscriptionSchema,
 } from "@/lib/validations/subscriptions";
 import { recordSubscriptionNotification } from "@/lib/notifications/subscription-events";
+import { computeEffectivePlan } from "@/lib/subscriptions/effective-plan";
 
 // ────────────────────────────────────────────────────────────────────────────
 // getCurrentSubscription
@@ -390,8 +391,12 @@ export type OwnerUsage = {
  * Límites FREE: 3 propiedades, 5 clientes.
  * Límites PRO: Infinity (sin límite).
  *
- * future: cuando el plan se lea de `UserProfile.plan` en vez de subscription,
- * este helper consultará `session.plan` directamente.
+ * El plan sale de `computeEffectivePlan`, el MISMO cálculo que hace
+ * `getSession` para los gates. No del `UserProfile.plan` cacheado: entre que
+ * vence el período y corre el cron diario `expired-check` pueden pasar ~24h, y
+ * en esa ventana los gates ya bloquean por límite FREE. Leer el valor cacheado
+ * acá dejaría al banner del dashboard diciendo "PRO, sin límites" mientras la
+ * creación falla — la UI contradiciendo al backend, en la pantalla del plan.
  */
 export async function countOwnerUsage(userId: string): Promise<OwnerUsage> {
   const [propertyCount, clientCount] = await Promise.all([
@@ -402,10 +407,13 @@ export async function countOwnerUsage(userId: string): Promise<OwnerUsage> {
   // Determinar plan actual del owner
   const user = await prisma.userProfile.findUnique({
     where: { id: userId },
-    select: { plan: true },
+    select: {
+      plan: true,
+      subscription: { select: { status: true, currentPeriodEnd: true } },
+    },
   });
 
-  const plan = (user?.plan as "FREE" | "PRO" | null) ?? "FREE";
+  const plan = computeEffectivePlan(user?.plan ?? null, user?.subscription ?? null);
   const isPro = plan === "PRO";
 
   return {
