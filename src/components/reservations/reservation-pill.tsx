@@ -21,7 +21,7 @@ const toneClassNames: Record<PillTone, string> = {
   info: "border-info/20 bg-info/10 text-info",
   "info-strong": "border-info/30 bg-info/25 text-info",
   warning: "border-warning/25 bg-warning/10 text-warning",
-  destructive: "border-destructive/25 bg-destructive/10 text-destructive",
+  destructive: "border-destructive/25 bg-destructive/10 text-destructive-text",
   neutral: "border-muted bg-muted text-muted-foreground",
 };
 

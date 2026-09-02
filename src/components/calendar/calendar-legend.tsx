@@ -16,7 +16,7 @@ interface StatusStateEntry {
 const STATUS_STATES: StatusStateEntry[] = [
   { label: "Pendiente", icon: AlertCircle, colorClass: "text-warning" },
   { label: "Confirmada", icon: CheckCircle2, colorClass: "text-success" },
-  { label: "Cancelada", icon: XCircle, colorClass: "text-destructive", opacityClass: "opacity-75" },
+  { label: "Cancelada", icon: XCircle, colorClass: "text-destructive-text", opacityClass: "opacity-75" },
   { label: "Completada", icon: CheckCircle2, colorClass: "text-muted-foreground", opacityClass: "opacity-75" },
 ];
 

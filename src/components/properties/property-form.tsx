@@ -157,7 +157,7 @@ export function PropertyForm({ initialData, onSubmit, onCancel, usedColors = [] 
               <div className="space-y-2">
                 <Label htmlFor="name">Nombre de la Propiedad</Label>
                 <Input id="name" {...register("name")} placeholder="Departamento Centro" />
-                {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
+                {errors.name && <p className="text-sm text-destructive-text">{errors.name.message}</p>}
               </div>
 
               <div className="space-y-2">
@@ -179,7 +179,7 @@ export function PropertyForm({ initialData, onSubmit, onCancel, usedColors = [] 
                     ))}
                   </SelectContent>
                 </Select>
-                {errors.type && <p className="text-sm text-destructive">{errors.type.message}</p>}
+                {errors.type && <p className="text-sm text-destructive-text">{errors.type.message}</p>}
               </div>
 
               <div className="space-y-2">
@@ -191,7 +191,7 @@ export function PropertyForm({ initialData, onSubmit, onCancel, usedColors = [] 
                   {...register("unitsAvailable", { valueAsNumber: true })}
                 />
                 {errors.unitsAvailable && (
-                  <p className="text-sm text-destructive">{errors.unitsAvailable.message}</p>
+                  <p className="text-sm text-destructive-text">{errors.unitsAvailable.message}</p>
                 )}
               </div>
             </CardContent>
@@ -215,7 +215,7 @@ export function PropertyForm({ initialData, onSubmit, onCancel, usedColors = [] 
                   {...register("dailyPrice", { valueAsNumber: true })}
                 />
                 {errors.dailyPrice && (
-                  <p className="text-sm text-destructive">{errors.dailyPrice.message}</p>
+                  <p className="text-sm text-destructive-text">{errors.dailyPrice.message}</p>
                 )}
               </div>
 
@@ -230,7 +230,7 @@ export function PropertyForm({ initialData, onSubmit, onCancel, usedColors = [] 
                   placeholder="Precio fijo mensual"
                 />
                 {errors.monthlyPrice && (
-                  <p className="text-sm text-destructive">{errors.monthlyPrice.message}</p>
+                  <p className="text-sm text-destructive-text">{errors.monthlyPrice.message}</p>
                 )}
               </div>
             </CardContent>
@@ -264,7 +264,7 @@ export function PropertyForm({ initialData, onSubmit, onCancel, usedColors = [] 
                     );
                   })}
                 </div>
-                {errors.color && <p className="text-sm text-destructive">{errors.color.message}</p>}
+                {errors.color && <p className="text-sm text-destructive-text">{errors.color.message}</p>}
               </div>
 
               <div className="space-y-2">

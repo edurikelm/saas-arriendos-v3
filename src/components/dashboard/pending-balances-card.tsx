@@ -72,10 +72,10 @@ export function PendingBalancesCard({ saldos }: PendingBalancesCardProps) {
             {/* Bloque inline: total + count en una sola línea */}
             <div className="mb-6 flex items-center justify-between gap-4 rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3">
               <div>
-                <p className="text-[11px] font-medium uppercase tracking-wide text-destructive opacity-70">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-destructive-text opacity-70">
                   Saldo total
                 </p>
-                <p className="text-xl font-semibold text-destructive sm:text-2xl">
+                <p className="text-xl font-semibold text-destructive-text sm:text-2xl">
                   {formatCLP(total)}
                 </p>
               </div>
@@ -101,7 +101,7 @@ export function PendingBalancesCard({ saldos }: PendingBalancesCardProps) {
                       <p className="text-[10px] uppercase tracking-wide text-muted-foreground opacity-70">
                         Saldo
                       </p>
-                      <p className="text-sm font-bold text-destructive">
+                      <p className="text-sm font-bold text-destructive-text">
                         {formatCLP(item.pending)}
                       </p>
                     </div>

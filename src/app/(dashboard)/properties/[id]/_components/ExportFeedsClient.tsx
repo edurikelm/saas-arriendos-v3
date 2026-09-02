@@ -180,7 +180,7 @@ export function ExportFeedsClient({
                         size="sm"
                         disabled={!isPro}
                         onClick={() => setRevokingChannel(value)}
-                        className="text-muted-foreground hover:text-destructive"
+                        className="text-muted-foreground hover:text-destructive-text"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

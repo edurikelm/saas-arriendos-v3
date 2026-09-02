@@ -83,7 +83,7 @@ const GROUP_LABEL: Record<CobranzaGroupKey, string> = {
  * 0.78 de lightness sobre card blanco no alcanza contraste AA.
  */
 const GROUP_TEXT: Record<CobranzaGroupKey, string> = {
-  OVERDUE: "text-destructive",
+  OVERDUE: "text-destructive-text",
   DUE_SOON: "text-warning-foreground",
 };
 

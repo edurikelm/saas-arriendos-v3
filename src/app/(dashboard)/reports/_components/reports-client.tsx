@@ -599,7 +599,7 @@ export function ReportsClient({
           {topDebtors.length > 0 && (
             <section aria-labelledby="reports-top-debtors-heading" className="rounded-lg border border-border bg-card p-4 pr-6 overflow-hidden">
               <div className="flex items-center gap-2 mb-3">
-                <AlertTriangle className="size-4 text-destructive" aria-hidden="true" />
+                <AlertTriangle className="size-4 text-destructive-text" aria-hidden="true" />
                 <p className="text-xs font-bold text-foreground uppercase tracking-wider">
                   Top deudores{topDebtors.length < 5 ? ` (${topDebtors.length})` : ""}
                 </p>
@@ -608,7 +608,7 @@ export function ReportsClient({
                 {topDebtors.map((debtor) => (
                   <div key={debtor.propertyId} className="flex items-center justify-between">
                     <span className="text-sm text-foreground truncate pr-4">{debtor.propertyName}</span>
-                    <span className="text-sm font-medium tabular-nums text-destructive shrink-0">
+                    <span className="text-sm font-medium tabular-nums text-destructive-text shrink-0">
                       {formatCLP(debtor.outstandingBalance)}
                     </span>
                   </div>

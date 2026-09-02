@@ -158,7 +158,7 @@ export function UrgentCollectionCard({
               disabled={vencidos.length === 0}
               className="gap-2"
             >
-              <AlertTriangle className="size-4 text-destructive" />
+              <AlertTriangle className="size-4 text-destructive-text" />
               Vencidos
               {vencidos.length > 0 ? (
                 <Badge variant="destructive" className="ml-1">

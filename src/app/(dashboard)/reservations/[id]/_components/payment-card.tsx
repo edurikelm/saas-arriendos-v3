@@ -186,7 +186,7 @@ export function PaymentCard({
     delete: {
       label: "Eliminar pago",
       icon: Trash2,
-      className: "text-muted-foreground hover:text-destructive",
+      className: "text-muted-foreground hover:text-destructive-text",
       onClick: () => onDeletePayment?.(payment.id),
     },
   };

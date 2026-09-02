@@ -434,7 +434,7 @@ export function ReservationsListClient({
                   variant="ghost"
                   size="sm"
                   onClick={clearAllFilters}
-                  className="h-8 px-3 text-xs font-bold text-muted-foreground hover:text-destructive transition-colors"
+                  className="h-8 px-3 text-xs font-bold text-muted-foreground hover:text-destructive-text transition-colors"
                 >
                   <X className="mr-1.5 h-3.5 w-3.5" />
                   Limpiar filtros

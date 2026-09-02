@@ -42,7 +42,7 @@ const pillToneClasses: Record<string, string> = {
   success: "border-success/20 bg-success/10 text-success",
   info: "border-info/20 bg-info/10 text-info",
   warning: "border-warning/25 bg-warning/10 text-warning",
-  destructive: "border-destructive/25 bg-destructive/10 text-destructive",
+  destructive: "border-destructive/25 bg-destructive/10 text-destructive-text",
   neutral: "border-muted bg-muted text-muted-foreground",
 };
 
@@ -141,7 +141,7 @@ export function ReservationListItem({
           <div className="flex items-stretch gap-2">
             <div className={`w-0.5 rounded-full ${verticalBarClasses[paymentTone]}`} />
             <div className="flex flex-col">
-              <p className={`text-xs font-bold ${paymentTone === "success" ? "text-success" : paymentTone === "warning" ? "text-foreground" : "text-destructive"}`}>
+              <p className={`text-xs font-bold ${paymentTone === "success" ? "text-success" : paymentTone === "warning" ? "text-foreground" : "text-destructive-text"}`}>
                 {finLabel}
               </p>
               <p className="text-[10px] text-muted-foreground">{finSubtext}</p>

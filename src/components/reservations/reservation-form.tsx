@@ -205,7 +205,7 @@ export function ReservationForm({
                 aria-describedby={errors.propertyId ? "propertyId-error" : undefined}
               />
               {errors.propertyId && (
-                <p id="propertyId-error" className="text-xs text-destructive mt-1">{errors.propertyId.message}</p>
+                <p id="propertyId-error" className="text-xs text-destructive-text mt-1">{errors.propertyId.message}</p>
               )}
             </div>
 
@@ -226,7 +226,7 @@ export function ReservationForm({
                 aria-describedby={errors.clientId ? "clientId-error" : undefined}
               />
               {errors.clientId && (
-                <p id="clientId-error" className="text-xs text-destructive mt-1">{errors.clientId.message}</p>
+                <p id="clientId-error" className="text-xs text-destructive-text mt-1">{errors.clientId.message}</p>
               )}
             </div>
           </div>
@@ -290,7 +290,7 @@ export function ReservationForm({
                   </button>
                 </div>
                 {errors.billingType && (
-                  <p className="text-xs text-destructive">{errors.billingType.message}</p>
+                  <p className="text-xs text-destructive-text">{errors.billingType.message}</p>
                 )}
                 {!selectedProperty?.monthlyPrice && selectedProperty && (
                   <p className="text-[10px] text-muted-foreground mt-1">Esta propiedad no tiene precio mensual configurado</p>
@@ -309,7 +309,7 @@ export function ReservationForm({
                     blockedDates={blockedDates}
                   />
                   {(errors.startDate || errors.endDate) && (
-                    <p id="startDate-error" className="text-xs text-destructive">
+                    <p id="startDate-error" className="text-xs text-destructive-text">
                       {errors.startDate?.message || errors.endDate?.message}
                     </p>
                   )}
@@ -336,7 +336,7 @@ export function ReservationForm({
                       mode="single"
                     />
                     {errors.startDate && (
-                      <p className="text-xs text-destructive mt-1">{errors.startDate.message}</p>
+                      <p className="text-xs text-destructive-text mt-1">{errors.startDate.message}</p>
                     )}
                   </div>
 
@@ -359,7 +359,7 @@ export function ReservationForm({
                       placeholder="Ej: 3"
                     />
                     {errors.months && (
-                      <p id="months-error" className="text-xs text-destructive mt-1">{errors.months.message}</p>
+                      <p id="months-error" className="text-xs text-destructive-text mt-1">{errors.months.message}</p>
                     )}
                   </div>
                 </div>
@@ -381,7 +381,7 @@ export function ReservationForm({
                   className="h-9 bg-card"
                 />
                 {errors.unitsBooked && (
-                  <p id="unitsBooked-error" className="text-xs text-destructive mt-1">{errors.unitsBooked.message}</p>
+                  <p id="unitsBooked-error" className="text-xs text-destructive-text mt-1">{errors.unitsBooked.message}</p>
                 )}
                 {selectedProperty && (
                   <p className="text-[10px] text-muted-foreground">Disponibles: {selectedProperty.unitsAvailable}</p>
@@ -475,7 +475,7 @@ export function ReservationForm({
             placeholder="Notas para esta reserva..."
           />
           {errors.notes && (
-            <p id="notes-error" className="text-xs text-destructive mt-1">{errors.notes.message}</p>
+            <p id="notes-error" className="text-xs text-destructive-text mt-1">{errors.notes.message}</p>
           )}
         </div>
       </form>

@@ -218,7 +218,7 @@ export function NewTicketForm() {
           placeholder="Ej: Problema con el calendario de reservas"
         />
         {errors.subject && (
-          <p className="text-sm text-destructive">{errors.subject.message}</p>
+          <p className="text-sm text-destructive-text">{errors.subject.message}</p>
         )}
       </div>
 
@@ -250,7 +250,7 @@ export function NewTicketForm() {
           )}
         />
         {errors.category && (
-          <p className="text-sm text-destructive">{errors.category.message}</p>
+          <p className="text-sm text-destructive-text">{errors.category.message}</p>
         )}
       </div>
 
@@ -316,7 +316,7 @@ export function NewTicketForm() {
           )}
         />
         {errors.priority && (
-          <p className="text-sm text-destructive">{errors.priority.message}</p>
+          <p className="text-sm text-destructive-text">{errors.priority.message}</p>
         )}
       </div>
 
@@ -338,7 +338,7 @@ export function NewTicketForm() {
           rows={6}
         />
         {errors.description && (
-          <p className="text-sm text-destructive">{errors.description.message}</p>
+          <p className="text-sm text-destructive-text">{errors.description.message}</p>
         )}
       </div>
 

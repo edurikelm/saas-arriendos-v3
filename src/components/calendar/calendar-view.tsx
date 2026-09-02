@@ -447,7 +447,7 @@ export function CalendarView({
               onClick={handleToggleCancelled}
               className={`h-8 rounded-md border px-3 text-[10px] font-bold uppercase tracking-wider transition-colors ${
                 showCancelled
-                  ? "border-destructive/30 bg-destructive/10 text-destructive"
+                  ? "border-destructive/30 bg-destructive/10 text-destructive-text"
                   : "border-border bg-transparent text-muted-foreground hover:text-foreground"
               }`}
             >

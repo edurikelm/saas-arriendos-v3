@@ -266,7 +266,7 @@ export function PaymentsTable({
                     {statusCfg.label}
                   </Badge>
                   {isPending && payment.overdueDays != null && payment.overdueDays > 0 && (
-                    <p className="text-[10px] text-destructive">
+                    <p className="text-[10px] text-destructive-text">
                       Vencido hace {payment.overdueDays} {payment.overdueDays === 1 ? "día" : "días"}
                     </p>
                   )}

@@ -63,7 +63,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
               {...register("password")}
             />
             {errors.password && (
-              <p className="text-sm text-destructive">{errors.password.message}</p>
+              <p className="text-sm text-destructive-text">{errors.password.message}</p>
             )}
           </div>
           <div className="space-y-2">
@@ -74,7 +74,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
               {...register("confirmPassword")}
             />
             {errors.confirmPassword && (
-              <p className="text-sm text-destructive">{errors.confirmPassword.message}</p>
+              <p className="text-sm text-destructive-text">{errors.confirmPassword.message}</p>
             )}
           </div>
           <Button type="submit" className="w-full" disabled={isSubmitting}>

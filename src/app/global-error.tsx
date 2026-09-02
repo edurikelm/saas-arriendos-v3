@@ -15,7 +15,7 @@ export default function GlobalError({
       <body className="min-h-screen bg-background font-sans antialiased">
         <div className="flex min-h-[100vh] flex-col items-center justify-center gap-4 text-center p-4">
           <div className="rounded-full bg-destructive/10 p-4">
-            <AlertCircle className="h-8 w-8 text-destructive" />
+            <AlertCircle className="h-8 w-8 text-destructive-text" />
           </div>
           <div className="space-y-2">
             <h2 className="text-xl font-semibold">Something went wrong</h2>

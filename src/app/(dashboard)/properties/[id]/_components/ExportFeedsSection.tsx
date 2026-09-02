@@ -45,7 +45,7 @@ export async function ExportFeedsSection({ propertyId }: ExportFeedsSectionProps
   if ("error" in feedsResult) {
     return (
       <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
-        <p className="text-sm text-destructive">{feedsResult.error}</p>
+        <p className="text-sm text-destructive-text">{feedsResult.error}</p>
       </div>
     );
   }

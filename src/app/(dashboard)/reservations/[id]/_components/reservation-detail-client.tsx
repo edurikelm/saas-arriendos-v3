@@ -386,7 +386,7 @@ function ReservationSummaryCard({
   // Tono del ícono arrow que indica dirección temporal Desde → Hasta.
   const arrowTone =
     status === "CANCELLED"
-      ? "text-destructive/60"
+      ? "text-destructive-text/60"
       : status === "COMPLETED"
         ? "text-muted-foreground/60"
         : "text-primary/70";

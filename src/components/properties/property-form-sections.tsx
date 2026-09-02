@@ -37,7 +37,7 @@ interface PropertyFormSectionsProps {
 }
 
 const labelClassName = "text-xs font-bold text-muted-foreground uppercase tracking-tighter mb-1";
-const errorClassName = "text-xs text-destructive mt-1";
+const errorClassName = "text-xs text-destructive-text mt-1";
 
 export function PropertyFormSections({
   id,

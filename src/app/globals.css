@@ -20,6 +20,12 @@
   --accent-foreground: #131f1a;
   --destructive: oklch(0.6368 0.2078 25.3313);
   --destructive-foreground: oklch(1.0000 0 0);
+  /* Rojo legible COMO TEXTO sobre --card. --destructive queda para rellenos
+     (botones, barras) y --destructive-foreground es el blanco que va encima
+     de ellos, asi que ninguno de los dos sirve para texto sobre card: el
+     primero mide 3.76:1 en claro y el segundo 1.00:1. Espeja el patron de
+     --success/warning/info-foreground, que ya tienen su companero legible. */
+  --destructive-text: oklch(0.5500 0.1900 25.3313);
   --border: oklch(0.9276 0.0058 264.5313);
   --input: oklch(0.9276 0.0058 264.5313);
   --ring: oklch(0.7227 0.1920 149.5793);
@@ -93,6 +99,11 @@
   --accent-foreground: #f1f5f9;
   --destructive: oklch(0.6368 0.2078 25.3313);
   --destructive-foreground: #f1f5f9;
+  /* En oscuro hay que ACLARAR, no oscurecer: sobre #0d1c2d el valor claro
+     (L=0.55) cae a 3.22:1. El rojo de relleno (L=0.6368) alcanza 4.63:1
+     sobre card pero solo 4.16:1 sobre bg-destructive/10, que es un combo
+     real del producto. L=0.68 pasa los dos: 5.46:1 y 4.90:1. Medido. */
+  --destructive-text: oklch(0.6800 0.1900 25.3313);
   --border: #1e293b;
   --input: #1e293b;
   --ring: #2DBE85;
@@ -162,6 +173,7 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-text: var(--destructive-text);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);

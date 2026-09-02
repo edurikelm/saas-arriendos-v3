@@ -81,7 +81,7 @@ export function PaymentsTimeline({
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
                 Cuotas vencidas
               </p>
-              <p className="text-sm font-medium text-destructive">
+              <p className="text-sm font-medium text-destructive-text">
                 Tienes {overdueCount} cuota{overdueCount > 1 ? "s" : ""} vencida{overdueCount > 1 ? "s" : ""} · {formatPrice(overdueAmount)}
               </p>
             </div>

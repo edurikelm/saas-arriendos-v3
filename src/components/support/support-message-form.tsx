@@ -110,7 +110,7 @@ export function SupportMessageForm({
               aria-invalid={!!errors.content}
             />
             {errors.content?.message && (
-              <p className="text-xs text-destructive mt-1">
+              <p className="text-xs text-destructive-text mt-1">
                 {errors.content.message}
               </p>
             )}
