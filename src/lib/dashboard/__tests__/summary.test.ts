@@ -247,6 +247,109 @@ describe("buildDashboardSummary", () => {
     expect(summary.collection.pendingCount).toBe(3); // 3 cobros (cuotas), no 1 reserva
   });
 
+  // ── #238: el encabezado "Vencidos" contaba plata que no estaba vencida ──
+  //
+  // El desglose por grupo repartia la fila ENTERA al grupo de su estado, asi
+  // que las cuotas por vencer de una reserva con deuda vencida entraban al
+  // subtotal "Vencidos". Con dos reservas (2 vencidas + 1 por vencer / 1
+  // vencida) el encabezado decia 4 cobros vencidos cuando eran 3 — y el
+  // subtitulo del header de la pagina, en la misma pantalla, decia 3.
+  const cuotasMensuales = (dueDates: string[], amount: number) =>
+    dueDates.map((dueDate) =>
+      makePayment({
+        amount,
+        status: "PENDING",
+        paymentType: "RESERVATION",
+        dueDate: new Date(dueDate),
+      }),
+    );
+
+  function twoReservationsMixedBuckets() {
+    return [
+      // Victor: 2 cuotas vencidas (jul, ago) + 1 por vencer en 4 dias (sept).
+      makeReservation({
+        billingType: "MONTHLY",
+        status: "CONFIRMED",
+        startDate: new Date("2026-07-01T00:00:00.000Z"),
+        endDate: new Date("2026-09-30T00:00:00.000Z"),
+        totalPrice: 750_000,
+        payments: cuotasMensuales(
+          ["2026-07-01T00:00:00.000Z", "2026-08-01T00:00:00.000Z", "2026-09-01T00:00:00.000Z"],
+          250_000,
+        ),
+      }),
+      // Gladys: 1 cuota vencida, nada por vencer en la ventana.
+      makeReservation({
+        billingType: "MONTHLY",
+        status: "CONFIRMED",
+        startDate: new Date("2026-08-01T00:00:00.000Z"),
+        endDate: new Date("2026-08-31T00:00:00.000Z"),
+        totalPrice: 300_000,
+        payments: cuotasMensuales(["2026-08-01T00:00:00.000Z"], 300_000),
+      }),
+    ];
+  }
+
+  it('el subtotal "Vencidos" cuenta solo cuotas vencidas, no la fila entera — repro #238', () => {
+    const now = new Date("2026-08-28T18:00:00.000Z");
+
+    const summary = buildDashboardSummary(buildInput(twoReservationsMixedBuckets(), { now }));
+
+    const { OVERDUE, DUE_SOON } = summary.collection.windowGroups;
+
+    // 3 cuotas vencidas (2 de Victor + 1 de Gladys), NO 4: la cuota de sept
+    // de Victor no esta vencida aunque su fila se renderice bajo "Vencidos".
+    expect(OVERDUE.count).toBe(3);
+    expect(OVERDUE.amount).toBe(800_000); // 250k + 250k + 300k
+    expect(DUE_SOON.count).toBe(1);
+    expect(DUE_SOON.amount).toBe(250_000); // la cuota de sept de Victor
+
+    // El encabezado del card y el subtitulo del header son EL MISMO numero.
+    expect(summary.collection.overdueInstallmentsCount).toBe(OVERDUE.count);
+    expect(summary.collection.overdueAmount).toBe(OVERDUE.amount);
+
+    // Invariante: los dos encabezados siguen cerrando con el footer.
+    expect(OVERDUE.count + DUE_SOON.count).toBe(summary.collection.windowCount);
+    expect(OVERDUE.amount + DUE_SOON.amount).toBe(summary.collection.windowAmount);
+  });
+
+  it("reporta la porcion truncada de cada grupo, para que ningun cobro desaparezca del card", () => {
+    const now = new Date("2026-08-28T18:00:00.000Z");
+    const reservations = [
+      ...twoReservationsMixedBuckets(),
+      // Tercera reserva, sin deuda vencida: cae en el grupo "por vencer" y es
+      // la primera en quedar fuera del corte (el orden es OVERDUE primero).
+      makeReservation({
+        billingType: "MONTHLY",
+        status: "CONFIRMED",
+        startDate: new Date("2026-08-01T00:00:00.000Z"),
+        endDate: new Date("2026-09-30T00:00:00.000Z"),
+        totalPrice: 150_000,
+        payments: cuotasMensuales(["2026-09-01T00:00:00.000Z"], 150_000),
+      }),
+    ];
+
+    const summary = buildDashboardSummary(
+      buildInput(reservations, { now, collectionLimit: 2 }),
+    );
+
+    expect(summary.collectionItems).toHaveLength(2); // las dos filas vencidas
+
+    const { OVERDUE, DUE_SOON } = summary.collection.windowGroups;
+
+    // Nada vencido quedo fuera: las dos filas OVERDUE son las visibles.
+    expect(OVERDUE.hiddenCount).toBe(0);
+    expect(OVERDUE.hiddenAmount).toBe(0);
+
+    // El grupo "por vencer" no tiene ninguna fila visible propia: sus 2
+    // cobros son la cuota de sept de Victor (visible dentro de SU fila) y la
+    // reserva truncada. Solo esta ultima es invisible en el card.
+    expect(DUE_SOON.count).toBe(2);
+    expect(DUE_SOON.amount).toBe(400_000);
+    expect(DUE_SOON.hiddenCount).toBe(1);
+    expect(DUE_SOON.hiddenAmount).toBe(150_000);
+  });
+
   it("contrato MONTHLY largo (12 cuotas, 2 vencidas, próxima a 30 días) usa el monto de la ventana, NO totalToCollect del año completo", () => {
     const now = new Date("2026-08-28T18:00:00.000Z");
     // 2 cuotas vencidas ($250k c/u) + 10 cuotas futuras, la más próxima a

@@ -130,6 +130,44 @@ describe("DashboardCobranzaList", () => {
     expectInDoc(screen.queryByRole("heading", { name: "Por vencer · 2" }));
   });
 
+  // Los subtotales cubren la ventana completa mientras las filas vienen
+  // truncadas, asi que el card tiene que decir cuanto no esta mostrando —
+  // si no, el footer queda mayor que la suma visible sin explicacion (#238).
+  it("anuncia los cobros truncados de un grupo con '+N cobros mas'", () => {
+    render(
+      <DashboardCobranzaList
+        items={items}
+        viewAllHref="/payments"
+        groupTotals={{
+          OVERDUE: { amount: 3750000, count: 8, hiddenAmount: 1850000, hiddenCount: 5 },
+          DUE_SOON: { amount: 410000, count: 2, hiddenAmount: 0, hiddenCount: 0 },
+        }}
+      />
+    );
+
+    expectInDoc(screen.queryByText(/\+5 cobros más · \$1\.850\.000/));
+  });
+
+  // Antes, un grupo sin filas visibles se filtraba entero: con 4+ reservas
+  // vencidas "Por vencer" desaparecia y su plata solo aparecia en el footer.
+  it("renderiza el encabezado de un grupo con subtotal > 0 aunque no tenga filas visibles", () => {
+    const soloVencidos = items.filter((item) => item.bucket === "OVERDUE");
+
+    render(
+      <DashboardCobranzaList
+        items={soloVencidos}
+        viewAllHref="/payments"
+        groupTotals={{
+          OVERDUE: { amount: 400000, count: 1, hiddenAmount: 0, hiddenCount: 0 },
+          DUE_SOON: { amount: 560000, count: 2, hiddenAmount: 560000, hiddenCount: 2 },
+        }}
+      />
+    );
+
+    expectInDoc(screen.queryByRole("heading", { name: "Por vencer · 2" }));
+    expectInDoc(screen.queryByText(/\+2 cobros más · \$560\.000/));
+  });
+
   it("expresa el vencimiento en términos relativos además de la fecha", () => {
     render(<DashboardCobranzaList items={items} viewAllHref="/payments" />);
 
