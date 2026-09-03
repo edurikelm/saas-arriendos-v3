@@ -265,7 +265,7 @@ export function ReservationsListClient({
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 placeholder="Buscar por nombre, propiedad o palabra clave..."
-                className="h-10 w-full rounded-lg border border-border bg-card pl-12 pr-4 text-sm text-foreground outline-none placeholder:text-muted-foreground transition-all focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:border-ring"
+                className="h-10 w-full rounded-lg border border-border bg-card pl-12 pr-4 text-sm text-foreground outline-none placeholder:text-muted-foreground transition-all focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:border-ring"
               />
             </div>
 

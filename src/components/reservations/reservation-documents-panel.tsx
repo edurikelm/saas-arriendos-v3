@@ -385,7 +385,7 @@ function FileInput({
     <button
       type="button"
       onClick={handleClick}
-      className="flex w-full cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed border-muted-foreground/25 p-5 text-center transition-colors hover:border-muted-foreground/50 hover:bg-muted/30 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus:outline-none"
+      className="flex w-full cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed border-muted-foreground/25 p-5 text-center transition-colors hover:border-muted-foreground/50 hover:bg-muted/30 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/60 focus:outline-none"
     >
       <UploadCloud className="size-7 text-muted-foreground/60 mb-1.5" aria-hidden="true" />
       <p className="text-xs font-medium text-foreground">Seleccionar archivo</p>
