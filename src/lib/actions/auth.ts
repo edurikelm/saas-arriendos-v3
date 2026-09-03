@@ -51,7 +51,10 @@ export async function loginAction(data: LoginInput) {
     userId: user.id,
     role: user.role,
     status: user.status,
-    plan: user.plan,
+    // Sin `plan`: el token se firma una vez y el plan cambia despues. Nadie lo
+    // leia (getSession solo saca `userId` y vuelve a la base), pero dejarlo era
+    // una trampa: el dia que alguien lo use en un middleware edge —donde no hay
+    // Prisma— el downgrade tardaria hasta el proximo login.
     email: user.email,
   })
     .setProtectedHeader({ alg: "HS256" })
@@ -96,7 +99,7 @@ export async function registerAction(data: RegisterApiInput) {
   const token = await new SignJWT({
     userId: user.id,
     role: user.role,
-    plan: user.plan,
+    // Sin `plan`: ver el comentario en `login`.
     email: user.email,
   })
     .setProtectedHeader({ alg: "HS256" })

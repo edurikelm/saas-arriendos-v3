@@ -8,6 +8,8 @@ import type { OwnerUsage } from "@/lib/actions/subscriptions";
 type PlanAlertBannerProps = {
   subscription: Subscription | null;
   usage: OwnerUsage;
+  /** Plan efectivo del owner — `session.plan`. Ver `VariantInput.plan`. */
+  plan: string | null;
 };
 
 /**
@@ -31,8 +33,9 @@ type PlanAlertBannerProps = {
 export function PlanAlertBanner({
   subscription,
   usage,
+  plan,
 }: PlanAlertBannerProps) {
-  const variant = resolveVariant({ subscription, usage });
+  const variant = resolveVariant({ subscription, usage, plan });
   if (variant === null) return null;
 
   const isNearLimit = variant === "free-near-limit";
@@ -70,26 +73,37 @@ export function PlanAlertBanner({
 type VariantInput = {
   subscription: Subscription | null;
   usage: OwnerUsage;
+  /**
+   * Plan EFECTIVO del owner (`session.plan`, ya resuelto por
+   * `resolveEffectivePlan`). Antes este componente decidia si el owner estaba
+   * en FREE a partir de `subscription.status`, o sea con una CUARTA regla
+   * propia — y por eso mostraba el banner de FREE a un owner cuyo plan
+   * efectivo era PRO, contradiciendo al badge del sidebar en la misma
+   * pantalla. Ahora la pregunta "en que plan esta" la responde una sola
+   * funcion y este componente solo decide QUE mostrar.
+   */
+  plan: string | null;
 };
 
 function resolveVariant({
   subscription,
   usage,
+  plan,
 }: VariantInput): "free-near-limit" | "cancelled" | null {
-  const status = subscription?.status ?? null;
   const now = new Date();
   const periodEnd = subscription?.currentPeriodEnd ?? null;
 
-  if (status === "CANCELLED" && periodEnd !== null && periodEnd > now) {
+  // Sigue en PRO pero con la subscription cancelada: le queda periodo pagado.
+  if (
+    plan === "PRO" &&
+    subscription?.status === "CANCELLED" &&
+    periodEnd !== null &&
+    periodEnd > now
+  ) {
     return "cancelled";
   }
 
-  const isFreeOrDowngraded =
-    status === null ||
-    status === "CANCELLED" ||
-    status === "EXPIRED" ||
-    status === "FAILED";
-  if (!isFreeOrDowngraded) return null;
+  if (plan !== "FREE") return null;
 
   const nearLimit = usage.properties >= 2 || usage.clients >= 4;
   return nearLimit ? "free-near-limit" : null;

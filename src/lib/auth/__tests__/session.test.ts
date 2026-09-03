@@ -45,7 +45,10 @@ function mockDbUser(overrides: Record<string, unknown> = {}) {
   return {
     id: "user-1",
     role: "OWNER",
-    plan: "FREE",
+    // `plan` ya no se selecciona: el plan efectivo se deriva del override + la
+    // subscription (ver resolveEffectivePlan).
+    planOverride: null,
+    subscription: null,
     email: "u@test.com",
     status: "ACTIVE",
     ...overrides,
@@ -116,7 +119,11 @@ describe("getSession", () => {
     cookieStoreMock.get.mockReturnValue({ value: "token" });
     jwtVerifyMock.mockResolvedValue({ payload: { userId: "user-1" } });
     findUniqueMock.mockResolvedValue(
-      mockDbUser({ role: "OWNER", plan: "PRO", email: "owner@test.com" })
+      mockDbUser({
+        role: "OWNER",
+        email: "owner@test.com",
+        subscription: { status: "AUTHORIZED", currentPeriodEnd: new Date("2099-01-01") },
+      })
     );
 
     const result = await getSession();
@@ -128,6 +135,37 @@ describe("getSession", () => {
       email: "owner@test.com",
       status: "ACTIVE",
     });
+  });
+
+  // Las dos vias al PRO efectivo, que antes eran la misma columna.
+  it("PRO derivado de la subscription, sin override", async () => {
+    cookieStoreMock.get.mockReturnValue({ value: "token" });
+    jwtVerifyMock.mockResolvedValue({ payload: { userId: "user-1" } });
+    findUniqueMock.mockResolvedValue(
+      mockDbUser({ subscription: { status: "AUTHORIZED", currentPeriodEnd: null } })
+    );
+
+    expect((await getSession())?.plan).toBe("PRO");
+  });
+
+  it("PRO por concesion de admin, sin ninguna subscription", async () => {
+    cookieStoreMock.get.mockReturnValue({ value: "token" });
+    jwtVerifyMock.mockResolvedValue({ payload: { userId: "user-1" } });
+    findUniqueMock.mockResolvedValue(mockDbUser({ planOverride: "PRO" }));
+
+    expect((await getSession())?.plan).toBe("PRO");
+  });
+
+  // El caso real que motivo el rediseno: cancelada, sin periodo pagado que
+  // honrar. Antes la regla concedia PRO indefinidamente.
+  it("subscription CANCELLED sin periodo: FREE", async () => {
+    cookieStoreMock.get.mockReturnValue({ value: "token" });
+    jwtVerifyMock.mockResolvedValue({ payload: { userId: "user-1" } });
+    findUniqueMock.mockResolvedValue(
+      mockDbUser({ subscription: { status: "CANCELLED", currentPeriodEnd: null } })
+    );
+
+    expect((await getSession())?.plan).toBe("FREE");
   });
 });
 

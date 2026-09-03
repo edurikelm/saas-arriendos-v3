@@ -141,7 +141,15 @@ model UserProfile {
   password                   String
   role                       UserRole   @default(OWNER)
   status                     UserStatus @default(ACTIVE)
+  /// DENORMALIZADO — no es la autoridad del plan. La verdad se deriva de
+  /// `subscription` via `resolveEffectivePlan` (@/lib/subscriptions/effective-plan).
+  /// Se mantiene para las vistas de admin, que muestran el registro tal cual.
+  /// Ninguna superficie de owner debe leerlo: hay un test de guardia.
   plan                       Plan?      @default(FREE)
+  /// Concesión manual de un admin. `null` = derivar de la subscription.
+  /// Solo guarda PRO: un override de FREE le quitaría el plan a alguien que
+  /// paga, y para cortar el acceso existe cancelar la subscription.
+  planOverride               Plan?
   notificationsEmailEnabled  Boolean    @default(true)
   notificationsSmsEnabled    Boolean    @default(false)
   avatarUrl                  String?

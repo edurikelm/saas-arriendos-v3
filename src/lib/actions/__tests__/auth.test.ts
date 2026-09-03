@@ -72,7 +72,8 @@ describe("getSession", () => {
     vi.mocked(prisma.userProfile.findUnique).mockResolvedValue({
       id: "user-1",
       role: "OWNER",
-      plan: "PRO",
+      planOverride: null,
+      subscription: { status: "AUTHORIZED", currentPeriodEnd: new Date("2099-01-01") },
       email: "active@test.com",
       status: "ACTIVE",
     } as any);
