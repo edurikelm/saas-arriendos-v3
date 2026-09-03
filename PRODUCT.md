@@ -32,6 +32,45 @@ A B2B SaaS that helps property owners (hosts/anfitriones) manage short-term and 
 - **FREE** — 3 properties max, 5 clients max, limited reports.
 - **PRO** — unlimited properties, unlimited clients, full reports, iCal sync.
 
+### Downgrade: what happens to resources over the limit
+
+**Nothing is taken away. The limit blocks creation, never operation.**
+
+An owner who drops from PRO to FREE with 7 properties keeps all 7: they stay
+visible, editable, and fully operational — reservations, calendar, payments and
+collections included. What they cannot do is create the 8th. The only automatic
+side effect is the soft-stop of iCal resources, which are a PRO feature
+(external calendars and channel blocks go inactive; see #220).
+
+**Why not lock or hide the excess**, which is what comparable products do:
+
+- Figma locks editing until you move files out and get within the limit.
+- Hospitable — vacation rental software, same vertical — auto-mutes properties
+  beyond the plan limit; muting stops calendar sync, messaging and pricing sync.
+
+Both can do that because **the obligation lives elsewhere**: a Figma file has no
+guest, and Hospitable's bookings live on Airbnb or Booking, so muting stops
+their software's activity, not the host's business.
+
+RentalPro is the system of record. The reservation, the client and the payments
+live here. Locking a property whose guest arrives tomorrow does not remove an
+integration — it removes the operation: the owner could not see who is checking
+in, or register the payment of someone already staying. **A billing limit must
+never stand between an owner and a guest who is physically in the property.**
+
+**The UI must say this plainly.** Over the limit, the banner states the real
+numbers ("Tu plan FREE permite 3 propiedades y tienes 7") and that what already
+exists keeps working. Saying "cerca del límite" to someone four above it is
+false, and a product whose first brand value is *Trustworthy* cannot afford
+false statements about the plan the customer pays for.
+
+**If enforcement is ever needed**, the safe equivalent of muting here is
+archiving only the *inert* excess: properties with no future reservations and no
+pending payments. Those carry no live obligation, so archiving them breaks
+nothing — and they are typically the excess of an owner who downgraded because
+they stopped using them. With a grace period and advance notice, per standard
+practice. Not implemented; deliberately deferred.
+
 ## Voice and tone
 
 Written for an operator who manages the business daily, not a tourist booking a stay. Direct, factual, status-oriented. Spanish throughout. Numbers shown as CLP ($1.234.567), dates in es-CL format (15 ago 2026).
