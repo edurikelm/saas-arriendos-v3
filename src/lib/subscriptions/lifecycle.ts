@@ -125,7 +125,17 @@ function targetStatusFor(eventType: SubscriptionEventType): SubscriptionStatus |
  * Las transiciones que disparan downgrade: AUTHORIZED → EXPIRED/FAILED.
  */
 function eventTriggersPlanChange(eventType: SubscriptionEventType): boolean {
-  return eventType === "authorized" || eventType === "expired" || eventType === "failed";
+  return (
+    eventType === "authorized" ||
+    eventType === "expired" ||
+    // `expired_check` faltaba. Es el evento del cron diario y el UNICO que
+    // detecta el vencimiento en la practica, porque MP no emite `expired` para
+    // `preapproval`: sin el, la columna `plan` se quedaba en PRO para siempre
+    // despues de un vencimiento. Ya no afecta al plan efectivo (que se deriva),
+    // pero mantiene el dato denormalizado de admin sincronizado.
+    eventType === "expired_check" ||
+    eventType === "failed"
+  );
 }
 
 // ────────────────────────────────────────────────────────────────────────────

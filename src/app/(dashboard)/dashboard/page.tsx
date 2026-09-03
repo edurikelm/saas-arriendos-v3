@@ -292,7 +292,7 @@ export default async function DashboardPage() {
 
       {/* 1b. Plan alert banner — solo aparece si FREE cerca del límite
             o CANCELLED con período vigente. self-nulling en estado estable. */}
-      <PlanAlertBanner subscription={subscription} usage={usage} />
+      <PlanAlertBanner subscription={subscription} usage={usage} plan={session.plan} />
 
       {/* 2. KPI Grid (4 cards estilo Stitch).
             Mobile: 2 columnas (2x2 grid) para reducir la altura antes de

@@ -6,6 +6,7 @@ import { getSession, getSuperAdminSession } from "@/lib/auth/session";
 import { updateUserPlanSchema, createOwnerSchema } from "@/lib/validations/super-admin";
 import { hash } from "bcryptjs";
 import { revalidatePath } from "next/cache";
+import { revalidateAfterPlanChange } from "@/lib/subscriptions/revalidate-plan";
 import { sumCompletedPaymentsAll } from "@/lib/payments/queries";
 
 export async function getAllUsers(options?: {
@@ -142,17 +143,58 @@ export async function getUserStats(userId: string) {
   };
 }
 
+/**
+ * Concesión / revocación manual de PRO por un admin.
+ *
+ * Escribe `planOverride`, NO la columna `plan`: el plan efectivo se deriva de
+ * la subscription (`resolveEffectivePlan`) y el override es la única excepción
+ * legítima. Antes esto escribía `plan` directo, con dos consecuencias — la
+ * concesión quedaba indistinguible de una caché desactualizada, y podía ser
+ * anulada en silencio por una subscription cancelada vieja.
+ *
+ * `"PRO"` concede; `"FREE"` **revoca** (deja el override en `null` y vuelve a
+ * derivar), no fuerza FREE. Forzar FREE le quitaría el plan a alguien que está
+ * pagando; para cortar el acceso existe cancelar la subscription. Por eso el
+ * panel puede seguir ofreciendo dos opciones sin cambiar su UI.
+ */
 export async function updateUserPlan(data: { userId: string; plan: "FREE" | "PRO" }) {
-  if (!(await getSuperAdminSession())) return { error: "No autorizado" };
+  const session = await getSuperAdminSession();
+  if (!session) return { error: "No autorizado" };
 
   const validated = updateUserPlanSchema.parse(data);
+  const planOverride = validated.plan === "PRO" ? "PRO" : null;
 
   const user = await prisma.userProfile.update({
     where: { id: validated.userId },
-    data: { plan: validated.plan },
+    data: { planOverride },
+  });
+
+  // Antes no se registraba nada: un cambio de plan por admin no dejaba rastro
+  // en AdminActionLog, así que después era imposible saber si un PRO venía de
+  // una concesión o de la caché. Ahora queda auditable.
+  // Antes no se registraba nada: un cambio de plan por admin no dejaba rastro
+  // en AdminActionLog, así que después era imposible saber si un PRO venía de
+  // una concesión o de la caché. Reusa la acción que `lifecycle` ya define
+  // para `source: "admin_manual"`, en vez de inventar un vocabulario nuevo.
+  await prisma.adminActionLog.create({
+    data: {
+      adminId: session.userId,
+      targetId: validated.userId,
+      action: "PLAN_CHANGED_MANUAL",
+      details: JSON.stringify({ planOverride, requested: validated.plan }),
+    },
   });
 
   revalidatePath("/admin/users");
+  // El badge del sidebar del owner vive en el layout: sin esto sigue mostrando
+  // el plan anterior hasta que el owner recargue entero. `from`/`to` van con
+  // el sentido del cambio de override — lo único que este helper mira es que
+  // sean distintos.
+  revalidateAfterPlanChange({
+    from: planOverride === "PRO" ? "FREE" : "PRO",
+    to: planOverride === "PRO" ? "PRO" : "FREE",
+    source: "admin_manual",
+  });
 
   return { success: true, user };
 }

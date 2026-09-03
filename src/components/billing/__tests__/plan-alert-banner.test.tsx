@@ -48,6 +48,7 @@ describe("<PlanAlertBanner />", () => {
       <PlanAlertBanner
         subscription={null}
         usage={{ ...baseUsage, properties: 0, clients: 0 }}
+        plan="FREE"
       />,
     );
     expect(container.firstChild).toBeNull();
@@ -55,7 +56,7 @@ describe("<PlanAlertBanner />", () => {
 
   it("no renderiza cuando el owner es PRO activo", () => {
     const { container } = render(
-      <PlanAlertBanner subscription={makeSub()} usage={baseUsage} />,
+      <PlanAlertBanner subscription={makeSub()} usage={baseUsage} plan="PRO" />,
     );
     expect(container.firstChild).toBeNull();
   });
@@ -65,6 +66,7 @@ describe("<PlanAlertBanner />", () => {
       <PlanAlertBanner
         subscription={null}
         usage={{ ...baseUsage, properties: 2, clients: 1 }}
+        plan="FREE"
       />,
     );
     expect(
@@ -80,6 +82,7 @@ describe("<PlanAlertBanner />", () => {
       <PlanAlertBanner
         subscription={null}
         usage={{ ...baseUsage, properties: 1, clients: 4 }}
+        plan="FREE"
       />,
     );
     expect(
@@ -93,6 +96,7 @@ describe("<PlanAlertBanner />", () => {
       <PlanAlertBanner
         subscription={null}
         usage={{ ...baseUsage, properties: 2, clients: 4 }}
+        plan="FREE"
       />,
     );
     expect(
@@ -105,7 +109,7 @@ describe("<PlanAlertBanner />", () => {
       status: "CANCELLED",
       cancelledAt: new Date(),
     });
-    render(<PlanAlertBanner subscription={sub} usage={baseUsage} />);
+    render(<PlanAlertBanner subscription={sub} usage={baseUsage} plan="PRO" />);
     expect(
       screen.getByText("Tu plan PRO está cancelándose"),
     ).toBeTruthy();
@@ -122,8 +126,41 @@ describe("<PlanAlertBanner />", () => {
       currentPeriodEnd: past,
     });
     const { container } = render(
-      <PlanAlertBanner subscription={sub} usage={baseUsage} />,
+      <PlanAlertBanner subscription={sub} usage={baseUsage} plan="FREE" />,
     );
+    expect(container.firstChild).toBeNull();
+  });
+
+  // El caso real: subscription CANCELLED sin periodo pagado. El plan efectivo
+  // ya es FREE (lo resuelve resolveEffectivePlan), asi que corresponde el
+  // banner de limite y NO el de "cancelandose" — que implicaria que todavia
+  // tiene PRO. Antes el componente decidia por su cuenta mirando el status.
+  it("CANCELLED sin periodo y plan efectivo FREE: banner de limite, no de cancelacion", () => {
+    const sub = makeSub({ status: "CANCELLED", currentPeriodEnd: null, cancelledAt: new Date() });
+    render(
+      <PlanAlertBanner
+        subscription={sub}
+        usage={{ ...baseUsage, properties: 7, clients: 5 }}
+        plan="FREE"
+      />,
+    );
+
+    expect(screen.getByText("Cerca del límite de tu plan FREE")).toBeTruthy();
+    expect(screen.queryByText("Tu plan PRO está cancelándose")).toBeNull();
+  });
+
+  // Y el inverso: sigue en PRO por override de admin aunque la subscription
+  // este cancelada. No corresponde ningun banner de limite.
+  it("plan efectivo PRO por override: no muestra banner de limite", () => {
+    const sub = makeSub({ status: "CANCELLED", currentPeriodEnd: null, cancelledAt: new Date() });
+    const { container } = render(
+      <PlanAlertBanner
+        subscription={sub}
+        usage={{ ...baseUsage, properties: 7, clients: 5 }}
+        plan="PRO"
+      />,
+    );
+
     expect(container.firstChild).toBeNull();
   });
 });

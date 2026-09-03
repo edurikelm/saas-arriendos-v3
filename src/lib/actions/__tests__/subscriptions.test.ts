@@ -738,7 +738,7 @@ describe("countOwnerUsage", () => {
   it("FREE: retorna límites 3/5", async () => {
     mocks.propertyCount.mockResolvedValue(2);
     mocks.reservationClientCount.mockResolvedValue(4);
-    mocks.userProfileFindUnique.mockResolvedValue({ plan: "FREE" });
+    mocks.userProfileFindUnique.mockResolvedValue({ planOverride: null, subscription: null });
 
     const result = await countOwnerUsage("user-1");
 
@@ -753,7 +753,10 @@ describe("countOwnerUsage", () => {
   it("PRO: retorna límites Infinity", async () => {
     mocks.propertyCount.mockResolvedValue(10);
     mocks.reservationClientCount.mockResolvedValue(50);
-    mocks.userProfileFindUnique.mockResolvedValue({ plan: "PRO" });
+    mocks.userProfileFindUnique.mockResolvedValue({
+      planOverride: null,
+      subscription: { status: "AUTHORIZED", currentPeriodEnd: new Date("2099-01-01") },
+    });
 
     const result = await countOwnerUsage("user-1");
 

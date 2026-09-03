@@ -5,6 +5,7 @@ import { getSuperAdminSession } from "@/lib/auth/session";
 import { isOverdueDateOnly, nowKeyInBusinessTz } from "@/lib/domain/timezone";
 import { Plan, UserStatus } from "@prisma/client";
 import { Prisma } from "@prisma/client";
+import { resolveEffectivePlan } from "@/lib/subscriptions/effective-plan";
 
 export interface OwnerProfile {
   id: string;
@@ -84,6 +85,8 @@ export async function getOwnerDetail(ownerId: string): Promise<OwnerDetailResult
       name: true,
       email: true,
       plan: true,
+      planOverride: true,
+      subscription: { select: { status: true, currentPeriodEnd: true } },
       status: true,
       role: true,
       createdAt: true,
@@ -168,7 +171,10 @@ export async function getOwnerDetail(ownerId: string): Promise<OwnerDetailResult
     .filter((p) => p.status === "COMPLETED")
     .reduce((sum, p) => sum + Number(p.amount), 0);
 
-  const propertiesLimit = owner.plan === "FREE" ? 3 : -1;
+  // Plan EFECTIVO, no la columna: el admin necesita ver el limite que el owner
+  // choca de verdad. La columna `plan` sigue expuesta aparte como registro.
+  const effectivePlan = resolveEffectivePlan(owner.planOverride, owner.subscription);
+  const propertiesLimit = effectivePlan === "FREE" ? 3 : -1;
   const hasMpIntegration = !!mpIntegration;
   const isMpConnected = mpIntegration?.isActive ?? false;
 

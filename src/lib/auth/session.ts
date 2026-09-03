@@ -11,7 +11,7 @@ import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
 import { prisma } from "@/lib/db/prisma";
 import { isSuperAdmin } from "@/lib/auth/role-routes";
-import { computeEffectivePlan } from "@/lib/subscriptions/effective-plan";
+import { resolveEffectivePlan } from "@/lib/subscriptions/effective-plan";
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "your-secret-key");
 
@@ -53,7 +53,9 @@ export async function getSession(): Promise<SessionUser | null> {
       select: {
         id: true,
         role: true,
-        plan: true,
+        // `plan` (la columna) NO se lee: es dato denormalizado para admin.
+        // El plan efectivo se deriva de la subscription + el override.
+        planOverride: true,
         email: true,
         status: true,
         subscription: {
@@ -69,7 +71,7 @@ export async function getSession(): Promise<SessionUser | null> {
     return {
       userId: user.id,
       role: user.role,
-      plan: computeEffectivePlan(user.plan, user.subscription),
+      plan: resolveEffectivePlan(user.planOverride, user.subscription),
       email: user.email,
       status: user.status,
     };
