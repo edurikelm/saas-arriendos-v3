@@ -1,8 +1,8 @@
 import { getMercadoPagoToken } from "@/lib/actions/mercado-pago";
 import { processMercadoPagoWebhook } from "@/lib/actions/payments";
 import { prisma } from "@/lib/db/prisma";
-import { addDays } from "date-fns";
 import { getActivePaymentsForReservation } from "@/lib/payments/queries";
+import { paymentLinkExpiresAt } from "@/lib/payments/expiration";
 import { toMercadoPagoIso8601 } from "./mp-fetch";
 import { validateAppUrl } from "@/lib/config/env-validation";
 
@@ -109,7 +109,7 @@ export class MercadoPagoGateway implements PaymentGateway {
       throw new Error("Payment amount must be greater than zero");
     }
 
-    const expirationDate = addDays(new Date(), 7);
+    const expirationDate = paymentLinkExpiresAt();
 
     const payment = await prisma.payment.create({
       data: {

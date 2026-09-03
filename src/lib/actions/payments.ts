@@ -11,7 +11,6 @@ import { uploadImage } from "@/lib/actions/cloudinary";
 import { classifyCollectionAlerts, type CollectionAlertPayment } from "@/lib/alerts/collection-alerts";
 import type { CollectionAlertsResult } from "@/lib/alerts/collection-alerts";
 import { revalidatePath } from "next/cache";
-import { addDays } from "date-fns";
 import { ZodError } from "zod";
 import { getReservationPaidAmount, getReservationPendingAmount, type PaymentLike } from "@/lib/payments/calculations";
 import {
@@ -24,6 +23,7 @@ import {
   getPaymentById,
   getPaymentByMercadoPagoId,
 } from "@/lib/payments/queries";
+import { paymentLinkExpiresAt } from "@/lib/payments/expiration";
 import { confirmReservationIfPaid } from "@/lib/reservations/confirmation";
 import { recordDomainEvent } from "@/lib/notifications/record-event";
 import { daysFromTodayDateOnly, startOfMonthInSantiago } from "@/lib/domain/timezone";
@@ -354,7 +354,7 @@ export async function generateMercadoPagoLink(reservationId: string, amount?: nu
 
   const mpDescription = title || `Reserva ${reservation.property.name} - ${reservation.client.name} (pago parcial)`;
 
-  const expirationDate = addDays(new Date(), 7);
+  const expirationDate = paymentLinkExpiresAt();
 
   const payment = await prisma.payment.create({
     data: {
@@ -668,7 +668,7 @@ export async function generatePaymentLink(paymentId: string) {
 
     const data = await response.json();
 
-    const expiresAtDate = addDays(new Date(), 7);
+    const expiresAtDate = paymentLinkExpiresAt();
 
     const initPoint = getMercadoPagoInitPoint(data);
 
@@ -757,7 +757,7 @@ export async function regeneratePaymentLink(id: string) {
 
     const data = await response.json();
 
-    const expiresAtDate = data.expiration_date ? new Date(data.expiration_date) : addDays(new Date(), 7);
+    const expiresAtDate = data.expiration_date ? new Date(data.expiration_date) : paymentLinkExpiresAt();
 
     const initPoint = getMercadoPagoInitPoint(data);
 
