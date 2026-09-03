@@ -471,7 +471,7 @@ export function ReservationForm({
             aria-invalid={!!errors.notes}
             aria-describedby={errors.notes ? "notes-error" : undefined}
             {...register("notes")}
-            className="min-h-20 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:border-ring resize-none transition-all"
+            className="min-h-20 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:border-ring resize-none transition-all"
             placeholder="Notas para esta reserva..."
           />
           {errors.notes && (
