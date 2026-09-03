@@ -145,7 +145,10 @@ describe("<PlanAlertBanner />", () => {
       />,
     );
 
-    expect(screen.getByText("Cerca del límite de tu plan FREE")).toBeTruthy();
+    // Con 7 propiedades sobre un limite de 3 NO esta "cerca del limite":
+    // esta cuatro por encima. Este era el copy falso de #246.
+    expect(screen.getByText("Superaste el límite de tu plan FREE")).toBeTruthy();
+    expect(screen.queryByText("Cerca del límite de tu plan FREE")).toBeNull();
     expect(screen.queryByText("Tu plan PRO está cancelándose")).toBeNull();
   });
 
@@ -162,5 +165,66 @@ describe("<PlanAlertBanner />", () => {
     );
 
     expect(container.firstChild).toBeNull();
+  });
+
+  // ── Limite alcanzado / superado (#246) ──────────────────────────────────
+  //
+  // Un owner que baja de PRO no se acerca al limite: aterriza arriba de el.
+  // El umbral sale de usage.propertiesLimit, no de un 3 hardcodeado.
+
+  it("por encima del limite: dice cuanto permite el plan y cuanto tiene", () => {
+    render(
+      <PlanAlertBanner
+        subscription={null}
+        usage={{ ...baseUsage, properties: 7, clients: 2 }}
+        plan="FREE"
+      />,
+    );
+
+    expect(screen.getByText("Superaste el límite de tu plan FREE")).toBeTruthy();
+    expect(screen.getByText(/permite 3 propiedades y tienes 7/)).toBeTruthy();
+    // La politica, dicha al owner: nada de lo que ya tiene deja de funcionar.
+    expect(screen.getByText(/sigue funcionando/)).toBeTruthy();
+  });
+
+  it("exactamente en el limite: 'llegaste', no 'superaste'", () => {
+    render(
+      <PlanAlertBanner
+        subscription={null}
+        usage={{ ...baseUsage, properties: 3, clients: 2 }}
+        plan="FREE"
+      />,
+    );
+
+    expect(screen.getByText("Llegaste al límite de tu plan FREE")).toBeTruthy();
+    expect(screen.queryByText("Superaste el límite de tu plan FREE")).toBeNull();
+  });
+
+  it("superado en las dos dimensiones: nombra las dos", () => {
+    render(
+      <PlanAlertBanner
+        subscription={null}
+        usage={{ ...baseUsage, properties: 7, clients: 9 }}
+        plan="FREE"
+      />,
+    );
+
+    expect(screen.getByText(/permite 3 propiedades y tienes 7/)).toBeTruthy();
+    expect(screen.getByText(/5 clientes y tienes 9/)).toBeTruthy();
+  });
+
+  // El copy hardcodeaba "/3" y "/5": decia la verdad solo mientras los limites
+  // FREE no cambiaran. Ahora sale de usage.
+  it("usa los limites reales, no constantes", () => {
+    render(
+      <PlanAlertBanner
+        subscription={null}
+        usage={{ properties: 9, clients: 1, propertiesLimit: 10, clientsLimit: 20 }}
+        plan="FREE"
+      />,
+    );
+
+    expect(screen.getByText("Cerca del límite de tu plan FREE")).toBeTruthy();
+    expect(screen.getByText(/9\/10 propiedades/)).toBeTruthy();
   });
 });
