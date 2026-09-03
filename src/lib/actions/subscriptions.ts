@@ -32,6 +32,7 @@ import {
 } from "@/lib/validations/subscriptions";
 import { recordSubscriptionNotification } from "@/lib/notifications/subscription-events";
 import { computeEffectivePlan } from "@/lib/subscriptions/effective-plan";
+import { revalidateAfterPlanChange } from "@/lib/subscriptions/revalidate-plan";
 
 // ────────────────────────────────────────────────────────────────────────────
 // getCurrentSubscription
@@ -282,11 +283,12 @@ export async function cancelMySubscription(
     }
   }
 
-  await applySubscriptionEvent({
+  const { planChange: cancelPlanChange } = await applySubscriptionEvent({
     type: "owner_cancel",
     subscriptionId: subscription.id,
     payload: { reason: reason ?? null, userId },
   });
+  revalidateAfterPlanChange(cancelPlanChange);
 
   // Notificar al owner que su plan fue cancelado (best-effort)
   recordSubscriptionNotification({
@@ -356,11 +358,12 @@ export async function reactivateMySubscription(): Promise<{
 
   // Transición CANCELLED → AUTHORIZED pasa por applySubscriptionEvent
   // (state-machine.ts permite esta transición para reactivación manual).
-  await applySubscriptionEvent({
+  const { planChange: reactivatePlanChange } = await applySubscriptionEvent({
     type: "authorized",
     subscriptionId: subscription.id,
     payload: { source: "reactivate", userId },
   });
+  revalidateAfterPlanChange(reactivatePlanChange);
 
   revalidatePath("/settings/billing");
 

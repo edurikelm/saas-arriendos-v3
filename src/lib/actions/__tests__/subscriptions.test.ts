@@ -631,6 +631,12 @@ describe("cancelMySubscription", () => {
         payload: { reason: "too_expensive", userId: "user-1" },
       },
     });
+    // owner_cancel NO baja el plan: el owner sigue PRO hasta fin de periodo.
+    // Asi que el badge del sidebar no tiene nada que re-renderizar, y el
+    // arbol de layouts no se invalida — solo la pagina de billing, que si
+    // cambia ("cancelada, vigente hasta X").
+    expect(mocks.revalidatePath).not.toHaveBeenCalledWith("/", "layout");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/settings/billing");
   });
 
   it("cuando no hay subscription: throw", async () => {
