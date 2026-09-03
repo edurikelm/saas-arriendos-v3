@@ -4,6 +4,7 @@ import { applySubscriptionEvent } from "@/lib/subscriptions/lifecycle";
 import { normalizeDataId, WEBHOOK_TIMESTAMP_TOLERANCE_MS } from "@/lib/payment/webhook-helpers";
 import { getSubscriptionByPreapprovalId } from "@/lib/subscriptions/queries";
 import { getProGateway } from "@/lib/payment/pro-gateway";
+import { revalidateAfterPlanChange } from "@/lib/subscriptions/revalidate-plan";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Types
@@ -216,7 +217,7 @@ async function handlePreapprovalWebhook(
   }
 
   // 4. Aplicar evento via lifecycle (idempotente automáticamente)
-  await applySubscriptionEvent({
+  const { planChange } = await applySubscriptionEvent({
     type: eventType,
     subscriptionId: subscription.id,
     payload: {
@@ -227,6 +228,7 @@ async function handlePreapprovalWebhook(
       nextPaymentDate: info.nextPaymentDate,
     },
   });
+  revalidateAfterPlanChange(planChange);
 
   return NextResponse.json({ received: true, subscriptionId: subscription.id });
 }
@@ -255,11 +257,12 @@ async function handleAuthorizedPaymentWebhook(
     });
   }
 
-  await applySubscriptionEvent({
+  const { planChange } = await applySubscriptionEvent({
     type: "renewed",
     subscriptionId: subscription.id,
     payload: { source: "webhook", mpPaymentId: paymentId },
   });
+  revalidateAfterPlanChange(planChange);
 
   return NextResponse.json({ received: true });
 }

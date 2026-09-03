@@ -13,6 +13,11 @@ vi.mock("@/lib/subscriptions/lifecycle", () => ({
   applySubscriptionEvent: mockApplySubscriptionEvent,
 }));
 
+const mockRevalidateAfterPlanChange = vi.fn();
+vi.mock("@/lib/subscriptions/revalidate-plan", () => ({
+  revalidateAfterPlanChange: mockRevalidateAfterPlanChange,
+}));
+
 function buildSubRow(overrides: { id?: string; status?: string; currentPeriodEnd?: Date } = {}) {
   const now = new Date();
   const {
@@ -192,5 +197,48 @@ describe("edge cases", () => {
     expect(body.processed).toBe(0);
     expect(body.errors).toEqual([]);
     expect(mockApplySubscriptionEvent).not.toHaveBeenCalled();
+  });
+});
+
+// El cron es el unico camino de downgrade que corre sin que el owner haga
+// nada, asi que si no invalida la cache el sidebar puede quedar mostrando PRO
+// indefinidamente — hasta que el owner haga una recarga completa por casualidad.
+describe("invalidacion de cache", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    vi.stubEnv("SUBSCRIPTIONS_CRON_SECRET", "correct-secret");
+  });
+
+  it("con downgrades en el batch: revalida UNA vez, no una por candidato", async () => {
+    mockPrisma.subscription.findMany.mockResolvedValue([
+      buildSubRow({ id: "sub-1", status: "AUTHORIZED" }) as never,
+      buildSubRow({ id: "sub-2", status: "CANCELLED" }) as never,
+    ]);
+    mockApplySubscriptionEvent.mockResolvedValue({
+      subscription: {},
+      planChange: { from: "PRO", to: "FREE", source: "subscription_lifecycle" },
+    } as never);
+
+    const res = await callRoute("Bearer correct-secret");
+
+    expect(res.status).toBe(200);
+    expect(mockApplySubscriptionEvent).toHaveBeenCalledTimes(2);
+    expect(mockRevalidateAfterPlanChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("sin cambios de plan en el batch: no revalida", async () => {
+    mockPrisma.subscription.findMany.mockResolvedValue([
+      buildSubRow({ id: "sub-1", status: "AUTHORIZED" }) as never,
+    ]);
+    // La subscription cambia de status pero el plan ya estaba en FREE.
+    mockApplySubscriptionEvent.mockResolvedValue({
+      subscription: {},
+      planChange: { from: "FREE", to: "FREE", source: "subscription_lifecycle" },
+    } as never);
+
+    await callRoute("Bearer correct-secret");
+
+    expect(mockRevalidateAfterPlanChange).not.toHaveBeenCalled();
   });
 });

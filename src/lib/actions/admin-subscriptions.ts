@@ -6,6 +6,7 @@ import { applySubscriptionEvent } from "@/lib/subscriptions/lifecycle";
 import { getActiveSubscription } from "@/lib/subscriptions/queries";
 import { adminCancelSubscriptionSchema } from "@/lib/validations/subscriptions";
 import { logAdminAction } from "@/lib/actions/admin-actions";
+import { revalidateAfterPlanChange } from "@/lib/subscriptions/revalidate-plan";
 
 export async function adminCancelSubscription(
   args: { userId: string; reason: string },
@@ -31,7 +32,7 @@ export async function adminCancelSubscription(
   }
 
   // Llamar lifecycle con type admin_cancel
-  await applySubscriptionEvent({
+  const { planChange } = await applySubscriptionEvent({
     type: "admin_cancel",
     subscriptionId: subscription.id,
     payload: {
@@ -39,6 +40,7 @@ export async function adminCancelSubscription(
       adminId: session.userId, // El SUPER_ADMIN que ejecuta
     },
   });
+  revalidateAfterPlanChange(planChange);
 
   // Registrar AdminActionLog
   await logAdminAction({
