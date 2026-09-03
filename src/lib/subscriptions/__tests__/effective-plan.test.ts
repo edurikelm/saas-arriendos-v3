@@ -11,6 +11,13 @@ import {
 } from "@/lib/subscriptions/effective-plan";
 
 const NOW = new Date("2026-09-03T12:00:00.000Z");
+
+/** Subscription con preapproval de MP — el caso normal. */
+const sub = (status: string, currentPeriodEnd: Date | null) => ({
+  status,
+  currentPeriodEnd,
+  mpPreapprovalId: "preapproval-123",
+});
 const FUTURO = new Date("2026-10-01T00:00:00.000Z");
 const PASADO = new Date("2026-08-01T00:00:00.000Z");
 
@@ -21,7 +28,7 @@ describe("derivePlanFromSubscription", () => {
 
   it("AUTHORIZED con periodo futuro: PRO", () => {
     expect(
-      derivePlanFromSubscription({ status: "AUTHORIZED", currentPeriodEnd: FUTURO }, NOW),
+      derivePlanFromSubscription(sub("AUTHORIZED", FUTURO), NOW),
     ).toBe("PRO");
   });
 
@@ -29,19 +36,31 @@ describe("derivePlanFromSubscription", () => {
   // cobraria al owner sin darle el plan.
   it("AUTHORIZED sin periodo: PRO", () => {
     expect(
-      derivePlanFromSubscription({ status: "AUTHORIZED", currentPeriodEnd: null }, NOW),
+      derivePlanFromSubscription(sub("AUTHORIZED", null), NOW),
     ).toBe("PRO");
   });
 
   it("AUTHORIZED con periodo vencido: FREE (el cron no alcanzo a marcarla)", () => {
     expect(
-      derivePlanFromSubscription({ status: "AUTHORIZED", currentPeriodEnd: PASADO }, NOW),
+      derivePlanFromSubscription(sub("AUTHORIZED", PASADO), NOW),
+    ).toBe("FREE");
+  });
+
+  // Encontrado en produccion: fila en AUTHORIZED sin mpPreapprovalId, un solo
+  // evento `created`, 13 dias sin tocarse. MP nunca autorizo nada. La regla
+  // anterior le daba PRO gratis.
+  it("AUTHORIZED sin periodo y SIN preapproval de MP: FREE", () => {
+    expect(
+      derivePlanFromSubscription(
+        { status: "AUTHORIZED", currentPeriodEnd: null, mpPreapprovalId: null },
+        NOW,
+      ),
     ).toBe("FREE");
   });
 
   it("CANCELLED con periodo futuro: PRO hasta esa fecha (ya lo pago)", () => {
     expect(
-      derivePlanFromSubscription({ status: "CANCELLED", currentPeriodEnd: FUTURO }, NOW),
+      derivePlanFromSubscription(sub("CANCELLED", FUTURO), NOW),
     ).toBe("PRO");
   });
 
@@ -49,28 +68,28 @@ describe("derivePlanFromSubscription", () => {
   // comparando contra una fecha, asi que sin fecha concedia PRO para siempre.
   it("CANCELLED SIN periodo: FREE — no hay periodo pagado que honrar", () => {
     expect(
-      derivePlanFromSubscription({ status: "CANCELLED", currentPeriodEnd: null }, NOW),
+      derivePlanFromSubscription(sub("CANCELLED", null), NOW),
     ).toBe("FREE");
   });
 
   it("PAUSED se trata como CANCELLED: PRO solo si queda periodo", () => {
     expect(
-      derivePlanFromSubscription({ status: "PAUSED", currentPeriodEnd: FUTURO }, NOW),
+      derivePlanFromSubscription(sub("PAUSED", FUTURO), NOW),
     ).toBe("PRO");
     expect(
-      derivePlanFromSubscription({ status: "PAUSED", currentPeriodEnd: null }, NOW),
+      derivePlanFromSubscription(sub("PAUSED", null), NOW),
     ).toBe("FREE");
   });
 
   it.each(["PENDING", "EXPIRED", "FAILED"])("%s: FREE aunque tenga periodo futuro", (status) => {
-    expect(derivePlanFromSubscription({ status, currentPeriodEnd: FUTURO }, NOW)).toBe("FREE");
+    expect(derivePlanFromSubscription(sub(status, FUTURO), NOW)).toBe("FREE");
   });
 });
 
 describe("resolveEffectivePlan", () => {
   it("override PRO gana sobre una subscription que derivaria FREE", () => {
     expect(
-      resolveEffectivePlan("PRO", { status: "CANCELLED", currentPeriodEnd: PASADO }, NOW),
+      resolveEffectivePlan("PRO", sub("CANCELLED", PASADO), NOW),
     ).toBe("PRO");
   });
 
@@ -79,7 +98,7 @@ describe("resolveEffectivePlan", () => {
   });
 
   it("sin override: manda lo derivado", () => {
-    expect(resolveEffectivePlan(null, { status: "AUTHORIZED", currentPeriodEnd: FUTURO }, NOW)).toBe("PRO");
+    expect(resolveEffectivePlan(null, sub("AUTHORIZED", FUTURO), NOW)).toBe("PRO");
     expect(resolveEffectivePlan(null, null, NOW)).toBe("FREE");
   });
 
@@ -88,7 +107,7 @@ describe("resolveEffectivePlan", () => {
   // esta pagando: se ignora y manda lo derivado.
   it("override FREE se ignora: no le quita el plan a quien paga", () => {
     expect(
-      resolveEffectivePlan("FREE", { status: "AUTHORIZED", currentPeriodEnd: FUTURO }, NOW),
+      resolveEffectivePlan("FREE", sub("AUTHORIZED", FUTURO), NOW),
     ).toBe("PRO");
   });
 });

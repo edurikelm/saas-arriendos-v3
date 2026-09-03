@@ -122,7 +122,7 @@ describe("getSession", () => {
       mockDbUser({
         role: "OWNER",
         email: "owner@test.com",
-        subscription: { status: "AUTHORIZED", currentPeriodEnd: new Date("2099-01-01") },
+        subscription: { status: "AUTHORIZED", currentPeriodEnd: new Date("2099-01-01"), mpPreapprovalId: "pre-1" },
       })
     );
 
@@ -142,7 +142,7 @@ describe("getSession", () => {
     cookieStoreMock.get.mockReturnValue({ value: "token" });
     jwtVerifyMock.mockResolvedValue({ payload: { userId: "user-1" } });
     findUniqueMock.mockResolvedValue(
-      mockDbUser({ subscription: { status: "AUTHORIZED", currentPeriodEnd: null } })
+      mockDbUser({ subscription: { status: "AUTHORIZED", currentPeriodEnd: null, mpPreapprovalId: "pre-1" } })
     );
 
     expect((await getSession())?.plan).toBe("PRO");
@@ -156,13 +156,27 @@ describe("getSession", () => {
     expect((await getSession())?.plan).toBe("PRO");
   });
 
+  // Fila en AUTHORIZED que MP nunca autorizo (sin preapproval). Encontrada en
+  // produccion; sin este chequeo se llevaba PRO gratis.
+  it("AUTHORIZED sin preapproval de MP: FREE", async () => {
+    cookieStoreMock.get.mockReturnValue({ value: "token" });
+    jwtVerifyMock.mockResolvedValue({ payload: { userId: "user-1" } });
+    findUniqueMock.mockResolvedValue(
+      mockDbUser({
+        subscription: { status: "AUTHORIZED", currentPeriodEnd: null, mpPreapprovalId: null },
+      })
+    );
+
+    expect((await getSession())?.plan).toBe("FREE");
+  });
+
   // El caso real que motivo el rediseno: cancelada, sin periodo pagado que
   // honrar. Antes la regla concedia PRO indefinidamente.
   it("subscription CANCELLED sin periodo: FREE", async () => {
     cookieStoreMock.get.mockReturnValue({ value: "token" });
     jwtVerifyMock.mockResolvedValue({ payload: { userId: "user-1" } });
     findUniqueMock.mockResolvedValue(
-      mockDbUser({ subscription: { status: "CANCELLED", currentPeriodEnd: null } })
+      mockDbUser({ subscription: { status: "CANCELLED", currentPeriodEnd: null, mpPreapprovalId: "pre-1" } })
     );
 
     expect((await getSession())?.plan).toBe("FREE");

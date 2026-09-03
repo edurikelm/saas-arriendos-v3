@@ -755,7 +755,7 @@ describe("countOwnerUsage", () => {
     mocks.reservationClientCount.mockResolvedValue(50);
     mocks.userProfileFindUnique.mockResolvedValue({
       planOverride: null,
-      subscription: { status: "AUTHORIZED", currentPeriodEnd: new Date("2099-01-01") },
+      subscription: { status: "AUTHORIZED", currentPeriodEnd: new Date("2099-01-01"), mpPreapprovalId: "pre-1" },
     });
 
     const result = await countOwnerUsage("user-1");
@@ -780,6 +780,7 @@ describe("countOwnerUsage", () => {
       subscription: {
         status: "AUTHORIZED",
         currentPeriodEnd: new Date(Date.now() - 60 * 60 * 1000), // vencio hace 1h
+        mpPreapprovalId: "pre-1",
       },
     });
 
@@ -799,6 +800,7 @@ describe("countOwnerUsage", () => {
       subscription: {
         status: "AUTHORIZED",
         currentPeriodEnd: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        mpPreapprovalId: "pre-1",
       },
     });
 

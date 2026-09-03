@@ -28,9 +28,15 @@
  * `currentPeriodEnd` nulo NO significa lo mismo en todos los estados, y
  * tratarlo uniformemente fue el origen del defecto (2):
  *
- * - `AUTHORIZED` + nulo → **PRO**. La subscription se acaba de autorizar y MP
- *   todavía no devolvió las fechas del período. Negar PRO acá le cobraría al
- *   owner sin darle el plan.
+ * - `AUTHORIZED` + nulo + **con `mpPreapprovalId`** → **PRO**. La subscription
+ *   se acaba de autorizar y MP todavía no devolvió las fechas del período.
+ *   Negar PRO acá le cobraría al owner sin darle el plan.
+ * - `AUTHORIZED` + nulo + **sin `mpPreapprovalId`** → **FREE**. Esa fila nunca
+ *   fue autorizada por MP: el flujo real (`startProUpgrade`) crea la
+ *   subscription, pide el preapproval y recién ahí guarda el id, así que un
+ *   AUTHORIZED sin id es una fila en estado inconsistente. Encontrada en
+ *   producción: status AUTHORIZED, sin id, un solo evento `created`, 13 días
+ *   sin tocarse. La versión anterior de esta regla le habría dado PRO gratis.
  * - `CANCELLED`/`PAUSED` + nulo → **FREE**. No hay período pagado que honrar.
  *   Conceder PRO acá es plata regalada, y para siempre.
  */
@@ -39,6 +45,11 @@
 export type EffectivePlanSubscriptionInput = {
   status: string;
   currentPeriodEnd: Date | null;
+  /**
+   * Prueba de que MP autorizó de verdad. Solo se consulta en el borde
+   * `AUTHORIZED` + período nulo, que es el único ambiguo.
+   */
+  mpPreapprovalId: string | null;
 } | null;
 
 export type EffectivePlan = "FREE" | "PRO";
@@ -62,8 +73,16 @@ export function derivePlanFromSubscription(
   const { status, currentPeriodEnd } = subscription;
 
   if (status === "AUTHORIZED") {
-    // Sin fecha: recién autorizada. Con fecha: vale mientras no venza.
-    return currentPeriodEnd === null || currentPeriodEnd > now ? "PRO" : "FREE";
+    if (currentPeriodEnd === null) {
+      // Recién autorizada (MP no devolvió fechas) vs. fila que quedó en
+      // AUTHORIZED sin que MP autorizara nada. Las distingue el preapproval.
+      //
+      // Chequeo por verdad y no `!== null`: si el campo llegara `undefined`
+      // —un select que lo olvida, un mock viejo— `!== null` daría PRO. Acá el
+      // default tiene que ser denegar: es la diferencia entre cobrar y regalar.
+      return subscription.mpPreapprovalId ? "PRO" : "FREE";
+    }
+    return currentPeriodEnd > now ? "PRO" : "FREE";
   }
 
   if (status === "CANCELLED" || status === "PAUSED") {

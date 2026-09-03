@@ -58,7 +58,8 @@ Tratar `currentPeriodEnd = NULL` de forma uniforme fue el origen del defecto (2)
 
 | Estado | `currentPeriodEnd` | Plan derivado | Por qué |
 |---|---|---|---|
-| `AUTHORIZED` | `NULL` | **PRO** | Recién autorizada; MP no devolvió fechas todavía. Negar PRO acá le cobra al owner sin darle el plan. |
+| `AUTHORIZED` | `NULL`, **con** `mpPreapprovalId` | **PRO** | Recién autorizada; MP no devolvió fechas todavía. Negar PRO acá le cobra al owner sin darle el plan. |
+| `AUTHORIZED` | `NULL`, **sin** `mpPreapprovalId` | **FREE** | Fila que quedó en AUTHORIZED sin que MP autorizara nada — ver abajo. |
 | `AUTHORIZED` | futuro | PRO | |
 | `AUTHORIZED` | pasado | FREE | El cron no alcanzó a marcarla EXPIRED. |
 | `CANCELLED` / `PAUSED` | futuro | PRO | Ya pagó ese período. |
@@ -67,6 +68,20 @@ Tratar `currentPeriodEnd = NULL` de forma uniforme fue el origen del defecto (2)
 
 `PAUSED` se trata como `CANCELLED` y no como FREE inmediato, para no degradar a
 alguien que pausó a mitad de un mes ya pagado.
+
+**Por qué el `mpPreapprovalId` entra en la regla.** La primera versión daba PRO
+a cualquier `AUTHORIZED` con período nulo, justificado en que la ventana entre
+la autorización y las fechas de MP es de minutos. Al verificar contra
+producción apareció una fila que llevaba **13 días** así: `AUTHORIZED`, sin
+`mpPreapprovalId`, con un único evento `created` y sin ningún `authorized`. MP
+nunca autorizó nada. El flujo real (`startProUpgrade`) crea la subscription,
+pide el preapproval y recién ahí guarda el id, así que un `AUTHORIZED` sin id es
+una fila en estado inconsistente — y con la regla original se habría llevado PRO
+gratis, indefinidamente.
+
+El chequeo es por verdad y no `!== null`: si el campo llegara `undefined` —un
+`select` que lo olvida, un mock viejo— `!== null` concedería PRO. El default
+tiene que ser denegar.
 
 ### 3. La columna `plan` queda, pero sin autoridad
 
