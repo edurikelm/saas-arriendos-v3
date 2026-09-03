@@ -411,7 +411,7 @@ export async function countOwnerUsage(userId: string): Promise<OwnerUsage> {
     where: { id: userId },
     select: {
       planOverride: true,
-      subscription: { select: { status: true, currentPeriodEnd: true } },
+      subscription: { select: { status: true, currentPeriodEnd: true, mpPreapprovalId: true } },
     },
   });
 

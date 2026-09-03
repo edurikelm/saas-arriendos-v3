@@ -59,7 +59,7 @@ export async function getSession(): Promise<SessionUser | null> {
         email: true,
         status: true,
         subscription: {
-          select: { status: true, currentPeriodEnd: true },
+          select: { status: true, currentPeriodEnd: true, mpPreapprovalId: true },
         },
       },
     });

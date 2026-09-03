@@ -86,7 +86,7 @@ export async function getOwnerDetail(ownerId: string): Promise<OwnerDetailResult
       email: true,
       plan: true,
       planOverride: true,
-      subscription: { select: { status: true, currentPeriodEnd: true } },
+      subscription: { select: { status: true, currentPeriodEnd: true, mpPreapprovalId: true } },
       status: true,
       role: true,
       createdAt: true,

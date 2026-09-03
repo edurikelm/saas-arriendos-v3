@@ -73,7 +73,7 @@ describe("getSession", () => {
       id: "user-1",
       role: "OWNER",
       planOverride: null,
-      subscription: { status: "AUTHORIZED", currentPeriodEnd: new Date("2099-01-01") },
+      subscription: { status: "AUTHORIZED", currentPeriodEnd: new Date("2099-01-01"), mpPreapprovalId: "pre-1" },
       email: "active@test.com",
       status: "ACTIVE",
     } as any);
