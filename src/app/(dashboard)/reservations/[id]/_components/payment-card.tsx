@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Payment } from "@/components/payments/payments-table";
 import { formatDateOnly, formatInstant } from "@/lib/domain/timezone";
+import { AttachReceiptPopover } from "@/components/payments/attach-receipt-popover";
 
 function formatAmount(amount: string | number): string {
   return new Intl.NumberFormat("es-CL", {
@@ -84,12 +85,12 @@ interface PaymentCardProps {
 export function PaymentCard({
   payment,
   index,
-  total,
   isActive,
   onGenerateLink,
   onRegenerateLink,
   onMarkPaid,
   onDeletePayment,
+  onUploadReceipt,
   onSendLink,
   generatingLinkId,
   regeneratingLinkId,
@@ -168,13 +169,13 @@ export function PaymentCard({
     markPaid: {
       label: "Marcar pagado",
       icon: Check,
-      className: "text-success hover:text-success",
+      className: "text-success-foreground hover:text-success-foreground",
       onClick: () => onMarkPaid?.(payment.id),
     },
     sendLink: {
       label: "Enviar link",
       icon: Send,
-      className: "text-info hover:text-info",
+      className: "text-info-foreground hover:text-info-foreground",
       onClick: () => onSendLink?.(payment),
     },
     viewReceipt: {
@@ -189,19 +190,6 @@ export function PaymentCard({
       className: "text-muted-foreground hover:text-destructive-text",
       onClick: () => onDeletePayment?.(payment.id),
     },
-  };
-
-  const runAction = (actionId: string) => {
-    switch (actionId) {
-      case "generate": onGenerateLink?.(payment.id); break;
-      case "regenerate": onRegenerateLink?.(payment.id); break;
-      case "sendLink": onSendLink?.(payment); break;
-      case "markPaid": onMarkPaid?.(payment.id); break;
-      case "delete": onDeletePayment?.(payment.id); break;
-      case "viewReceipt":
-        if (payment.receiptUrl) window.open(payment.receiptUrl, "_blank");
-        break;
-    }
   };
 
   // Eyebrow context: prioritize specific labels, fall back to ordinal position.
@@ -294,7 +282,7 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
               timeline node (mensuales) y refuerza visualmente que ese monto ya fue
               cobrado, en el mismo verde del badge (Status Color Doctrine). */}
           {isCompleted && payment.paidAt && (
-            <p className="text-[10px] font-medium text-success tabular-nums mt-0.5">
+            <p className="text-[10px] font-medium text-success-foreground tabular-nums mt-0.5">
               Pagado el {formatPaidDate(payment.paidAt)}
             </p>
           )}
@@ -307,7 +295,7 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
             <Button
               variant="link"
               size="sm"
-              className="h-7 px-1 text-xs text-info hover:text-info"
+              className="h-7 px-1 text-xs text-info-foreground hover:text-info-foreground"
               onClick={() => onGenerateLink?.(payment.id)}
               disabled={isGenerating}
             >
@@ -325,7 +313,7 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
             <Button
               variant="link"
               size="sm"
-              className="h-7 px-1 text-xs text-info hover:text-info"
+              className="h-7 px-1 text-xs text-info-foreground hover:text-info-foreground"
               onClick={() => onRegenerateLink?.(payment.id)}
               disabled={isRegenerating}
             >
@@ -343,7 +331,7 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
             <Button
               variant="link"
               size="sm"
-              className="h-7 px-1 text-xs text-info hover:text-info"
+              className="h-7 px-1 text-xs text-info-foreground hover:text-info-foreground"
               onClick={() => onSendLink?.(payment)}
             >
               <Send className="size-3.5 mr-1" />
@@ -354,7 +342,7 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
             <Button
               variant="link"
               size="sm"
-              className="h-7 px-1 text-xs text-info hover:text-info"
+              className="h-7 px-1 text-xs text-info-foreground hover:text-info-foreground"
               onClick={() => {
                 if (payment.initPoint) {
                   navigator.clipboard.writeText(payment.initPoint);
@@ -371,7 +359,7 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
             <Button
               variant="link"
               size="sm"
-              className="h-7 px-1 text-xs text-success hover:text-success"
+              className="h-7 px-1 text-xs text-success-foreground hover:text-success-foreground"
               onClick={() => onMarkPaid?.(payment.id)}
             >
               <Check className="size-3.5 mr-1" />
@@ -391,17 +379,22 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
               Ver comprobante
             </Button>
           )}
-          {isCompleted && primaryAction === null && canViewReceipt === false && (
-            <Button
+          {/* Pago cobrado sin comprobante: el botón deshabilitado "Ver comprobante"
+              que vivía aquí era un callejón sin salida — anunciaba que faltaba el
+              comprobante sin ofrecer forma de adjuntarlo, mientras `onUploadReceipt`
+              llegaba hasta este componente sin consumirse. Ahora se ofrece la misma
+              acción que el seam canónico (`payment-row-actions.tsx`): adjuntarlo. */}
+          {isCompleted && primaryAction === null && !canViewReceipt && onUploadReceipt && (
+            <AttachReceiptPopover
+              triggerLabel="Adjuntar comprobante"
+              triggerTooltip="Adjuntar comprobante"
               variant="link"
-              size="sm"
-              className="h-7 px-1 text-xs text-muted-foreground/60 gap-1"
-              disabled
-              title="Sin comprobante adjunto"
-            >
-              <FileText className="size-3.5" />
-              Ver comprobante
-            </Button>
+              triggerClassName="text-muted-foreground hover:text-foreground"
+              onSubmit={(file) => onUploadReceipt(payment.id, file)}
+            />
+          )}
+          {isCompleted && primaryAction === null && !canViewReceipt && !onUploadReceipt && (
+            <span className="text-xs text-muted-foreground py-1">Sin comprobante</span>
           )}
 
           {/* Secondaries — todas inline debajo de la primaria. Antes esto

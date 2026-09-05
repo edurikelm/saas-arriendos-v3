@@ -19,6 +19,11 @@ export interface AttachReceiptPopoverProps {
   triggerTooltip: string;
   /** Compact cell — reduces trigger size. */
   compact?: boolean;
+  /** Trigger button variant. `outline` (default) para celdas de tabla; `link`
+   *  para columnas de acciones donde el resto ya son botones de texto. */
+  variant?: "outline" | "link";
+  /** Clases extra del trigger — permite alinear el botón con sus vecinos. */
+  triggerClassName?: string;
   /**
    * Called when user submits the file. Should:
    * 1. Upload the file to /api/upload
@@ -34,6 +39,8 @@ export function AttachReceiptPopover({
   triggerLabel,
   triggerTooltip,
   compact = false,
+  variant = "outline",
+  triggerClassName,
   onSubmit,
 }: AttachReceiptPopoverProps) {
   const [open, setOpen] = useState(false);
@@ -71,8 +78,8 @@ export function AttachReceiptPopover({
         render={
           <Button
             size="sm"
-            variant="outline"
-            className={cn(btnHeight, "px-2", btnText)}
+            variant={variant}
+            className={cn(btnHeight, variant === "link" ? "px-1" : "px-2", btnText, triggerClassName)}
             title={triggerTooltip}
             aria-label={triggerTooltip}
           >

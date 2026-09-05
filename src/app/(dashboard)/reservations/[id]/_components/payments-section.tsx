@@ -106,7 +106,17 @@ export function PaymentsSection({
   const extraPayments = payments.filter((p) => p.paymentType === "EXTRA");
 
   const paidAmount = getReservationPaidAmount(payments);
-  const pendingAmount = getReservationPendingAmount(payments, Number(totalPrice));
+  // En una reserva viva el pendiente es `totalPrice - pagado`: las cuotas futuras
+  // pueden no estar generadas todavía, así que el contrato es la fuente de verdad.
+  // En una reserva cerrada no: `cancelReservation` borra los pagos PENDING, y una
+  // COMPLETED ya no genera cuotas nuevas. Ahí `totalPrice - pagado` anuncia una
+  // deuda que no existe ni tiene fila que cobrar — el pendiente real es la suma de
+  // los pagos PENDING que quedan (0 tras una cancelación).
+  const pendingAmount = isActive
+    ? getReservationPendingAmount(payments, Number(totalPrice))
+    : reservationPayments
+        .filter((p) => p.status === "PENDING" && !p.deletedAt)
+        .reduce((sum, p) => sum + Number(p.amount || 0), 0);
   const extraTotal = extraPayments.reduce((sum, p) => sum + Number(p.amount), 0);
   const extraPaidAmount = extraPayments
     .filter((p) => p.status === "COMPLETED")

@@ -243,16 +243,28 @@ describe("PaymentCard", () => {
       );
       expect(screen.getByRole("button", { name: /ver comprobante/i })).toBeTruthy();
     });
-    it("COMPLETED without receiptUrl shows Ver comprobante disabled", () => {
+    it("COMPLETED without receiptUrl offers Adjuntar comprobante", () => {
+      render(
+        <PaymentCard
+          payment={mockPayment({ status: "COMPLETED", receiptUrl: null })}
+          index={0} total={3} nowKey="2025-01-01" isActive={true}
+          onUploadReceipt={vi.fn()}
+        />
+      );
+      // Antes acá vivía un "Ver comprobante" deshabilitado: anunciaba que faltaba
+      // el comprobante sin ofrecer forma de adjuntarlo. Ahora ofrece la acción.
+      expect(screen.getByRole("button", { name: /adjuntar comprobante/i })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /ver comprobante/i })).toBeNull();
+    });
+    it("COMPLETED without receiptUrl and without onUploadReceipt states it plainly", () => {
       render(
         <PaymentCard
           payment={mockPayment({ status: "COMPLETED", receiptUrl: null })}
           index={0} total={3} nowKey="2025-01-01" isActive={true}
         />
       );
-      const btn = screen.getByRole("button", { name: /ver comprobante/i }) as HTMLButtonElement;
-      expect(btn).toBeTruthy();
-      expect(btn.disabled).toBe(true);
+      expect(screen.getByText("Sin comprobante")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /ver comprobante/i })).toBeNull();
     });
     it("PENDING MERCADO_PAGO without initPoint shows Generar link", () => {
       render(

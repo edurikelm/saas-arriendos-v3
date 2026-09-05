@@ -1,6 +1,5 @@
 "use client";
 
-import { useRef } from "react";
 import { ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PaymentTimelineNode } from "./payment-timeline-node";
@@ -58,8 +57,6 @@ export function PaymentsTimeline({
   );
   const firstOverdueId = firstOverdueIdx >= 0 ? sorted[firstOverdueIdx].id : null;
 
-  const focusRef = useRef<HTMLDivElement>(null);
-
   const handleFocusFirstOverdue = () => {
     if (firstOverdueId) {
       const el = document.querySelector(`[data-testid="timeline-node-${firstOverdueId}"]`);
@@ -108,7 +105,7 @@ export function PaymentsTimeline({
           <p className="text-sm text-muted-foreground">Aún no generaste cuotas</p>
         </div>
       ) : (
-        <div ref={focusRef} className="space-y-4">
+        <div className="space-y-4">
           {sorted.map((payment, idx) => {
             const days = payment.dueDate
               ? daysFromTodayDateOnly(payment.dueDate)

@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Payment } from "@/components/payments/payments-table";
 import { formatDateOnly, formatInstant } from "@/lib/domain/timezone";
+import { AttachReceiptPopover } from "@/components/payments/attach-receipt-popover";
 
 function formatAmount(amount: string | number): string {
   return new Intl.NumberFormat("es-CL", {
@@ -95,6 +96,7 @@ export function PaymentTimelineNode({
   onRegenerateLink,
   onMarkPaid,
   onDeletePayment,
+  onUploadReceipt,
   onSendLink,
   generatingLinkId,
   regeneratingLinkId,
@@ -203,13 +205,13 @@ export function PaymentTimelineNode({
     markPaid: {
       label: "Marcar pagado",
       icon: Check,
-      className: "text-success hover:text-success",
+      className: "text-success-foreground hover:text-success-foreground",
       onClick: () => onMarkPaid?.(payment.id),
     },
     sendLink: {
       label: "Enviar link",
       icon: Send,
-      className: "text-info hover:text-info",
+      className: "text-info-foreground hover:text-info-foreground",
       onClick: () => onSendLink?.(payment),
     },
     viewReceipt: {
@@ -226,29 +228,21 @@ export function PaymentTimelineNode({
     },
   };
 
-  const runAction = (actionId: string) => {
-    switch (actionId) {
-      case "generate": onGenerateLink?.(payment.id); break;
-      case "regenerate": onRegenerateLink?.(payment.id); break;
-      case "sendLink": onSendLink?.(payment); break;
-      case "markPaid": onMarkPaid?.(payment.id); break;
-      case "delete": onDeletePayment?.(payment.id); break;
-      case "viewReceipt":
-        if (payment.receiptUrl) window.open(payment.receiptUrl, "_blank");
-        break;
-    }
-  };
-
   const isLast = index === total - 1;
   const ariaLabel = `Cuota ${installmentNumber} de ${total}`;
   const amountKicker = isCompleted ? "Monto cobrado" : "Monto a pagar";
 
   return (
-    <div className="relative flex gap-4" data-testid={`timeline-node-${payment.id}`}>
+    <div
+      className="relative flex gap-4 scroll-mt-24 rounded-lg focus:outline-2 focus:outline-offset-2"
+      data-testid={`timeline-node-${payment.id}`}
+      tabIndex={isFirstOverdue ? -1 : undefined}
+      aria-label={isFirstOverdue ? `${ariaLabel} — vencida` : undefined}
+    >
       {/* Connector — left side vertical line */}
       {!isLast && (
         <div
-          className="absolute left-2 top-7 bottom-[-20px] w-[2px] bg-foreground/10"
+          className="absolute left-2 top-7 bottom-[-20px] w-[2px] bg-muted-foreground/40"
           aria-hidden="true"
         />
       )}
@@ -305,10 +299,10 @@ export function PaymentTimelineNode({
                   <span>
                     Vence {formatShortDate(payment.dueDate)}
                     {isPending && daysFromNow >= 0 && daysFromNow <= 7 && daysFromNow > 0 && (
-                      <span className="text-info font-medium"> · En {daysFromNow} días</span>
+                      <span className="text-info-foreground font-medium"> · En {daysFromNow} días</span>
                     )}
                     {isPending && daysFromNow === 0 && (
-                      <span className="text-warning font-medium"> · Vence hoy</span>
+                      <span className="text-warning-foreground font-medium"> · Vence hoy</span>
                     )}
                   </span>
                 </span>
@@ -332,7 +326,7 @@ export function PaymentTimelineNode({
                 que ese monto ya fue cobrado, en el mismo verde del badge (Status
                 Color Doctrine: COMPLETED → success). */}
             {isCompleted && payment.paidAt && (
-              <p className="text-[10px] font-medium text-success tabular-nums mt-0.5">
+              <p className="text-[10px] font-medium text-success-foreground tabular-nums mt-0.5">
                 Pagado el {formatPaidDate(payment.paidAt)}
               </p>
             )}
@@ -345,7 +339,7 @@ export function PaymentTimelineNode({
               <Button
                 variant="link"
                 size="sm"
-                className="h-7 px-1 text-xs text-info hover:text-info"
+                className="h-7 px-1 text-xs text-info-foreground hover:text-info-foreground"
                 onClick={() => onGenerateLink?.(payment.id)}
                 disabled={isGenerating}
               >
@@ -363,7 +357,7 @@ export function PaymentTimelineNode({
               <Button
                 variant="link"
                 size="sm"
-                className="h-7 px-1 text-xs text-info hover:text-info"
+                className="h-7 px-1 text-xs text-info-foreground hover:text-info-foreground"
                 onClick={() => onRegenerateLink?.(payment.id)}
                 disabled={isRegenerating}
               >
@@ -381,7 +375,7 @@ export function PaymentTimelineNode({
               <Button
                 variant="link"
                 size="sm"
-                className="h-7 px-1 text-xs text-info hover:text-info"
+                className="h-7 px-1 text-xs text-info-foreground hover:text-info-foreground"
                 onClick={() => onSendLink?.(payment)}
               >
                 <Send className="size-3.5 mr-1" />
@@ -392,7 +386,7 @@ export function PaymentTimelineNode({
               <Button
                 variant="link"
                 size="sm"
-                className="h-7 px-1 text-xs text-info hover:text-info"
+                className="h-7 px-1 text-xs text-info-foreground hover:text-info-foreground"
                 onClick={() => {
                   if (payment.initPoint) {
                     navigator.clipboard.writeText(payment.initPoint);
@@ -409,7 +403,7 @@ export function PaymentTimelineNode({
               <Button
                 variant="link"
                 size="sm"
-                className="h-7 px-1 text-xs text-success hover:text-success"
+                className="h-7 px-1 text-xs text-success-foreground hover:text-success-foreground"
                 onClick={() => onMarkPaid?.(payment.id)}
               >
                 <Check className="size-3.5 mr-1" />
@@ -429,17 +423,22 @@ export function PaymentTimelineNode({
                 Ver comprobante
               </Button>
             )}
-            {isCompleted && primaryAction === null && canViewReceipt === false && (
-              <Button
+            {/* Pago cobrado sin comprobante: el botón deshabilitado "Ver comprobante"
+                que vivía aquí era un callejón sin salida — anunciaba que faltaba el
+                comprobante sin ofrecer forma de adjuntarlo, mientras `onUploadReceipt`
+                llegaba hasta este componente sin consumirse. Ahora se ofrece la misma
+                acción que el seam canónico (`payment-row-actions.tsx`): adjuntarlo. */}
+            {isCompleted && primaryAction === null && !canViewReceipt && onUploadReceipt && (
+              <AttachReceiptPopover
+                triggerLabel="Adjuntar comprobante"
+                triggerTooltip="Adjuntar comprobante"
                 variant="link"
-                size="sm"
-                className="h-7 px-1 text-xs text-muted-foreground/60 gap-1"
-                disabled
-                title="Sin comprobante adjunto"
-              >
-                <FileText className="size-3.5" />
-                Ver comprobante
-              </Button>
+                triggerClassName="text-muted-foreground hover:text-foreground"
+                onSubmit={(file) => onUploadReceipt(payment.id, file)}
+              />
+            )}
+            {isCompleted && primaryAction === null && !canViewReceipt && !onUploadReceipt && (
+              <span className="text-xs text-muted-foreground py-1">Sin comprobante</span>
             )}
 
             {/* Secondaries — todas inline debajo de la primaria. Antes esto

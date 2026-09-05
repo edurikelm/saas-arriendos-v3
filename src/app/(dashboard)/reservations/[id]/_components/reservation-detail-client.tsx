@@ -4,14 +4,15 @@ import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowDownToLine,
   ArrowRight,
   Ban,
   CalendarRange,
+  ChevronDown,
   ChevronLeft,
   DoorOpen,
   FileText,
   Home,
+  Link2,
   MoreVertical,
   Pencil,
   Plus,
@@ -40,11 +41,11 @@ import { ReservationForm } from "@/components/reservations/reservation-form";
 import { ReservationDocumentsPanel } from "@/components/reservations/reservation-documents-panel";
 import {
   formatRelativeDay,
+  getNights,
   getReservationTone,
   getTemporalStatus,
 } from "@/components/reservations/reservation-status";
 import { cn } from "@/lib/utils";
-import { dateKeyToDayIndex } from "@/lib/domain/timezone";
 import { getInclusiveMonths } from "@/lib/reservation-dates";
 import { PaymentsSection } from "./payments-section";
 import { usePaymentActions, MarkPaidModal } from "./payment-actions";
@@ -125,12 +126,6 @@ function getInitials(name: string): string {
     .map((p) => p[0])
     .join("")
     .toUpperCase();
-}
-
-function getNights(startDate: string, endDate: string): number {
-  const startKey = startDate.slice(0, 10);
-  const endKey = endDate.slice(0, 10);
-  return Math.max(1, dateKeyToDayIndex(endKey) - dateKeyToDayIndex(startKey) + 1);
 }
 
 /** Devuelve solo el día del mes como string ("17") desde una fecha date-only. */
@@ -461,7 +456,7 @@ function ReservationSummaryCard({
                 Desde
               </span>
               <div className="flex items-baseline gap-1.5">
-                <span className="text-[1.75rem] font-bold text-foreground tabular-nums tracking-tight leading-none">
+                <span className="text-2xl font-bold text-foreground tabular-nums tracking-tight leading-none">
                   {getDayNumber(startDate)}
                 </span>
                 <div className="flex flex-col gap-1.5">
@@ -481,7 +476,7 @@ function ReservationSummaryCard({
                 Hasta
               </span>
               <div className="flex items-baseline gap-1.5 justify-end">
-                <span className="text-[1.75rem] font-bold text-foreground tabular-nums tracking-tight leading-none">
+                <span className="text-2xl font-bold text-foreground tabular-nums tracking-tight leading-none">
                   {getDayNumber(endDate)}
                 </span>
                 <div className="flex flex-col gap-1.5">
@@ -629,7 +624,7 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
   const showHeaderVerify = isEditable && hasMercadoPagoPayments;
 
   return (
-    <div className="p-4 sm:p-6">
+    <div>
       {/* ─── TOP BAR: back + acciones de pago + 3-dot menu ──────────── */}
       <div className="mb-6 flex items-center justify-between gap-3">
         <Link
@@ -641,68 +636,79 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
           <span className="hidden sm:inline">Volver</span>
         </Link>
 
-        {isEditable && (
-          <div className="flex items-center gap-2">
-            {showHeaderVerify && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={handleRefreshPayments}
-                disabled={isCheckingAllPayments}
-                className="gap-1.5"
-              >
-                <RefreshCw
-                  className={cn("h-3.5 w-3.5", isCheckingAllPayments && "animate-spin")}
-                />
-                <span className="hidden sm:inline">
-                  {isCheckingAllPayments ? "Verificando..." : "Verificar pagos MP"}
-                </span>
-              </Button>
-            )}
+        {/* Una reserva cerrada perdía la barra entera, incluido "Copiar enlace":
+            quedaba sin ninguna acción, ni siquiera la de compartir su URL. El menú
+            se mantiene siempre; lo que depende del estado son sus items. */}
+        <div className="flex items-center gap-2">
+          {isEditable && showHeaderVerify && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleRefreshPayments}
+              disabled={isCheckingAllPayments}
+              aria-label={isCheckingAllPayments ? "Verificando pagos MP" : "Verificar pagos MP"}
+              className="gap-1.5"
+            >
+              <RefreshCw
+                className={cn("h-3.5 w-3.5", isCheckingAllPayments && "animate-spin")}
+              />
+              <span className="hidden sm:inline">
+                {isCheckingAllPayments ? "Verificando..." : "Verificar pagos MP"}
+              </span>
+            </Button>
+          )}
+          {isEditable && (
             <Button
               size="sm"
               variant="default"
               onClick={() => setShowAddPaymentDialog(true)}
+              aria-label="Agregar pago"
               className="gap-1.5"
             >
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">Agregar Pago</span>
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                className="inline-flex size-7 cursor-pointer items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                aria-label="Más acciones"
-              >
-                <MoreVertical className="size-4" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-48">
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className="inline-flex size-7 cursor-pointer items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              aria-label="Más acciones"
+            >
+              <MoreVertical className="size-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-48">
+              {isEditable && (
                 <DropdownMenuItem onClick={() => setShowEditForm(true)}>
                   <Pencil className="mr-2 size-4" />
                   Editar reserva
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    navigator.clipboard
-                      ?.writeText(window.location.href)
-                      .then(() => toast.success("Enlace copiado"))
-                      .catch(() => toast.error("No se pudo copiar"));
-                  }}
-                >
-                  <ArrowDownToLine className="mr-2 size-4" />
-                  Copiar enlace
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  variant="destructive"
-                  onClick={() => setShowCancelConfirm(true)}
-                >
-                  <Ban className="mr-2 size-4" />
-                  Cancelar reserva
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        )}
+              )}
+              <DropdownMenuItem
+                onClick={() => {
+                  navigator.clipboard
+                    ?.writeText(window.location.href)
+                    .then(() => toast.success("Enlace copiado"))
+                    .catch(() => toast.error("No se pudo copiar"));
+                }}
+              >
+                <Link2 className="mr-2 size-4" />
+                Copiar enlace
+              </DropdownMenuItem>
+              {isEditable && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={() => setShowCancelConfirm(true)}
+                  >
+                    <Ban className="mr-2 size-4" />
+                    Cancelar reserva
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {/* Mobile header — solo visible en <lg, oculta en desktop donde
@@ -807,8 +813,13 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
           )}
 
           {/* Historial de cambios — colapsable para no saturar la vista */}
-          <details className="rounded-lg ring-1 ring-border">
-            <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 select-none">
+          {/* `open:` sólo aplica al elemento que lleva el atributo [open] — sobre el
+              chevron, dentro del <summary>, nunca resolvía y el indicador quedaba
+              inmóvil. Con `group` en el <details> y `group-open:` en el chevron el
+              giro sí ocurre. El bg-card lo iguala a las otras dos superficies de
+              esta columna, que hasta ahora era la única transparente. */}
+          <details className="group rounded-lg bg-card ring-1 ring-border">
+            <summary className="flex cursor-pointer list-none items-center justify-between rounded-lg px-4 py-3 select-none focus-visible:outline-2 focus-visible:outline-offset-2">
               <span className="text-sm font-bold text-foreground">Historial de cambios</span>
               <span className="flex items-center gap-2">
                 {reservation.changes.length > 0 && (
@@ -816,7 +827,10 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
                     {reservation.changes.length}
                   </span>
                 )}
-                <ChevronLeft className="size-4 text-muted-foreground transition-transform duration-200 open:rotate-[-90deg]" />
+                <ChevronDown
+                  className="size-4 text-muted-foreground transition-transform duration-200 group-open:rotate-180"
+                  aria-hidden="true"
+                />
               </span>
             </summary>
             <div className="border-t border-border px-4 py-3">
