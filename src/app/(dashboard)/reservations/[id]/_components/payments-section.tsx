@@ -54,6 +54,8 @@ export interface PaymentsSectionActions {
   onDeletePayment: (paymentId: string) => void;
   onUploadReceipt: (paymentId: string, file: File) => Promise<{ error?: string }>;
   onSendLink: (payment: Payment) => void;
+  /** Abre el diálogo de agregar pago. Lo usan los empty states de ambas listas. */
+  onAddPayment?: () => void;
   generatingLinkId: string | null;
   regeneratingLinkId: string | null;
 }
@@ -84,7 +86,11 @@ function SectionHeader({
   return (
     <div className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-3">
       <div className="space-y-0.5 min-w-0">
-        <p className="text-sm font-bold text-foreground leading-tight">{title}</p>
+        {/* Era un <p>, asi que el arbol de encabezados iba H1 (nombre del cliente)
+            directo a los H3 de cada fila: la region que contiene la tarea no tenia
+            nivel propio y navegando por encabezados se llegaba a seis hermanos
+            sueltos. El tamaño no cambia; lo que cambia es el nivel semantico. */}
+        <h2 className="text-sm font-bold text-foreground leading-tight">{title}</h2>
         {meta && (
           <p className="text-xs text-muted-foreground leading-tight">{meta}</p>
         )}
@@ -136,6 +142,15 @@ export function PaymentsSection({
   // tercera card deja de ser "por cobrar" y pasa a ser la conciliacion:
   // Total = Cobrado + No cobrado. Antes ese hueco no se explicaba en ninguna
   // parte — la pagina mostraba Total $480.000, Cobrado $220.000, Pendiente $0.
+  // `pendingAmount` sale de `totalPrice - pagado` en reservas vivas (arriba se
+  // explica por que). Eso puede ser MAYOR que la suma de las filas pendientes
+  // cuando faltan cuotas por generar, y hasta ahora la diferencia no se decia en
+  // ninguna parte: el KPI anunciaba una deuda sin fila sobre la cual actuar.
+  const pendingRowsTotal = [...reservationPayments, ...extraPayments]
+    .filter((p) => p.status === "PENDING" && !p.deletedAt)
+    .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const unbilled = Math.max(totalPending - pendingRowsTotal, 0);
+
   const uncollected = Math.max(totalContract - totalPaid, 0);
   const showUncollected = !isActive && uncollected > 0;
 
@@ -248,11 +263,21 @@ export function PaymentsSection({
       <div className="space-y-3">
         <SectionHeader title={isMonthly ? "Cuotas de arriendo" : "Pagos de reserva"} />
 
+        {/* Cierra la resta contra el KPI: sin esta linea, "Por cobrar" podia decir
+            $305.000 mientras las filas visibles sumaban $265.000, y nada explicaba
+            los $40.000 de diferencia. */}
+        {isActive && unbilled > 0 && (
+          <p className="text-xs text-muted-foreground">
+            Faltan {formatPrice(unbilled)} del total por {isMonthly ? "generar como cuotas" : "registrar como pagos"}.
+          </p>
+        )}
+
         {isMonthly ? (
           <PaymentsTimeline
             payments={reservationPayments}
             isActive={isActive}
             firstOverdueId={firstOverdueId}
+            onAddPayment={actions.onAddPayment}
             onGenerateLink={actions.onGenerateLink}
             onRegenerateLink={actions.onRegenerateLink}
             onMarkPaid={actions.onMarkPaid}
@@ -268,6 +293,7 @@ export function PaymentsSection({
             nowKey={nowKey}
             isActive={isActive}
             firstOverdueId={firstOverdueId}
+            onAddPayment={actions.onAddPayment}
             onGenerateLink={actions.onGenerateLink}
             onRegenerateLink={actions.onRegenerateLink}
             onMarkPaid={actions.onMarkPaid}
@@ -288,6 +314,7 @@ export function PaymentsSection({
           nowKey={nowKey}
           isActive={isActive}
           variant="extra"
+          onAddPayment={actions.onAddPayment}
           onGenerateLink={actions.onGenerateLink}
           onRegenerateLink={actions.onRegenerateLink}
           onMarkPaid={actions.onMarkPaid}

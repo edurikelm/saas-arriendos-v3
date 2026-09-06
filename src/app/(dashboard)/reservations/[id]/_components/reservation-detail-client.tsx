@@ -793,6 +793,7 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
               onDeletePayment: handleDeletePayment,
               onUploadReceipt: handleUploadReceipt,
               onSendLink: handleSendLink,
+              onAddPayment: isEditable ? () => setShowAddPaymentDialog(true) : undefined,
               generatingLinkId,
               regeneratingLinkId,
             }}

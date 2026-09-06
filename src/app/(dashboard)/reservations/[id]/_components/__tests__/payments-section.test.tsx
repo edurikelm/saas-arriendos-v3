@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import * as React from 'react';
 import { PaymentsSection, type PaymentsSectionActions } from '../payments-section';
 import type { Payment } from '@/components/payments/payments-table';
@@ -16,6 +16,7 @@ function TestPaymentsSection(props: {
   client?: { name: string; email: string };
   propertyName?: string;
   actions?: Partial<PaymentsSectionActions>;
+  onAddPayment?: () => void;
   modals?: React.ReactNode;
 }) {
   const actions: PaymentsSectionActions = {
@@ -25,6 +26,7 @@ function TestPaymentsSection(props: {
     onDeletePayment: vi.fn(),
     onUploadReceipt: vi.fn(),
     onSendLink: vi.fn(),
+    onAddPayment: props.onAddPayment,
     generatingLinkId: null,
     regeneratingLinkId: null,
     ...props.actions,
@@ -356,6 +358,72 @@ describe('PaymentsSection - empty state', () => {
     expect(screen.getByText('Esta reserva no tiene pagos registrados.')).toBeTruthy();
     expect(screen.getByText('Esta reserva no tiene cobros extra registrados.')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /agregar pago/i })).toBeNull();
+  });
+});
+
+describe('PaymentsSection - reconciliacion y salidas', () => {
+  const render1 = (over: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) => {
+    const reservation = createMockReservation(over);
+    return render(
+      <TestPaymentsSection
+        reservationId={reservation.id}
+        totalPrice={reservation.totalPrice}
+        billingType={reservation.billingType}
+        status={reservation.status}
+        payments={reservation.payments}
+        client={reservation.client}
+        propertyName="Test Property"
+        {...extra}
+      />
+    );
+  };
+
+  it('explica la parte del total que todavia no tiene fila que cobrar', () => {
+    // "Por cobrar" sale de totalPrice - pagado, asi que puede superar la suma de
+    // las filas pendientes cuando faltan cuotas por generar. Antes esa diferencia
+    // no se decia en ninguna parte: el KPI anunciaba una deuda sin fila.
+    render1({
+      status: 'PENDING',
+      totalPrice: '200000',
+      payments: [
+        createMockPayment({ id: 'p1', amount: '50000', status: 'PENDING', paymentType: 'RESERVATION' }),
+      ],
+    });
+    expect(screen.getByText(/Faltan \$150\.000 del total por registrar/)).toBeTruthy();
+  });
+
+  it('no la muestra cuando las filas cubren todo el pendiente', () => {
+    render1({
+      status: 'PENDING',
+      totalPrice: '200000',
+      payments: [
+        createMockPayment({ id: 'p1', amount: '200000', status: 'PENDING', paymentType: 'RESERVATION' }),
+      ],
+    });
+    expect(screen.queryByText(/Faltan .* del total por/)).toBeNull();
+  });
+
+  it('el empty state ofrece una salida en vez de ser un callejon', () => {
+    // El CTA vivia solo en el top bar, a ~900px en la esquina opuesta.
+    const onAddPayment = vi.fn();
+    render1({ status: 'PENDING', payments: [] }, { onAddPayment });
+
+    const botones = screen.getAllByRole('button', { name: /agregar (pago|cobro extra)/i });
+    expect(botones.length).toBeGreaterThan(0);
+    fireEvent.click(botones[0]);
+    expect(onAddPayment).toHaveBeenCalledTimes(1);
+  });
+
+  it('la reserva cerrada no ofrece agregar pagos desde el empty state', () => {
+    render1({ status: 'CANCELLED', payments: [] }, { onAddPayment: vi.fn() });
+    expect(screen.queryByRole('button', { name: /agregar (pago|cobro extra)/i })).toBeNull();
+  });
+
+  it('el titulo de la seccion es un encabezado, no un parrafo', () => {
+    // Iba H1 (cliente) directo a los H3 de cada fila: la region con la tarea no
+    // tenia nivel propio.
+    render1({ status: 'PENDING' });
+    expect(screen.getByRole('heading', { level: 2, name: /pagos de reserva|cuotas de arriendo/i })).toBeTruthy();
   });
 });
 

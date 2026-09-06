@@ -1,5 +1,7 @@
 "use client";
 
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { PaymentTimelineNode } from "./payment-timeline-node";
 import { daysFromTodayDateOnly, nowKeyInBusinessTz } from "@/lib/domain/timezone";
 import type { Payment } from "@/components/payments/payments-table";
@@ -10,6 +12,8 @@ interface PaymentsTimelineProps {
   /** Id del primer pago vencido — lo decide PaymentsSection, que tambien
    *  renderiza la focus card que lleva el foco hasta aca. */
   firstOverdueId?: string | null;
+  /** Abre el diálogo de agregar pago desde el empty state. */
+  onAddPayment?: () => void;
   onGenerateLink?: (paymentId: string) => void;
   onRegenerateLink?: (paymentId: string) => void;
   onMarkPaid?: (paymentId: string) => void;
@@ -24,6 +28,7 @@ export function PaymentsTimeline({
   payments,
   isActive,
   firstOverdueId,
+  onAddPayment,
   onGenerateLink,
   onRegenerateLink,
   onMarkPaid,
@@ -51,6 +56,12 @@ export function PaymentsTimeline({
       {sorted.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-8">
           <p className="text-sm text-muted-foreground">Aún no generaste cuotas</p>
+          {isActive && onAddPayment && (
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={onAddPayment}>
+              <Plus className="size-3.5" />
+              Agregar cuota
+            </Button>
+          )}
         </div>
       ) : (
         <div className="space-y-4">

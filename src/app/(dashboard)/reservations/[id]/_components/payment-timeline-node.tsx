@@ -283,10 +283,11 @@ export function PaymentTimelineNode({
           {/* ───── COL 1 — INFO (mes + badge, debajo meta con iconos) ───── */}
           <div className="min-w-0 flex-1 flex flex-col gap-2">
             <div className="flex flex-wrap items-center gap-2 min-w-0">
-              <h3
-                className="text-base font-semibold text-foreground leading-tight"
-                aria-label={ariaLabel}
-              >
+              {/* Sin aria-label: reemplazaba el nombre accesible en vez de
+                  complementarlo, asi que navegando por encabezados se oia
+                  "Cuota 3 de 6" y nunca el mes que esta en pantalla — y esa
+                  misma cadena ya es texto visible dos lineas mas abajo. */}
+              <h3 className="text-base font-semibold text-foreground leading-tight">
                 {monthLabel || "—"}
               </h3>
               <Badge variant={toneBadgeVariant[tone]} className="shrink-0">
