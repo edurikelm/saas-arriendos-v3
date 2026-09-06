@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { SessionUser } from '@/lib/auth/session';
+import { PAYMENT_LINK_TTL_MS } from '@/lib/payments/expiration';
 
 /**
  * Cast helper para mocks de Prisma con campos extra (ej. `reservation` via include)
@@ -579,7 +580,9 @@ describe('generatePaymentLink', () => {
     expect(result).toHaveProperty('success', true);
     const updateCall = vi.mocked(prisma.payment.update).mock.calls[0];
     const expiresAt = updateCall[0].data.expiresAt as Date;
-    const expectedExpiry = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    // El TTL es una duracion fija (ver PAYMENT_LINK_TTL_MS), no dias calendario:
+    // el delta es identico corra el test en UTC o en America/Santiago cruzando DST.
+    const expectedExpiry = new Date(now.getTime() + PAYMENT_LINK_TTL_MS);
     expect(Math.abs(expiresAt.getTime() - expectedExpiry.getTime())).toBeLessThan(5000);
   });
 

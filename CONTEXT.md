@@ -32,7 +32,7 @@ Sistema SaaS para gestión de arriendos de propiedades.
 - `status: PENDING | COMPLETED | FAILED`
 - `mercadoPagoId` — preference_id de MP (para tracking de webhook)
 - `initPoint` — URL del link de pago de MP
-- `expiresAt` — fecha de expiración del link (7 días)
+- `expiresAt` — instante de expiración del link (7 × 24h desde su emisión). Es una duración fija, no un día calendario: no se calcula con aritmética wall-time. Ver ADR-0020 §6.
 - `installment_index?` — ordinal de cuota en arriendos mensuales (1, 2, 3...)
 - `due_date?` — fecha de vencimiento de la cuota (día 1 del mes correspondiente)
 - `paid_at` — fecha y hora cuando el pago fue completado
@@ -87,10 +87,11 @@ El webhook intenta matchear el pago en este orden:
 - Reservas pueden estar CONFIRMED con saldo pendiente
 - **Arriendos mensuales (MONTHLY):** se generan N pagos pendientes al crear la reserva, uno por cada mes
 - **Generación de pagos:** `amount = monthly_price × units_booked`, `due_date` = día 1 de cada mes cubierto, empezando por el mes de `start_date`
-- **Link MP:** se genera bajo demanda (no al crear la reserva), vence en 7 días
+- **Link MP:** se genera bajo demanda (no al crear la reserva), vence 7 × 24h después de emitirse. La regla vive en `src/lib/payments/expiration.ts` (`paymentLinkExpiresAt`), único lugar donde se expresa el plazo, y se envía a MP como `expiration_date_to`
 - Al cancelar: DELETE pagos PENDING, KEEP pagos COMPLETED (auditoría financiera)
 - **Transición a CONFIRMED**: una reserva pasa a `CONFIRMED` solo cuando la suma de `Payment` con `status: COMPLETED`, `paymentType: RESERVATION` y `deletedAt: null` alcanza `totalPrice`. Pagos `PENDING` o `paymentType: EXTRA` no participan en esta transición.
 - **Fechas de cobranza y recordatorios** (vencidos / vencen hoy / próximos 7 días) se calculan en wall-time `America/Santiago`, no en UTC. Ver ADR-0020.
+- **Fecha de negocio vs vigencia técnica**: `dueDate` responde "¿qué día es en Santiago?" y va en wall-time; `expiresAt` responde "¿cuánto dura el link?" y va en milisegundos. Confundirlas produce plazos distintos según la zona del servidor. Ver ADR-0020 §6.
 
 ### Cancelación
 - Libre — cualquier parte puede cancelar

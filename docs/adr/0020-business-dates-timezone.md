@@ -74,9 +74,59 @@ La precondición es que el `endDate` que llega al serializer ya representa día 
 
 El frontend (Next.js, navegador) muestra fechas con `Intl.DateTimeFormat({ timeZone: "America/Santiago" })` cuando requiere consistencia de zona. Esto se respeta en componentes de calendario, listados de reservas y alertas. Para fechas date-only (`YYYY-MM-DD` que ya están en la convención del dominio), se renderizan directamente con formateo local.
 
+#### 6. TTL técnicos (`Payment.expiresAt`) — duración, no día calendario
+
+> Nota agregada 2026-09-03, a raíz de un test que fallaba solo en equipos con zona
+> `America/Santiago` durante la semana del cambio de horario.
+
+La regla wall-time aplica a **fechas de negocio**. Un TTL técnico no es una de ellas:
+`Payment.expiresAt` es un **instante**, y su vigencia es una **duración fija**.
+
+Se reconoce por cómo se consume, no por su tipo:
+
+- se compara como instante (`new Date(payment.expiresAt) < new Date()`) en
+  `payment-row-actions.tsx`, `payment-card.tsx` y `generatePaymentLink`;
+- se valida como `z.string().datetime()`;
+- se envía a Mercado Pago como `expiration_date_to`, que MP hace cumplir como
+  momento absoluto.
+
+Nada de eso pregunta "¿qué día calendario en Santiago?". Por lo tanto el cálculo
+correcto es sumar milisegundos, no días calendario:
+
+```ts
+// Correcto — duración fija, idéntica en cualquier runtime.
+export function paymentLinkExpiresAt(from: Date = new Date()): Date {
+  return new Date(from.getTime() + PAYMENT_LINK_TTL_MS);
+}
+
+// Incorrecto — addDays suma en wall-time de la zona del runtime.
+const expiresAt = addDays(new Date(), 7);
+```
+
+`addDays` de date-fns opera sobre la zona **del runtime**, no sobre la de negocio.
+Al cruzar el inicio del horario de verano chileno (primer domingo de septiembre)
+devuelve 167h en un equipo en Santiago y 168h en Vercel (UTC): la misma línea de
+código emite links con vigencia distinta según dónde corre. Es la trampa que este
+ADR ya advertía en Consequences, apareciendo en un campo que no es fecha de negocio.
+
+La constante y el helper viven en `src/lib/payments/expiration.ts`, único lugar
+donde se expresa la regla de los 7 días. La regresión está anclada en
+`src/lib/payments/__tests__/expiration.test.ts`, que verifica con `Intl` en zona
+Santiago que la ventana efectivamente cruza el cambio de offset y que aun así dura
+7 × 24h exactas — en ambas transiciones (septiembre y abril) y sin depender de la
+zona en que corra el test.
+
+**Criterio general**: antes de elegir aritmética de fechas, preguntar si el valor
+responde "¿qué día es en Santiago?" (wall-time, `dateKey`) o "¿cuánto dura esto?"
+(duración en ms). `dueDate` es lo primero; `expiresAt` es lo segundo.
+
 ### Relación con DST
 
-Chile usa UTC-4 en invierno y UTC-3 en verano (segundo sábado de marzo / primer sábado de octubre, aproximado). Para esta decisión:
+Chile usa UTC-4 en invierno y UTC-3 en verano. El cambio ocurre a medianoche del primer domingo de septiembre (entra el horario de verano) y del primer domingo de abril (sale). Verificado contra la base de datos IANA: 2025-09-07 / 2026-09-06 / 2027-09-05 y 2025-04-06 / 2026-04-05 / 2027-04-04.
+
+> Corrección 2026-09-03: esta línea decía "segundo sábado de marzo / primer sábado de octubre, aproximado", equivocada en ambos extremos — es la regla vigente desde 2022. Importa porque la sección 6 depende de la fecha exacta de la transición.
+
+Para esta decisión:
 
 - Las fechas **date-only** (sin hora) no se ven afectadas por DST — son abstractas sobre la zona.
 - Las fechas **con hora** se tratan siempre como wall-time, lo que es coherente con cómo Airbnb/Booking las entregan.
@@ -89,6 +139,7 @@ No se implementa offset por fecha individual en este ADR. Si en el futuro se nec
 - Migración del runtime del servidor (sigue UTC en Vercel). Solo se afecta la interpretación y presentación.
 - Localización de UI más allá de Chile (i18n, otros países). Hoy RentalPro es single-tenant por mercado.
 - Timestamps de auditoría (`created_at`, `updated_at`) — siguen siendo UTC ISO-8601, que es la convención correcta.
+- Vigencias y TTL técnicos (`Payment.expiresAt`) — son duraciones sobre instantes, no días calendario. Ver sección 6.
 
 ## Consequences
 
@@ -114,7 +165,8 @@ No se implementa offset por fecha individual en este ADR. Si en el futuro se nec
 ## References
 
 - Implementación: `src/lib/alerts/collection-alerts.ts`, `src/lib/ical/parser.ts`, `src/lib/ical/serializer.ts`
-- Tests: `src/lib/alerts/__tests__/collection-alerts.test.ts`
+- Implementación (TTL): `src/lib/payments/expiration.ts`
+- Tests: `src/lib/alerts/__tests__/collection-alerts.test.ts`, `src/lib/payments/__tests__/expiration.test.ts`
 - CONTEXT.md secciones:
   - "Calendarios Externos" (iCal availability)
   - "Pagos" (cobranza y recordatorios)
