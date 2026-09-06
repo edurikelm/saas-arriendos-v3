@@ -1,6 +1,7 @@
 "use client";
 
 import { Plus } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { PaymentCard } from "./payment-card";
 import { getDaysUntilDue, sortByDueDate } from "@/lib/payments/payment-status";
@@ -58,7 +59,19 @@ export function PaymentsCardsList({
   const sorted = sortByDueDate(payments);
 
   return (
-    <div className="rounded-lg border border-border bg-card overflow-hidden">
+    /* Silueta de tabla del sistema (DESIGN.md: `rounded-md border border-t-2
+       border-t-primary border-border bg-card`). Esta lista es inequivocamente una
+       tabla —registros repetidos con identidad, monto, estado y acciones— y era la
+       unica del producto sin el acento, asi que Verdigris no aparecia en la columna
+       que hace el trabajo de la pagina. El acento va SOLO cuando hay filas: un
+       accent strip de marca coronando un contenedor vacio senala una tabla que no
+       existe. */
+    <div
+      className={cn(
+        "rounded-md border border-border bg-card overflow-hidden",
+        sorted.length > 0 && "border-t-2 border-t-primary",
+      )}
+    >
       {/* Empty state — solo mensaje. El CTA "Agregar Pago" vive en el header de la
           sección padre (no se duplica aquí), evitando dos botones con la misma acción
           cuando la lista está vacía. El strip celebratorio "Pago cobrado · $X" fue
@@ -80,6 +93,18 @@ export function PaymentsCardsList({
           )}
         </div>
       ) : (
+        <div>
+          {/* El rotulo de columna, una vez. Antes cada fila reimprimia su propio
+              "MONTO A PAGAR": seis copias de lo mismo en una lista de seis. */}
+          <div className="hidden @2xl:flex items-center gap-4 border-b border-border bg-muted/50 px-4 py-2">
+            <span className="min-w-0 flex-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              {variant === "extra" ? "Cobro" : "Pago"}
+            </span>
+            <span className="shrink-0 w-[130px] text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Monto
+            </span>
+            <span className="shrink-0 w-[248px]" aria-hidden="true" />
+          </div>
         <div className="divide-y divide-border">
           {sorted.map((payment, idx) => (
             <PaymentCard
@@ -101,6 +126,7 @@ export function PaymentsCardsList({
               regeneratingLinkId={regeneratingLinkId}
             />
           ))}
+        </div>
         </div>
       )}
     </div>
