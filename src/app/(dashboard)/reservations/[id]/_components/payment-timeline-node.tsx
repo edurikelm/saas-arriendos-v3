@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -194,6 +195,13 @@ export function PaymentTimelineNode({
   if (isCompleted && canViewReceipt && primaryAction !== "viewReceipt") secondaries.push("viewReceipt");
   if (canDelete) secondaries.push("delete");
 
+  // "Eliminar pago" no puede quedar pegada al bloque constructivo (P1: en una
+  // fila de pago, "Marcar pagado" y "Eliminar pago" son visualmente idénticas
+  // y adyacentes — liquidar la deuda vs. destruir el registro). Cuando hay
+  // algo renderizado arriba (la primaria, u otra secundaria), se antepone un
+  // divisor de 1px `bg-border` — mismo lenguaje visual que `DropdownMenuSeparator`.
+  const hasContentAboveDelete = primaryAction !== null || secondaries.some((id) => id !== "delete");
+
   // Mapa declarativo id → config visual del botón. Cada secundaria sabe cómo
   // renderizarse; el render es un simple .map() sobre la lista `secondaries`.
   const secondaryButtons: Record<SecondaryId, {
@@ -221,9 +229,14 @@ export function PaymentTimelineNode({
       onClick: () => payment.receiptUrl && window.open(payment.receiptUrl, "_blank"),
     },
     delete: {
+      // Destructiva de verdad: color destructivo en REPOSO, no solo en hover
+      // (en touch el hover nunca ocurre — la acción quedaba indistinguible de
+      // "Marcar pagado", su vecina constructiva). `text-destructive-text`, no
+      // `text-destructive` — ese es el token de relleno (3.76:1 sobre card,
+      // bajo AA); ver The Fill-vs-Text Rule en DESIGN.md.
       label: "Eliminar pago",
       icon: Trash2,
-      className: "text-muted-foreground hover:text-destructive-text",
+      className: "text-destructive-text hover:text-destructive-text",
       onClick: () => onDeletePayment?.(payment.id),
     },
   };
@@ -457,18 +470,26 @@ export function PaymentTimelineNode({
             {secondaries.map((id) => {
               const cfg = secondaryButtons[id];
               const Icon = cfg.icon;
+              const isDelete = id === "delete";
               return (
-                <Button
-                  key={id}
-                  variant="link"
-                  size="sm"
-                  className={cn("h-7 px-1 text-xs", cfg.className)}
-                  onClick={cfg.onClick}
-                  title={id === "delete" ? "Eliminar pago" : undefined}
-                >
-                  <Icon className="size-3.5 mr-1" />
-                  {cfg.label}
-                </Button>
+                <Fragment key={id}>
+                  {/* Divisor antes de la destructiva — separación real (13px:
+                      gap-1.5 + línea de 1px + gap-1.5) en vez del gap-1.5 uniforme
+                      que la pegaba al botón constructivo de arriba. */}
+                  {isDelete && hasContentAboveDelete && (
+                    <div className="h-px w-full bg-border" aria-hidden="true" />
+                  )}
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className={cn("h-7 px-1 text-xs", cfg.className)}
+                    onClick={cfg.onClick}
+                    title={isDelete ? "Eliminar pago" : undefined}
+                  >
+                    <Icon className="size-3.5 mr-1" />
+                    {cfg.label}
+                  </Button>
+                </Fragment>
               );
             })}
           </div>
