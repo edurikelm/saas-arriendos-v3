@@ -300,7 +300,7 @@ export function AddPaymentDialog({
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                   Ya pagado:
                 </span>
-                <span className="text-xl font-bold tabular-nums text-success">
+                <span className="text-xl font-bold tabular-nums text-success-text">
                   {formatAmount(paidAmount)}
                 </span>
               </div>
@@ -308,7 +308,7 @@ export function AddPaymentDialog({
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                   Pendiente:
                 </span>
-                <span className="text-xl font-bold tabular-nums text-warning">
+                <span className="text-xl font-bold tabular-nums text-warning-text">
                   {formatAmount(pendingAmount)}
                 </span>
               </div>

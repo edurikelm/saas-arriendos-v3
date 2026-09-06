@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Payment } from "@/components/payments/payments-table";
 import { formatDateOnly, formatInstant } from "@/lib/domain/timezone";
+import { getPaymentDisplayStatus } from "@/lib/payments/payment-status";
 import { AttachReceiptPopover } from "@/components/payments/attach-receipt-popover";
 
 function formatAmount(amount: string | number): string {
@@ -54,11 +55,14 @@ const METHOD_LABELS: Record<string, string> = {
 
 type Tone = "success" | "info" | "warning" | "destructive";
 
-const toneClasses: Record<Tone, { bar: string; text: string }> = {
-  success: { bar: "bg-success", text: "text-success" },
-  info: { bar: "bg-info", text: "text-info" },
-  warning: { bar: "bg-warning", text: "text-warning" },
-  destructive: { bar: "bg-destructive", text: "text-destructive-text" },
+// Solo el color del punto del timeline. La clave `text` que vivia aca nunca se
+// destructuraba y llevaba los tokens de relleno crudos: codigo muerto que le
+// documentaba el patron equivocado al proximo que lo leyera.
+const toneClasses: Record<Tone, { bar: string }> = {
+  success: { bar: "bg-success" },
+  info: { bar: "bg-info" },
+  warning: { bar: "bg-warning" },
+  destructive: { bar: "bg-destructive" },
 };
 
 /** Mapas de variante del Badge por tono — el Badge es el lenguaje canónico de estado. */
@@ -108,28 +112,12 @@ export function PaymentTimelineNode({
   const isMercadoPago = payment.method === "MERCADO_PAGO";
   const isExpired = payment.expiresAt ? new Date(payment.expiresAt) < new Date() : false;
 
-  // Tone derivation — todos los pagos PENDING cargan el tono `warning` (amber)
-  // para coincidir con el KPI "Pendiente" del header. La etiqueta del badge (abajo)
-  // se calcula por separado desde `daysFromNow` para reflejar la urgencia real,
-  // no el color. Así "Vence 1 oct 2026" muestra badge "Pendiente", no "Vence hoy".
-  let tone: Tone;
-  if (isCompleted) {
-    tone = "success";
-  } else if (isPending && daysFromNow < 0) {
-    tone = "destructive"; // overdue
-  } else {
-    tone = "warning"; // PENDING (any future or due today) — matches KPI Pendiente
-  }
-
-  // Label del badge — refleja la urgencia real contra `dueDate`, NO el color.
-  // Cuatro ramas (mismo orden que el tone derivation para evitar inconsistencias).
-  const badgeLabel = isCompleted
-    ? "Pagado"
-    : daysFromNow < 0
-      ? "Vencido"
-      : daysFromNow === 0
-        ? "Vence hoy"
-        : "Pendiente";
+  // Tono y etiqueta salen del helper compartido: `PaymentCard` (diarias) usa el
+  // mismo, para que un pago atrasado se llame igual en los dos modos de cobro.
+  const { tone, label: badgeLabel } = getPaymentDisplayStatus(
+    payment.status,
+    payment.dueDate ? daysFromNow : null,
+  );
 
   const { bar: barClass } = toneClasses[tone];
   const installmentNumber = payment.installmentIndex ?? index + 1;
@@ -213,13 +201,13 @@ export function PaymentTimelineNode({
     markPaid: {
       label: "Marcar pagado",
       icon: Check,
-      className: "text-success-foreground hover:text-success-foreground",
+      className: "text-success-text hover:text-success-text",
       onClick: () => onMarkPaid?.(payment.id),
     },
     sendLink: {
       label: "Enviar link",
       icon: Send,
-      className: "text-info-foreground hover:text-info-foreground",
+      className: "text-info-text hover:text-info-text",
       onClick: () => onSendLink?.(payment),
     },
     viewReceipt: {
@@ -249,6 +237,7 @@ export function PaymentTimelineNode({
     <div
       className="relative flex gap-4 scroll-mt-24 rounded-lg focus:outline-2 focus:outline-offset-2"
       data-testid={`timeline-node-${payment.id}`}
+      data-payment-id={payment.id}
       tabIndex={isFirstOverdue ? -1 : undefined}
       aria-label={isFirstOverdue ? `${ariaLabel} — vencida` : undefined}
     >
@@ -317,10 +306,10 @@ export function PaymentTimelineNode({
                   <span>
                     Vence {formatShortDate(payment.dueDate)}
                     {isPending && daysFromNow >= 0 && daysFromNow <= 7 && daysFromNow > 0 && (
-                      <span className="text-info-foreground font-medium"> · En {daysFromNow} días</span>
+                      <span className="text-info-text font-medium"> · En {daysFromNow} días</span>
                     )}
                     {isPending && daysFromNow === 0 && (
-                      <span className="text-warning-foreground font-medium"> · Vence hoy</span>
+                      <span className="text-warning-text font-medium"> · Vence hoy</span>
                     )}
                   </span>
                 </span>
@@ -344,7 +333,7 @@ export function PaymentTimelineNode({
                 que ese monto ya fue cobrado, en el mismo verde del badge (Status
                 Color Doctrine: COMPLETED → success). */}
             {isCompleted && payment.paidAt && (
-              <p className="text-[10px] font-medium text-success-foreground tabular-nums mt-0.5">
+              <p className="text-[10px] font-medium text-success-text tabular-nums mt-0.5">
                 Pagado el {formatPaidDate(payment.paidAt)}
               </p>
             )}
@@ -357,7 +346,7 @@ export function PaymentTimelineNode({
               <Button
                 variant="link"
                 size="sm"
-                className="h-7 px-1 text-xs text-info-foreground hover:text-info-foreground"
+                className="h-7 px-1 text-xs text-info-text hover:text-info-text"
                 onClick={() => onGenerateLink?.(payment.id)}
                 disabled={isGenerating}
               >
@@ -375,7 +364,7 @@ export function PaymentTimelineNode({
               <Button
                 variant="link"
                 size="sm"
-                className="h-7 px-1 text-xs text-info-foreground hover:text-info-foreground"
+                className="h-7 px-1 text-xs text-info-text hover:text-info-text"
                 onClick={() => onRegenerateLink?.(payment.id)}
                 disabled={isRegenerating}
               >
@@ -393,7 +382,7 @@ export function PaymentTimelineNode({
               <Button
                 variant="link"
                 size="sm"
-                className="h-7 px-1 text-xs text-info-foreground hover:text-info-foreground"
+                className="h-7 px-1 text-xs text-info-text hover:text-info-text"
                 onClick={() => onSendLink?.(payment)}
               >
                 <Send className="size-3.5 mr-1" />
@@ -404,7 +393,7 @@ export function PaymentTimelineNode({
               <Button
                 variant="link"
                 size="sm"
-                className="h-7 px-1 text-xs text-info-foreground hover:text-info-foreground"
+                className="h-7 px-1 text-xs text-info-text hover:text-info-text"
                 onClick={() => {
                   if (payment.initPoint) {
                     navigator.clipboard.writeText(payment.initPoint);
@@ -421,7 +410,7 @@ export function PaymentTimelineNode({
               <Button
                 variant="link"
                 size="sm"
-                className="h-7 px-1 text-xs text-success-foreground hover:text-success-foreground"
+                className="h-7 px-1 text-xs text-success-text hover:text-success-text"
                 onClick={() => onMarkPaid?.(payment.id)}
               >
                 <Check className="size-3.5 mr-1" />

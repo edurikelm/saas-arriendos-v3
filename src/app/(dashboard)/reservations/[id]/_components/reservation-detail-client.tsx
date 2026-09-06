@@ -177,6 +177,21 @@ function getFieldIcon(field: string): LucideIcon {
   return FIELD_ICONS[field] ?? Tag;
 }
 
+/** Los valores de `status` se guardan como enum y salian crudos al historial
+ *  ("PENDING → CONFIRMED") al lado de un FieldLabel que si traducia el campo. */
+const STATUS_LABELS: Record<string, string> = {
+  PENDING: "Pendiente",
+  CONFIRMED: "Confirmada",
+  COMPLETED: "Finalizada",
+  CANCELLED: "Cancelada",
+};
+
+function formatChangeValue(field: string, value: string): string {
+  if (field === "status") return STATUS_LABELS[value] ?? value;
+  if (field === "billingType") return value === "MONTHLY" ? "Mensual" : value === "DAILY" ? "Diario" : value;
+  return value;
+}
+
 function FieldLabel({ field }: { field: string }) {
   const labels: Record<string, string> = {
     startDate: "Check-in",
@@ -245,13 +260,17 @@ function ChangeTimeline({ changes }: { changes: ReservationChange[] }) {
               {(change.oldValue || change.newValue) && (
                 <p className="text-xs text-muted-foreground leading-relaxed break-words">
                   {change.oldValue && (
-                    <span className="line-through opacity-70">{change.oldValue}</span>
+                    <span className="line-through opacity-70">
+                      {formatChangeValue(change.field, change.oldValue)}
+                    </span>
                   )}
                   {change.oldValue && change.newValue && (
                     <span className="mx-1.5 text-muted-foreground/60">→</span>
                   )}
                   {change.newValue && (
-                    <span className="text-foreground font-medium">{change.newValue}</span>
+                    <span className="text-foreground font-medium">
+                      {formatChangeValue(change.field, change.newValue)}
+                    </span>
                   )}
                 </p>
               )}
@@ -816,8 +835,9 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
 
           {/* Documentos (solo MONTHLY) — bajo Resumen en la columna derecha */}
           {reservation.billingType === "MONTHLY" && (
-            <section>
-              <h2 className="text-sm font-bold text-foreground mb-3">Documentos</h2>
+            <section aria-label="Documentos">
+              {/* Sin h2 propio: `ReservationDocumentsPanel` ya renderiza su
+                  encabezado "Documentos" y se imprimian los dos, apilados. */}
               <ReservationDocumentsPanel reservationId={reservation.id} />
             </section>
           )}
