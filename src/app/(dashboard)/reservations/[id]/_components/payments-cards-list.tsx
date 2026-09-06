@@ -1,5 +1,7 @@
 "use client";
 
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { PaymentCard } from "./payment-card";
 import { getDaysUntilDue, sortByDueDate } from "@/lib/payments/payment-status";
 import type { Payment } from "@/components/payments/payments-table";
@@ -20,6 +22,8 @@ interface PaymentsCardsListProps {
   variant?: "reservation" | "extra";
   /** Id del primer pago vencido — recibe el foco desde la focus card de la sección. */
   firstOverdueId?: string | null;
+  /** Abre el diálogo de agregar pago desde el empty state. */
+  onAddPayment?: () => void;
 }
 
 export function PaymentsCardsList({
@@ -36,6 +40,7 @@ export function PaymentsCardsList({
   regeneratingLinkId,
   variant = "reservation",
   firstOverdueId,
+  onAddPayment,
 }: PaymentsCardsListProps) {
   // Variant-driven copy — diferenciado por variant en estado activo e inactivo
   // para que las dos secciones de la reserva (arriendo + extras) tengan copy propia.
@@ -64,6 +69,15 @@ export function PaymentsCardsList({
           <p className="text-sm text-muted-foreground">
             {isActive ? activeEmptyMessage : inactiveEmptyMessage}
           </p>
+          {/* El CTA vivia solo en el top bar. Con la lista vacia eso deja al owner
+              con un mensaje y ningun camino, a ~900px del unico boton, en la
+              esquina opuesta de la pantalla. */}
+          {isActive && onAddPayment && (
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={onAddPayment}>
+              <Plus className="size-3.5" />
+              {variant === "extra" ? "Agregar cobro extra" : "Agregar pago"}
+            </Button>
+          )}
         </div>
       ) : (
         <div className="divide-y divide-border">
