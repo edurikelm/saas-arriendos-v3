@@ -253,12 +253,16 @@ export function MarkPaidModal({
   onOpenChange,
   onSuccess,
   contextLabel,
+  amount,
+  defaultMethod,
 }: {
   paymentId: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
   contextLabel?: string;
+  amount?: string | number;
+  defaultMethod?: string | null;
 }) {
   return (
     <MarkPaidDialog
@@ -267,6 +271,8 @@ export function MarkPaidModal({
       onOpenChange={onOpenChange}
       onSuccess={onSuccess}
       contextLabel={contextLabel}
+      amount={amount}
+      defaultMethod={defaultMethod}
     />
   );
 }

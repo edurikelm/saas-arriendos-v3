@@ -25,6 +25,15 @@ import { markPaymentAsPaid } from "@/lib/actions/payments";
 
 type PaidMethod = "CASH" | "TRANSFER";
 
+function formatAmount(amount: string | number): string {
+  return new Intl.NumberFormat("es-CL", {
+    style: "currency",
+    currency: "CLP",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Number(amount));
+}
+
 const PAID_METHOD_LABELS: Record<string, string> = {
   CASH: "Efectivo",
   TRANSFER: "Transferencia",
@@ -40,6 +49,17 @@ interface MarkPaidDialogProps {
    * Sirve de contexto cuando se abre desde el dashboard (sin ver la reserva).
    */
   contextLabel?: string;
+  /**
+   * Monto del pago que se va a liquidar. Se muestra como la cifra mas grande del
+   * dialogo: es lo que el owner tiene que verificar antes de confirmar una accion
+   * que no tiene undo, y en una reserva mensual hay seis filas con el mismo valor.
+   */
+  amount?: string | number;
+  /**
+   * Metodo con el que se creo el pago. Siembra el select en vez de asumir CASH:
+   * confirmar sobre una fila de Transferencia reescribia el metodo en silencio.
+   */
+  defaultMethod?: string | null;
 }
 
 /**
@@ -56,15 +76,38 @@ export function MarkPaidDialog({
   onOpenChange,
   onSuccess,
   contextLabel,
+  amount,
+  defaultMethod,
 }: MarkPaidDialogProps) {
-  const [date, setDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
-  const [method, setMethod] = useState<PaidMethod>("CASH");
+  // Fecha y metodo se DERIVAN en render y el estado guarda solo lo que el owner
+  // toco. Sembrarlos con un efecto era la otra opcion, pero setState dentro de un
+  // efecto encadena renders (y el lint lo prohibe con razon). Asi ademas el
+  // dialogo no arrastra lo elegido la vez anterior: se queda montado entre
+  // aperturas, y antes de esto el metodo se pegaba de un pago al siguiente.
+  const [methodOverride, setMethodOverride] = useState<PaidMethod | null>(null);
+  const [dateOverride, setDateOverride] = useState<string | null>(null);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+
+  // El pago se creo con un metodo; asumirlo siempre CASH lo reescribia en
+  // silencio. MERCADO_PAGO no es representable aca (el select ofrece efectivo o
+  // transferencia), asi que cae a CASH.
+  const method: PaidMethod =
+    methodOverride ?? (defaultMethod === "TRANSFER" ? "TRANSFER" : "CASH");
+  const date = dateOverride ?? format(new Date(), "yyyy-MM-dd");
+
+  function setMethod(next: PaidMethod) {
+    setMethodOverride(next);
+  }
+  function setDate(next: string) {
+    setDateOverride(next);
+  }
 
   function resetState() {
     setReceiptFile(null);
     setIsUploading(false);
+    setMethodOverride(null);
+    setDateOverride(null);
   }
 
   async function handleConfirm() {
@@ -129,6 +172,21 @@ export function MarkPaidDialog({
             <DialogDescription>{contextLabel}</DialogDescription>
           ) : null}
         </DialogHeader>
+
+        {/* El monto va aca y no en la descripcion: es el dato que el owner tiene
+            que verificar antes de una accion sin undo, y una descripcion en gris
+            de 12px es justo lo que se saltea. Mismo idioma kicker + cifra tabular
+            que usan las filas de pago. */}
+        {amount != null && (
+          <div className="rounded-lg border border-border bg-muted/40 px-4 py-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Monto a registrar
+            </p>
+            <p className="text-2xl font-bold tabular-nums text-foreground tracking-tight">
+              {formatAmount(amount)}
+            </p>
+          </div>
+        )}
 
         <div className="space-y-4 py-2">
           <div className="space-y-2">
