@@ -27,32 +27,34 @@ const mockPayment = (overrides = {}) => ({
 
 describe("PaymentTimelineNode", () => {
   describe("installment number rendering", () => {
-    // El nodo del timeline reorganizó su layout en 3 columnas (info / monto / acciones).
-    // "Cuota X de Y" ahora vive en la fila meta con icono Hash, ya no en un eyebrow
-    // superior. Mantenemos los asserts de presencia del texto + fallback por index.
-    it("renders installment number inside meta row (Hash icon + Cuota X de Y)", () => {
+    // La posición de la cuota salió de la fila: el rail de puntos ya la da, el h3
+    // nombra el mes, y el conteo total ahora vive en el header de la sección. Eran
+    // tres codificaciones del mismo hecho, y la del meta hacía que la fila
+    // envolviera a dos líneas.
+    it("no imprime la posición en la fila: el mes es el identificador", () => {
       render(
         <PaymentTimelineNode
           payment={mockPayment({ installmentIndex: 3 })}
           index={2} total={6} nowKey="2025-01-01" daysFromNow={10} isActive={true}
         />
       );
-      expect(screen.getByText(/Cuota 3 de 6/)).toBeTruthy();
+      expect(screen.queryByText(/3 de 6/)).toBeNull();
+      expect(screen.getByRole("heading", { level: 3 })).toBeTruthy();
     });
-    it("uses index+1 when installmentIndex is null", () => {
-      render(
+    it("la posición sigue disponible para lectores de pantalla en la cuota vencida", () => {
+      const { container } = render(
         <PaymentTimelineNode
           payment={mockPayment({ installmentIndex: null })}
-          index={4} total={6} nowKey="2025-01-01" daysFromNow={10} isActive={true}
+          index={4} total={6} nowKey="2025-01-01" daysFromNow={-3} isActive={true}
+          isFirstOverdue
         />
       );
-      expect(screen.getByText(/Cuota 5 de 6/)).toBeTruthy();
+      // Fallback index+1 cuando no hay installmentIndex.
+      expect(container.querySelector('[aria-label*="Cuota 5 de 6"]')).toBeTruthy();
     });
     it("renders 3-column desktop layout (info / amount / actions)", () => {
-      // El nodo expone las 3 columnas como bloques flex en el wrapper interior.
-      // Verificamos que el monto vive en su propia columna con `text-xl` (kicker
-      // 10px) y que sigue siendo tabular. Usamos status=PENDING para que el kicker
-      // diga "Monto a pagar" (la maqueta muestra el caso pendiente).
+      // El monto vive en su propia columna, tabular y alineado a la derecha para
+      // que las cifras de todas las filas formen una columna escaneable.
       const { container } = render(
         <PaymentTimelineNode
           payment={mockPayment({ status: "PENDING", amount: "250000", paidAt: null })}
@@ -62,10 +64,14 @@ describe("PaymentTimelineNode", () => {
       const amount = container.querySelector("p.text-xl.font-bold.tabular-nums");
       expect(amount).toBeTruthy();
       expect(amount?.textContent).toBe("$250.000");
-      // El kicker "Monto a pagar" también existe (10px whisper)
-      expect(container.querySelector("p.text-\\[10px\\].font-bold.uppercase.tracking-wider")?.textContent).toContain(
-        "Monto a pagar",
+      // El kicker existe pero es `@2xl:sr-only`: visible en el layout apilado
+      // (donde no hay header de columna) y sólo para lectores de pantalla cuando
+      // el header visual toma el relevo.
+      const kicker = [...container.querySelectorAll("p")].find((el) =>
+        el.textContent?.includes("Monto a pagar"),
       );
+      expect(kicker).toBeTruthy();
+      expect(kicker?.className).toContain("@2xl:sr-only");
     });
   });
 

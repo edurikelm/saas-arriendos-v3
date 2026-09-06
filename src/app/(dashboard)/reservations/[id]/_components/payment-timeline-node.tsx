@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   CalendarDays,
-  Hash,
   FileText,
   Check,
   Copy,
@@ -201,13 +200,13 @@ export function PaymentTimelineNode({
     markPaid: {
       label: "Marcar pagado",
       icon: Check,
-      className: "text-success-text hover:text-success-text",
+      className: "text-muted-foreground hover:text-success-text",
       onClick: () => onMarkPaid?.(payment.id),
     },
     sendLink: {
       label: "Enviar link",
       icon: Send,
-      className: "text-info-text hover:text-info-text",
+      className: "text-muted-foreground hover:text-info-text",
       onClick: () => onSendLink?.(payment),
     },
     viewReceipt: {
@@ -231,7 +230,6 @@ export function PaymentTimelineNode({
 
   const isLast = index === total - 1;
   const ariaLabel = `Cuota ${installmentNumber} de ${total}`;
-  const amountKicker = isCompleted ? "Monto cobrado" : "Monto a pagar";
 
   return (
     <div
@@ -259,14 +257,15 @@ export function PaymentTimelineNode({
         aria-hidden="true"
       />
 
-      {/* Content — Layout 3 columnas (desktop) / stacked (mobile):
-            • Col 1 (info):    título del mes + badge, debajo meta con iconos (# / 📅 / MP)
-            • Col 2 (monto):   kicker 10px + número tabular grande (centrado en desktop)
-            • Col 3 (acciones): botones apilados, alineados a la derecha en desktop
-          El monto en su propia columna evita que info y acciones compitan por
-          espacio horizontal y refleja la jerarquía "cuota · monto · acción" del
-          dominio. En mobile las 3 columnas se apilan verticalmente.
-          Border canónico del design system; sin border tint por tone. */}
+      {/* Fila de 3 columnas cuando el contenedor da (>= @2xl), apilada cuando no:
+            • Col 1 (info):    titulo + badge, debajo descripcion y meta.
+            • Col 2 (monto):   cifra tabular alineada a la derecha, ancho fijo para
+                               que las cifras de todas las filas formen columna. El
+                               rotulo va en el header de la tabla, una vez; aca queda
+                               `@2xl:sr-only` para el layout apilado y los lectores.
+            • Col 3 (acciones): en fila, ancho fijo, `flex-wrap` para que el caso raro
+                               de tres acciones baje de linea en vez de invadir el
+                               monto. Orden DOM = orden visual = orden de foco. */}
       <div
         className={cn(
           "flex-1 rounded-lg border border-border bg-card overflow-hidden transition-colors",
@@ -279,7 +278,7 @@ export function PaymentTimelineNode({
             + acciones (150px) + gaps; si no, se apilan verticalmente. Con `sm:`
             (viewport) esto forzaba fila con el panel angosto y la columna de info
             colapsaba a 0 (su texto quedaba sobreimpreso con el monto). */}
-        <div className="flex flex-col gap-4 px-4 py-4 @xl:flex-row @xl:items-center @xl:gap-6">
+        <div className="flex flex-col gap-3 px-4 py-3 @2xl:flex-row @2xl:items-center @2xl:gap-4">
           {/* ───── COL 1 — INFO (mes + badge, debajo meta con iconos) ───── */}
           <div className="min-w-0 flex-1 flex flex-col gap-2">
             <div className="flex flex-wrap items-center gap-2 min-w-0">
@@ -294,13 +293,9 @@ export function PaymentTimelineNode({
                 {badgeLabel}
               </Badge>
             </div>
-            {/* Meta row con iconos — coincide con la maqueta (chips: # / 📅 / método) */}
+            {/* Meta: vencimiento y metodo. El chip "# N de M" se movio al header
+                de la seccion — el rail ya da la posicion y el h3 nombra el mes. */}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground min-w-0">
-              <span className="inline-flex items-center gap-1 tabular-nums">
-                <Hash className="size-3 shrink-0" aria-hidden="true" />
-                <span>Cuota {installmentNumber} de {total}</span>
-              </span>
-              <span className="text-muted-foreground/40" aria-hidden="true">·</span>
               {payment.dueDate && (
                 <span className="inline-flex items-center gap-1 tabular-nums">
                   <CalendarDays className="size-3 shrink-0" aria-hidden="true" />
@@ -315,33 +310,35 @@ export function PaymentTimelineNode({
                   </span>
                 </span>
               )}
-              <span className="text-muted-foreground/40" aria-hidden="true">·</span>
+              {payment.dueDate && (
+                <span className="text-muted-foreground/40" aria-hidden="true">·</span>
+              )}
               <span className="inline-flex items-center gap-1.5">
                 <span>{methodLabel}</span>
               </span>
             </div>
           </div>
 
-          {/* ───── COL 2 — MONTO (kicker + número tabular, centrado en desktop) ───── */}
-          <div className="flex flex-col items-start gap-0.5 shrink-0 @xl:items-center @xl:min-w-[140px]">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              {amountKicker}
-            </p>
-            <p className="text-xl font-bold tabular-nums text-foreground tracking-tight">
+          {/* ───── COL 2 — MONTO ───── */}
+          <div className="flex flex-col items-start gap-0.5 shrink-0 @2xl:items-end @2xl:w-[130px]">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground @2xl:sr-only">
+            {isCompleted ? "Monto cobrado" : "Monto a pagar"}
+          </p>
+          <p className="text-xl font-bold tabular-nums text-foreground tracking-tight">
               {formatAmount(payment.amount)}
             </p>
             {/* Sublabel "Pagado el X" — solo cuando COMPLETED. Refuerza visualmente
                 que ese monto ya fue cobrado, en el mismo verde del badge (Status
                 Color Doctrine: COMPLETED → success). */}
             {isCompleted && payment.paidAt && (
-              <p className="text-[10px] font-medium text-success-text tabular-nums mt-0.5">
+              <p className="text-[10px] font-medium text-success-text tabular-nums mt-0.5 @2xl:text-right">
                 Pagado el {formatPaidDate(payment.paidAt)}
               </p>
             )}
           </div>
 
-          {/* ───── COL 3 — ACCIONES (botones apilados, alineados a la derecha en desktop) ───── */}
-          <div className="flex flex-col items-start gap-1.5 shrink-0 @xl:items-end @xl:min-w-[150px]">
+          {/* ───── COL 3 — ACCIONES ───── */}
+          <div className="flex flex-col items-start gap-1.5 shrink-0 @2xl:w-[248px] @2xl:flex-row @2xl:flex-wrap @2xl:items-center @2xl:justify-end @2xl:gap-x-2 @2xl:gap-y-1">
             {/* Primary action */}
             {primaryAction === "generate" && (
               <Button
@@ -467,7 +464,7 @@ export function PaymentTimelineNode({
                       gap-1.5 + línea de 1px + gap-1.5) en vez del gap-1.5 uniforme
                       que la pegaba al botón constructivo de arriba. */}
                   {isDelete && hasContentAboveDelete && (
-                    <div className="h-px w-full bg-border" aria-hidden="true" />
+                    <div className="h-px w-full shrink-0 bg-border @2xl:h-4 @2xl:w-px @2xl:self-center" aria-hidden="true" />
                   )}
                   <Button
                     variant="link"

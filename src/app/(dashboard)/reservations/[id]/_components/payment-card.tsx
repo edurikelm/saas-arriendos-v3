@@ -170,13 +170,13 @@ export function PaymentCard({
     markPaid: {
       label: "Marcar pagado",
       icon: Check,
-      className: "text-success-text hover:text-success-text",
+      className: "text-muted-foreground hover:text-success-text",
       onClick: () => onMarkPaid?.(payment.id),
     },
     sendLink: {
       label: "Enviar link",
       icon: Send,
-      className: "text-info-text hover:text-info-text",
+      className: "text-muted-foreground hover:text-info-text",
       onClick: () => onSendLink?.(payment),
     },
     viewReceipt: {
@@ -223,7 +223,6 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
       : payment.installmentIndex != null
         ? `Cuota ${payment.installmentIndex}`
         : `Pago ${index + 1}`;
-  const amountKicker = isCompleted ? "Monto cobrado" : "Monto a pagar";
 
   return (
     <article
@@ -232,28 +231,21 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
       aria-label={isFirstOverdue ? `${ariaLabel} — vencido` : ariaLabel}
       tabIndex={isFirstOverdue ? -1 : undefined}
       className={cn(
-        "px-4 py-4 transition-colors scroll-mt-24 focus:outline-2 focus:outline-offset-[-2px]",
+        "px-4 py-3 transition-colors scroll-mt-24 focus:outline-2 focus:outline-offset-[-2px]",
         isActive && "hover:bg-muted/30",
         !isActive && "opacity-60",
       )}
     >
-      {/* Layout 3 columnas (desktop) / stacked (mobile) — mismo patrón que
-          PaymentTimelineNode para coherencia visual entre reservas mensuales y diarias:
-            • Col 1 (info):    contextHint (Pago N / Cuota / título EXTRA) + badge,
-                               debajo descripción (cobros extras) y meta con iconos
-                               (📅 Vence / método). "Pagado X" NO vive aquí — se movió
-                               bajo el monto cobrado (Col 2) cuando COMPLETED, igual
-                               que en el timeline node de mensuales.
-            • Col 2 (monto):   kicker 10px + número tabular grande + sublabel
-                               "Pagado el X" (text-success) cuando COMPLETED.
-            • Col 3 (acciones): botones apilados, alineados a la derecha en desktop.
-          El contextHint pasa de eyebrow 10px a título `text-base` para alinearse con
-          el patrón del timeline node ("Octubre de 2026" como h3). */}
-      {/* `@xl` (ancho de CONTENEDOR, ver @container en PaymentsSection): mismo
-          criterio que PaymentTimelineNode — fila solo si el panel tiene ancho de
-          sobra para info + monto (140px) + acciones (150px) + gaps; si no, se
-          apilan verticalmente en vez de colapsar la columna de info a 0. */}
-      <div className="flex flex-col gap-4 @xl:flex-row @xl:items-center @xl:gap-6">
+      {/* Fila de 3 columnas cuando el contenedor da (>= @2xl), apilada cuando no:
+            • Col 1 (info):    titulo + badge, debajo descripcion y meta.
+            • Col 2 (monto):   cifra tabular alineada a la derecha, ancho fijo para
+                               que las cifras de todas las filas formen columna. El
+                               rotulo va en el header de la tabla, una vez; aca queda
+                               `@2xl:sr-only` para el layout apilado y los lectores.
+            • Col 3 (acciones): en fila, ancho fijo, `flex-wrap` para que el caso raro
+                               de tres acciones baje de linea en vez de invadir el
+                               monto. Orden DOM = orden visual = orden de foco. */}
+      <div className="flex flex-col gap-3 @2xl:flex-row @2xl:items-center @2xl:gap-4">
         {/* ───── COL 1 — INFO (contextHint + badge, debajo meta con iconos) ───── */}
         <div className="min-w-0 flex-1 flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2 min-w-0">
@@ -290,10 +282,10 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
           </div>
         </div>
 
-        {/* ───── COL 2 — MONTO (kicker + número tabular, centrado en desktop) ───── */}
-        <div className="flex flex-col items-start gap-0.5 shrink-0 @xl:items-center @xl:min-w-[140px]">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-            {amountKicker}
+        {/* ───── COL 2 — MONTO ───── */}
+        <div className="flex flex-col items-start gap-0.5 shrink-0 @2xl:items-end @2xl:w-[130px]">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground @2xl:sr-only">
+            {isCompleted ? "Monto cobrado" : "Monto a pagar"}
           </p>
           <p className="text-xl font-bold tabular-nums text-foreground tracking-tight">
             {formatAmount(payment.amount)}
@@ -302,14 +294,14 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
               timeline node (mensuales) y refuerza visualmente que ese monto ya fue
               cobrado, en el mismo verde del badge (Status Color Doctrine). */}
           {isCompleted && payment.paidAt && (
-            <p className="text-[10px] font-medium text-success-text tabular-nums mt-0.5">
+            <p className="text-[10px] font-medium text-success-text tabular-nums mt-0.5 @2xl:text-right">
               Pagado el {formatPaidDate(payment.paidAt)}
             </p>
           )}
         </div>
 
-        {/* ───── COL 3 — ACCIONES (botones apilados, alineados a la derecha en desktop) ───── */}
-        <div className="flex flex-col items-start gap-1.5 shrink-0 @xl:items-end @xl:min-w-[150px]">
+        {/* ───── COL 3 — ACCIONES ───── */}
+        <div className="flex flex-col items-start gap-1.5 shrink-0 @2xl:w-[248px] @2xl:flex-row @2xl:flex-wrap @2xl:items-center @2xl:justify-end @2xl:gap-x-2 @2xl:gap-y-1">
           {/* Primary action */}
           {primaryAction === "generate" && (
             <Button
@@ -435,7 +427,7 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
                     gap-1.5 + línea de 1px + gap-1.5) en vez del gap-1.5 uniforme
                     que la pegaba al botón constructivo de arriba. */}
                 {isDelete && hasContentAboveDelete && (
-                  <div className="h-px w-full bg-border" aria-hidden="true" />
+                  <div className="h-px w-full shrink-0 bg-border @2xl:h-4 @2xl:w-px @2xl:self-center" aria-hidden="true" />
                 )}
                 <Button
                   variant="link"

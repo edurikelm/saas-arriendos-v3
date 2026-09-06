@@ -261,7 +261,17 @@ export function PaymentsSection({
 
       {/* Listado de pagos — header solo título (acciones viven en el top bar). */}
       <div className="space-y-3">
-        <SectionHeader title={isMonthly ? "Cuotas de arriendo" : "Pagos de reserva"} />
+        {/* El conteo va aca, una vez: cada fila imprimia "Cuota N de M" mientras el
+            rail de puntos ya daba la posicion y el h3 nombraba el mes — tres
+            codificaciones del mismo hecho, y la que hacia envolver el meta. */}
+        <SectionHeader
+          title={isMonthly ? "Cuotas de arriendo" : "Pagos de reserva"}
+          meta={
+            reservationPayments.length > 0
+              ? `${reservationPayments.length} ${isMonthly ? (reservationPayments.length === 1 ? "cuota" : "cuotas") : reservationPayments.length === 1 ? "pago" : "pagos"}`
+              : undefined
+          }
+        />
 
         {/* Cierra la resta contra el KPI: sin esta linea, "Por cobrar" podia decir
             $305.000 mientras las filas visibles sumaban $265.000, y nada explicaba
