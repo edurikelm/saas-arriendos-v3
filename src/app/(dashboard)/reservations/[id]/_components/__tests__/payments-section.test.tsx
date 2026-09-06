@@ -359,8 +359,112 @@ describe('PaymentsSection - empty state', () => {
   });
 });
 
+describe('PaymentsSection - focus card de vencidos', () => {
+  // La focus card vivia dentro de PaymentsTimeline, asi que solo existia para
+  // reservas mensuales: en las diarias el KPI anunciaba dinero atrasado y no
+  // habia forma de llegar a el. Ahora vive en la seccion y sirve a las dos.
+  const yesterday = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString();
+  };
+
+  const overdueReservation = (billingType: string) =>
+    createMockReservation({
+      status: 'PENDING',
+      billingType,
+      payments: [
+        createMockPayment({
+          id: 'p1',
+          amount: '50000',
+          status: 'PENDING',
+          paymentType: 'RESERVATION',
+          dueDate: yesterday(),
+          installmentIndex: 1,
+        }),
+      ],
+    });
+
+  const renderSection = (reservation: ReturnType<typeof createMockReservation>) =>
+    render(
+      <TestPaymentsSection
+        reservationId={reservation.id}
+        totalPrice={reservation.totalPrice}
+        billingType={reservation.billingType}
+        status={reservation.status}
+        payments={reservation.payments}
+        client={reservation.client}
+        propertyName="Test Property"
+      />
+    );
+
+  it('aparece en reservas DAILY, que antes no la tenian', () => {
+    renderSection(overdueReservation('DAILY'));
+    expect(screen.getByText(/Tienes 1 pago vencido/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /ir al primer pago vencido/i })).toBeTruthy();
+  });
+
+  it('aparece en reservas MONTHLY con el lenguaje de cuotas', () => {
+    renderSection(overdueReservation('MONTHLY'));
+    expect(screen.getByText(/Tienes 1 cuota vencida/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /ir a la primera cuota vencida/i })).toBeTruthy();
+  });
+
+  it('no aparece cuando la reserva esta cerrada: no hay nada que cobrar', () => {
+    const reservation = overdueReservation('DAILY');
+    render(
+      <TestPaymentsSection
+        reservationId={reservation.id}
+        totalPrice={reservation.totalPrice}
+        billingType={reservation.billingType}
+        status="CANCELLED"
+        payments={reservation.payments}
+        client={reservation.client}
+        propertyName="Test Property"
+      />
+    );
+    expect(screen.queryByRole('button', { name: /ir al primer pago vencido/i })).toBeNull();
+  });
+
+  it('el primer vencido es enfocable y comparte el selector con las dos listas', () => {
+    renderSection(overdueReservation('DAILY'));
+    const target = document.querySelector('[data-payment-id="p1"]');
+    expect(target).toBeTruthy();
+    expect(target?.getAttribute('tabindex')).toBe('-1');
+  });
+});
+
+describe('PaymentsSection - reserva cerrada', () => {
+  it('reemplaza "Por cobrar" por la conciliacion "No cobrado"', () => {
+    // Total = Cobrado + No cobrado. Antes el hueco entre el total del contrato
+    // y lo cobrado no se explicaba en ninguna parte de la pagina.
+    const reservation = createMockReservation({
+      status: 'CANCELLED',
+      totalPrice: '200000',
+      payments: [
+        createMockPayment({ id: 'p1', amount: '50000', status: 'COMPLETED', paymentType: 'RESERVATION' }),
+      ],
+    });
+    render(
+      <TestPaymentsSection
+        reservationId={reservation.id}
+        totalPrice={reservation.totalPrice}
+        billingType={reservation.billingType}
+        status={reservation.status}
+        payments={reservation.payments}
+        client={reservation.client}
+        propertyName="Test Property"
+      />
+    );
+    const noCobrado = screen.getByRole('group', { name: 'No cobrado' });
+    expect(within(noCobrado).getByText('$150.000')).toBeTruthy();
+    expect(within(noCobrado).getByText('Reserva cancelada')).toBeTruthy();
+    expect(screen.queryByRole('group', { name: 'Por cobrar' })).toBeNull();
+  });
+});
+
 describe('PaymentsSection - overdue KPI', () => {
-  it('muestra KPI "Vencido" cuando hay pagos pendientes con dueDate pasada', () => {
+  it('muestra lo vencido dentro de "Por cobrar" cuando hay pendientes con dueDate pasada', () => {
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
@@ -390,14 +494,13 @@ describe('PaymentsSection - overdue KPI', () => {
       />
     );
 
-    // El KPI Vencido es un group con aria-label="Vencido"; buscamos el span de valor
-    // dentro de ese group para ser específicos y no chocar con la tabla de pagos.
-    const vencidoCard = screen.getByRole('group', { name: 'Vencido' });
-    expect(vencidoCard).toBeTruthy();
-    expect(within(vencidoCard).getByText('$50.000')).toBeTruthy();
+    // Lo vencido ya no es una card par de "Por cobrar" (era su subconjunto):
+    // vive dentro de esa card como indicador.
+    const porCobrar = screen.getByRole('group', { name: 'Por cobrar' });
+    expect(within(porCobrar).getByText('$50.000 vencidos')).toBeTruthy();
   });
 
-  it('muestra $0 en KPI Vencido cuando no hay pagos vencidos', () => {
+  it('no muestra indicador de vencido cuando no hay pagos vencidos', () => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
 
@@ -426,9 +529,8 @@ describe('PaymentsSection - overdue KPI', () => {
       />
     );
 
-    // Vencido muestra $0 cuando no hay pagos vencidos
-    const vencidoCard = screen.getByRole('group', { name: 'Vencido' });
-    expect(within(vencidoCard).getByText('$0')).toBeTruthy();
+    // Sin vencidos no hay indicador: $0 vencidos seria ruido.
+    expect(screen.queryByText(/vencidos/)).toBeNull();
   });
 
   it('no cuenta como vencido un pago con dueDate null', () => {
@@ -458,8 +560,7 @@ describe('PaymentsSection - overdue KPI', () => {
     );
 
     // Sin dueDate no hay forma de saber si está vencido → KPI debe ser $0
-    const vencidoCard = screen.getByRole('group', { name: 'Vencido' });
-    expect(within(vencidoCard).getByText('$0')).toBeTruthy();
+    expect(screen.queryByText(/vencidos/)).toBeNull();
   });
 
   it('no cuenta como vencido un pago EXTRA con dueDate pasada', () => {
@@ -492,9 +593,8 @@ describe('PaymentsSection - overdue KPI', () => {
       />
     );
 
-    // Los EXTRAs no cuentan para el saldo del arriendo → KPI Vencido = $0
-    const vencidoCard = screen.getByRole('group', { name: 'Vencido' });
-    expect(within(vencidoCard).getByText('$0')).toBeTruthy();
+    // Los EXTRAs no cuentan para el saldo del arriendo → sin indicador de vencido
+    expect(screen.queryByText(/vencidos/)).toBeNull();
   });
 
   it('no cuenta como vencido un pago soft-deleted', () => {
@@ -527,9 +627,8 @@ describe('PaymentsSection - overdue KPI', () => {
       />
     );
 
-    // Soft-deleted se excluye (auditoría) → KPI Vencido = $0
-    const vencidoCard = screen.getByRole('group', { name: 'Vencido' });
-    expect(within(vencidoCard).getByText('$0')).toBeTruthy();
+    // Soft-deleted se excluye (auditoría) → sin indicador de vencido
+    expect(screen.queryByText(/vencidos/)).toBeNull();
   });
 });
 
@@ -721,9 +820,10 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
         propertyName="Test Property"
       />
     );
-    // El card COMPLETED está presente con su badge "Pagado" y monto.
-    // getAllByText: el KPI del header ("Pagado") + el badge del card = 2.
-    expect(screen.getAllByText("Pagado").length).toBeGreaterThanOrEqual(2);
+    // El KPI pasa a llamarse "Cobrado", asi que "Pagado" queda solo como badge
+    // del card — la palabra ya no aparece duplicada en la seccion.
+    expect(screen.getByRole("group", { name: "Cobrado" })).toBeTruthy();
+    expect(screen.getAllByText("Pagado").length).toBe(1);
     // $50.000 aparece 2 veces: KPI Total + monto del PaymentCard.
     expect(screen.getAllByText("$50.000").length).toBeGreaterThanOrEqual(2);
     // El strip celebratorio fue eliminado
@@ -830,8 +930,8 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
     expect(screen.queryByRole("button", { name: /agregar pago/i })).toBeNull();
     // Strip celebratorio eliminado — verificamos su ausencia
     expect(screen.queryByText(/pago cobrado/i)).toBeNull();
-    // El card sigue presente con su badge "Pagado" (KPI del header + badge = 2+)
-    expect(screen.getAllByText("Pagado").length).toBeGreaterThanOrEqual(2);
+    // El card sigue presente con su badge "Pagado" (el KPI ahora dice "Cobrado")
+    expect(screen.getAllByText("Pagado").length).toBe(1);
   });
 
   // STATE 10: Con cobros extra

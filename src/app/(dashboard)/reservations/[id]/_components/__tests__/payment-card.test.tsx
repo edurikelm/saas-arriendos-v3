@@ -324,11 +324,21 @@ describe("PaymentCard", () => {
   });
 
   describe("due date", () => {
-    it("renders due date when set", () => {
+    it("renders due date on a pending payment", () => {
       render(
-        <PaymentCard payment={mockPayment({ dueDate: "2025-01-20T00:00:00Z" })} index={0} total={3} nowKey="2025-01-01" isActive={true} />
+        <PaymentCard payment={mockPayment({ status: "PENDING", dueDate: "2025-01-20T00:00:00Z" })} index={0} total={3} nowKey="2025-01-01" isActive={true} />
       );
       expect(screen.getByText(/vence/i)).toBeTruthy();
+    });
+
+    it("hides the due date once the payment is collected", () => {
+      // Cobrado, el vencimiento es metadata muerta: la fecha que importa es
+      // "Pagado el X", que va bajo el monto.
+      render(
+        <PaymentCard payment={mockPayment({ status: "COMPLETED", dueDate: "2025-01-20T00:00:00Z" })} index={0} total={3} nowKey="2025-01-01" isActive={true} />
+      );
+      expect(screen.queryByText(/vence/i)).toBeNull();
+      expect(screen.getByText(/pagado el/i)).toBeTruthy();
     });
   });
 

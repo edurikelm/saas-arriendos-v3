@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Payment } from "@/components/payments/payments-table";
 import { formatDateOnly, formatInstant } from "@/lib/domain/timezone";
+import { getPaymentDisplayStatus } from "@/lib/payments/payment-status";
 import { AttachReceiptPopover } from "@/components/payments/attach-receipt-popover";
 
 function formatAmount(amount: string | number): string {
@@ -108,28 +109,12 @@ export function PaymentTimelineNode({
   const isMercadoPago = payment.method === "MERCADO_PAGO";
   const isExpired = payment.expiresAt ? new Date(payment.expiresAt) < new Date() : false;
 
-  // Tone derivation — todos los pagos PENDING cargan el tono `warning` (amber)
-  // para coincidir con el KPI "Pendiente" del header. La etiqueta del badge (abajo)
-  // se calcula por separado desde `daysFromNow` para reflejar la urgencia real,
-  // no el color. Así "Vence 1 oct 2026" muestra badge "Pendiente", no "Vence hoy".
-  let tone: Tone;
-  if (isCompleted) {
-    tone = "success";
-  } else if (isPending && daysFromNow < 0) {
-    tone = "destructive"; // overdue
-  } else {
-    tone = "warning"; // PENDING (any future or due today) — matches KPI Pendiente
-  }
-
-  // Label del badge — refleja la urgencia real contra `dueDate`, NO el color.
-  // Cuatro ramas (mismo orden que el tone derivation para evitar inconsistencias).
-  const badgeLabel = isCompleted
-    ? "Pagado"
-    : daysFromNow < 0
-      ? "Vencido"
-      : daysFromNow === 0
-        ? "Vence hoy"
-        : "Pendiente";
+  // Tono y etiqueta salen del helper compartido: `PaymentCard` (diarias) usa el
+  // mismo, para que un pago atrasado se llame igual en los dos modos de cobro.
+  const { tone, label: badgeLabel } = getPaymentDisplayStatus(
+    payment.status,
+    payment.dueDate ? daysFromNow : null,
+  );
 
   const { bar: barClass } = toneClasses[tone];
   const installmentNumber = payment.installmentIndex ?? index + 1;
@@ -249,6 +234,7 @@ export function PaymentTimelineNode({
     <div
       className="relative flex gap-4 scroll-mt-24 rounded-lg focus:outline-2 focus:outline-offset-2"
       data-testid={`timeline-node-${payment.id}`}
+      data-payment-id={payment.id}
       tabIndex={isFirstOverdue ? -1 : undefined}
       aria-label={isFirstOverdue ? `${ariaLabel} — vencida` : undefined}
     >

@@ -231,7 +231,10 @@ describe('ReservationDetailClient — sections', () => {
     });
     render(<ReservationDetailClient reservation={reservation} />);
 
-    expect(screen.getByText('Documentos')).toBeTruthy();
+    // El h2 "Documentos" de la seccion se elimino: el panel ya renderiza su
+    // propio encabezado y se imprimian los dos apilados. La seccion se
+    // identifica por su aria-label.
+    expect(screen.getByRole('region', { name: 'Documentos' })).toBeTruthy();
     expect(screen.getByTestId('reservation-documents-panel')).toBeTruthy();
   });
 
@@ -253,7 +256,12 @@ describe('ReservationDetailClient — sections', () => {
 
     // The history is always visible now (right column), no expand needed.
     // Use the unique old/new values to verify each change entry is rendered.
-    expect(screen.getByText('CONFIRMED')).toBeTruthy();
+    // Los valores de `status` se traducen: antes salia el enum crudo.
+    // "Pendiente" aparece en varios lados de la pagina (badges, KPI), asi que
+    // solo afirmamos el valor nuevo unico y la ausencia del enum crudo.
+    expect(screen.getByText('Confirmada')).toBeTruthy();
+    expect(screen.queryByText('CONFIRMED')).toBeNull();
+    expect(screen.queryByText('PENDING')).toBeNull();
     expect(screen.getByText('prop-new')).toBeTruthy();
     expect(screen.getByText('prop-old')).toBeTruthy();
   });

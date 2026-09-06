@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Payment } from "@/components/payments/payments-table";
 import { formatDateOnly, formatInstant } from "@/lib/domain/timezone";
+import { getPaymentDisplayStatus } from "@/lib/payments/payment-status";
 import { AttachReceiptPopover } from "@/components/payments/attach-receipt-popover";
 
 function formatAmount(amount: string | number): string {
@@ -44,31 +45,15 @@ const METHOD_LABELS: Record<string, string> = {
   TRANSFER: "Transferencia",
 };
 
-type BadgeVariant =
-  | "default"
-  | "secondary"
-  | "destructive"
-  | "outline"
-  | "warning"
-  | "success";
-
-const statusBadgeVariant: Record<string, BadgeVariant> = {
-  PENDING: "warning",
-  COMPLETED: "success",
-  FAILED: "destructive",
-};
-
-const statusBadgeLabel: Record<string, string> = {
-  PENDING: "Pendiente",
-  COMPLETED: "Pagado",
-  FAILED: "Fallido",
-};
-
 interface PaymentCardProps {
   payment: Payment;
   index: number;
   total: number;
   nowKey: string;
+  /** Días hasta el vencimiento (negativo = vencido). `null` si no tiene dueDate. */
+  daysUntilDue?: number | null;
+  /** Marca el primer pago vencido: recibe el foco desde la focus card de la sección. */
+  isFirstOverdue?: boolean;
   isActive: boolean;
   onGenerateLink?: (paymentId: string) => void;
   onRegenerateLink?: (paymentId: string) => void;
@@ -86,6 +71,8 @@ interface PaymentCardProps {
 export function PaymentCard({
   payment,
   index,
+  daysUntilDue = null,
+  isFirstOverdue,
   isActive,
   onGenerateLink,
   onRegenerateLink,
@@ -98,6 +85,12 @@ export function PaymentCard({
 }: PaymentCardProps) {
   const isCompleted = payment.status === "COMPLETED";
   const isPending = payment.status === "PENDING";
+  // Antes el badge salia de `status` a secas, asi que un pago atrasado decia
+  // "Pendiente" en ambar debajo de un KPI que lo contaba como vencido.
+  const { tone: displayTone, label: statusLabel } = getPaymentDisplayStatus(
+    payment.status,
+    daysUntilDue,
+  );
   const isMercadoPago = payment.method === "MERCADO_PAGO";
   const isExpired = payment.expiresAt ? new Date(payment.expiresAt) < new Date() : false;
 
@@ -208,6 +201,12 @@ export function PaymentCard({
   // Eyebrow context: prioritize specific labels, fall back to ordinal position.
   // Para pagos DAILY usamos solo "Pago N" (sin "de M") — el total no aporta
   // información accionable y compite con el badge de estado ("Pagado"/"Pendiente").
+  //
+  // Desde que `PaymentsCardsList` ordena por vencimiento, ese N es la posición en
+  // orden de vencimiento, no de creación: "Pago 1" es el que vence primero. Es un
+  // cambio de significado deliberado — el número nunca fue identidad (no existe en
+  // la base, no aparece en comprobantes) y en orden de vencimiento al menos dice
+  // algo. La identidad real de la fila es su fecha, que va justo debajo.
   const contextHint =
     payment.paymentType === "EXTRA" && payment.title
       ? payment.title
@@ -229,9 +228,11 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
   return (
     <article
       data-testid={`payment-card-${payment.id}`}
-      aria-label={ariaLabel}
+      data-payment-id={payment.id}
+      aria-label={isFirstOverdue ? `${ariaLabel} — vencido` : ariaLabel}
+      tabIndex={isFirstOverdue ? -1 : undefined}
       className={cn(
-        "px-4 py-4 transition-colors",
+        "px-4 py-4 transition-colors scroll-mt-24 focus:outline-2 focus:outline-offset-[-2px]",
         isActive && "hover:bg-muted/30",
         !isActive && "opacity-60",
       )}
@@ -259,8 +260,8 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
             <h3 className="text-base font-semibold text-foreground leading-tight">
               {contextHint}
             </h3>
-            <Badge variant={statusBadgeVariant[payment.status] ?? "secondary"} className="shrink-0">
-              {statusBadgeLabel[payment.status] ?? payment.status}
+            <Badge variant={displayTone} className="shrink-0">
+              {statusLabel}
             </Badge>
           </div>
           {payment.description && (
@@ -272,13 +273,15 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
               "Pagado X" se mueve bajo el monto cobrado (Col 2) cuando COMPLETED,
               replicando el patrón del timeline node de mensuales. */}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground min-w-0">
-            {payment.dueDate && (
+            {/* Una vez cobrado, el vencimiento es metadata muerta: la fecha que
+                importa es "Pagado el X", que va bajo el monto. */}
+            {payment.dueDate && !isCompleted && (
               <span className="inline-flex items-center gap-1 tabular-nums">
                 <CalendarDays className="size-3 shrink-0" aria-hidden="true" />
                 <span>Vence {formatShortDate(payment.dueDate)}</span>
               </span>
             )}
-            {payment.dueDate && (
+            {payment.dueDate && !isCompleted && (
               <span className="text-muted-foreground/40" aria-hidden="true">·</span>
             )}
             <span className="inline-flex items-center gap-1.5">

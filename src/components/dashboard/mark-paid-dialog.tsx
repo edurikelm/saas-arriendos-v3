@@ -25,6 +25,11 @@ import { markPaymentAsPaid } from "@/lib/actions/payments";
 
 type PaidMethod = "CASH" | "TRANSFER";
 
+const PAID_METHOD_LABELS: Record<string, string> = {
+  CASH: "Efectivo",
+  TRANSFER: "Transferencia",
+};
+
 interface MarkPaidDialogProps {
   paymentId: string | null;
   open: boolean;
@@ -145,11 +150,14 @@ export function MarkPaidDialog({
             </Label>
             <Select value={method} onValueChange={(v) => setMethod(v as PaidMethod)}>
               <SelectTrigger id="mark-paid-method" className="h-9 w-full">
-                <SelectValue />
+                {/* `SelectValue` de base-ui renderiza el VALOR, no la etiqueta del
+                    item: sin esta funcion el trigger mostraba "CASH" en una UI en
+                    español mientras el desplegable decia "Efectivo". */}
+                <SelectValue>{(value: string) => PAID_METHOD_LABELS[value] ?? value}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="CASH">Efectivo</SelectItem>
-                <SelectItem value="TRANSFER">Transferencia</SelectItem>
+                <SelectItem value="CASH">{PAID_METHOD_LABELS.CASH}</SelectItem>
+                <SelectItem value="TRANSFER">{PAID_METHOD_LABELS.TRANSFER}</SelectItem>
               </SelectContent>
             </Select>
           </div>

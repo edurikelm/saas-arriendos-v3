@@ -1,11 +1,13 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, Wallet } from "lucide-react";
+import { AlertCircle, ArrowDown, CheckCircle2, MinusCircle, Wallet } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { isOverdueDateOnly, nowKeyInBusinessTz } from "@/lib/domain/timezone";
 import { getReservationPaidAmount, getReservationPendingAmount } from "@/lib/payments/calculations";
 import { PaymentsCardsList } from "./payments-cards-list";
 import { PaymentsTimeline } from "./payments-timeline";
+import { sortByDueDate } from "@/lib/payments/payment-status";
 import type { Payment } from "@/components/payments/payments-table";
 
 function formatPrice(price: string | number): string {
@@ -128,6 +130,31 @@ export function PaymentsSection({
   const overdueCount = getOverdueCount(payments);
 
   const isMonthly = billingType === "MONTHLY";
+  const totalContract = Number(totalPrice) + extraTotal;
+  const collectedPct = totalContract > 0 ? Math.round((totalPaid / totalContract) * 100) : 0;
+  // En una reserva cerrada nada de lo que falta se va a cobrar, asi que la
+  // tercera card deja de ser "por cobrar" y pasa a ser la conciliacion:
+  // Total = Cobrado + No cobrado. Antes ese hueco no se explicaba en ninguna
+  // parte — la pagina mostraba Total $480.000, Cobrado $220.000, Pendiente $0.
+  const uncollected = Math.max(totalContract - totalPaid, 0);
+  const showUncollected = !isActive && uncollected > 0;
+
+  // Primer pago de arriendo vencido: destino del foco de la focus card. Se
+  // decide aca y no dentro de cada lista, para que las dos coincidan.
+  const firstOverdueId =
+    sortByDueDate(
+      reservationPayments.filter(
+        (p) => p.status === "PENDING" && !p.deletedAt && isOverdueDateOnly(p.dueDate, nowKey),
+      ),
+    )[0]?.id ?? null;
+
+  const handleFocusFirstOverdue = () => {
+    if (!firstOverdueId) return;
+    const el = document.querySelector<HTMLElement>(`[data-payment-id="${firstOverdueId}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.focus?.();
+  };
 
   return (
     // `@container`: los hijos (KPIs y filas de pago más abajo) miden el ANCHO DE
@@ -138,39 +165,84 @@ export function PaymentsSection({
     // el grid de KPIs y las filas de pago se rompían en anchos intermedios de
     // viewport (bug P0, ver fix/reservation-detail-contraste-y-comprobante).
     <div className="space-y-6 @container">
-      {/* KPIs — sin título encima, los números son el resumen.
-          `@xl` (36rem/576px de ancho de CONTENEDOR): recién ahí el panel tiene
-          espacio de sobra para que las 4 cifras (hasta ~115px cada una) quepan
-          sin sobreimprimirse; por debajo se quedan en 2 columnas. */}
-      {/* El umbral es @2xl (672px), no @xl (576px): a 576px las cards quedan en
-          ~135px y un total de 8 cifras ($18.600.000) mide 123px + 32px de padding,
-          así que se sale del borde. A 672px la card mide 159px y entra. */}
-      <div className="grid grid-cols-2 @2xl:grid-cols-4 gap-3 @2xl:gap-4">
+      {/* KPIs. Antes eran cuatro cifras del mismo peso, y dos de ellas eran el
+          mismo hecho: "Vencido" es un SUBCONJUNTO de "Pendiente", asi que podian
+          mostrar el mismo numero lado a lado en ambar y rojo sin nada que dijera
+          que uno contiene al otro. Ahora son tres y lo vencido vive dentro de
+          "Por cobrar" como indicador, que es donde el owner ya esta mirando.
+          `@xl` (576px de CONTENEDOR): con tres cards de ~181px cabe la cifra mas
+          larga del dominio (8 digitos, ~123px + 32px de padding). La tercera
+          ocupa el ancho completo mientras se apilan de a dos: es la card que
+          pide accion. */}
+      <div className="grid grid-cols-2 @xl:grid-cols-3 gap-3 @xl:gap-4">
         <KpiCard
           label="Total"
-          value={formatPrice(Number(totalPrice) + extraTotal)}
+          value={formatPrice(totalContract)}
           icon={Wallet}
           tone="default"
         />
         <KpiCard
-          label="Pagado"
+          label="Cobrado"
           value={formatPrice(totalPaid)}
           icon={CheckCircle2}
-          tone="success"
+          tone={totalPaid > 0 ? "success" : "default"}
+          progressBar={{ value: collectedPct }}
         />
-        <KpiCard
-          label="Pendiente"
-          value={formatPrice(totalPending)}
-          icon={AlertCircle}
-          tone={totalPending > 0 ? "warning" : "success"}
-        />
-        <KpiCard
-          label="Vencido"
-          value={formatPrice(overdueAmount)}
-          icon={AlertCircle}
-          tone={overdueAmount > 0 ? "destructive" : "default"}
-        />
+        <div className="col-span-2 @xl:col-span-1">
+          {showUncollected ? (
+            <KpiCard
+              label="No cobrado"
+              value={formatPrice(uncollected)}
+              icon={MinusCircle}
+              tone="default"
+              sublabel={status === "CANCELLED" ? "Reserva cancelada" : "Reserva finalizada"}
+            />
+          ) : (
+            <KpiCard
+              label="Por cobrar"
+              value={formatPrice(totalPending)}
+              icon={AlertCircle}
+              tone={totalPending > 0 ? "warning" : "success"}
+              indicator={
+                overdueAmount > 0
+                  ? {
+                      text: `${formatPrice(overdueAmount)} vencidos`,
+                      variant: "warning",
+                    }
+                  : undefined
+              }
+            />
+          )}
+        </div>
       </div>
+
+      {/* Focus card de vencidas. Vivia dentro de PaymentsTimeline, asi que solo
+          existia para reservas mensuales: en las diarias el KPI anunciaba dinero
+          atrasado y no habia forma de llegar a el. Ahora esta sobre las dos. */}
+      {overdueCount > 0 && isActive && firstOverdueId && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/20 bg-destructive/5 p-4">
+          <div className="flex-auto">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+              {isMonthly ? "Cuotas vencidas" : "Pagos vencidos"}
+            </p>
+            <p className="text-sm font-medium text-destructive-text">
+              {isMonthly
+                ? `Tienes ${overdueCount} ${overdueCount === 1 ? "cuota vencida" : "cuotas vencidas"}`
+                : `Tienes ${overdueCount} ${overdueCount === 1 ? "pago vencido" : "pagos vencidos"}`}{" "}
+              · {formatPrice(overdueAmount)}
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="shrink-0 gap-1.5"
+            onClick={handleFocusFirstOverdue}
+          >
+            <ArrowDown className="size-3.5" />
+            {isMonthly ? "Ir a la primera cuota vencida" : "Ir al primer pago vencido"}
+          </Button>
+        </div>
+      )}
 
       {/* Listado de pagos — header solo título (acciones viven en el top bar). */}
       <div className="space-y-3">
@@ -180,8 +252,7 @@ export function PaymentsSection({
           <PaymentsTimeline
             payments={reservationPayments}
             isActive={isActive}
-            overdueCount={overdueCount}
-            overdueAmount={overdueAmount}
+            firstOverdueId={firstOverdueId}
             onGenerateLink={actions.onGenerateLink}
             onRegenerateLink={actions.onRegenerateLink}
             onMarkPaid={actions.onMarkPaid}
@@ -196,6 +267,7 @@ export function PaymentsSection({
             payments={reservationPayments}
             nowKey={nowKey}
             isActive={isActive}
+            firstOverdueId={firstOverdueId}
             onGenerateLink={actions.onGenerateLink}
             onRegenerateLink={actions.onRegenerateLink}
             onMarkPaid={actions.onMarkPaid}

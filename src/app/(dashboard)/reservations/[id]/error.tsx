@@ -18,9 +18,18 @@ export default function Error({
       </div>
       <div className="space-y-2 max-w-md">
         <h2 className="text-xl font-bold tracking-tight">No se pudo cargar la reserva</h2>
+        {/* `error.message` es texto de excepcion: puede traer nombres de tabla,
+            stack o un mensaje de driver. No es copy de producto y no le dice al
+            owner que hacer. El digest queda para cruzar con los logs. */}
         <p className="text-sm text-muted-foreground">
-          {error.message || "Ocurrió un error inesperado al mostrar esta reserva."}
+          Ocurrió un error inesperado al mostrar esta reserva. Reintenta; si sigue
+          fallando, vuelve a Reservas y abrela de nuevo.
         </p>
+        {error.digest && (
+          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground tabular-nums">
+            Código {error.digest}
+          </p>
+        )}
       </div>
       <div className="flex flex-wrap items-center justify-center gap-2">
         <Button onClick={reset} variant="outline">
