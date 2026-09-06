@@ -56,6 +56,17 @@
   --warning-foreground: oklch(0.30 0.10 60);
   --info: oklch(0.65 0.13 200);
   --info-foreground: oklch(0.30 0.12 210);
+  /* Companeros legibles COMO TEXTO, espejando --destructive-text. Los de
+     relleno miden 3.03:1 / 2.05:1 / 2.97:1 sobre --card, bajo AA. Los
+     -foreground si pasan, pero estan en L=0.30: a 20px bold se leen negros y
+     el tono deja de comunicar, que es justo el trabajo de un valor de KPI
+     coloreado. Estos se sientan en ~5.3:1, el mismo punto que eligio
+     --destructive-text (5.34:1): pasan AA y siguen leyendose verde, ambar y
+     cyan. Medidos sobre --card y sobre bg-{tone}/10, que es el otro fondo
+     real del producto (el contenedor de icono del KpiCard). */
+  --success-text: oklch(0.51 0.15 150);
+  --warning-text: oklch(0.53 0.14 75);
+  --info-text: oklch(0.51 0.12 200);
   --navbar: oklch(1 0 0);
   --navbar-foreground: #131f1a;
   --beige: oklch(0.97 0.02 200);
@@ -137,6 +148,10 @@
   --warning-foreground: oklch(0.85 0.15 75);
   --info: oklch(0.70 0.15 200);
   --info-foreground: oklch(0.85 0.12 210);
+  /* En oscuro hay que ACLARAR, no oscurecer, igual que --destructive-text. */
+  --success-text: oklch(0.75 0.16 150);
+  --warning-text: oklch(0.82 0.16 75);
+  --info-text: oklch(0.76 0.14 200);
   --navbar: #0d1c2d;
   --navbar-foreground: #f1f5f9;
   --beige: oklch(0.30 0.02 200);
@@ -185,10 +200,13 @@
   --color-destructive-text: var(--destructive-text);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
+  --color-success-text: var(--success-text);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-warning-text: var(--warning-text);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
+  --color-info-text: var(--info-text);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);

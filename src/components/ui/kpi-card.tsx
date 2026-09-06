@@ -21,22 +21,34 @@ export interface KpiCardProps {
   sublabel?: string;
 }
 
-// Tonos para el icon container (esquina superior derecha del card)
+// Tonos para el icon container (esquina superior derecha del card). El icono
+// va sobre el fondo TINTADO (bg-{tone}/10), no sobre --card, pero el mismo
+// Fill-vs-Text Rule aplica: medido, "text-success"/"text-info"/"text-warning"
+// (relleno) sobre su propio tinte al 10% dan 2.59:1 / 2.55:1 / 1.81:1 en claro,
+// bajo el piso de 3:1 que WCAG 1.4.11 pide a un grafico no-textual. El
+// companero legible es el "-text" de cada tono, que pasa el 3:1 sobre el tinte
+// sin apagar el color (ver The Fill-vs-Text Rule en DESIGN.md).
 const iconContainerToneClass: Record<KpiTone, string> = {
   default: "bg-muted text-muted-foreground",
-  success: "bg-success/10 text-success",
-  info: "bg-info/10 text-info",
-  warning: "bg-warning/10 text-warning",
+  success: "bg-success/10 text-success-text",
+  info: "bg-info/10 text-info-text",
+  warning: "bg-warning/10 text-warning-text",
   destructive: "bg-destructive/10 text-destructive-text",
 };
 
 // Tonos para el value text — success/warning/destructive colorean el número;
 // default e info quedan en foreground (estados neutros sin énfasis de color).
+// The Fill-vs-Text Rule (DESIGN.md): --success/--warning son tokens de RELLENO,
+// no de texto — medidos sobre --card en claro dan 3.03:1 / 2.05:1, bajo AA.
+// Los "-foreground" tambien pasan, pero estan en L=0.30: a 20px bold se leen
+// negros y el tono deja de comunicar, que es el unico trabajo de un valor
+// coloreado. Va el "-text" de cada tono, que se sienta en ~5.3:1 igual que
+// --destructive-text: pasa AA y sigue leyendose verde y ambar.
 const valueToneClass: Record<KpiTone, string> = {
   default: "text-foreground",
-  success: "text-success",
+  success: "text-success-text",
   info: "text-foreground",
-  warning: "text-warning",
+  warning: "text-warning-text",
   destructive: "text-destructive-text",
 };
 

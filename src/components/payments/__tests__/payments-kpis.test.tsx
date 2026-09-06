@@ -45,9 +45,11 @@ describe('PaymentsKpis', () => {
     expect(screen.getByText('1 pago pendiente')).toBeTruthy();
   });
 
-  it('aplica tone=warning al KPI de Pendiente (text-warning en el value)', () => {
+  it('aplica tone=warning al KPI de Pendiente (text-warning-text en el value)', () => {
     const { container } = render(<PaymentsKpis kpis={defaultKpis} />);
-    const warningElements = container.querySelectorAll('.text-warning');
-    expect(warningElements.length).toBeGreaterThan(0);
+    // El token de RELLENO `--warning` medía 2.05:1 sobre --card en claro; el
+    // valor del KpiCard usa su compañero legible (Fill-vs-Text Rule, DESIGN.md).
+    expect(container.querySelectorAll('.text-warning-text').length).toBeGreaterThan(0);
+    expect(container.querySelectorAll('.text-warning').length).toBe(0);
   });
 });

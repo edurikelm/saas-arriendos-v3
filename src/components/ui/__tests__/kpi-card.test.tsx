@@ -67,3 +67,59 @@ describe("KpiCard indicator (P0 contrast fix)", () => {
     expect(tokens).toContain("text-muted-foreground");
   });
 });
+
+/**
+ * valueToneClass (see kpi-card.tsx). Mismo caveat que arriba: JSDOM no mide
+ * contraste, solo verificamos la clase Tailwind. Las ratios estan documentadas
+ * en el comentario de valueToneClass y en DESIGN.md (The Fill-vs-Text Rule).
+ */
+describe("KpiCard value tone (Fill-vs-Text contrast fix)", () => {
+  it("renders text-success-text for tone success, not text-success", () => {
+    // text-success sobre --card mide 3.03:1 en claro (relleno, no texto).
+    // text-success-text es el companero legible: 5.34:1 en claro, 8.19:1 en
+    // oscuro, y a diferencia de -foreground (L=0.30, se lee negro) sigue
+    // leyendose verde, que es el unico trabajo de un valor coloreado.
+    render(<KpiCard label="Ingresos" value="$18.600.000" tone="success" />);
+
+    const valueEl = screen.getByText("$18.600.000");
+    const tokens = valueEl.className.split(/\s+/);
+
+    expect(tokens).toContain("text-success-text");
+    expect(tokens).not.toContain("text-success");
+    expect(tokens).not.toContain("text-success-foreground");
+  });
+
+  it("renders text-warning-text for tone warning, not text-warning", () => {
+    // text-warning sobre --card mide 2.05:1 en claro (relleno, no texto).
+    // text-warning-text: 5.40:1 claro / 9.62:1 oscuro, y se sigue leyendo ambar.
+    render(<KpiCard label="Pendiente" value="$1.200.000" tone="warning" />);
+
+    const valueEl = screen.getByText("$1.200.000");
+    const tokens = valueEl.className.split(/\s+/);
+
+    expect(tokens).toContain("text-warning-text");
+    expect(tokens).not.toContain("text-warning");
+    expect(tokens).not.toContain("text-warning-foreground");
+  });
+
+  it("renders text-destructive-text for tone destructive (unchanged)", () => {
+    render(<KpiCard label="Vencido" value="$300.000" tone="destructive" />);
+
+    const valueEl = screen.getByText("$300.000");
+    const tokens = valueEl.className.split(/\s+/);
+
+    expect(tokens).toContain("text-destructive-text");
+  });
+
+  it("renders text-foreground for tone default and tone info (neutral, sin enfasis)", () => {
+    render(
+      <>
+        <KpiCard label="Reservas" value={12} tone="default" />
+        <KpiCard label="Ocupacion" value="80%" tone="info" />
+      </>
+    );
+
+    expect(screen.getByText("12").className.split(/\s+/)).toContain("text-foreground");
+    expect(screen.getByText("80%").className.split(/\s+/)).toContain("text-foreground");
+  });
+});
