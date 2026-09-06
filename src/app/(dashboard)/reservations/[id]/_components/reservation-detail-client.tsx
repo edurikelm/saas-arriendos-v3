@@ -48,6 +48,7 @@ import {
 import { cn } from "@/lib/utils";
 import { getInclusiveMonths } from "@/lib/reservation-dates";
 import { getReservationPaidAmount } from "@/lib/payments/calculations";
+import { formatDateOnly } from "@/lib/domain/timezone";
 import { PaymentsSection } from "./payments-section";
 import { usePaymentActions, MarkPaidModal } from "./payment-actions";
 
@@ -646,6 +647,27 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
     isActive: isEditable,
   });
 
+  // El dialogo de marcar pagado abria sin decir QUE pago estaba liquidando, sobre
+  // una lista donde seis cuotas pueden mostrar el mismo monto. Un clic errado
+  // marcaba el mes equivocado y no hay undo (borrar un pago si lo tiene).
+  const markPaidPayment = useMemo(
+    () => reservation.payments.find((p) => p.id === markPaidId) ?? null,
+    [reservation.payments, markPaidId],
+  );
+
+  const markPaidContext = useMemo(() => {
+    if (!markPaidPayment) return undefined;
+    const descriptor =
+      (markPaidPayment.paymentType === "EXTRA" && markPaidPayment.title) ||
+      markPaidPayment.installmentLabel ||
+      (markPaidPayment.installmentIndex != null
+        ? `Cuota ${markPaidPayment.installmentIndex}`
+        : markPaidPayment.dueDate
+          ? `Vence ${formatDateOnly(markPaidPayment.dueDate, { day: "numeric", month: "short", year: "numeric" })}`
+          : "Pago de reserva");
+    return `${descriptor} · ${reservation.client.name}`;
+  }, [markPaidPayment, reservation.client.name]);
+
   // "Verificar pagos MP" solo se muestra cuando hay pagos MercadoPago (brief §5.8)
   const hasMercadoPagoPayments = reservation.payments.some(
     (p) => p.method === "MERCADO_PAGO",
@@ -778,6 +800,9 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
               <>
                 <MarkPaidModal
                   paymentId={markPaidId}
+                  contextLabel={markPaidContext}
+                  amount={markPaidPayment?.amount}
+                  defaultMethod={markPaidPayment?.method}
                   open={markPaidId !== null}
                   onOpenChange={(open) => {
                     if (!open) setMarkPaidId(null);
