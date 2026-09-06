@@ -198,19 +198,19 @@ export function PaymentsSection({
               sublabel={status === "CANCELLED" ? "Reserva cancelada" : "Reserva finalizada"}
             />
           ) : (
+            /* Sin indicador de vencido: la focus card de abajo dice la misma
+               cifra y ademas lleva a la accion. Con los dos, el total vencido
+               se anunciaba tres veces antes de la primera fila accionable
+               (valor del KPI, indicador, focus card) y en un telefono eso
+               consumia la primera pantalla entera. El brief pide explicitamente
+               nada de urgency theatre. De paso se va una contradiccion de tono:
+               el indicador pintaba lo vencido en ambar y la focus card la misma
+               cifra en rojo, a 20px de distancia. */
             <KpiCard
               label="Por cobrar"
               value={formatPrice(totalPending)}
               icon={AlertCircle}
               tone={totalPending > 0 ? "warning" : "success"}
-              indicator={
-                overdueAmount > 0
-                  ? {
-                      text: `${formatPrice(overdueAmount)} vencidos`,
-                      variant: "warning",
-                    }
-                  : undefined
-              }
             />
           )}
         </div>

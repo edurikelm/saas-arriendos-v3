@@ -16,13 +16,27 @@ export type PillTone =
   | "destructive"
   | "neutral";
 
+// The Fill-vs-Text Rule (DESIGN.md): sobre su propio tinte al 10%, los tokens de
+// RELLENO median 2.73 / 2.67 / 2.26 / 1.91:1 en claro — bajo AA, en el pill que
+// muestra el estado principal de la reserva. `destructive` ya se habia migrado
+// con #235; los otros cuatro se quedaron atras. El companero legible es el
+// `-text` de cada tono, que ademas sigue leyendose verde, cyan y ambar.
 const toneClassNames: Record<PillTone, string> = {
-  success: "border-success/20 bg-success/10 text-success",
-  info: "border-info/20 bg-info/10 text-info",
-  "info-strong": "border-info/30 bg-info/25 text-info",
-  warning: "border-warning/25 bg-warning/10 text-warning",
+  success: "border-success/20 bg-success/10 text-success-text",
+  info: "border-info/20 bg-info/10 text-info-text",
+  // `info-strong` distinguia su urgencia subiendo el tinte a `bg-info/25`, y ese
+  // tinte se comia el contraste del texto: 3.94:1 en claro. La distincion pasa al
+  // BORDE, que no cuesta contraste — mismo fondo que `info` (4.69:1) y borde
+  // opaco contra el 20% del otro. El par relleno documentado del Badge no servia
+  // aca: `bg-info` + `text-info-foreground` mide 1.58:1 en oscuro, porque en ese
+  // tema los dos tokens son claros.
+  "info-strong": "border-info bg-info/10 text-info-text",
+  warning: "border-warning/25 bg-warning/10 text-warning-text",
   destructive: "border-destructive/25 bg-destructive/10 text-destructive-text",
-  neutral: "border-muted bg-muted text-muted-foreground",
+  // `text-muted-foreground` sobre `bg-muted` medía 4.32:1, bajo AA a 9px. El
+  // fondo gris ya carga la señal de "inactiva"; el texto no necesita apagarse
+  // ademas, y apagado no se leia.
+  neutral: "border-muted bg-muted text-foreground",
 };
 
 const dotClassNames: Record<PillTone, string> = {

@@ -170,13 +170,13 @@ export function PaymentCard({
     markPaid: {
       label: "Marcar pagado",
       icon: Check,
-      className: "text-success-foreground hover:text-success-foreground",
+      className: "text-success-text hover:text-success-text",
       onClick: () => onMarkPaid?.(payment.id),
     },
     sendLink: {
       label: "Enviar link",
       icon: Send,
-      className: "text-info-foreground hover:text-info-foreground",
+      className: "text-info-text hover:text-info-text",
       onClick: () => onSendLink?.(payment),
     },
     viewReceipt: {
@@ -302,7 +302,7 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
               timeline node (mensuales) y refuerza visualmente que ese monto ya fue
               cobrado, en el mismo verde del badge (Status Color Doctrine). */}
           {isCompleted && payment.paidAt && (
-            <p className="text-[10px] font-medium text-success-foreground tabular-nums mt-0.5">
+            <p className="text-[10px] font-medium text-success-text tabular-nums mt-0.5">
               Pagado el {formatPaidDate(payment.paidAt)}
             </p>
           )}
@@ -315,7 +315,7 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
             <Button
               variant="link"
               size="sm"
-              className="h-7 px-1 text-xs text-info-foreground hover:text-info-foreground"
+              className="h-7 px-1 text-xs text-info-text hover:text-info-text"
               onClick={() => onGenerateLink?.(payment.id)}
               disabled={isGenerating}
             >
@@ -333,7 +333,7 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
             <Button
               variant="link"
               size="sm"
-              className="h-7 px-1 text-xs text-info-foreground hover:text-info-foreground"
+              className="h-7 px-1 text-xs text-info-text hover:text-info-text"
               onClick={() => onRegenerateLink?.(payment.id)}
               disabled={isRegenerating}
             >
@@ -351,7 +351,7 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
             <Button
               variant="link"
               size="sm"
-              className="h-7 px-1 text-xs text-info-foreground hover:text-info-foreground"
+              className="h-7 px-1 text-xs text-info-text hover:text-info-text"
               onClick={() => onSendLink?.(payment)}
             >
               <Send className="size-3.5 mr-1" />
@@ -362,7 +362,7 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
             <Button
               variant="link"
               size="sm"
-              className="h-7 px-1 text-xs text-info-foreground hover:text-info-foreground"
+              className="h-7 px-1 text-xs text-info-text hover:text-info-text"
               onClick={() => {
                 if (payment.initPoint) {
                   navigator.clipboard.writeText(payment.initPoint);
@@ -379,7 +379,7 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
             <Button
               variant="link"
               size="sm"
-              className="h-7 px-1 text-xs text-success-foreground hover:text-success-foreground"
+              className="h-7 px-1 text-xs text-success-text hover:text-success-text"
               onClick={() => onMarkPaid?.(payment.id)}
             >
               <Check className="size-3.5 mr-1" />

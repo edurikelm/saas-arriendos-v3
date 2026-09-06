@@ -464,7 +464,7 @@ describe('PaymentsSection - reserva cerrada', () => {
 });
 
 describe('PaymentsSection - overdue KPI', () => {
-  it('muestra lo vencido dentro de "Por cobrar" cuando hay pendientes con dueDate pasada', () => {
+  it('cuenta como vencido un pendiente con dueDate pasada', () => {
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
@@ -494,13 +494,15 @@ describe('PaymentsSection - overdue KPI', () => {
       />
     );
 
-    // Lo vencido ya no es una card par de "Por cobrar" (era su subconjunto):
-    // vive dentro de esa card como indicador.
+    // La cifra vencida la dice la focus card, que ademas lleva a la accion.
+    // El KPI "Por cobrar" no la repite: con los dos, el total vencido se
+    // anunciaba tres veces antes de la primera fila accionable.
+    expect(screen.getByText(/Tienes 1 pago vencido · \$50\.000/)).toBeTruthy();
     const porCobrar = screen.getByRole('group', { name: 'Por cobrar' });
-    expect(within(porCobrar).getByText('$50.000 vencidos')).toBeTruthy();
+    expect(within(porCobrar).queryByText(/vencid/i)).toBeNull();
   });
 
-  it('no muestra indicador de vencido cuando no hay pagos vencidos', () => {
+  it('no anuncia vencidos cuando no hay pagos vencidos', () => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
 
@@ -529,8 +531,8 @@ describe('PaymentsSection - overdue KPI', () => {
       />
     );
 
-    // Sin vencidos no hay indicador: $0 vencidos seria ruido.
-    expect(screen.queryByText(/vencidos/)).toBeNull();
+    // Sin vencidos no hay focus card: "$0 vencidos" seria ruido.
+    expect(screen.queryByText(/vencid/i)).toBeNull();
   });
 
   it('no cuenta como vencido un pago con dueDate null', () => {
@@ -593,7 +595,7 @@ describe('PaymentsSection - overdue KPI', () => {
       />
     );
 
-    // Los EXTRAs no cuentan para el saldo del arriendo → sin indicador de vencido
+    // Los EXTRAs no cuentan para el saldo del arriendo → sin focus card
     expect(screen.queryByText(/vencidos/)).toBeNull();
   });
 
@@ -627,7 +629,7 @@ describe('PaymentsSection - overdue KPI', () => {
       />
     );
 
-    // Soft-deleted se excluye (auditoría) → sin indicador de vencido
+    // Soft-deleted se excluye (auditoría) → sin focus card
     expect(screen.queryByText(/vencidos/)).toBeNull();
   });
 });
