@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Payment } from "@/components/payments/payments-table";
 import { formatDateOnly, formatInstant } from "@/lib/domain/timezone";
+import { AttachReceiptPopover } from "@/components/payments/attach-receipt-popover";
 
 function formatAmount(amount: string | number): string {
   return new Intl.NumberFormat("es-CL", {
@@ -84,12 +86,12 @@ interface PaymentCardProps {
 export function PaymentCard({
   payment,
   index,
-  total,
   isActive,
   onGenerateLink,
   onRegenerateLink,
   onMarkPaid,
   onDeletePayment,
+  onUploadReceipt,
   onSendLink,
   generatingLinkId,
   regeneratingLinkId,
@@ -157,6 +159,13 @@ export function PaymentCard({
   if (isCompleted && canViewReceipt && primaryAction !== "viewReceipt") secondaries.push("viewReceipt");
   if (canDelete) secondaries.push("delete");
 
+  // "Eliminar pago" no puede quedar pegada al bloque constructivo (P1: en una
+  // fila de pago, "Marcar pagado" y "Eliminar pago" son visualmente idénticas
+  // y adyacentes — liquidar la deuda vs. destruir el registro). Cuando hay
+  // algo renderizado arriba (la primaria, u otra secundaria), se antepone un
+  // divisor de 1px `bg-border` — mismo lenguaje visual que `DropdownMenuSeparator`.
+  const hasContentAboveDelete = primaryAction !== null || secondaries.some((id) => id !== "delete");
+
   // Mapa declarativo id → config visual del botón. Cada secundaria sabe cómo
   // renderizarse; el render es un simple .map() sobre la lista `secondaries`.
   const secondaryButtons: Record<SecondaryId, {
@@ -168,13 +177,13 @@ export function PaymentCard({
     markPaid: {
       label: "Marcar pagado",
       icon: Check,
-      className: "text-success hover:text-success",
+      className: "text-success-foreground hover:text-success-foreground",
       onClick: () => onMarkPaid?.(payment.id),
     },
     sendLink: {
       label: "Enviar link",
       icon: Send,
-      className: "text-info hover:text-info",
+      className: "text-info-foreground hover:text-info-foreground",
       onClick: () => onSendLink?.(payment),
     },
     viewReceipt: {
@@ -184,24 +193,16 @@ export function PaymentCard({
       onClick: () => payment.receiptUrl && window.open(payment.receiptUrl, "_blank"),
     },
     delete: {
+      // Destructiva de verdad: color destructivo en REPOSO, no solo en hover
+      // (en touch el hover nunca ocurre — la acción quedaba indistinguible de
+      // "Marcar pagado", su vecina constructiva). `text-destructive-text`, no
+      // `text-destructive` — ese es el token de relleno (3.76:1 sobre card,
+      // bajo AA); ver The Fill-vs-Text Rule en DESIGN.md.
       label: "Eliminar pago",
       icon: Trash2,
-      className: "text-muted-foreground hover:text-destructive-text",
+      className: "text-destructive-text hover:text-destructive-text",
       onClick: () => onDeletePayment?.(payment.id),
     },
-  };
-
-  const runAction = (actionId: string) => {
-    switch (actionId) {
-      case "generate": onGenerateLink?.(payment.id); break;
-      case "regenerate": onRegenerateLink?.(payment.id); break;
-      case "sendLink": onSendLink?.(payment); break;
-      case "markPaid": onMarkPaid?.(payment.id); break;
-      case "delete": onDeletePayment?.(payment.id); break;
-      case "viewReceipt":
-        if (payment.receiptUrl) window.open(payment.receiptUrl, "_blank");
-        break;
-    }
   };
 
   // Eyebrow context: prioritize specific labels, fall back to ordinal position.
@@ -247,7 +248,11 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
             • Col 3 (acciones): botones apilados, alineados a la derecha en desktop.
           El contextHint pasa de eyebrow 10px a título `text-base` para alinearse con
           el patrón del timeline node ("Octubre de 2026" como h3). */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+      {/* `@xl` (ancho de CONTENEDOR, ver @container en PaymentsSection): mismo
+          criterio que PaymentTimelineNode — fila solo si el panel tiene ancho de
+          sobra para info + monto (140px) + acciones (150px) + gaps; si no, se
+          apilan verticalmente en vez de colapsar la columna de info a 0. */}
+      <div className="flex flex-col gap-4 @xl:flex-row @xl:items-center @xl:gap-6">
         {/* ───── COL 1 — INFO (contextHint + badge, debajo meta con iconos) ───── */}
         <div className="min-w-0 flex-1 flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2 min-w-0">
@@ -283,7 +288,7 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
         </div>
 
         {/* ───── COL 2 — MONTO (kicker + número tabular, centrado en desktop) ───── */}
-        <div className="flex flex-col items-start gap-0.5 shrink-0 sm:items-center sm:min-w-[140px]">
+        <div className="flex flex-col items-start gap-0.5 shrink-0 @xl:items-center @xl:min-w-[140px]">
           <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
             {amountKicker}
           </p>
@@ -294,20 +299,20 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
               timeline node (mensuales) y refuerza visualmente que ese monto ya fue
               cobrado, en el mismo verde del badge (Status Color Doctrine). */}
           {isCompleted && payment.paidAt && (
-            <p className="text-[10px] font-medium text-success tabular-nums mt-0.5">
+            <p className="text-[10px] font-medium text-success-foreground tabular-nums mt-0.5">
               Pagado el {formatPaidDate(payment.paidAt)}
             </p>
           )}
         </div>
 
         {/* ───── COL 3 — ACCIONES (botones apilados, alineados a la derecha en desktop) ───── */}
-        <div className="flex flex-col items-start gap-1.5 shrink-0 sm:items-end sm:min-w-[150px]">
+        <div className="flex flex-col items-start gap-1.5 shrink-0 @xl:items-end @xl:min-w-[150px]">
           {/* Primary action */}
           {primaryAction === "generate" && (
             <Button
               variant="link"
               size="sm"
-              className="h-7 px-1 text-xs text-info hover:text-info"
+              className="h-7 px-1 text-xs text-info-foreground hover:text-info-foreground"
               onClick={() => onGenerateLink?.(payment.id)}
               disabled={isGenerating}
             >
@@ -325,7 +330,7 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
             <Button
               variant="link"
               size="sm"
-              className="h-7 px-1 text-xs text-info hover:text-info"
+              className="h-7 px-1 text-xs text-info-foreground hover:text-info-foreground"
               onClick={() => onRegenerateLink?.(payment.id)}
               disabled={isRegenerating}
             >
@@ -343,7 +348,7 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
             <Button
               variant="link"
               size="sm"
-              className="h-7 px-1 text-xs text-info hover:text-info"
+              className="h-7 px-1 text-xs text-info-foreground hover:text-info-foreground"
               onClick={() => onSendLink?.(payment)}
             >
               <Send className="size-3.5 mr-1" />
@@ -354,7 +359,7 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
             <Button
               variant="link"
               size="sm"
-              className="h-7 px-1 text-xs text-info hover:text-info"
+              className="h-7 px-1 text-xs text-info-foreground hover:text-info-foreground"
               onClick={() => {
                 if (payment.initPoint) {
                   navigator.clipboard.writeText(payment.initPoint);
@@ -371,7 +376,7 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
             <Button
               variant="link"
               size="sm"
-              className="h-7 px-1 text-xs text-success hover:text-success"
+              className="h-7 px-1 text-xs text-success-foreground hover:text-success-foreground"
               onClick={() => onMarkPaid?.(payment.id)}
             >
               <Check className="size-3.5 mr-1" />
@@ -391,17 +396,22 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
               Ver comprobante
             </Button>
           )}
-          {isCompleted && primaryAction === null && canViewReceipt === false && (
-            <Button
+          {/* Pago cobrado sin comprobante: el botón deshabilitado "Ver comprobante"
+              que vivía aquí era un callejón sin salida — anunciaba que faltaba el
+              comprobante sin ofrecer forma de adjuntarlo, mientras `onUploadReceipt`
+              llegaba hasta este componente sin consumirse. Ahora se ofrece la misma
+              acción que el seam canónico (`payment-row-actions.tsx`): adjuntarlo. */}
+          {isCompleted && primaryAction === null && !canViewReceipt && onUploadReceipt && (
+            <AttachReceiptPopover
+              triggerLabel="Adjuntar comprobante"
+              triggerTooltip="Adjuntar comprobante"
               variant="link"
-              size="sm"
-              className="h-7 px-1 text-xs text-muted-foreground/60 gap-1"
-              disabled
-              title="Sin comprobante adjunto"
-            >
-              <FileText className="size-3.5" />
-              Ver comprobante
-            </Button>
+              triggerClassName="text-muted-foreground hover:text-foreground"
+              onSubmit={(file) => onUploadReceipt(payment.id, file)}
+            />
+          )}
+          {isCompleted && primaryAction === null && !canViewReceipt && !onUploadReceipt && (
+            <span className="text-xs text-muted-foreground py-1">Sin comprobante</span>
           )}
 
           {/* Secondaries — todas inline debajo de la primaria. Antes esto
@@ -415,18 +425,26 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
           {secondaries.map((id) => {
             const cfg = secondaryButtons[id];
             const Icon = cfg.icon;
+            const isDelete = id === "delete";
             return (
-              <Button
-                key={id}
-                variant="link"
-                size="sm"
-                className={cn("h-7 px-1 text-xs", cfg.className)}
-                onClick={cfg.onClick}
-                title={id === "delete" ? "Eliminar pago" : undefined}
-              >
-                <Icon className="size-3.5 mr-1" />
-                {cfg.label}
-              </Button>
+              <Fragment key={id}>
+                {/* Divisor antes de la destructiva — separación real (13px:
+                    gap-1.5 + línea de 1px + gap-1.5) en vez del gap-1.5 uniforme
+                    que la pegaba al botón constructivo de arriba. */}
+                {isDelete && hasContentAboveDelete && (
+                  <div className="h-px w-full bg-border" aria-hidden="true" />
+                )}
+                <Button
+                  variant="link"
+                  size="sm"
+                  className={cn("h-7 px-1 text-xs", cfg.className)}
+                  onClick={cfg.onClick}
+                  title={isDelete ? "Eliminar pago" : undefined}
+                >
+                  <Icon className="size-3.5 mr-1" />
+                  {cfg.label}
+                </Button>
+              </Fragment>
             );
           })}
         </div>

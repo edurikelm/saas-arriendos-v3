@@ -1,6 +1,5 @@
 "use client";
 
-import { useRef } from "react";
 import { ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PaymentTimelineNode } from "./payment-timeline-node";
@@ -58,8 +57,6 @@ export function PaymentsTimeline({
   );
   const firstOverdueId = firstOverdueIdx >= 0 ? sorted[firstOverdueIdx].id : null;
 
-  const focusRef = useRef<HTMLDivElement>(null);
-
   const handleFocusFirstOverdue = () => {
     if (firstOverdueId) {
       const el = document.querySelector(`[data-testid="timeline-node-${firstOverdueId}"]`);
@@ -76,8 +73,18 @@ export function PaymentsTimeline({
       {/* Focus card — only when overdue exist */}
       {overdueCount > 0 && isActive && (
         <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
+          {/* `flex-wrap` (no depende de ningún breakpoint, ni de viewport ni de
+              contenedor): a anchos angostos el botón baja a su propia línea en vez
+              de forzar el texto a comprimirse contra su ancho fijo (`shrink-0`),
+              lo que partía el mensaje en una o dos palabras por línea.
+              `flex-auto` (`flex: 1 1 auto`, NO `flex-1` que es `flex: 1 1 0%`):
+              con basis 0% el texto "cuenta" como 0px para la decisión de wrap y
+              el botón nunca baja de línea porque siempre "cabe"; con basis `auto`
+              el texto aporta su ancho real a esa decisión, el botón sí baja de
+              línea cuando no entran los dos, y el texto crece para ocupar toda
+              la línea (sola o junto al botón) y envuelve con normalidad. */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0 flex-auto">
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
                 Cuotas vencidas
               </p>
@@ -108,7 +115,7 @@ export function PaymentsTimeline({
           <p className="text-sm text-muted-foreground">Aún no generaste cuotas</p>
         </div>
       ) : (
-        <div ref={focusRef} className="space-y-4">
+        <div className="space-y-4">
           {sorted.map((payment, idx) => {
             const days = payment.dueDate
               ? daysFromTodayDateOnly(payment.dueDate)

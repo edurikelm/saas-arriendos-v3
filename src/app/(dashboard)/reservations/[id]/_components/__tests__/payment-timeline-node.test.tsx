@@ -130,7 +130,8 @@ describe("PaymentTimelineNode", () => {
           index={0} total={3} nowKey="2025-01-01" daysFromNow={10} isActive={true}
         />
       );
-      const connector = container.querySelector("[class*=\"bg-foreground/10\"]");
+      // bg-foreground/10 medía 1.27:1 contra el fondo en oscuro — invisible.
+      const connector = container.querySelector("[class*=\"bg-muted-foreground/40\"]");
       expect(connector).toBeTruthy();
     });
     it("connector has aria-hidden=true", () => {
@@ -165,16 +166,16 @@ describe("PaymentTimelineNode", () => {
       );
       expect(screen.getByRole("button", { name: /ver comprobante/i })).toBeTruthy();
     });
-    it("COMPLETED without receiptUrl shows Ver comprobante disabled", () => {
+    it("COMPLETED without receiptUrl offers Adjuntar comprobante", () => {
       render(
         <PaymentTimelineNode
           payment={mockPayment({ status: "COMPLETED", receiptUrl: null })}
           index={0} total={3} nowKey="2025-01-01" daysFromNow={10} isActive={true}
+          onUploadReceipt={vi.fn()}
         />
       );
-      const btn = screen.getByRole("button", { name: /ver comprobante/i }) as HTMLButtonElement;
-      expect(btn).toBeTruthy();
-      expect(btn.disabled).toBe(true);
+      expect(screen.getByRole("button", { name: /adjuntar comprobante/i })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /ver comprobante/i })).toBeNull();
     });
     // Cascada primaria alineada con ACTION_CONFIG / payment-row-actions.tsx.
     // El bug original etiquetaba "Enviar link" ambas ramas (generate + sendLink).

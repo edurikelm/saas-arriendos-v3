@@ -186,24 +186,23 @@ describe('ReservationDetailClient — header v3 (person + metadata row)', () => 
     expect(screen.getByRole('button', { name: /^más acciones$/i })).toBeTruthy();
   });
 
-  it('hides top bar actions for CANCELLED reservation (no Agregar Pago, no Verificar MP)', () => {
-    const reservation = createMockReservation({ status: 'CANCELLED' });
-    render(<ReservationDetailClient reservation={reservation} />);
+  // Una reserva cerrada no admite mutaciones, pero sí sigue siendo consultable:
+  // el menú de acciones se queda para "Copiar enlace". Lo que desaparece son los
+  // items que mutan (Editar / Cancelar) y los botones de pago del top bar.
+  it.each(['CANCELLED', 'COMPLETED'])(
+    'hides mutating top bar actions for %s reservation but keeps the menu',
+    (status) => {
+      const reservation = createMockReservation({ status });
+      render(<ReservationDetailClient reservation={reservation} />);
 
-    expect(screen.queryByRole('button', { name: /agregar pago/i })).toBeNull();
-    expect(screen.queryByRole('button', { name: /verificar pagos mp/i })).toBeNull();
-    // Sin el dropdown del top bar (sí pueden existir dropdowns en cada payment card)
-    expect(screen.queryByRole('button', { name: /^más acciones$/i })).toBeNull();
-  });
+      expect(screen.queryByRole('button', { name: /agregar pago/i })).toBeNull();
+      expect(screen.queryByRole('button', { name: /verificar pagos mp/i })).toBeNull();
+      expect(screen.getByRole('button', { name: /^más acciones$/i })).toBeTruthy();
+      // El contenido del menú (sólo "Copiar enlace" en este estado) no se
+      // asserta acá: el Menu de base-ui no abre bajo jsdom.
+    },
+  );
 
-  it('hides top bar actions for COMPLETED reservation', () => {
-    const reservation = createMockReservation({ status: 'COMPLETED' });
-    render(<ReservationDetailClient reservation={reservation} />);
-
-    expect(screen.queryByRole('button', { name: /agregar pago/i })).toBeNull();
-    expect(screen.queryByRole('button', { name: /verificar pagos mp/i })).toBeNull();
-    expect(screen.queryByRole('button', { name: /^más acciones$/i })).toBeNull();
-  });
 });
 
 describe('ReservationDetailClient — sections', () => {

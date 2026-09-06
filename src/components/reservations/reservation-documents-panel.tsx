@@ -24,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   FileUp,
   UploadCloud,
@@ -81,6 +82,9 @@ export function ReservationDocumentsPanel({ reservationId }: { reservationId: st
   const [dialogOpen, setDialogOpen] = useState(false);
   const [category, setCategory] = useState<ReservationDocument["category"]>("CONTRATO");
   const [file, setFile] = useState<File | null>(null);
+  // Documento en cola de borrado — guarda el objeto completo (no solo el id)
+  // porque `ConfirmDialog` necesita nombrar el archivo en su copy.
+  const [documentToDelete, setDocumentToDelete] = useState<ReservationDocument | null>(null);
 
   const loadDocuments = useCallback(async () => {
     setLoading(true);
@@ -192,7 +196,7 @@ export function ReservationDocumentsPanel({ reservationId }: { reservationId: st
           <div className="flex flex-col items-center gap-1.5 py-6 px-4 text-center">
             <UploadCloud className="size-5 text-muted-foreground/50" aria-hidden="true" />
             <p className="text-xs font-medium text-muted-foreground">Sin documentos aún</p>
-            <p className="text-[11px] text-muted-foreground/70 leading-relaxed">
+            <p className="text-xs text-muted-foreground leading-relaxed">
               Contratos, anexos o inventarios<br />
               se guardan aquí.
             </p>
@@ -242,7 +246,7 @@ export function ReservationDocumentsPanel({ reservationId }: { reservationId: st
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     variant="destructive"
-                    onClick={() => handleDelete(doc.id)}
+                    onClick={() => setDocumentToDelete(doc)}
                   >
                     <Trash2 className="mr-2 size-4" />
                     Eliminar
@@ -328,6 +332,32 @@ export function ReservationDocumentsPanel({ reservationId }: { reservationId: st
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ─── Guarda de borrado ───
+          El registro es soft-delete a nivel de esquema (`deletedAt` en
+          `ReservationDocument`), pero a diferencia de pagos no existe ningún
+          endpoint ni server action que restaure un documento — no hay `PUT`
+          en esta ruta ni `restoreReservationDocument` en las actions. Sin
+          forma de deshacerlo desde el producto, prometer un "Deshacer" sería
+          mentir: se trata como borrado permanente y el copy lo dice. */}
+      <ConfirmDialog
+        open={!!documentToDelete}
+        onOpenChange={(open) => {
+          if (!open) setDocumentToDelete(null);
+        }}
+        title="Eliminar documento"
+        description={
+          documentToDelete
+            ? `El documento "${documentToDelete.fileName}" se eliminará de la reserva. La acción es permanente: no hay forma de recuperarlo después.`
+            : ""
+        }
+        confirmLabel="Eliminar documento"
+        onConfirm={() => {
+          if (!documentToDelete) return;
+          handleDelete(documentToDelete.id);
+          setDocumentToDelete(null);
+        }}
+      />
     </div>
   );
 }
@@ -364,7 +394,7 @@ function FileInput({
           </div>
           <div className="min-w-0">
             <p className="text-sm font-medium truncate">{selectedFile.name}</p>
-            <p className="text-[11px] text-muted-foreground tabular-nums">
+            <p className="text-xs text-muted-foreground tabular-nums">
               {formatFileSize(selectedFile.size)}
             </p>
           </div>
@@ -389,7 +419,7 @@ function FileInput({
     >
       <UploadCloud className="size-7 text-muted-foreground/60 mb-1.5" aria-hidden="true" />
       <p className="text-xs font-medium text-foreground">Seleccionar archivo</p>
-      <p className="text-[11px] text-muted-foreground/70 mt-1">
+      <p className="text-xs text-muted-foreground mt-1">
         PDF, JPG, PNG, WebP — máx 10 MB
       </p>
       <input
