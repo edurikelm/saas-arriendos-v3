@@ -235,7 +235,11 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
             • Col 3 (acciones): botones apilados, alineados a la derecha en desktop.
           El contextHint pasa de eyebrow 10px a título `text-base` para alinearse con
           el patrón del timeline node ("Octubre de 2026" como h3). */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+      {/* `@xl` (ancho de CONTENEDOR, ver @container en PaymentsSection): mismo
+          criterio que PaymentTimelineNode — fila solo si el panel tiene ancho de
+          sobra para info + monto (140px) + acciones (150px) + gaps; si no, se
+          apilan verticalmente en vez de colapsar la columna de info a 0. */}
+      <div className="flex flex-col gap-4 @xl:flex-row @xl:items-center @xl:gap-6">
         {/* ───── COL 1 — INFO (contextHint + badge, debajo meta con iconos) ───── */}
         <div className="min-w-0 flex-1 flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2 min-w-0">
@@ -271,7 +275,7 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
         </div>
 
         {/* ───── COL 2 — MONTO (kicker + número tabular, centrado en desktop) ───── */}
-        <div className="flex flex-col items-start gap-0.5 shrink-0 sm:items-center sm:min-w-[140px]">
+        <div className="flex flex-col items-start gap-0.5 shrink-0 @xl:items-center @xl:min-w-[140px]">
           <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
             {amountKicker}
           </p>
@@ -289,7 +293,7 @@ const methodLabel = METHOD_LABELS[payment.method] ?? "—";
         </div>
 
         {/* ───── COL 3 — ACCIONES (botones apilados, alineados a la derecha en desktop) ───── */}
-        <div className="flex flex-col items-start gap-1.5 shrink-0 sm:items-end sm:min-w-[150px]">
+        <div className="flex flex-col items-start gap-1.5 shrink-0 @xl:items-end @xl:min-w-[150px]">
           {/* Primary action */}
           {primaryAction === "generate" && (
             <Button

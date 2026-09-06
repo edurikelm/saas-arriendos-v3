@@ -130,9 +130,22 @@ export function PaymentsSection({
   const isMonthly = billingType === "MONTHLY";
 
   return (
-    <div className="space-y-6">
-      {/* KPIs — sin título encima, los números son el resumen */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+    // `@container`: los hijos (KPIs y filas de pago más abajo) miden el ANCHO DE
+    // ESTA COLUMNA, no el viewport. Necesario porque el layout de 2 columnas de
+    // `reservation-detail-client.tsx` deja este panel en ~360px cuando el viewport
+    // mide 1024px pero ~756px cuando mide 1440px — un breakpoint `sm:`/`lg:` de
+    // Tailwind (basado en viewport) no puede distinguir esos dos casos y por eso
+    // el grid de KPIs y las filas de pago se rompían en anchos intermedios de
+    // viewport (bug P0, ver fix/reservation-detail-contraste-y-comprobante).
+    <div className="space-y-6 @container">
+      {/* KPIs — sin título encima, los números son el resumen.
+          `@xl` (36rem/576px de ancho de CONTENEDOR): recién ahí el panel tiene
+          espacio de sobra para que las 4 cifras (hasta ~115px cada una) quepan
+          sin sobreimprimirse; por debajo se quedan en 2 columnas. */}
+      {/* El umbral es @2xl (672px), no @xl (576px): a 576px las cards quedan en
+          ~135px y un total de 8 cifras ($18.600.000) mide 123px + 32px de padding,
+          así que se sale del borde. A 672px la card mide 159px y entra. */}
+      <div className="grid grid-cols-2 @2xl:grid-cols-4 gap-3 @2xl:gap-4">
         <KpiCard
           label="Total"
           value={formatPrice(Number(totalPrice) + extraTotal)}

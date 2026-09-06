@@ -36,7 +36,7 @@ describe('AddPaymentDialog - paymentType selector', () => {
     render(<AddPaymentDialog {...defaultProps} />);
 
     expect(screen.getByText('Pago de Reserva')).toBeTruthy();
-    expect(screen.getByText(/Máximo:/)).toBeTruthy();
+    expect(screen.getByText(/Máximo/)).toBeTruthy();
     expect(screen.queryByText('Título')).toBeNull();
     expect(screen.queryByText('Descripción (opcional)')).toBeNull();
   });
@@ -44,7 +44,7 @@ describe('AddPaymentDialog - paymentType selector', () => {
   it('maxAmount chip uses rectangular radius (rounded-md), not pill radius', () => {
     render(<AddPaymentDialog {...defaultProps} />);
 
-    const maxAmountText = screen.getByText(/Máximo:/);
+    const maxAmountText = screen.getByText(/Máximo/);
     const maxChip = maxAmountText.closest('button');
     expect(maxChip).toBeTruthy();
     expect(maxChip!.className).not.toMatch(/\brounded-full\b/);
@@ -57,7 +57,7 @@ describe('AddPaymentDialog - paymentType selector', () => {
 
     await user.click(screen.getByText('Pago Extra'));
 
-    expect(screen.queryByText(/Máximo:/)).toBeNull();
+    expect(screen.queryByText(/Máximo/)).toBeNull();
     expect(screen.getByText('Título')).toBeTruthy();
     expect(screen.getByText('Descripción (opcional)')).toBeTruthy();
   });
@@ -69,7 +69,7 @@ describe('AddPaymentDialog - paymentType selector', () => {
     await user.click(screen.getByText('Pago Extra'));
     await user.click(screen.getByText('Pago de Reserva'));
 
-    expect(screen.getByText(/Máximo:/)).toBeTruthy();
+    expect(screen.getByText(/Máximo/)).toBeTruthy();
     expect(screen.queryByText('Título')).toBeNull();
     expect(screen.queryByText('Descripción (opcional)')).toBeNull();
   });
@@ -162,6 +162,37 @@ describe('AddPaymentDialog - paymentType selector', () => {
     expect(mockFetch).toHaveBeenCalled();
     const formData = mockFetch.mock.calls[0][1].body;
     expect(formData.get('paymentType')).toBe('RESERVATION');
+  });
+
+  it('con pagos de arriendo ya cobrados, reporta el pendiente real y rechaza un monto mayor', async () => {
+    // Regresión: reservation-detail-client.tsx le pasaba paidAmount=0 al hook de pagos
+    // con el comentario (falso) "no se usa aquí". Este diálogo recibía siempre 0, así
+    // que topaba contra el TOTAL del contrato en vez del pendiente real de arriendo,
+    // dejando pasar cobros muy superiores a lo adeudado.
+    //
+    // Reserva de $455.000 con $195.000 de arriendo ya cobrados → pendiente real $260.000.
+    const user = userEvent.setup();
+    render(
+      <AddPaymentDialog {...defaultProps} totalPrice="455000" paidAmount={195000} />
+    );
+
+    // El resumen debe reflejar lo ya cobrado, no partir siempre de "$0".
+    expect(screen.getByText('$195.000')).toBeTruthy();
+
+    await selectCash(user);
+
+    const amountInput = screen.getByPlaceholderText('0');
+    // Mayor al pendiente real ($260.000) pero menor al total del contrato ($455.000):
+    // con el bug viejo esto se aceptaba, porque el tope efectivo era el total.
+    await user.type(amountInput, '300000');
+
+    await user.click(screen.getByText('Registrar Pago'));
+
+    const toastModule = await import('sonner');
+    expect(toastModule.toast.error).toHaveBeenCalledWith(
+      'El monto no puede exceder el pendiente de arriendo: $260.000'
+    );
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it('shows all 3 payment methods available in EXTRA mode', async () => {

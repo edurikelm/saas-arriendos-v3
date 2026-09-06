@@ -47,6 +47,7 @@ import {
 } from "@/components/reservations/reservation-status";
 import { cn } from "@/lib/utils";
 import { getInclusiveMonths } from "@/lib/reservation-dates";
+import { getReservationPaidAmount } from "@/lib/payments/calculations";
 import { PaymentsSection } from "./payments-section";
 import { usePaymentActions, MarkPaidModal } from "./payment-actions";
 
@@ -588,6 +589,15 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
   const isEditable = reservation.status !== "CANCELLED" && reservation.status !== "COMPLETED";
   const propertyColor = reservation.property.color || "var(--primary)";
 
+  // Saldo pagado del arriendo (COMPLETED, no eliminados, sin cobros EXTRA — ver
+  // `getReservationPaidAmount`). Alimenta el resumen y el tope de AddPaymentDialog;
+  // debe coincidir con lo que PaymentsSection calcula más abajo desde los mismos
+  // `reservation.payments`, así que usamos la misma función.
+  const paidAmount = useMemo(
+    () => getReservationPaidAmount(reservation.payments),
+    [reservation.payments],
+  );
+
   // Pagos — el hook vive aquí (top bar) para que "Verificar pagos MP" y "Agregar Pago"
   // puedan dispararse desde los botones del header. Las listas reciben solo handlers.
   const {
@@ -610,7 +620,7 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
   } = usePaymentActions({
     reservationId: reservation.id,
     totalPrice: reservation.totalPrice,
-    paidAmount: 0, // No se usa aquí — PaymentsSection recalcula desde payments
+    paidAmount,
     client: reservation.client,
     propertyName: reservation.property.name,
     billingType: reservation.billingType,

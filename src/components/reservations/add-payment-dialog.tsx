@@ -105,7 +105,7 @@ function createAddPaymentSchema(maxAmount: number) {
         return true;
       },
       {
-        message: `El monto no puede exceder el pendiente: ${formatAmount(maxAmount)}`,
+        message: `El monto no puede exceder el pendiente de arriendo: ${formatAmount(maxAmount)}`,
         path: ["amount"],
       }
     );
@@ -373,7 +373,7 @@ export function AddPaymentDialog({
                           onClick={() => handleMaxClick(field.onChange)}
                           className="text-xs px-2 py-0.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer font-medium"
                         >
-                          Máximo: <span className="tabular-nums">{formatAmount(pendingAmount)}</span>
+                          Máximo arriendo: <span className="tabular-nums">{formatAmount(pendingAmount)}</span>
                         </button>
                       )}
                     </div>

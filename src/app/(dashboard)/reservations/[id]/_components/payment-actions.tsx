@@ -13,6 +13,12 @@ import type { Payment } from "@/components/payments/payments-table";
 export interface PaymentActionsProps {
   reservationId: string;
   totalPrice: string;
+  /**
+   * Saldo pagado del arriendo (ver `getReservationPaidAmount` en
+   * `@/lib/payments/calculations`). Se reenvía tal cual a `AddPaymentDialog`,
+   * que lo usa para calcular el pendiente y topar el monto — pasar 0 aquí
+   * hace que el diálogo muestre "pendiente = total" aunque ya haya pagos.
+   */
   paidAmount: number;
   client: { name: string; email: string };
   propertyName: string;
