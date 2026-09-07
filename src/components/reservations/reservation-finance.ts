@@ -13,6 +13,28 @@
  * la fila en tres líneas — las alturas quedaban entre 77 y 97px y una tabla que
  * se lee en vertical no puede tener el renglón bailando.
  *
+ * **Tres tonos, atados a urgencia real, no a "cuánto se pagó".** La primera
+ * versión de este seam dejó el monto sin color, apoyándose en la regla de
+ * DESIGN.md que dice que el monto nunca se tiñe con el color del estado. Esa
+ * regla habla de listas **agrupadas por estado**, donde el color vive en el
+ * encabezado del grupo; esta lista no está agrupada, así que el efecto fue
+ * dejar la fila sin ninguna señal financiera — el pill de al lado informa
+ * tiempo, no plata. Y teñir de un solo color todo lo que se debe tampoco
+ * ordena: la columna queda casi entera del mismo tono.
+ *
+ * El corte que sí prioriza usa datos que ya están en la fila: **si la estadía
+ * empezó y todavía se debe**, el huésped está adentro o ya se fue sin pagar, y
+ * eso es lo que hay que perseguir hoy (`destructive`). Si aún no empieza, deber
+ * es lo normal (`warning`, "atención, no danger", per Status Color Doctrine).
+ *
+ * No es "cuota vencida": `ReservationPayment` no trae `dueDate` en la lista, así
+ * que el vencimiento real de una cuota mensual no se puede calcular acá sin
+ * cambiar la query. Esto es la aproximación honesta con lo que hay.
+ *
+ * El color no es el único portador: la columna Estado ya dice ACTIVA /
+ * FINALIZADA frente a PRÓXIMA en la misma fila, así que la distinción sigue
+ * disponible sin depender del tono (WCAG 1.4.1).
+ *
  * **Una sola magnitud por columna.** La versión anterior ponía en negrita cosas
  * distintas según la fila — "Saldado" (una palabra), lo que falta cobrar, el
  * precio total cuando no había abonos, y el total otra vez cuando estaba
@@ -38,11 +60,19 @@
 
 import { getReservationPaidAmount } from "@/lib/payments/calculations";
 import { formatPrice } from "./reservations-utils";
+import { daysUntilStart } from "./reservation-status";
 import type { Reservation, ReservationPayment } from "./types";
+
+export type FinanceUrgency = "overdue" | "upcoming" | "settled";
 
 export interface FinanceDisplay {
   /** Lo que falta cobrar. 0 cuando está saldada o cancelada. */
   amountDue: number;
+  /**
+   * `overdue` = se debe y la estadía ya empezó · `upcoming` = se debe y aún no
+   * empieza · `settled` = no hay nada que cobrar.
+   */
+  urgency: FinanceUrgency;
   /** El monto formateado, o "—" cuando no hay nada que cobrar por estar cancelada. */
   label: string;
   /** Línea de apoyo: explica el monto, no nombra otro distinto. */
@@ -51,13 +81,18 @@ export interface FinanceDisplay {
   labelClassName: string;
 }
 
-const DUE = "text-foreground";
-const SETTLED = "text-muted-foreground";
+const labelClassByUrgency: Record<FinanceUrgency, string> = {
+  overdue: "text-destructive-text",
+  upcoming: "text-warning-text",
+  settled: "text-muted-foreground",
+};
 
 export function getFinanceDisplay(
   payments: ReservationPayment[],
   totalPriceRaw: Reservation["totalPrice"],
   status: string,
+  startDate: string,
+  now: Date = new Date(),
 ): FinanceDisplay {
   const paidAmount = getReservationPaidAmount(payments);
   const totalPrice = Number(totalPriceRaw);
@@ -65,34 +100,31 @@ export function getFinanceDisplay(
   if (status === "CANCELLED") {
     return {
       amountDue: 0,
+      urgency: "settled",
       label: "—",
       subtext: paidAmount > 0 ? `${formatPrice(paidAmount)} cobrado` : "sin cobros",
-      labelClassName: SETTLED,
+      labelClassName: labelClassByUrgency.settled,
     };
   }
 
   if (paidAmount >= totalPrice && totalPrice > 0) {
     return {
       amountDue: 0,
+      urgency: "settled",
       label: formatPrice(0),
       subtext: `${formatPrice(paidAmount)} cobrado`,
-      labelClassName: SETTLED,
+      labelClassName: labelClassByUrgency.settled,
     };
   }
 
-  if (paidAmount > 0) {
-    return {
-      amountDue: totalPrice - paidAmount,
-      label: formatPrice(totalPrice - paidAmount),
-      subtext: `${formatPrice(paidAmount)} cobrado`,
-      labelClassName: DUE,
-    };
-  }
+  // La estadía ya empezó (hoy >= start_date, en wall-time SCL) y queda saldo.
+  const urgency: FinanceUrgency = daysUntilStart(startDate, now) <= 0 ? "overdue" : "upcoming";
 
   return {
-    amountDue: totalPrice,
-    label: formatPrice(totalPrice),
-    subtext: "sin abonos",
-    labelClassName: DUE,
+    amountDue: totalPrice - paidAmount,
+    urgency,
+    label: formatPrice(totalPrice - paidAmount),
+    subtext: paidAmount > 0 ? `${formatPrice(paidAmount)} cobrado` : "sin abonos",
+    labelClassName: labelClassByUrgency[urgency],
   };
 }

@@ -82,7 +82,7 @@ export function ReservationTable({ reservations, onEdit, onCancel, onDelete }: {
           {sorted.map((res) => {
             const temporal = getTemporalStatus(res.startDate, res.endDate, res.billingType, res.status);
             const stateTone = getReservationTone(res.status, res.startDate, res.endDate);
-            const fin = getFinanceDisplay(res.payments, res.totalPrice, res.status);
+            const fin = getFinanceDisplay(res.payments, res.totalPrice, res.status, res.startDate);
             // El sublabel ya distingue DAILY de MONTHLY ("12 noches" vs "3 meses")
             // y además dice cuánto dura. La columna "Tipo" repetía esa misma
             // distinción en 107px que la tabla no tenía.

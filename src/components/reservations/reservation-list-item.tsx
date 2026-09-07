@@ -55,7 +55,7 @@ export function ReservationListItem({
   onCancel,
   onDelete,
 }: ReservationListItemProps) {
-  const fin = getFinanceDisplay(reservation.payments, reservation.totalPrice, reservation.status);
+  const fin = getFinanceDisplay(reservation.payments, reservation.totalPrice, reservation.status, reservation.startDate);
   const temporal = getTemporalStatus(
     reservation.startDate,
     reservation.endDate,
