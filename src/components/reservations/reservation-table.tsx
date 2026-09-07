@@ -83,9 +83,8 @@ export function ReservationTable({ reservations, onEdit, onCancel, onDelete }: {
             // El sublabel distingue DAILY de MONTHLY ("noche 7 de 12" vs
             // "mes 3 de 4") y dice cuánto va de cuánto. La columna "Tipo"
             // repetía solo la primera mitad, en 107px que la tabla no tenía.
-            const duration = formatStayProgress(
-              getStayProgress(res.startDate, res.endDate, res.billingType, res.status),
-            );
+            const stay = getStayProgress(res.startDate, res.endDate, res.billingType, res.status);
+            const duration = formatStayProgress(stay);
 
             return (
               <tr key={res.id} className="group border-b last:border-0">
@@ -109,7 +108,15 @@ export function ReservationTable({ reservations, onEdit, onCancel, onDelete }: {
                 <td className={cn(CELL, "align-middle")}>
                   <div className="flex flex-col items-start gap-1">
                     <ReservationPill tone={stateTone} label={temporal.label} />
-                    {temporal.sublabel && (
+                    {/* El sublabel del pill dice cuánto FALTA ("2 meses"), y la celda de
+                        Estancia ya dice en qué va ("MES 3 DE 4"): el mismo hecho contado
+                        dos veces en columnas vecinas. Se muestra solo cuando Estancia no
+                        lleva ordinal — o sea en "Próxima · En 13 días", donde el sublabel
+                        aporta algo que ninguna otra celda calcula. La condición se ata al
+                        progreso y no al texto del label, para que no puedan divergir.
+                        En el detalle y en la agenda del dashboard el sublabel se mantiene:
+                        ahí no hay Estancia que compense. */}
+                    {stay.current == null && temporal.sublabel && (
                       <span className="text-[10px] text-muted-foreground">{temporal.sublabel}</span>
                     )}
                   </div>

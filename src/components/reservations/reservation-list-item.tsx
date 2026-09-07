@@ -55,14 +55,13 @@ export function ReservationListItem({
     reservation.status,
   );
   const stateTone = getReservationTone(reservation.status, reservation.startDate, reservation.endDate);
-  const duration = formatStayProgress(
-    getStayProgress(
-      reservation.startDate,
-      reservation.endDate,
-      reservation.billingType,
-      reservation.status,
-    ),
+  const stay = getStayProgress(
+    reservation.startDate,
+    reservation.endDate,
+    reservation.billingType,
+    reservation.status,
   );
+  const duration = formatStayProgress(stay);
 
   return (
     <div className="border-b border-border p-4 last:border-0">
@@ -99,7 +98,9 @@ export function ReservationListItem({
       {/* Estado + estancia */}
       <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5">
         <ReservationPill tone={stateTone} label={temporal.label} />
-        {temporal.sublabel && (
+        {/* Ver la nota en reservation-table.tsx: el sublabel solo cuando la
+            celda de progreso no lleva ordinal. */}
+        {stay.current == null && temporal.sublabel && (
           <span className="text-[10px] text-muted-foreground">{temporal.sublabel}</span>
         )}
         <span className="ml-auto whitespace-nowrap text-xs tabular-nums text-foreground">
