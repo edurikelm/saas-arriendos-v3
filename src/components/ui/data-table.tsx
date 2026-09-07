@@ -5,7 +5,17 @@ export type DataTableHeaderAlign = "left" | "right" | "center";
 
 export type DataTableHeader =
   | string
-  | { label: string; align?: DataTableHeaderAlign };
+  | {
+      label: string;
+      align?: DataTableHeaderAlign;
+      /**
+       * Clases extra para ese `<th>`. Existe para que una columna se pueda
+       * fijar al borde (`sticky right-0`) sin que el consumidor tenga que
+       * reimplementar el primitive. La celda `<td>` correspondiente debe
+       * llevar el mismo `sticky` y un fondo propio.
+       */
+      className?: string;
+    };
 
 interface DataTableProps {
   headers: DataTableHeader[];
@@ -27,11 +37,15 @@ interface DataTableProps {
   accentTop?: boolean;
 }
 
-function normalizeHeader(header: DataTableHeader): { label: string; align: DataTableHeaderAlign } {
+function normalizeHeader(header: DataTableHeader): {
+  label: string;
+  align: DataTableHeaderAlign;
+  className?: string;
+} {
   if (typeof header === "string") {
     return { label: header, align: "left" };
   }
-  return { label: header.label, align: header.align ?? "left" };
+  return { label: header.label, align: header.align ?? "left", className: header.className };
 }
 
 function alignClass(align: DataTableHeaderAlign): string {
@@ -55,14 +69,15 @@ export function DataTable({ headers, children, emptyState, caption, className, m
           <thead>
             <tr className="border-b bg-muted/50">
               {headers.map((header, idx) => {
-                const { label, align } = normalizeHeader(header);
+                const { label, align, className: headerClassName } = normalizeHeader(header);
                 return (
                   <th
                     key={`${label}-${idx}`}
                     scope="col"
                     className={cn(
                       "px-6 py-4 align-middle text-[10px] font-bold uppercase tracking-wider text-muted-foreground",
-                      alignClass(align)
+                      alignClass(align),
+                      headerClassName
                     )}
                   >
                     {label}

@@ -108,6 +108,7 @@ export function ReservationsListClient({
     searchQuery,
     filteredReservations,
     hasActiveFilters,
+    hasClientFilters,
     updateServerFilter,
     updatePaymentFilter,
     handleSearchChange,
@@ -128,6 +129,9 @@ export function ReservationsListClient({
 
   // Effective view mode: mobile always uses list
   const effectiveViewMode = isMobile ? "list" : viewMode;
+
+  const rangeStart = filteredReservations.length === 0 ? 0 : (page - 1) * limit + 1;
+  const rangeEnd = (page - 1) * limit + filteredReservations.length;
 
   // Deep-link from external systems: /reservations?reservationId=abc123 → redirect to detail page.
   // The preview-from-list pattern was removed (list always navigates to detail page directly).
@@ -446,7 +450,21 @@ export function ReservationsListClient({
           {/* Counter + Pagination (top) */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground tabular-nums">
-              Mostrando {((page - 1) * limit) + 1}-{Math.min(page * limit, filteredReservations.length)} de {total} reserva{total !== 1 ? "s" : ""}
+              {/*
+                El rango tiene que salir del offset de la página MÁS cuántas filas
+                se están dibujando. La versión anterior era
+                `Math.min(page * limit, filteredReservations.length)`, que mezcla
+                un offset global con el largo de la página actual: en la página 2
+                imprimía "Mostrando 11-10 de 24 reservas", con el rango al revés.
+
+                Y mientras haya un filtro de cliente (búsqueda o pago) el rango
+                no aplica: esos filtros recortan solo la página que está cargada,
+                así que "de {total}" — el total del servidor sin filtrar — no
+                describe lo que se ve. Ahí el contador dice lo que sí es cierto.
+              */}
+              {hasClientFilters
+                ? `${filteredReservations.length} de ${serverReservations.length} en esta página`
+                : `Mostrando ${rangeStart}-${rangeEnd} de ${total} reserva${total !== 1 ? "s" : ""}`}
             </div>
             {total > limit && (
               <Pagination
@@ -484,7 +502,14 @@ export function ReservationsListClient({
                 onDelete={(id) => handleDelete(id)}
               />
           ) : (
-            <div className="space-y-4">
+            /*
+              Un contenedor con filas divididas, no una card por reserva. Ocho
+              cards apiladas repetían ocho marcos para un solo objeto; el mismo
+              framing que usa `DataTable` en desktop (accent strip + borde) hace
+              que la lista se lea como la misma tabla en otro ancho, y le
+              devuelve al contenido la altura que gastaban los marcos.
+            */
+            <div className="overflow-hidden rounded-md border border-t-2 border-border border-t-primary bg-card">
               {filteredReservations.map((reservation) => (
                 <ReservationListItem
                   key={reservation.id}

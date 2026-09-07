@@ -1,25 +1,15 @@
 "use client";
 
-import { formatDate, formatPrice } from "./reservations-utils";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Eye, Pencil, Ban, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { getReservationPaidAmount } from "@/lib/payments/calculations";
+import { cn } from "@/lib/utils";
+import { formatDate, getInitials } from "./reservations-utils";
 import { getInclusiveMonths } from "@/lib/reservation-dates";
 import { dateKeyToDayIndex } from "@/lib/domain/timezone";
 import type { Reservation } from "@/components/reservations/types";
 import { getReservationTone, getTemporalStatus } from "./reservation-status";
-
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-}
+import { ReservationPill } from "./reservation-pill";
+import { getFinanceDisplay } from "./reservation-finance";
+import { ReservationActionsMenu } from "./reservation-actions-menu";
 
 function getNights(startDate: string, endDate: string): number {
   // start_date / end_date son date-only en el dominio (CONTEXT.md).
@@ -32,36 +22,6 @@ function getMonths(startDate: string, endDate: string): number {
   return getInclusiveMonths(startDate, endDate);
 }
 
-function getPaymentTone(paidAmount: number, totalPrice: number): "success" | "warning" | "destructive" {
-  if (paidAmount >= totalPrice && totalPrice > 0) return "success";
-  if (paidAmount > 0) return "warning";
-  return "destructive";
-}
-
-const pillToneClasses: Record<string, string> = {
-  success: "border-success/20 bg-success/10 text-success",
-  info: "border-info/20 bg-info/10 text-info",
-  warning: "border-warning/25 bg-warning/10 text-warning",
-  destructive: "border-destructive/25 bg-destructive/10 text-destructive-text",
-  neutral: "border-muted bg-muted text-muted-foreground",
-};
-
-const dotClasses: Record<string, string> = {
-  success: "bg-success",
-  info: "bg-info",
-  warning: "bg-warning",
-  destructive: "bg-destructive",
-  neutral: "bg-muted-foreground",
-};
-
-const verticalBarClasses: Record<string, string> = {
-  success: "bg-success",
-  info: "bg-info",
-  warning: "bg-warning",
-  destructive: "bg-destructive",
-  neutral: "bg-muted-foreground",
-};
-
 interface ReservationListItemProps {
   reservation: Reservation;
   onEdit: (reservation: Reservation) => void;
@@ -69,115 +29,98 @@ interface ReservationListItemProps {
   onDelete: (id: string) => void;
 }
 
+/**
+ * Fila de reserva en móvil (<768px). Es una FILA dentro de un contenedor único,
+ * no una card por reserva.
+ *
+ * Antes cada reserva era una `<Card>` de 294–346px: entraban 1,7 por pantalla y
+ * ocho reservas pedían 2870px de scroll. La altura se iba en cosas que ya se
+ * dicen en otro lado o que no necesitan estar siempre visibles — una barra de
+ * tres botones (Ver / Editar / Cancelar), las etiquetas "Propiedad" / "Estancia"
+ * / "Tipo" sobre cada dato, y el chip DIARIA/MENSUAL que repetía el sublabel de
+ * duración. Con eso adentro de un ⋮ y los datos en tres líneas, la fila queda
+ * cerca de 150px y entran ~5 por pantalla.
+ *
+ * Dos cosas más que cambian acá:
+ * - **El pill recupera su sublabel.** La versión anterior mostraba "ACTIVA" a
+ *   secas mientras desktop mostraba "ACTIVA / 7 noches", así que en el teléfono
+ *   se perdía cuánto queda — justo el dato que se mira en movimiento.
+ * - **Se va la barra de color de 4px del borde izquierdo.** Un borde lateral de
+ *   color por encima de 1px es decoración: el estado ya lo dice el pill, con
+ *   palabra y con tono, y sin gastar ancho en una pantalla de 375px.
+ */
 export function ReservationListItem({
   reservation,
   onEdit,
   onCancel,
   onDelete,
 }: ReservationListItemProps) {
-  const paidAmount = getReservationPaidAmount(reservation.payments);
-  const totalPrice = Number(reservation.totalPrice);
-  const paymentTone = getPaymentTone(paidAmount, totalPrice);
-  const temporal = getTemporalStatus(reservation.startDate, reservation.endDate, reservation.billingType, reservation.status);
+  const fin = getFinanceDisplay(reservation.payments, reservation.totalPrice, reservation.status);
+  const temporal = getTemporalStatus(
+    reservation.startDate,
+    reservation.endDate,
+    reservation.billingType,
+    reservation.status,
+  );
   const stateTone = getReservationTone(reservation.status, reservation.startDate, reservation.endDate);
   const duration = reservation.billingType === "MONTHLY"
     ? `${getMonths(reservation.startDate, reservation.endDate)} meses`
     : `${getNights(reservation.startDate, reservation.endDate)} noches`;
 
-  const finLabel = paymentTone === "success"
-    ? "Saldado"
-    : paymentTone === "warning"
-      ? formatPrice(totalPrice - paidAmount)
-      : formatPrice(totalPrice);
-  const finSubtext = paymentTone === "success"
-    ? `${formatPrice(paidAmount)} pagado`
-    : paymentTone === "warning"
-      ? `Restante de ${formatPrice(totalPrice)}`
-      : reservation.status === "CANCELLED"
-        ? "Pendiente de pago"
-        : "Sin abonos";
-
   return (
-    <Card className="group relative overflow-hidden">
-      <div className={`absolute inset-y-0 left-0 w-1 ${verticalBarClasses[stateTone]}`} />
-      <CardHeader className="pb-3 pl-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-              {getInitials(reservation.client.name)}
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-bold text-foreground">{reservation.client.name}</p>
-              <p className="truncate text-xs text-muted-foreground">{reservation.client.email}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[9px] font-bold uppercase ${pillToneClasses[stateTone]}`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${dotClasses[stateTone]}`} />
-              {temporal.label}
-            </span>
-          </div>
+    <div className="border-b border-border p-4 last:border-0">
+      {/* Huésped + acciones */}
+      <div className="flex items-start gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+          {getInitials(reservation.client.name)}
         </div>
-      </CardHeader>
-      <CardContent className="pl-4">
-        <div className="flex flex-wrap items-start gap-4 text-sm">
-          <div>
-            <p className="text-muted-foreground text-xs">Propiedad</p>
-            <p className="font-medium text-foreground">{reservation.property.name}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground text-xs">Estancia</p>
-            <p className="font-medium text-foreground tabular-nums">
-              {formatDate(reservation.startDate)} – {formatDate(reservation.endDate)}
-            </p>
-            <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-tight">{duration}</span>
-          </div>
-          <div>
-            <p className="text-muted-foreground text-xs">Tipo</p>
-            <span className="inline-flex px-2 py-0.5 rounded bg-muted text-muted-foreground text-[9px] font-bold uppercase">
-              {reservation.billingType === "DAILY" ? "Diaria" : "Mensual"}
-            </span>
-          </div>
-          <div className="flex items-stretch gap-2">
-            <div className={`w-0.5 rounded-full ${verticalBarClasses[paymentTone]}`} />
-            <div className="flex flex-col">
-              <p className={`text-xs font-bold ${paymentTone === "success" ? "text-success" : paymentTone === "warning" ? "text-foreground" : "text-destructive-text"}`}>
-                {finLabel}
-              </p>
-              <p className="text-[10px] text-muted-foreground">{finSubtext}</p>
-            </div>
-          </div>
-        </div>
-
-        {reservation.notes && (
-          <p className="mt-3 text-sm text-muted-foreground">
-            <span className="font-medium">Notas:</span> {reservation.notes}
-          </p>
-        )}
-
-        <div className="flex items-center gap-2 mt-4">
-          <Link href={`/reservations/${reservation.id}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
-            <Eye className="h-4 w-4 mr-1" />
-            Ver
+        <div className="min-w-0 flex-1">
+          <Link
+            href={`/reservations/${reservation.id}`}
+            className="block truncate text-sm font-bold text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            {reservation.client.name}
           </Link>
-          <Button variant="outline" size="sm" onClick={() => onEdit(reservation)}>
-            <Pencil className="h-4 w-4 mr-1" />
-            Editar
-          </Button>
-          {reservation.status !== "CANCELLED" && reservation.status !== "COMPLETED" && (
-            <Button variant="outline" size="sm" onClick={() => onCancel(reservation.id)}>
-              <Ban className="h-4 w-4 mr-1" />
-              Cancelar
-            </Button>
-          )}
-          {(reservation.status === "CANCELLED" || reservation.status === "COMPLETED") && (
-            <Button variant="destructive" size="sm" onClick={() => onDelete(reservation.id)}>
-              <Trash2 className="h-4 w-4 mr-1" />
-              Eliminar
-            </Button>
-          )}
+          <p className="truncate text-xs text-muted-foreground">
+            {reservation.property.name} · {duration}
+          </p>
         </div>
-      </CardContent>
-    </Card>
+        <ReservationActionsMenu
+          reservation={reservation}
+          onEdit={() => onEdit(reservation)}
+          onCancel={onCancel}
+          onDelete={onDelete}
+          className="-mr-1 inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        />
+      </div>
+
+      {/* Estado + estancia */}
+      <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+        <ReservationPill tone={stateTone} label={temporal.label} />
+        {temporal.sublabel && (
+          <span className="text-[10px] text-muted-foreground">{temporal.sublabel}</span>
+        )}
+        <span className="ml-auto whitespace-nowrap text-xs tabular-nums text-foreground">
+          {formatDate(reservation.startDate)} – {formatDate(reservation.endDate)}
+        </span>
+      </div>
+
+      {/* Por cobrar — misma magnitud que la columna de desktop. Acá lleva label
+          propio: en la tabla el nombre de la magnitud lo pone el `<th>`, y una
+          lista no tiene encabezado, así que el monto se quedaba sin nombre. */}
+      <div className="mt-2 flex items-baseline justify-between gap-3">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+          Por cobrar
+        </span>
+        <span className="flex items-baseline gap-2 truncate">
+          <span className="truncate text-[10px] tabular-nums text-muted-foreground">{fin.subtext}</span>
+          <span className={cn("text-xs font-bold tabular-nums", fin.labelClassName)}>{fin.label}</span>
+        </span>
+      </div>
+
+      {reservation.notes && (
+        <p className="mt-2 line-clamp-1 text-xs text-muted-foreground">{reservation.notes}</p>
+      )}
+    </div>
   );
 }

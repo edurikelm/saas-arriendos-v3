@@ -63,6 +63,17 @@ export function useReservationFilters({
     setDebouncedSearch("");
   }, []);
 
+  /**
+   * Filtros que se aplican SOLO a la página actual (no vuelven al servidor).
+   * El contador de la lista los necesita aparte: mientras estén activos, el
+   * rango "X-Y de {total}" no describe nada, porque `total` es el total del
+   * servidor sin filtrar y las filas visibles son un subconjunto de una página.
+   */
+  const hasClientFilters = useMemo(
+    () => paymentFilter !== "" || debouncedSearch.trim() !== "",
+    [paymentFilter, debouncedSearch],
+  );
+
   const hasActiveFilters = useMemo(() =>
     serverFilters.propertyId !== "" ||
     serverFilters.billingType !== "" ||
@@ -76,13 +87,22 @@ export function useReservationFilters({
     let result = serverReservations;
 
     // Payment filter
+    //
+    // "pending" significa "queda saldo por cobrar", no "no tiene ningún abono".
+    // La versión anterior descartaba cualquier reserva con `paidAmount > 0`, así
+    // que una con $200.000 abonados de $620.000 — que debe $420.000 y es
+    // justamente a la que hay que perseguir — quedaba fuera del filtro con el
+    // que uno busca a los que deben.
+    //
+    // Las canceladas quedan fuera: no tienen saldo por cobrar (misma regla que
+    // `getFinanceTone` en reservation-finance.ts).
     if (paymentFilter) {
       result = result.filter((res) => {
         const paidAmount = getReservationPaidAmount(res.payments);
         const totalPrice = Number(res.totalPrice);
-        if (paymentFilter === "paid" && paidAmount < totalPrice) return false;
-        if (paymentFilter === "pending" && paidAmount > 0) return false;
-        if (paymentFilter === "overpaid" && paidAmount <= totalPrice) return false;
+        if (paymentFilter === "paid") return totalPrice > 0 && paidAmount >= totalPrice;
+        if (paymentFilter === "pending") return res.status !== "CANCELLED" && paidAmount < totalPrice;
+        if (paymentFilter === "overpaid") return paidAmount > totalPrice;
         return true;
       });
     }
@@ -107,6 +127,7 @@ export function useReservationFilters({
     debouncedSearch,
     filteredReservations,
     hasActiveFilters,
+    hasClientFilters,
     updateServerFilter,
     updatePaymentFilter: setPaymentFilter,
     handleSearchChange,
