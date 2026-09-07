@@ -22,14 +22,22 @@
  * tiempo, no plata. Y teñir de un solo color todo lo que se debe tampoco
  * ordena: la columna queda casi entera del mismo tono.
  *
- * El corte que sí prioriza usa datos que ya están en la fila: **si la estadía
- * empezó y todavía se debe**, el huésped está adentro o ya se fue sin pagar, y
- * eso es lo que hay que perseguir hoy (`destructive`). Si aún no empieza, deber
- * es lo normal (`warning`, "atención, no danger", per Status Color Doctrine).
+ * El corte que sí prioriza depende de si la reserva tiene calendario de cuotas:
  *
- * No es "cuota vencida": `ReservationPayment` no trae `dueDate` en la lista, así
- * que el vencimiento real de una cuota mensual no se puede calcular acá sin
- * cambiar la query. Esto es la aproximación honesta con lo que hay.
+ * - **Con cuotas (MONTHLY):** vencida es una cuota con `dueDate` anterior a hoy
+ *   que no está COMPLETED. Es el vencimiento real, no una aproximación.
+ * - **Sin cuotas (DAILY):** no hay `dueDate` que consultar — en producción los
+ *   pagos DAILY lo tienen nulo — así que la señal es que la estadía ya empezó y
+ *   queda saldo: el huésped está adentro o ya se fue sin pagar.
+ *
+ * Si aún no vence nada, deber es lo normal (`warning`, "atención, no danger",
+ * per The Status Color Doctrine).
+ *
+ * **Por qué no alcanza con "empezó y debe" para MONTHLY.** Un arriendo de seis
+ * meses que empezó en septiembre y pagó la cuota de septiembre está al día: la
+ * de octubre todavía no vence. La regla de "empezó" lo pintaría en rojo igual,
+ * que es exactamente el falso positivo que el `dueDate` evita — y los arriendos
+ * mensuales son medio producto (PRODUCT.md: "short-term and monthly rentals").
  *
  * El color no es el único portador: la columna Estado ya dice ACTIVA /
  * FINALIZADA frente a PRÓXIMA en la misma fila, así que la distinción sigue
@@ -61,6 +69,7 @@
 import { getReservationPaidAmount } from "@/lib/payments/calculations";
 import { formatPrice } from "./reservations-utils";
 import { daysUntilStart } from "./reservation-status";
+import { BUSINESS_TIME_ZONE, getDateKeyInTz, isOverdueDateOnly } from "@/lib/domain/timezone";
 import type { Reservation, ReservationPayment } from "./types";
 
 export type FinanceUrgency = "overdue" | "upcoming" | "settled";
@@ -86,6 +95,28 @@ const labelClassByUrgency: Record<FinanceUrgency, string> = {
   upcoming: "text-warning-text",
   settled: "text-muted-foreground",
 };
+
+/**
+ * Hay algo vencido. Ver el docblock del módulo para las dos ramas.
+ *
+ * `isOverdueDateOnly` es el helper canónico del dominio: `dueDate` es date-only
+ * y compararlo con `new Date()` directo es frágil cuando el server corre en UTC.
+ */
+function isOverdue(
+  payments: ReservationPayment[],
+  startDate: string,
+  now: Date,
+): boolean {
+  const cuotas = payments.filter((p) => p.dueDate);
+  if (cuotas.length > 0) {
+    // El nowKey sale del `now` recibido, no de `nowKeyInBusinessTz()`: ese helper
+    // llama a `new Date()` por dentro e ignoraría el parámetro, dejando la
+    // función no determinística justo en la rama que más importa testear.
+    const nowKey = getDateKeyInTz(now, BUSINESS_TIME_ZONE);
+    return cuotas.some((p) => p.status !== "COMPLETED" && isOverdueDateOnly(p.dueDate, nowKey));
+  }
+  return daysUntilStart(startDate, now) <= 0;
+}
 
 export function getFinanceDisplay(
   payments: ReservationPayment[],
@@ -117,8 +148,7 @@ export function getFinanceDisplay(
     };
   }
 
-  // La estadía ya empezó (hoy >= start_date, en wall-time SCL) y queda saldo.
-  const urgency: FinanceUrgency = daysUntilStart(startDate, now) <= 0 ? "overdue" : "upcoming";
+  const urgency: FinanceUrgency = isOverdue(payments, startDate, now) ? "overdue" : "upcoming";
 
   return {
     amountDue: totalPrice - paidAmount,

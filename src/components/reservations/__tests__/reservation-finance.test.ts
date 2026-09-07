@@ -13,6 +13,11 @@ function pay(amount: number, status = "COMPLETED"): ReservationPayment {
   };
 }
 
+/** Cuota mensual: lleva `dueDate`, como las que crea el backend para MONTHLY. */
+function cuota(amount: number, dueDate: string, status = "PENDING"): ReservationPayment {
+  return { ...pay(amount, status), id: `c-${dueDate}`, dueDate, installmentIndex: 1 };
+}
+
 // "Hoy" fijo para que la urgencia sea determinística. Mediodía UTC del 10 sept
 // 2026 → wall-time 2026-09-10 en America/Santiago.
 const HOY = new Date("2026-09-10T12:00:00.000Z");
@@ -110,5 +115,61 @@ describe("getFinanceDisplay — urgencia", () => {
         /text-(success|warning|info|destructive)$/,
       );
     }
+  });
+});
+
+describe("getFinanceDisplay — urgencia con cuotas mensuales", () => {
+  // En producción (2026-09-07) los pagos DAILY tienen `dueDate` nulo y los
+  // MONTHLY lo traen poblado. Cuando hay calendario de cuotas, vencido es el
+  // vencimiento real, no "la estadía empezó".
+  const VENCIDA = "2026-09-01T00:00:00.000Z";   // antes de HOY (10 sept)
+  const POR_VENCER = "2026-10-01T00:00:00.000Z"; // después
+
+  it("cuota impaga con vencimiento pasado → overdue", () => {
+    expect(fin([cuota(1450000, VENCIDA)], "4350000", "CONFIRMED", YA_EMPEZO).urgency).toBe("overdue");
+  });
+
+  it("al día aunque la estadía haya empezado: la cuota pagada y la próxima sin vencer → upcoming", () => {
+    // Este es el falso positivo que la regla de "empezó y debe" producía: un
+    // arriendo de varios meses que pagó el mes en curso está al día.
+    const r = fin(
+      [cuota(1450000, VENCIDA, "COMPLETED"), cuota(1450000, POR_VENCER)],
+      "4350000",
+      "CONFIRMED",
+      YA_EMPEZO,
+    );
+    expect(r.urgency).toBe("upcoming");
+    // El saldo es lo que falta de TODA la reserva, no el monto de la próxima
+    // cuota: 4.350.000 menos la única cuota cobrada.
+    expect(r.amountDue).toBe(2900000);
+  });
+
+  it("una cuota vencida entre varias basta para marcar overdue", () => {
+    const r = fin(
+      [cuota(1450000, VENCIDA, "COMPLETED"), cuota(1450000, VENCIDA), cuota(1450000, POR_VENCER)],
+      "4350000",
+      "CONFIRMED",
+      YA_EMPEZO,
+    );
+    expect(r.urgency).toBe("overdue");
+  });
+
+  it("una cuota FAILED vencida también cuenta como vencida", () => {
+    expect(
+      fin([cuota(1450000, VENCIDA, "FAILED")], "4350000", "CONFIRMED", YA_EMPEZO).urgency,
+    ).toBe("overdue");
+  });
+
+  it("sin cuotas (DAILY) cae a la regla de la estadía", () => {
+    // Los pagos DAILY no traen dueDate, así que no hay vencimiento que consultar.
+    expect(fin([pay(50000)], "384000", "CONFIRMED", YA_EMPEZO).urgency).toBe("overdue");
+    expect(fin([pay(50000)], "384000", "CONFIRMED", NO_EMPIEZA).urgency).toBe("upcoming");
+  });
+
+  it("con cuotas, la fecha de inicio deja de mandar", () => {
+    // Estadía ya empezada pero ninguna cuota vencida → no es urgente.
+    expect(fin([cuota(100, POR_VENCER)], "200", "CONFIRMED", YA_EMPEZO).urgency).toBe("upcoming");
+    // Estadía futura con una cuota ya vencida → sí lo es.
+    expect(fin([cuota(100, VENCIDA)], "200", "CONFIRMED", NO_EMPIEZA).urgency).toBe("overdue");
   });
 });
