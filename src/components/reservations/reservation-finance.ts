@@ -6,6 +6,13 @@
  * mostraba "$1.080.000 completado" donde la tarjeta mostraba "pagado", y solo
  * la tabla tenía la rama de CANCELLED.
  *
+ * **En mensuales el subtexto cuenta cuotas, no pesos.** "2 de 4 cuotas cobradas"
+ * responde de una cuáles están pagadas y cuántas faltan, que es la pregunta que
+ * se hace quien mira un arriendo por cuotas; el monto acumulado ya se deduce del
+ * label. En DAILY, que no tiene cuotas, sigue diciendo lo que entró. El desglose
+ * cuota por cuota vive en el detalle de la reserva, que ya lo tiene resuelto —
+ * la lista solo apunta.
+ *
  * **El subtexto dice lo que entró, en las cuatro ramas.** El label es lo que
  * falta cobrar y el subtexto lo ya cobrado: juntos son los dos números que
  * importan para cobrar, y el total sale de sumarlos. La primera versión ponía
@@ -118,6 +125,29 @@ function isOverdue(
   return daysUntilStart(startDate, now) <= 0;
 }
 
+/**
+ * "2 de 4 cuotas cobradas" para arriendos con calendario de cuotas, o `null`
+ * cuando no lo hay (los pagos DAILY no traen `installmentIndex`).
+ *
+ * Dos cuidados que vienen de los datos reales:
+ * - **Los EXTRA no son cuotas.** En producción hay una multa mezclada entre las
+ *   cuotas de una reserva mensual; sin filtrarla se contaría como una.
+ * - **El total sale de `MAX(installmentIndex)`, no de contar filas ni de las
+ *   fechas.** Es lo que ya hace `/payments`. El número de cuotas viene de
+ *   `months` del formulario y las fechas se calculan aparte: hoy coinciden, pero
+ *   pueden divergir si se edita `endDate`.
+ */
+function installmentSummary(payments: ReservationPayment[]): string | null {
+  const cuotas = payments.filter(
+    (p) => p.installmentIndex != null && (p.paymentType ?? "RESERVATION") !== "EXTRA",
+  );
+  if (cuotas.length === 0) return null;
+  const total = Math.max(...cuotas.map((p) => p.installmentIndex as number));
+  if (total <= 0) return null;
+  const cobradas = cuotas.filter((p) => p.status === "COMPLETED").length;
+  return `${cobradas} de ${total} ${total === 1 ? "cuota cobrada" : "cuotas cobradas"}`;
+}
+
 export function getFinanceDisplay(
   payments: ReservationPayment[],
   totalPriceRaw: Reservation["totalPrice"],
@@ -127,6 +157,8 @@ export function getFinanceDisplay(
 ): FinanceDisplay {
   const paidAmount = getReservationPaidAmount(payments);
   const totalPrice = Number(totalPriceRaw);
+  // En mensuales, saber cuántas cuotas van dice más que el monto acumulado.
+  const cuotas = installmentSummary(payments);
 
   if (status === "CANCELLED") {
     return {
@@ -143,7 +175,7 @@ export function getFinanceDisplay(
       amountDue: 0,
       urgency: "settled",
       label: formatPrice(0),
-      subtext: `${formatPrice(paidAmount)} cobrado`,
+      subtext: cuotas ?? `${formatPrice(paidAmount)} cobrado`,
       labelClassName: labelClassByUrgency.settled,
     };
   }
@@ -154,7 +186,7 @@ export function getFinanceDisplay(
     amountDue: totalPrice - paidAmount,
     urgency,
     label: formatPrice(totalPrice - paidAmount),
-    subtext: paidAmount > 0 ? `${formatPrice(paidAmount)} cobrado` : "sin abonos",
+    subtext: cuotas ?? (paidAmount > 0 ? `${formatPrice(paidAmount)} cobrado` : "sin abonos"),
     labelClassName: labelClassByUrgency[urgency],
   };
 }

@@ -2,12 +2,15 @@
 
 import { DataTable } from "@/components/ui/data-table";
 import { cn } from "@/lib/utils";
-import { getInclusiveMonths } from "@/lib/reservation-dates";
-import { dateKeyToDayIndex } from "@/lib/domain/timezone";
 import type { Reservation } from "./types";
 import { formatDate, getInitials } from "./reservations-utils";
 import { ReservationPill } from "./reservation-pill";
-import { getReservationTone, getTemporalStatus } from "./reservation-status";
+import {
+  formatStayProgress,
+  getReservationTone,
+  getStayProgress,
+  getTemporalStatus,
+} from "./reservation-status";
 import { getFinanceDisplay } from "./reservation-finance";
 import { ReservationActionsMenu } from "./reservation-actions-menu";
 
@@ -29,20 +32,14 @@ const CELL = "px-6 py-5 bg-card group-hover:bg-muted/30 transition-colors";
  * Isolation Rule) el scroll horizontal era el único camino a Ver / Editar /
  * Cancelar, sin nada que lo señalara. Fijándola, el menú es alcanzable a
  * cualquier ancho.
+ *
+ * Lleva `px-4` en vez del `px-6` del resto: contiene un solo botón de 32px, no
+ * texto. Como la celda fija se dibuja ENCIMA de lo que scrollea, los 16px que
+ * ahorra son margen real para la columna de montos — con `px-6`, un arriendo de
+ * 12 meses ("10 de 12 cuotas cobradas" junto a un monto de 8 dígitos) metía el
+ * subtexto 6px por debajo de esta columna. Con `px-4` sobran 10px.
  */
-const ACTIONS_CELL = "sticky right-0 z-10 border-l border-border";
-
-function getNights(startDate: string, endDate: string): number {
-  // start_date / end_date son date-only en el dominio (CONTEXT.md).
-  // diff en días calendario (dateKeyToDayIndex usa UTC, evita drift por DST).
-  const startKey = startDate.slice(0, 10);
-  const endKey = endDate.slice(0, 10);
-  return Math.max(1, dateKeyToDayIndex(endKey) - dateKeyToDayIndex(startKey) + 1);
-}
-
-function getMonths(startDate: string, endDate: string): number {
-  return getInclusiveMonths(startDate, endDate);
-}
+const ACTIONS_CELL = "sticky right-0 z-10 border-l border-border px-4";
 
 export function ReservationTable({ reservations, onEdit, onCancel, onDelete }: {
   reservations: Reservation[];
@@ -75,7 +72,7 @@ export function ReservationTable({ reservations, onEdit, onCancel, onDelete }: {
               // `color-mix` de los mismos dos tokens da ese compuesto exacto,
               // ya opaco — sin hardcodear un color.
               className:
-                "sticky right-0 z-20 border-l border-border bg-[color-mix(in_srgb,var(--muted)_50%,var(--card))]",
+                "sticky right-0 z-20 border-l border-border px-4 bg-[color-mix(in_srgb,var(--muted)_50%,var(--card))]",
             },
           ]}
         >
@@ -83,12 +80,12 @@ export function ReservationTable({ reservations, onEdit, onCancel, onDelete }: {
             const temporal = getTemporalStatus(res.startDate, res.endDate, res.billingType, res.status);
             const stateTone = getReservationTone(res.status, res.startDate, res.endDate);
             const fin = getFinanceDisplay(res.payments, res.totalPrice, res.status, res.startDate);
-            // El sublabel ya distingue DAILY de MONTHLY ("12 noches" vs "3 meses")
-            // y además dice cuánto dura. La columna "Tipo" repetía esa misma
-            // distinción en 107px que la tabla no tenía.
-            const duration = res.billingType === "MONTHLY"
-              ? `${getMonths(res.startDate, res.endDate)} meses`
-              : `${getNights(res.startDate, res.endDate)} noches`;
+            // El sublabel distingue DAILY de MONTHLY ("noche 7 de 12" vs
+            // "mes 3 de 4") y dice cuánto va de cuánto. La columna "Tipo"
+            // repetía solo la primera mitad, en 107px que la tabla no tenía.
+            const duration = formatStayProgress(
+              getStayProgress(res.startDate, res.endDate, res.billingType, res.status),
+            );
 
             return (
               <tr key={res.id} className="group border-b last:border-0">

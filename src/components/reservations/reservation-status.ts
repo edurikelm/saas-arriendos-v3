@@ -306,3 +306,78 @@ export function labelDaysUntilEnd(
   }
   return relativeDaysLabel(days, "future");
 }
+
+// =============================================================================
+// Progreso de la estadía: cuántas noches/meses van de cuántos.
+// =============================================================================
+
+export type StayUnit = "noche" | "mes";
+
+export interface StayProgress {
+  unit: StayUnit;
+  /** Duración total: noches (DAILY) o meses calendario (MONTHLY). */
+  total: number;
+  /** Ordinal en curso, 1-based. `null` si la estadía no está corriendo hoy. */
+  current: number | null;
+}
+
+/**
+ * Deriva "van X de Y" para la celda de Estancia.
+ *
+ * Los dos números ya existían en pantalla pero repartidos: el total en el
+ * sublabel de Estancia y los restantes en el de Estado — y los restantes solo
+ * mientras la reserva está Activa, así que en Finalizada y Cancelada no había
+ * forma de saber cuánto duró en curso. Restarlos entre dos columnas separadas
+ * por 200px es trabajo que la tabla puede hacer sola.
+ *
+ * **Para MONTHLY este ordinal es también el de la cuota.**
+ * `generateMonthlyPayments` crea la cuota `i + 1` con vencimiento el día 1 del
+ * mes `start + i`, así que "mes 3 de 4" y "cuota 3 de 4" son el mismo número.
+ *
+ * **Convención Última Noche (CONTEXT.md).** `current` y los restantes que
+ * muestra el pill son ambos inclusivos de hoy, así que suman total + 1: en una
+ * estadía de 12 noches, la noche 7 es también una de las 6 que quedan. Las dos
+ * lecturas son correctas; no es un off-by-one.
+ */
+export function getStayProgress(
+  startDate: string,
+  endDate: string,
+  billingType: ReservationBillingType | string,
+  status: ReservationLifecycleStatus | string,
+  now: Date = new Date(),
+): StayProgress {
+  const monthly = billingType === "MONTHLY";
+  const startKey = dateOnlyKey(startDate);
+  const endKey = dateOnlyKey(endDate);
+  const todayKey = getDateKeyInTz(now, BUSINESS_TIME_ZONE);
+
+  const total = monthly
+    ? getInclusiveMonths(startKey, endKey)
+    : Math.max(1, dateKeyToDayIndex(endKey) - dateKeyToDayIndex(startKey) + 1);
+
+  const unit: StayUnit = monthly ? "mes" : "noche";
+
+  // Sin progreso en curso: cancelada, cerrada, o fuera del rango de fechas.
+  const corriendo =
+    status !== "CANCELLED" &&
+    status !== "COMPLETED" &&
+    todayKey >= startKey &&
+    todayKey <= endKey;
+  if (!corriendo) return { unit, total, current: null };
+
+  const current = monthly
+    ? getInclusiveMonths(startKey, todayKey)
+    : dateKeyToDayIndex(todayKey) - dateKeyToDayIndex(startKey) + 1;
+
+  return { unit, total, current: Math.min(current, total) };
+}
+
+/**
+ * El texto del sublabel de Estancia. En minúscula: el `uppercase` lo pone el CSS.
+ */
+export function formatStayProgress(progress: StayProgress): string {
+  const { unit, total, current } = progress;
+  const plural = unit === "mes" ? "meses" : "noches";
+  if (current == null) return `${total} ${total === 1 ? unit : plural}`;
+  return `${unit} ${current} de ${total}`;
+}

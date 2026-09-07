@@ -3,24 +3,16 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { formatDate, getInitials } from "./reservations-utils";
-import { getInclusiveMonths } from "@/lib/reservation-dates";
-import { dateKeyToDayIndex } from "@/lib/domain/timezone";
 import type { Reservation } from "@/components/reservations/types";
-import { getReservationTone, getTemporalStatus } from "./reservation-status";
+import {
+  formatStayProgress,
+  getReservationTone,
+  getStayProgress,
+  getTemporalStatus,
+} from "./reservation-status";
 import { ReservationPill } from "./reservation-pill";
 import { getFinanceDisplay } from "./reservation-finance";
 import { ReservationActionsMenu } from "./reservation-actions-menu";
-
-function getNights(startDate: string, endDate: string): number {
-  // start_date / end_date son date-only en el dominio (CONTEXT.md).
-  const startKey = startDate.slice(0, 10);
-  const endKey = endDate.slice(0, 10);
-  return Math.max(1, dateKeyToDayIndex(endKey) - dateKeyToDayIndex(startKey) + 1);
-}
-
-function getMonths(startDate: string, endDate: string): number {
-  return getInclusiveMonths(startDate, endDate);
-}
 
 interface ReservationListItemProps {
   reservation: Reservation;
@@ -63,9 +55,14 @@ export function ReservationListItem({
     reservation.status,
   );
   const stateTone = getReservationTone(reservation.status, reservation.startDate, reservation.endDate);
-  const duration = reservation.billingType === "MONTHLY"
-    ? `${getMonths(reservation.startDate, reservation.endDate)} meses`
-    : `${getNights(reservation.startDate, reservation.endDate)} noches`;
+  const duration = formatStayProgress(
+    getStayProgress(
+      reservation.startDate,
+      reservation.endDate,
+      reservation.billingType,
+      reservation.status,
+    ),
+  );
 
   return (
     <div className="border-b border-border p-4 last:border-0">
@@ -81,8 +78,13 @@ export function ReservationListItem({
           >
             {reservation.client.name}
           </Link>
-          <p className="truncate text-xs text-muted-foreground">
-            {reservation.property.name} · {duration}
+          {/* El nombre de la propiedad es lo de largo variable, así que es lo
+              que se trunca; el progreso va `shrink-0` para no perderse. Con
+              `truncate` en todo el párrafo, "noche 7 de 12" se cortaba en
+              "noche 7 d…" justo en las propiedades de nombre largo. */}
+          <p className="flex min-w-0 items-baseline gap-1 text-xs text-muted-foreground">
+            <span className="truncate">{reservation.property.name}</span>
+            <span className="shrink-0">· {duration}</span>
           </p>
         </div>
         <ReservationActionsMenu

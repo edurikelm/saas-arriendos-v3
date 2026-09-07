@@ -173,3 +173,73 @@ describe("getFinanceDisplay — urgencia con cuotas mensuales", () => {
     expect(fin([cuota(100, VENCIDA)], "200", "CONFIRMED", NO_EMPIEZA).urgency).toBe("overdue");
   });
 });
+
+describe("getFinanceDisplay — conteo de cuotas mensuales", () => {
+  const VENCIDA = "2026-09-01T00:00:00.000Z";
+  const POR_VENCER = "2026-10-01T00:00:00.000Z";
+  const c = (idx: number, dueDate: string, status: string): ReservationPayment => ({
+    ...pay(900000, status),
+    id: `c${idx}`,
+    dueDate,
+    installmentIndex: idx,
+  });
+
+  it("cuenta cuotas cobradas sobre el total", () => {
+    const r = fin(
+      [c(1, VENCIDA, "COMPLETED"), c(2, VENCIDA, "PENDING"), c(3, POR_VENCER, "PENDING")],
+      "2700000",
+      "CONFIRMED",
+      YA_EMPEZO,
+    );
+    expect(r.subtext).toBe("1 de 3 cuotas cobradas");
+  });
+
+  it("un EXTRA no es una cuota", () => {
+    // En producción hay una multa (paymentType EXTRA, sin installmentIndex)
+    // mezclada entre las cuotas de una reserva mensual.
+    const extra: ReservationPayment = {
+      ...pay(50000, "COMPLETED"),
+      id: "extra",
+      paymentType: "EXTRA",
+    };
+    const r = fin(
+      [c(1, VENCIDA, "COMPLETED"), c(2, POR_VENCER, "PENDING"), extra],
+      "1800000",
+      "CONFIRMED",
+      YA_EMPEZO,
+    );
+    expect(r.subtext).toBe("1 de 2 cuotas cobradas");
+  });
+
+  it("el total sale del índice máximo, no de cuántas filas hay", () => {
+    // Si falta una cuota intermedia, el contrato sigue siendo de 4.
+    const r = fin(
+      [c(1, VENCIDA, "COMPLETED"), c(4, POR_VENCER, "PENDING")],
+      "3600000",
+      "CONFIRMED",
+      YA_EMPEZO,
+    );
+    expect(r.subtext).toBe("1 de 4 cuotas cobradas");
+  });
+
+  it("saldada con cuotas: dice que están todas cobradas", () => {
+    const r = fin(
+      [c(1, VENCIDA, "COMPLETED"), c(2, VENCIDA, "COMPLETED")],
+      "1800000",
+      "CONFIRMED",
+      YA_EMPEZO,
+    );
+    expect(r.label).toBe("$0");
+    expect(r.subtext).toBe("2 de 2 cuotas cobradas");
+  });
+
+  it("DAILY no tiene cuotas: sigue diciendo lo que entró", () => {
+    expect(fin([pay(200000)], "620000", "CONFIRMED").subtext).toBe("$200.000 cobrado");
+    expect(fin([], "384000", "CONFIRMED").subtext).toBe("sin abonos");
+  });
+
+  it("cancelada conserva su copy, no el conteo de cuotas", () => {
+    const r = fin([c(1, VENCIDA, "COMPLETED")], "1800000", "CANCELLED", YA_EMPEZO);
+    expect(r.subtext).toBe("$900.000 cobrado");
+  });
+});
