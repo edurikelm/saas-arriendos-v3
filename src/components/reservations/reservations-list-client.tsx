@@ -20,7 +20,8 @@ import { Pagination } from "@/components/ui/pagination";
 import { cn } from "@/lib/utils";
 import { usePagination } from "@/hooks/use-pagination";
 import { useMediaQuery } from "@/hooks/use-media-query";
-import { useReservationFilters } from "@/hooks/use-reservation-filters";
+import { useReservationFilters, type ServerReservationFilters } from "@/hooks/use-reservation-filters";
+import { FilterPill } from "@/components/ui/filter-pill";
 import { toast } from "sonner";
 import {
   createReservation,
@@ -81,14 +82,16 @@ export function ReservationsListClient({
   const { page, limit, goToPage, setLimit } = usePagination({ total, totalPages, defaultPage: 1, defaultLimit: 10 });
 
   // Server-side filter changes trigger re-fetch
-  const fetchReservations = useCallback(async (
-    filters: { propertyId: string; billingType: string; status: string }
-  ) => {
+  const fetchReservations = useCallback(async (filters: ServerReservationFilters) => {
     try {
       const params = new URLSearchParams({ page: page.toString(), limit: limit.toString() });
       if (filters.propertyId) params.append("propertyId", filters.propertyId);
       if (filters.billingType) params.append("billingType", filters.billingType);
       if (filters.status) params.append("status", filters.status);
+      if (filters.temporal && filters.temporal !== "all") params.append("temporal", filters.temporal);
+      // La búsqueda va al servidor: filtrarla en cliente solo miraba las ≤10
+      // filas de la página cargada.
+      if (filters.search.trim()) params.append("search", filters.search.trim());
       const res = await fetch(`/api/reservations?${params}`);
       const data = await res.json();
       setServerReservations(data.data);
@@ -106,6 +109,7 @@ export function ReservationsListClient({
     serverFilters,
     paymentFilter,
     searchQuery,
+    debouncedSearch,
     filteredReservations,
     hasActiveFilters,
     hasClientFilters,
@@ -125,7 +129,7 @@ export function ReservationsListClient({
       goToPage(1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serverFilters.propertyId, serverFilters.billingType, serverFilters.status, goToPage]);
+  }, [serverFilters.propertyId, serverFilters.billingType, serverFilters.status, serverFilters.temporal, debouncedSearch, goToPage]);
 
   // Effective view mode: mobile always uses list
   const effectiveViewMode = isMobile ? "list" : viewMode;
@@ -161,8 +165,10 @@ export function ReservationsListClient({
 
   // CRUD handlers
   const handleRefresh = useCallback(async () => {
-    await fetchReservations(serverFilters);
-  }, [fetchReservations, serverFilters]);
+    // Refrescar tiene que respetar la búsqueda activa, o al crear/cancelar una
+    // reserva la lista volvería sin filtrar.
+    await fetchReservations({ ...serverFilters, search: debouncedSearch });
+  }, [fetchReservations, serverFilters, debouncedSearch]);
 
   // Bulk actions helpers removed — no selection mode
 
@@ -275,6 +281,21 @@ export function ReservationsListClient({
 
             {/* Filter Chips Row */}
             <div className="flex flex-wrap items-center gap-2">
+              {/* Vista temporal. Va primero porque decide QUÉ porción se mira;
+                  los chips que siguen la acotan. Es server-side, así que
+                  respeta la paginación en vez de recortar la página cargada. */}
+              <FilterPill
+                ariaLabel="Vista temporal"
+                value={serverFilters.temporal}
+                onChange={(v) => updateServerFilter("temporal", v)}
+                options={[
+                  { value: "all", label: "Todas" },
+                  { value: "active", label: "Activas" },
+                  { value: "upcoming", label: "Próximas" },
+                ]}
+                className="mr-1"
+              />
+
               {/* Propiedad */}
               <FilterChip
                 label="Propiedad"
@@ -462,9 +483,12 @@ export function ReservationsListClient({
                 así que "de {total}" — el total del servidor sin filtrar — no
                 describe lo que se ve. Ahí el contador dice lo que sí es cierto.
               */}
-              {hasClientFilters
-                ? `${filteredReservations.length} de ${serverReservations.length} en esta página`
-                : `Mostrando ${rangeStart}-${rangeEnd} de ${total} reserva${total !== 1 ? "s" : ""}`}
+              {filteredReservations.length === 0
+                ? /* El empty state de abajo ya dice qué pasó; un rango "0-0 de 0"
+                     solo agrega ruido. */ null
+                : hasClientFilters
+                  ? `${filteredReservations.length} de ${serverReservations.length} en esta página`
+                  : `Mostrando ${rangeStart}-${rangeEnd} de ${total} reserva${total !== 1 ? "s" : ""}`}
             </div>
             {total > limit && (
               <Pagination

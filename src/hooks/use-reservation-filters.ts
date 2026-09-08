@@ -8,12 +8,19 @@ export interface ReservationFilters {
   propertyId: string;
   billingType: string;
   status: string;
+  temporal: string;
   payment: string;
 }
 
+/** Los filtros que viajan al servidor y por lo tanto afectan la paginación. */
+export type ServerReservationFilters = Pick<
+  ReservationFilters,
+  "propertyId" | "billingType" | "status" | "temporal"
+> & { search: string };
+
 export interface UseReservationFiltersOptions {
   serverReservations: Reservation[];
-  onServerFiltersChange: (filters: Pick<ReservationFilters, "propertyId" | "billingType" | "status">) => void;
+  onServerFiltersChange: (filters: ServerReservationFilters) => void;
 }
 
 export function useReservationFilters({
@@ -21,10 +28,13 @@ export function useReservationFilters({
   onServerFiltersChange,
 }: UseReservationFiltersOptions) {
   // Server-side filters (propertyId, billingType, status → trigger re-fetch)
-  const [serverFilters, setServerFilters] = useState<Pick<ReservationFilters, "propertyId" | "billingType" | "status">>({
+  const [serverFilters, setServerFilters] = useState<
+    Pick<ReservationFilters, "propertyId" | "billingType" | "status" | "temporal">
+  >({
     propertyId: "",
     billingType: "",
     status: "",
+    temporal: "all",
   });
 
   // Local filters (payment → client-side, no re-fetch)
@@ -44,12 +54,18 @@ export function useReservationFilters({
     }, 300);
   }, []);
 
-  // Sync server filters to server
+  // Sync server filters to server.
+  //
+  // `debouncedSearch` entra acá porque la búsqueda ahora se resuelve en el
+  // servidor: antes filtraba solo las ≤10 filas de la página cargada, así que
+  // buscar a alguien que estaba en la página 3 desde la página 1 no lo
+  // encontraba — y `getReservations` ya soportaba `search` sin que nadie se lo
+  // mandara.
   useEffect(() => {
-    onServerFiltersChange(serverFilters);
-  }, [serverFilters, onServerFiltersChange]);
+    onServerFiltersChange({ ...serverFilters, search: debouncedSearch });
+  }, [serverFilters, debouncedSearch, onServerFiltersChange]);
 
-  const updateServerFilter = useCallback(<K extends keyof Pick<ReservationFilters, "propertyId" | "billingType" | "status">>(
+  const updateServerFilter = useCallback(<K extends keyof Pick<ReservationFilters, "propertyId" | "billingType" | "status" | "temporal">>(
     key: K,
     value: ReservationFilters[K]
   ) => {
@@ -57,7 +73,7 @@ export function useReservationFilters({
   }, []);
 
   const clearAllFilters = useCallback(() => {
-    setServerFilters({ propertyId: "", billingType: "", status: "" });
+    setServerFilters({ propertyId: "", billingType: "", status: "", temporal: "all" });
     setPaymentFilter("");
     setSearchQuery("");
     setDebouncedSearch("");
@@ -68,16 +84,17 @@ export function useReservationFilters({
    * El contador de la lista los necesita aparte: mientras estén activos, el
    * rango "X-Y de {total}" no describe nada, porque `total` es el total del
    * servidor sin filtrar y las filas visibles son un subconjunto de una página.
+   *
+   * Desde que la búsqueda se resuelve en el servidor, el único que queda acá es
+   * el filtro de pago — que depende de los pagos ya cargados de cada fila.
    */
-  const hasClientFilters = useMemo(
-    () => paymentFilter !== "" || debouncedSearch.trim() !== "",
-    [paymentFilter, debouncedSearch],
-  );
+  const hasClientFilters = useMemo(() => paymentFilter !== "", [paymentFilter]);
 
   const hasActiveFilters = useMemo(() =>
     serverFilters.propertyId !== "" ||
     serverFilters.billingType !== "" ||
     serverFilters.status !== "" ||
+    serverFilters.temporal !== "all" ||
     paymentFilter !== "" ||
     debouncedSearch !== "",
   [serverFilters, paymentFilter, debouncedSearch]);
@@ -107,18 +124,10 @@ export function useReservationFilters({
       });
     }
 
-    // Search filter (debounced)
-    if (debouncedSearch.trim()) {
-      const q = debouncedSearch.toLowerCase();
-      result = result.filter((res) =>
-        res.client?.name?.toLowerCase().includes(q) ||
-        res.client?.email?.toLowerCase().includes(q) ||
-        res.property?.name?.toLowerCase().includes(q)
-      );
-    }
-
+    // La búsqueda ya no se filtra acá: viaja al servidor con el resto de los
+    // filtros que afectan la paginación.
     return result;
-  }, [serverReservations, paymentFilter, debouncedSearch]);
+  }, [serverReservations, paymentFilter]);
 
   return {
     serverFilters,

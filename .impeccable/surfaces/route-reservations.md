@@ -53,6 +53,24 @@ lo que hacía que entraran menos de dos reservas por pantalla.
 **Las acciones viven en el ⋮ en las dos vistas.** Un solo componente, mismo
 conjunto de acciones y mismas condiciones de aparición.
 
+**El orden pone arriba lo que sigue vivo.** Dos grupos: primero lo vigente —
+estado abierto y `endDate >= hoy`— ordenado por lo que termina antes; después
+todo lo demás, lo más recién terminado primero. La definición de "vivo" incluye
+el estado y no solo la fecha, para que coincida exactamente con lo que muestra la
+columna Estado: que el orden y la columna discrepen es peor que cualquiera de los
+dos criterios por separado. Todo `orderBy` desempata por `id`; sin eso, dos
+reservas con la misma fecha pueden repetirse o saltarse al paginar.
+
+**Los filtros que acotan la lista van al servidor**, no sobre la página cargada.
+Un filtro de cliente solo mira ≤10 filas, así que buscar a alguien que está en la
+página 3 desde la página 1 no lo encuentra. El único que queda en cliente es el
+de pago, que depende de los pagos ya cargados de cada fila.
+
+**El toggle temporal decide qué porción se mira; los chips la acotan.** Por eso
+va primero en la fila. El default es "Todas": `/reservations` es el registro
+completo, y esconder filas al cargar rompería el modelo de "Mostrando X de Y" —
+el orden ya resuelve el hundimiento sin ocultar nada.
+
 **El contador dice lo que hay en pantalla.** El rango sale del offset de página
 más las filas dibujadas. Mientras haya un filtro de cliente activo (búsqueda o
 pago), esos recortan solo la página cargada, así que el contador cambia de forma
@@ -76,3 +94,8 @@ en vez de prometer un rango contra el total del servidor.
   vencimiento, la rama de cuotas ya lo cubre sin tocar la UI.
 - La lista no está agrupada por estado. Si alguna vez se agrupa, aplica The
   Grouped Status Rule y el color del monto se va al encabezado del grupo.
+- El chip "Estado" filtra por ciclo de vida (`PENDING` / `CONFIRMED` /
+  `CANCELLED` / `COMPLETED`), pero la columna "Estado" muestra el estado
+  **temporal** (Activa / Próxima / Finalizada / Cancelada). Filtrar por
+  "Confirmada" no corresponde a ningún valor que la columna muestre. El toggle
+  temporal cubre parte de la confusión; unificarlos es una decisión aparte.

@@ -47,7 +47,10 @@ export function ReservationTable({ reservations, onEdit, onCancel, onDelete }: {
   onCancel?: (id: string) => void;
   onDelete?: (id: string) => void;
 }) {
-  // Reservations arrive pre-sorted from the server (createdAt desc). No client-side sort UI.
+  // Las filas llegan ordenadas del servidor: primero lo vigente (lo que termina
+  // antes), después lo terminado (lo más reciente primero). Ver
+  // `@/lib/reservations/list-order`. Sin sort en cliente — con paginación
+  // server-side, reordenar acá solo mezclaría la página actual.
   const sorted = reservations;
 
   return (
