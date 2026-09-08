@@ -216,6 +216,7 @@ El detalle completo de una reserva vive en **ruta dedicada** `/reservations/[id]
 - Si no alcanza el ancho, aparece scroll horizontal.
 - Cada propiedad es una fila con sticky label a la izquierda. En mobile usa una columna compacta (`156px`) para liberar espacio a los días; desde `sm` usa `224px`.
 - Las reservas se renderizan como barras horizontales en un solo carril por fila (sin lane stacking).
+- **El color de la barra codifica estado, no propiedad — decisión deliberada, no drift.** La identidad de la propiedad la lleva la fila y su rail sticky izquierdo, que nunca sale de vista; pintar además la barra con `property.color` duplicaría un dato ya inequívoco y chocaría con la Status Color Doctrine (`DESIGN.md`), donde el fill de la barra ya significa activa / próxima / pendiente / cancelada / completada. `property.color` es data del usuario sin coordinar entre propiedades: una propiedad de color ámbar junto a un fill `warning` se leería como saldo pendiente sin serlo. El `Do` de `DESIGN.md` sobre `property.color || "var(--primary)"` es una regla de **fallback cuando se usa**, no un mandato de dónde usarlo — aplica en superficies donde la propiedad **no** está establecida por el layout (detalle de reserva, preview dialog, property card, listas de admin), no en el timeline. Esta recomendación ya resurgió dos veces en revisiones de diseño (crítica impeccable de 2026-08-21 P1-1, y revisión de 2026-09-08); queda registrada acá para no volver a litigarla.
 
 ## Términos del Dominio
 
