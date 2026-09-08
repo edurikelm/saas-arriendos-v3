@@ -8,6 +8,13 @@ import { Button } from "@/components/ui/button";
 import { channelColors } from "@/lib/calendar/channel-colors";
 import { computeScrollLeftForToday } from "@/lib/calendar/scroll";
 import type { OverbookedDay } from "@/lib/calendar/conflicts";
+import {
+  assignTimelineLanes,
+  getDayOffset,
+  laneTop,
+  timelineRowHeight,
+  externalBlocksRowTop,
+} from "@/lib/calendar/lanes";
 import { getNights } from "@/components/reservations/reservation-status";
 
 interface Payment {
@@ -100,35 +107,6 @@ function getReservationsInDay(reservations: Reservation[], date: Date): Reservat
   });
 }
 
-type TimelineReservation = {
-  res: Reservation;
-  leftOffset: number;
-  duration: number;
-};
-
-function getDayOffset(date: Date, monthStart: Date): number {
-  return Math.floor((date.getTime() - monthStart.getTime()) / (1000 * 60 * 60 * 24));
-}
-
-function assignTimelineLanes(
-  reservations: Reservation[],
-  monthStart: Date,
-  monthLength: number
-): TimelineReservation[] {
-  return reservations.map((res) => {
-    const start = parseCalendarDate(res.startDate);
-    const end = parseCalendarDate(res.endDate);
-    const leftOffset = Math.max(0, getDayOffset(start, monthStart));
-    const rightOffset = Math.min(monthLength - 1, getDayOffset(end, monthStart));
-    const duration = rightOffset - leftOffset + 1;
-
-    return {
-      res,
-      leftOffset,
-      duration,
-    };
-  });
-}
 
 interface CalendarDayCellProps {
   date: Date;
@@ -462,10 +440,15 @@ export function CalendarTimeline({ reservations, externalBlocks = [], overbooked
             </div>
           ) : (
             propertyGroups.map(({ property, reservations: propReservations }) => {
-              const sortedReservations = [...propReservations].sort((a, b) =>
-                parseCalendarDate(a.startDate).getTime() - parseCalendarDate(b.startDate).getTime()
+              // Lane stacking: cada reserva va al primer carril libre en vez de
+              // apilarse todas en el mismo `top`. Sin esto, reservas simultáneas
+              // de la misma propiedad se dibujan una encima de otra y quedan
+              // inclickeables. Ver `src/lib/calendar/lanes.ts`.
+              const { entries: timelineReservations, laneCount } = assignTimelineLanes(
+                propReservations,
+                monthStart,
+                days.length
               );
-              const timelineReservations = assignTimelineLanes(sortedReservations, monthStart, days.length);
 
               // External blocks for this property in this month
               const propertyBlocks = externalBlocks
@@ -476,9 +459,9 @@ export function CalendarTimeline({ reservations, externalBlocks = [], overbooked
                   return start <= monthEnd && end >= monthStart;
                 });
 
-              const ROW_HEIGHT = 76;
-              const EXT_ROW_HEIGHT = 32;
-              const totalRowHeight = ROW_HEIGHT + (propertyBlocks.length > 0 ? EXT_ROW_HEIGHT : 0);
+              const hasExternalBlocks = propertyBlocks.length > 0;
+              const totalRowHeight = timelineRowHeight(laneCount, hasExternalBlocks);
+              const externalRowTop = externalBlocksRowTop(laneCount);
 
               return (
                 <div key={property.id} className="flex border-b border-border/60 last:border-b-0" role="row">
@@ -493,7 +476,7 @@ export function CalendarTimeline({ reservations, externalBlocks = [], overbooked
                       </div>
                       <div className="mt-1 hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex sm:gap-2">
                         <Home className="h-3 w-3 shrink-0" />
-                        {sortedReservations.length} {sortedReservations.length === 1 ? "reserva" : "reservas"}
+                        {propReservations.length} {propReservations.length === 1 ? "reserva" : "reservas"}
                       </div>
                     </div>
                   </div>
@@ -524,7 +507,7 @@ export function CalendarTimeline({ reservations, externalBlocks = [], overbooked
                         </div>
                       );
                     })}
-                    {timelineReservations.map(({ res, leftOffset, duration }) => {
+                    {timelineReservations.map(({ item: res, leftOffset, duration, lane }) => {
                       const status = statusConfig[res.status] || statusConfig.PENDING;
                       const StatusIcon = status.icon;
                       const isCancelled = res.status === "CANCELLED";
@@ -599,7 +582,7 @@ export function CalendarTimeline({ reservations, externalBlocks = [], overbooked
                           className={`group absolute flex h-8 items-center gap-1.5 overflow-hidden rounded-md border px-2 text-left text-xs transition-all hover:z-20 focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-2 sm:px-3 ${barClass}`}
                           style={{
                             left: `${leftOffset * dayWidth + 4}px`,
-                            top: "12px",
+                            top: `${laneTop(lane)}px`,
                             width: `${barWidthPx}px`,
                           }}
                           title={ariaLabel}
@@ -645,7 +628,7 @@ export function CalendarTimeline({ reservations, externalBlocks = [], overbooked
                           className="absolute flex h-6 cursor-default items-center gap-1.5 overflow-hidden rounded-md border border-dashed border-foreground/40 bg-foreground/[0.04] px-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur-sm"
                           style={{
                             left: `${leftOffset * dayWidth + 4}px`,
-                            top: "52px",
+                            top: `${externalRowTop}px`,
                             width: `${blockWidthPx}px`,
                           }}
                           title={`${channelName} — No disponible`}
