@@ -18,7 +18,7 @@ import type { Reservation } from "@/components/reservations/types";
 import type { CalendarReservation, CalendarExternalBlock } from "@/lib/actions/reservations";
 import type { ReservationInput } from "@/lib/validations/reservation";
 import { createReservation, getCalendarReservations } from "@/lib/actions/reservations";
-import { computeConflictDates } from "@/lib/calendar/conflicts";
+import { computeOverbookedDays } from "@/lib/calendar/conflicts";
 import { nowKeyInBusinessTz } from "@/lib/domain/timezone";
 import { calculateOccupancyRate, portfolioOccupancyDenominator, prorateRevenueToRange } from "@/lib/reports/kpis";
 
@@ -188,14 +188,50 @@ export function CalendarView({
     [dailyReservations, showCancelled],
   );
 
-  // Compute conflicts entre reservas VISIBLES y bloqueos externos. Cuando una reserva
-  // cancelada se oculta del timeline, los días donde solo ella generaba conflicto con
-  // un bloqueo externo dejan de marcarse con dot ámbar — coherente con que la cancelación
-  // libera ese día y el bloqueo externo pasa a ser el ocupante real sin conflicto.
-  const conflicts = useMemo(() => {
-    if (!showExternalBlocks) return new Set<string>();
-    return computeConflictDates(visibleDailyReservations, externalBlocks);
-  }, [visibleDailyReservations, externalBlocks, showExternalBlocks]);
+  // Reservas que consumen disponibilidad real: SIEMPRE no-canceladas, sin importar
+  // el toggle `showCancelled`. Una reserva cancelada no ocupa una unidad se muestre
+  // o no — atar la aritmética de ocupación a un toggle de visualización produciría
+  // sobreventa fantasma al prenderlo (una reserva cancelada "reaparecería" y sumaría
+  // unidades que en realidad están libres).
+  const activeDailyReservations = useMemo(
+    () => dailyReservations.filter((r) => r.status !== "CANCELLED"),
+    [dailyReservations],
+  );
+
+  // Alarma de sobreventa: para cada propiedad y día, unidades consumidas (reservas
+  // activas + bloqueos externos activos) vs `unitsAvailable`. Regla de CONTEXT.md
+  // "Calendarios Externos". Reemplaza el viejo `computeConflictDates`, que marcaba
+  // "conflicto" con solo comparar fechas SIN propertyId ni unidades — eso marcaba
+  // días donde una reserva de una propiedad coincidía con un bloqueo de OTRA
+  // propiedad (imposible que compita por la misma unidad) y también marcaba
+  // propiedades con unidades de sobra. Solo se calcula cuando `showExternalBlocks`
+  // está prendido porque sin ese toggle no se traen los bloqueos.
+  const overbookedDays = useMemo(() => {
+    if (!showExternalBlocks) return [];
+    return computeOverbookedDays(
+      activeDailyReservations.map((r) => ({
+        propertyId: r.property.id,
+        startDate: r.startDate,
+        endDate: r.endDate,
+        unitsBooked: r.unitsBooked ?? 1,
+      })),
+      externalBlocks.map((b) => ({
+        propertyId: b.propertyId,
+        startDate: b.startDate,
+        endDate: b.endDate,
+      })),
+      properties.map((p) => ({ id: p.id, unitsAvailable: p.unitsAvailable })),
+    );
+  }, [activeDailyReservations, externalBlocks, properties, showExternalBlocks]);
+
+  const overbookedDayCount = useMemo(
+    () => new Set(overbookedDays.map((d) => d.date)).size,
+    [overbookedDays],
+  );
+  const overbookedPropertyNames = useMemo(() => {
+    const ids = new Set(overbookedDays.map((d) => d.propertyId));
+    return properties.filter((p) => ids.has(p.id)).map((p) => p.name);
+  }, [overbookedDays, properties]);
 
   // KPIs (Stitch "Calendario de Ocupación" — 4 cards)
   const monthStart = useMemo(() => new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1), [currentMonth]);
@@ -490,12 +526,18 @@ export function CalendarView({
         </div>
       ) : (
         <>
-          {showExternalBlocks && conflicts.size > 0 && (
-            <div className="mb-4 flex items-start gap-3 rounded-xl border border-l-2 border-l-warning bg-warning/10 px-4 py-3 text-sm text-foreground">
+          {showExternalBlocks && overbookedDays.length > 0 && (
+            <div className="mb-4 flex items-start gap-3 rounded-xl border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-foreground">
               <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
               <div>
-                <p className="font-semibold">{conflicts.size} día(s) con conflicto Reserva + Bloqueo externo</p>
-                <p className="text-xs">La reserva interna prevalece. Los días marcados tienen un punto ámbar.</p>
+                <p className="font-semibold">
+                  Sobreventa en {overbookedDayCount} día{overbookedDayCount === 1 ? "" : "s"}: reservas + bloqueos
+                  externos superan las unidades disponibles
+                </p>
+                <p className="text-xs">
+                  Propiedades afectadas: {overbookedPropertyNames.join(", ")}. Revisa esos días antes de confirmar
+                  nuevas reservas.
+                </p>
               </div>
             </div>
           )}
@@ -524,7 +566,7 @@ export function CalendarView({
               },
             }))}
             externalBlocks={showExternalBlocks ? visibleExternalBlocks : []}
-            conflicts={conflicts}
+            overbookedDays={overbookedDays}
             currentMonth={currentMonth}
             onSelectReservation={handleSelectReservation}
           />

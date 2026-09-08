@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameMonth, addMonths, subMonths, startOfWeek, endOfWeek } from "date-fns";
 import { es } from "date-fns/locale/es";
 import { ChevronLeft, ChevronRight, Calendar, Home, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { channelColors } from "@/lib/calendar/channel-colors";
 import { computeScrollLeftForToday } from "@/lib/calendar/scroll";
+import type { OverbookedDay } from "@/lib/calendar/conflicts";
 import { getNights } from "@/components/reservations/reservation-status";
 
 interface Payment {
@@ -263,15 +264,27 @@ function channelLabel(channel: CalendarExternalBlock["channel"]): string {
   }
 }
 
-export function CalendarTimeline({ reservations, externalBlocks = [], conflicts = new Set(), currentMonth, onSelectReservation, selectedPropertyId, properties }: {
+export function CalendarTimeline({ reservations, externalBlocks = [], overbookedDays = [], currentMonth, onSelectReservation, selectedPropertyId, properties }: {
   reservations: Reservation[];
   externalBlocks?: CalendarExternalBlock[];
-  conflicts?: Set<string>;
+  /** Días de sobreventa por propiedad — ver `computeOverbookedDays`. */
+  overbookedDays?: OverbookedDay[];
   currentMonth: Date;
   onSelectReservation: (id: string) => void;
   selectedPropertyId?: string;
   properties?: Property[];
 }) {
+  // Derivados de `overbookedDays` para lookups O(1): uno para el dot del header
+  // (marca el día si CUALQUIER propiedad está sobrevendida) y otro para la celda
+  // de la fila específica de la propiedad afectada (`propertyId|date`).
+  const overbookedDateKeys = useMemo(
+    () => new Set(overbookedDays.map((d) => d.date)),
+    [overbookedDays],
+  );
+  const overbookedCellKeys = useMemo(
+    () => new Set(overbookedDays.map((d) => `${d.propertyId}|${d.date}`)),
+    [overbookedDays],
+  );
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   // Clave (yyyy-MM) del mes ya posicionado en "hoy" por el auto-scroll de abajo.
   // Evita re-scrollear en cada resize/medición mientras el usuario navega el
@@ -405,7 +418,7 @@ export function CalendarTimeline({ reservations, externalBlocks = [], conflicts 
               </div>
               {days.map((day) => {
                 const dayKey = format(day, "yyyy-MM-dd");
-                const hasConflict = conflicts.has(dayKey);
+                const isOverbooked = overbookedDateKeys.has(dayKey);
                 const isWeekend = day.getDay() === 0 || day.getDay() === 6;
                 const isToday = isSameDay(day, today);
                 return (
@@ -415,9 +428,10 @@ export function CalendarTimeline({ reservations, externalBlocks = [], conflicts 
                     role="columnheader"
                     style={{ width: dayWidth }}
                   >
-                    {hasConflict && (
+                    {isOverbooked && (
                       <span
                         className="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-warning"
+                        title="Sobreventa en al menos una propiedad este día"
                         aria-hidden="true"
                       />
                     )}
@@ -484,13 +498,32 @@ export function CalendarTimeline({ reservations, externalBlocks = [], conflicts 
                     </div>
                   </div>
                   <div className="relative bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px)]" role="gridcell" style={{ width: days.length * dayWidth, height: totalRowHeight, backgroundSize: `${dayWidth}px 100%` }}>
-                    {days.map((day, dayIndex) => isSameDay(day, today) ? (
-                      <div
-                        key={day.toISOString()}
-                        className="absolute top-0 h-full bg-primary/5 ring-1 ring-inset ring-primary/10"
-                        style={{ left: dayIndex * dayWidth, width: dayWidth }}
-                      />
-                    ) : null)}
+                    {days.map((day, dayIndex) => {
+                      const dayKey = format(day, "yyyy-MM-dd");
+                      const cellIsToday = isSameDay(day, today);
+                      const cellIsOverbooked = overbookedCellKeys.has(`${property.id}|${dayKey}`);
+                      if (!cellIsToday && !cellIsOverbooked) return null;
+                      return (
+                        <div
+                          key={day.toISOString()}
+                          className="absolute top-0 h-full"
+                          style={{ left: dayIndex * dayWidth, width: dayWidth }}
+                        >
+                          {cellIsToday && (
+                            <div className="absolute inset-0 bg-primary/5 ring-1 ring-inset ring-primary/10" />
+                          )}
+                          {/* Sobreventa: fill + ring ámbar (`warning`), visualmente distinto
+                              del tint teal de "hoy" — ambos pueden coexistir el mismo día. */}
+                          {cellIsOverbooked && (
+                            <div
+                              className="absolute inset-0 bg-warning/15 ring-1 ring-inset ring-warning/50"
+                              title="Sobreventa: unidades consumidas superan la disponibilidad"
+                              aria-hidden="true"
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
                     {timelineReservations.map(({ res, leftOffset, duration }) => {
                       const status = statusConfig[res.status] || statusConfig.PENDING;
                       const StatusIcon = status.icon;
