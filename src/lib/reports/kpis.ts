@@ -11,6 +11,8 @@
  * - `isReportsRangeAllowed` — determina si un plan puede acceder a un rango rápido.
  * - `portfolioOccupancyDenominator` — unidades totales del scope (todas las propiedades
  *   del owner, no solo las que tienen reservas en el período).
+ * - `prorateRevenueToRange` — prorratea `totalPrice` de una reserva DAILY por
+ *   noches dentro de un rango (exacto, no estimación — ver CONTEXT.md "Precio").
  */
 
 
@@ -117,6 +119,45 @@ export function calculateOccupancyRate(
   if (maxPossibleNightUnits === 0) return 0;
 
   return Math.min(totalNightUnits / maxPossibleNightUnits, 1);
+}
+
+/**
+ * Prorratea el `totalPrice` de una reserva DAILY por las noches que caen
+ * dentro de un rango (ej: el mes visible en `/calendar`).
+ *
+ * Es EXACTO, no una estimación: para `billingType: DAILY`,
+ * `totalPrice = noches × daily_price × unitsBooked` (CONTEXT.md, sección
+ * "Precio") — el precio es lineal por noche, así que la fracción de noches
+ * dentro del rango reproduce el mismo monto que se habría facturado si la
+ * reserva hubiera cubierto solo esas noches.
+ *
+ * El denominador (noches totales de la reserva) se calcula reutilizando
+ * `clipNightsToRange` con la reserva como su propio rango — evita duplicar
+ * la aritmética de "última noche inclusiva" (ver `getNights` / CONTEXT.md).
+ *
+ * @param totalPrice — precio total de la reserva completa
+ * @param reservationStart — inicio de la reserva (inclusivo)
+ * @param reservationEnd — última noche de la reserva (inclusivo)
+ * @param rangeStart — inicio del rango a prorratear
+ * @param rangeEnd — fin del rango a prorratear (inclusivo)
+ * @returns la porción de `totalPrice` correspondiente a las noches dentro
+ *   del rango. Devuelve 0 si la reserva no tiene noches (datos inválidos,
+ *   `reservationEnd < reservationStart`) o si no intersecta el rango.
+ */
+export function prorateRevenueToRange(
+  totalPrice: number,
+  reservationStart: Date,
+  reservationEnd: Date,
+  rangeStart: Date,
+  rangeEnd: Date,
+): number {
+  const totalNights = clipNightsToRange(reservationStart, reservationEnd, reservationStart, reservationEnd);
+  if (totalNights <= 0) return 0;
+
+  const nightsInRange = clipNightsToRange(reservationStart, reservationEnd, rangeStart, rangeEnd);
+  if (nightsInRange <= 0) return 0;
+
+  return totalPrice * (nightsInRange / totalNights);
 }
 
 /**

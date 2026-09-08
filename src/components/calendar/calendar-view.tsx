@@ -20,6 +20,7 @@ import type { ReservationInput } from "@/lib/validations/reservation";
 import { createReservation, getCalendarReservations } from "@/lib/actions/reservations";
 import { computeConflictDates } from "@/lib/calendar/conflicts";
 import { nowKeyInBusinessTz } from "@/lib/domain/timezone";
+import { calculateOccupancyRate, portfolioOccupancyDenominator, prorateRevenueToRange } from "@/lib/reports/kpis";
 
 function parseCalendarDate(dateString: string): Date {
   const [year, month, day] = dateString.slice(0, 10).split("-").map(Number);
@@ -199,15 +200,6 @@ export function CalendarView({
   // KPIs (Stitch "Calendario de Ocupación" — 4 cards)
   const monthStart = useMemo(() => new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1), [currentMonth]);
   const monthEnd = useMemo(() => new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0), [currentMonth]);
-  // Note: today recomputes on every render (no deps), which is fine because this
-  // component is used in Operate mode — users navigate fresh each session rather
-  // than leaving the page open across midnight. A setInterval refresh is overkill.
-  const today = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }, []);
-
   const calendarKpis = useMemo(() => {
     // P0-3 fix: filter by selectedPropertyId when not "all"
     const filteredReservations = selectedPropertyId === "all"
@@ -221,12 +213,23 @@ export function CalendarView({
       return start <= monthEnd && end >= monthStart;
     });
 
-    // P0-2 fix: count unitsBooked instead of always +1 per reservation
-    const occupiedUnits = activeThisMonth.reduce((sum, r) => sum + (r.unitsBooked ?? 1), 0);
-    const totalUnits = selectedPropertyId === "all"
-      ? properties.reduce((sum, p) => sum + p.unitsAvailable, 0)
-      : (properties.find((p) => p.id === selectedPropertyId)?.unitsAvailable ?? 0);
-    const occupancyRate = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0;
+    // Ocupación: misma fórmula canónica que /reports y /dashboard (night-units
+    // con intersección inclusiva, clampeada a 100%). Ver src/lib/reports/kpis.ts
+    // y CONTEXT.md "Ocupación del portafolio" — antes esto contaba reservas que
+    // solo tocaban el mes sin techo, pudiendo superar 100%.
+    const totalUnits = portfolioOccupancyDenominator(properties, selectedPropertyId);
+    const occupancyRate = Math.round(
+      calculateOccupancyRate(
+        activeThisMonth.map((r) => ({
+          startDate: parseCalendarDate(r.startDate),
+          endDate: parseCalendarDate(r.endDate),
+          unitsBooked: r.unitsBooked ?? 1,
+        })),
+        monthStart,
+        monthEnd,
+        totalUnits,
+      ) * 100,
+    );
 
     // Hoy en wall-time SCL (ADR-0020). Antes: `today.toISOString().slice(0, 10)`
     // reinterpretaba local midnight como UTC — en zonas UTC+, "Hoy" podía caer
@@ -242,7 +245,15 @@ export function CalendarView({
       return r.endDate.slice(0, 10) === todayKey;
     }).length;
 
-    const projectedRevenue = activeThisMonth.reduce((sum, r) => sum + Number(r.totalPrice), 0);
+    // Revenue prorrateado por noches dentro del mes. Exacto (no estimación) para
+    // DAILY porque totalPrice = noches × daily_price × units (CONTEXT.md, sección
+    // Precio) — antes se sumaba el totalPrice COMPLETO de cualquier reserva que
+    // solo tocara el mes, mezclando ingresos de otros meses.
+    const projectedRevenue = activeThisMonth.reduce((sum, r) => {
+      const start = parseCalendarDate(r.startDate);
+      const end = parseCalendarDate(r.endDate);
+      return sum + prorateRevenueToRange(Number(r.totalPrice), start, end, monthStart, monthEnd);
+    }, 0);
 
     return {
       occupancyRate,
@@ -250,7 +261,7 @@ export function CalendarView({
       departuresToday,
       projectedRevenue,
     };
-  }, [dailyReservations, properties, selectedPropertyId, monthStart, monthEnd, today]);
+  }, [dailyReservations, properties, selectedPropertyId, monthStart, monthEnd]);
 
   // Filter external blocks to selected property (if not "all")
   const visibleExternalBlocks = useMemo(() => {

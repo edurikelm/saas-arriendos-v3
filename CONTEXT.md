@@ -159,6 +159,8 @@ regla "Operate" del design system: muestra lo urgente, oculta lo estable.
 
 **Ocupación del portafolio:** calcula night-units con intersección inclusiva del rango seleccionado. Multiplica las noches intersectadas por `unitsBooked`. Excluye `CANCELLED` y, por ahora, Bloqueos de Canal Externo. Divide por `(días del rango) × unitsAvailable`.
 
+**KPIs de `/calendar`:** "Ocupación Media" usa la misma fórmula canónica de arriba (`calculateOccupancyRate` + `portfolioOccupancyDenominator` en `src/lib/reports/kpis.ts`) sobre el mes visible — no reimplementar el conteo a mano en otra superficie. "Revenue Proyectado" prorratea el `totalPrice` de cada reserva `DAILY` por las noches que caen dentro del mes (`prorateRevenueToRange`, mismo archivo); es exacto, no una estimación, porque en `DAILY` el precio es lineal por noche.
+
 **Total por cobrar / Cobros vencidos:** agregan el conjunto COMPLETO filtrado, nunca la página. Se computan en `getCollectionReport` y se retornan en `CollectionReportTotals`. La UI los usa directamente del servidor.
 
 **Filtro `propertyId`:** afecta los 4 KPIs en `/reports` y la serie de ingresos anual (`getYearlySummary`).
