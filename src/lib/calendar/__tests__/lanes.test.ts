@@ -181,4 +181,54 @@ describe("geometría de fila (constantes derivadas, no mágicas)", () => {
     const h2 = laneStackHeight(2);
     expect(h2 - h1).toBe(LANE_HEIGHT + 4); // LANE_GAP = 4
   });
+
+  // Regresión: la geometría no puede depender del offset horario local.
+  // Septiembre 2026 contiene el cambio de hora de Chile (6-sep, UTC-4 → UTC-3).
+  // Con `Math.floor((fecha - inicioMes) / 24h)` sobre medianoches LOCALES, entre
+  // dos medianoches que cruzan esa fecha hay 23h y la división se come un día:
+  //  - toda barra que empezaba del 7-sep en adelante se dibujaba UNA COLUMNA a
+  //    la izquierda de su día real;
+  //  - toda estadía que CRUZABA el 6-sep perdía un día de ancho — una reserva
+  //    del 4 al 8 de septiembre (5 noches) se dibujaba de 4 columnas mientras el
+  //    badge, que usa índices de día, seguía diciendo "5n". Reportado sobre datos
+  //    reales, no sobre fixtures.
+  // Estos tests solo son significativos si el proceso corre en America/Santiago
+  // (o cualquier zona con DST en esa ventana); en UTC pasan trivialmente, y con
+  // la implementación por epoch-day pasan en todas.
+  describe("posición y ancho a través del cambio de hora", () => {
+    const monthStart = new Date(2026, 8, 1); // 1-sep-2026, medianoche local
+    const laneFor = (start: string, end: string) =>
+      assignTimelineLanes(
+        [{ startDate: start, endDate: end }],
+        monthStart,
+        30,
+      ).entries[0];
+
+    it("una estadía que cruza el DST conserva su ancho real", () => {
+      // 4→8 sep = 5 noches (endDate inclusivo). Antes daba 4.
+      expect(laneFor("2026-09-04", "2026-09-08").duration).toBe(5);
+      // 5→9 sep = 5 noches. Antes daba 4.
+      expect(laneFor("2026-09-05", "2026-09-09").duration).toBe(5);
+    });
+
+    it("las estadías posteriores al DST arrancan en la columna correcta", () => {
+      // leftOffset es 0-based: el día N del mes va en la columna N-1.
+      expect(laneFor("2026-09-07", "2026-09-07").leftOffset).toBe(6);
+      expect(laneFor("2026-09-08", "2026-09-12").leftOffset).toBe(7);
+      expect(laneFor("2026-09-14", "2026-09-21").leftOffset).toBe(13);
+      expect(laneFor("2026-09-28", "2026-09-30").leftOffset).toBe(27);
+    });
+
+    it("las estadías anteriores al DST no se ven afectadas", () => {
+      expect(laneFor("2026-09-02", "2026-09-06").leftOffset).toBe(1);
+      expect(laneFor("2026-09-02", "2026-09-06").duration).toBe(5);
+    });
+
+    it("cada día del mes cae en su propia columna, sin saltos ni repeticiones", () => {
+      const offsets = Array.from({ length: 30 }, (_, i) =>
+        laneFor(`2026-09-${String(i + 1).padStart(2, "0")}`, `2026-09-${String(i + 1).padStart(2, "0")}`).leftOffset,
+      );
+      expect(offsets).toEqual(Array.from({ length: 30 }, (_, i) => i));
+    });
+  });
 });

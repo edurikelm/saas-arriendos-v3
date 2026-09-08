@@ -10,6 +10,7 @@ import { computeScrollLeftForToday } from "@/lib/calendar/scroll";
 import type { OverbookedDay } from "@/lib/calendar/conflicts";
 import {
   assignTimelineLanes,
+  getDayOffset,
   laneTop,
   timelineRowHeight,
   externalBlocksRowTop,
@@ -106,9 +107,6 @@ function getReservationsInDay(reservations: Reservation[], date: Date): Reservat
   });
 }
 
-function getDayOffset(date: Date, monthStart: Date): number {
-  return Math.floor((date.getTime() - monthStart.getTime()) / (1000 * 60 * 60 * 24));
-}
 
 interface CalendarDayCellProps {
   date: Date;

@@ -47,8 +47,30 @@ function parseCalendarDate(dateString: string): Date {
   return new Date(year, month - 1, day);
 }
 
-function getDayOffset(date: Date, windowStart: Date): number {
-  return Math.floor((date.getTime() - windowStart.getTime()) / (1000 * 60 * 60 * 24));
+/**
+ * Índice de día absoluto ("epoch day") a partir de los componentes de
+ * calendario LOCALES de la fecha. Se pasa por `Date.UTC` a propósito: los
+ * componentes locales (año/mes/día) ya son los correctos para un `Date` de
+ * medianoche local, y mapearlos a UTC elimina cualquier influencia del offset.
+ */
+function toEpochDay(date: Date): number {
+  return Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86_400_000);
+}
+
+/**
+ * Días de distancia entre `date` y `windowStart`, ambos como fechas de
+ * calendario.
+ *
+ * NO usar `Math.floor((a - b) / 24h)` sobre fechas de medianoche local: entre
+ * dos medianoches que cruzan un cambio de hora hay 23h (o 25h), y la división
+ * se come —o agrega— un día. En el DST de Chile (6-sep-2026) eso corría UNA
+ * COLUMNA A LA IZQUIERDA toda barra que empezara del 7-sep en adelante, y le
+ * restaba un día de ancho a las estadías que cruzaban esa fecha: una reserva
+ * del 4 al 8 de septiembre (5 noches) se dibujaba de 4 columnas mientras el
+ * badge —que sí usa índices de día— seguía diciendo "5n".
+ */
+export function getDayOffset(date: Date, windowStart: Date): number {
+  return toEpochDay(date) - toEpochDay(windowStart);
 }
 
 export function assignTimelineLanes<T extends TimelineLaneInput>(
