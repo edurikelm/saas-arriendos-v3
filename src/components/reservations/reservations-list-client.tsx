@@ -104,8 +104,6 @@ export function ReservationsListClient({
     }
   }, [page, limit]);
 
-  const skipNextFetchRef = useRef(false);
-
   const {
     serverFilters,
     searchQuery,
@@ -114,16 +112,30 @@ export function ReservationsListClient({
     updateServerFilter,
     handleSearchChange,
     clearAllFilters,
-  } = useReservationFilters({ onServerFiltersChange: fetchReservations });
+  } = useReservationFilters({
+    onServerFiltersChange: fetchReservations,
+    // `initialData` viene de `getReservations({ page: 1, limit: 10 })` sin
+    // filtros, que es exactamente con lo que arranca el hook.
+    skipInitialFetch: true,
+  });
 
-  // Reset to page 1 when server filters change
+  // Cambiar un filtro vuelve a la página 1: la página 7 de un set no tiene nada
+  // que ver con la página 7 de otro.
+  //
+  // `payment` faltaba en esta lista, así que filtrar por cobranza estando en la
+  // página 2 dejaba al usuario en la página 2 del set nuevo — normalmente vacía.
   useEffect(() => {
-    if (page !== 1) {
-      skipNextFetchRef.current = true;
-      goToPage(1);
-    }
+    if (page !== 1) goToPage(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serverFilters.propertyId, serverFilters.billingType, serverFilters.status, serverFilters.temporal, debouncedSearch, goToPage]);
+  }, [
+    serverFilters.propertyId,
+    serverFilters.billingType,
+    serverFilters.status,
+    serverFilters.temporal,
+    serverFilters.payment,
+    debouncedSearch,
+    goToPage,
+  ]);
 
   // Effective view mode: mobile always uses list
   const effectiveViewMode = isMobile ? "list" : viewMode;

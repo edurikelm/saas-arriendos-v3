@@ -6,9 +6,11 @@ import { useReservationFilters } from "../use-reservation-filters";
  * Todos los filtros viajan al servidor. El hook ya no filtra nada en cliente,
  * así que lo que hay que verificar es qué le manda al servidor y cuándo.
  */
-function setup() {
+function setup(skipInitialFetch = false) {
   const onServerFiltersChange = vi.fn();
-  const hook = renderHook(() => useReservationFilters({ onServerFiltersChange }));
+  const hook = renderHook(() =>
+    useReservationFilters({ onServerFiltersChange, skipInitialFetch }),
+  );
   return { ...hook, onServerFiltersChange };
 }
 
@@ -94,6 +96,48 @@ describe("useReservationFilters — todo va al servidor", () => {
       status: "",
       temporal: "all",
       payment: "all",
+    });
+  });
+});
+
+describe("useReservationFilters — sincronización inicial", () => {
+  it("por defecto sincroniza al montar", () => {
+    const { onServerFiltersChange } = setup();
+    expect(onServerFiltersChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("con skipInitialFetch no pide lo que el servidor ya rindió", () => {
+    // Medido antes del fix: cada visita a /reservations hacía un
+    // `/api/reservations?page=1&limit=10` inmediatamente después del render,
+    // duplicando los datos que ya venían por SSR.
+    const { onServerFiltersChange } = setup(true);
+    expect(onServerFiltersChange).not.toHaveBeenCalled();
+  });
+
+  it("saltarse la primera no rompe las siguientes", () => {
+    const { result, onServerFiltersChange } = setup(true);
+
+    act(() => result.current.updateServerFilter("temporal", "active"));
+    expect(onServerFiltersChange).toHaveBeenCalledTimes(1);
+    expect(ultimoEnvio(onServerFiltersChange)).toMatchObject({ temporal: "active" });
+
+    act(() => result.current.updateServerFilter("payment", "overdue"));
+    expect(onServerFiltersChange).toHaveBeenCalledTimes(2);
+  });
+
+  it("los defaults del hook son 'sin filtro' — de eso depende poder saltarse la primera", () => {
+    // `skipInitialFetch` solo es válido mientras el SSR pida lo mismo con lo que
+    // arranca el hook: `getReservations({ page: 1, limit: 10 })`, sin filtros.
+    // Si alguien cambia un default (por ejemplo el toggle a "Activas"), este
+    // test falla acá en vez de servir datos equivocados en producción.
+    const { onServerFiltersChange } = setup();
+    expect(ultimoEnvio(onServerFiltersChange)).toEqual({
+      propertyId: "",
+      billingType: "",
+      status: "",
+      temporal: "all",
+      payment: "all",
+      search: "",
     });
   });
 });

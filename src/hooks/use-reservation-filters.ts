@@ -20,6 +20,13 @@ type ServerFilterKey = keyof Omit<ServerReservationFilters, "search">;
 
 export interface UseReservationFiltersOptions {
   onServerFiltersChange: (filters: ServerReservationFilters) => void;
+  /**
+   * No dispares la primera sincronización, porque el servidor ya rindió esa
+   * misma página. Solo es válido mientras el SSR use exactamente los mismos
+   * filtros con los que arranca el hook — hay un test que fija los defaults
+   * justamente para que, si alguien los cambia, salte acá y no en producción.
+   */
+  skipInitialFetch?: boolean;
 }
 
 /**
@@ -34,6 +41,7 @@ export interface UseReservationFiltersOptions {
  */
 export function useReservationFilters({
   onServerFiltersChange,
+  skipInitialFetch = false,
 }: UseReservationFiltersOptions) {
   // Server-side filters (propertyId, billingType, status → trigger re-fetch)
   const [serverFilters, setServerFilters] = useState<Omit<ServerReservationFilters, "search">>({
@@ -65,9 +73,18 @@ export function useReservationFilters({
   // buscar a alguien que estaba en la página 3 desde la página 1 no lo
   // encontraba — y `getReservations` ya soportaba `search` sin que nadie se lo
   // mandara.
+  // La primera corrida se puede saltar: `initialData` ya trae esa página desde
+  // el servidor, así que pedirla de nuevo al montar es un viaje de ida y vuelta
+  // regalado en cada visita a la lista. Medido: una llamada a
+  // `/api/reservations?page=1&limit=10` inmediatamente después del render.
+  const primeraSync = useRef(true);
   useEffect(() => {
+    if (primeraSync.current) {
+      primeraSync.current = false;
+      if (skipInitialFetch) return;
+    }
     onServerFiltersChange({ ...serverFilters, search: debouncedSearch });
-  }, [serverFilters, debouncedSearch, onServerFiltersChange]);
+  }, [serverFilters, debouncedSearch, onServerFiltersChange, skipInitialFetch]);
 
   const updateServerFilter = useCallback(<K extends ServerFilterKey>(
     key: K,
