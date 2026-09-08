@@ -29,6 +29,7 @@ import {
   dateKeyToDayIndex,
   dateOnlyKey,
   getDateKeyInTz,
+  nightsBetweenDateOnly,
 } from "@/lib/domain/timezone";
 import { getInclusiveMonths } from "@/lib/reservation-dates";
 import type { PillTone } from "@/components/reservations/reservation-pill";
@@ -249,9 +250,9 @@ export function daysUntilEnd(
  * que era frágil ante timezones extremos y no estaba alineado con `CONTEXT.md`.
  */
 export function getNights(startDate: string | Date, endDate: string | Date): number {
-  const startKey = dateOnlyKey(typeof startDate === "string" ? startDate : toDateKeyLocal(startDate));
-  const endKey = dateOnlyKey(typeof endDate === "string" ? endDate : toDateKeyLocal(endDate));
-  return Math.max(1, dateKeyToDayIndex(endKey) - dateKeyToDayIndex(startKey) + 1);
+  const startKey = typeof startDate === "string" ? startDate : toDateKeyLocal(startDate);
+  const endKey = typeof endDate === "string" ? endDate : toDateKeyLocal(endDate);
+  return nightsBetweenDateOnly(startKey, endKey);
 }
 
 /**

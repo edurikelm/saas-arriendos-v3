@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import type { Prisma } from "@prisma/client";
 import { getSession } from "@/lib/auth/session";
 import { startOfMonth, endOfMonth, format, startOfYear, endOfYear } from "date-fns";
-import { BUSINESS_TIME_ZONE } from "@/lib/domain/timezone";
+import { BUSINESS_TIME_ZONE, nightsBetweenDateOnly } from "@/lib/domain/timezone";
 import {
   buildCollectionReportRows,
   type CollectionDebtStatusFilter,
@@ -250,11 +250,7 @@ export async function getOccupancyReport(options?: {
     if (rangeStart && rangeEnd) {
       nightUnits = clipNightsToRange(res.startDate, res.endDate, rangeStart, rangeEnd) * (res.unitsBooked ?? 1);
     } else {
-      nightUnits = (
-        Math.ceil(
-          (new Date(res.endDate).getTime() - new Date(res.startDate).getTime()) / (1000 * 60 * 60 * 24)
-        ) + 1
-      ) * (res.unitsBooked ?? 1);
+      nightUnits = nightsBetweenDateOnly(res.startDate, res.endDate) * (res.unitsBooked ?? 1);
     }
 
     if (!propertyMap.has(res.propertyId)) {

@@ -19,6 +19,7 @@ import { ClientForm } from "@/components/clients/client-form";
 import { createClient } from "@/lib/actions/clients";
 import { toast } from "sonner";
 import { getBlockedDates } from "@/lib/actions/reservations";
+import { getNights } from "@/components/reservations/reservation-status";
 import type { ClientInput } from "@/lib/validations/client";
 import {
   Building2,
@@ -163,7 +164,7 @@ export function ReservationForm({
   };
 
   const nights = !isMonthly && dateRange.from && dateRange.to
-    ? Math.ceil((dateRange.to.getTime() - dateRange.from.getTime()) / 86400000) + 1
+    ? getNights(dateRange.from, dateRange.to)
     : 0;
 
   const totalAmount = selectedProperty && dateRange.from && endDate

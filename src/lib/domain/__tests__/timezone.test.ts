@@ -14,6 +14,7 @@ import {
   isOverdueDateOnly,
   formatDateOnly,
   formatInstant,
+  nightsBetweenDateOnly,
 } from "@/lib/domain/timezone";
 
 describe("BUSINESS_TIME_ZONE", () => {
@@ -343,6 +344,57 @@ describe("formatDateOnly", () => {
       { day: "numeric", month: "short", timeZone: "Pacific/Kiritimati" } as Intl.DateTimeFormatOptions,
     );
     expect(result).toContain("24");
+  });
+});
+
+describe("nightsBetweenDateOnly", () => {
+  // Las fechas de la base estan ancladas a mediodia local, no a medianoche
+  // (ver memoria "fechas-de-reserva-no-son-medianoche"): en verano chileno
+  // (UTC-3) eso serializa a las 15:00Z; en invierno (UTC-4) a las 16:00Z.
+  // Los anclajes de abajo replican exactamente ese patron para reproducir
+  // el bug de division-por-86400000 sobre instantes reales.
+
+  it("cruce de la transicion de abril (fin de horario de verano, dia de 25h): 2→8 abr 2026 = 7 noches", () => {
+    // 2-abr aun en verano (UTC-3) → 15:00Z. 8-abr ya en invierno (UTC-4) → 16:00Z.
+    const start = new Date("2026-04-02T15:00:00.000Z");
+    const end = new Date("2026-04-08T16:00:00.000Z");
+    expect(nightsBetweenDateOnly(start, end)).toBe(7);
+  });
+
+  it("cruce de la transicion de septiembre (inicio de horario de verano, dia de 23h): 4→8 sep 2026 = 5 noches", () => {
+    // 4-sep aun en invierno (UTC-4) → 16:00Z. 8-sep ya en verano (UTC-3) → 15:00Z.
+    const start = new Date("2026-09-04T16:00:00.000Z");
+    const end = new Date("2026-09-08T15:00:00.000Z");
+    expect(nightsBetweenDateOnly(start, end)).toBe(5);
+  });
+
+  it("mes completo de abril cruzando la transicion: 1→30 abr 2026 = 30 noches", () => {
+    const start = new Date("2026-04-01T15:00:00.000Z"); // verano
+    const end = new Date("2026-04-30T16:00:00.000Z"); // invierno
+    expect(nightsBetweenDateOnly(start, end)).toBe(30);
+  });
+
+  it("start === end (mismo dia) = 1 noche", () => {
+    const day = new Date("2026-04-15T16:00:00.000Z");
+    expect(nightsBetweenDateOnly(day, day)).toBe(1);
+  });
+
+  it("control sin transicion de DST: 5→10 may 2026 (invierno completo) = 6 noches", () => {
+    const start = new Date("2026-05-05T16:00:00.000Z");
+    const end = new Date("2026-05-10T16:00:00.000Z");
+    expect(nightsBetweenDateOnly(start, end)).toBe(6);
+  });
+
+  it("acepta strings date-only (YYYY-MM-DD), cruzando la transicion de abril", () => {
+    expect(nightsBetweenDateOnly("2026-04-02", "2026-04-08")).toBe(7);
+  });
+
+  it("acepta strings ISO con hora, cruzando la transicion de abril", () => {
+    expect(nightsBetweenDateOnly("2026-04-02T15:00:00.000Z", "2026-04-08T16:00:00.000Z")).toBe(7);
+  });
+
+  it("end anterior a start (input invalido) → fallback a 1 noche", () => {
+    expect(nightsBetweenDateOnly("2026-04-08", "2026-04-02")).toBe(1);
   });
 });
 
