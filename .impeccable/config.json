@@ -11,6 +11,15 @@
         ],
         "createdAt": "2026-09-07T02:28:17.853Z",
         "reason": "DESIGN.md lo define como firma del sistema: 'dos pixeles de acento (border-t-2 border-t-primary en cada tabla)' en el Overview, y la signature de DataTable lo incluye. La lista movil replica ese framing a proposito para leerse como la misma tabla en otro ancho."
+      },
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "src/components/calendar/calendar-timeline.tsx"
+        ],
+        "createdAt": "2026-09-08T14:17:48.520Z",
+        "reason": "DESIGN.md:402 (Two-Pixel Accent Rule) lo manda para tablas top-level de pagina y DESIGN.md:394 da la firma exacta; el timeline es la tabla de datos de /calendar (role=grid/row/columnheader/rowheader/gridcell) y se renderiza sin Card wrapper. Mismo patron que data-table.tsx (accentTop) y payments-cards-list.tsx. Precedente identico ya ignorado en reservations-list-client.tsx. La critica impeccable de 2026-08-21 (P1-4) lo marco por FALTARLE este accent."
       }
     ]
   }
