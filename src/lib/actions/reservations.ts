@@ -5,7 +5,7 @@ import type { Prisma } from "@prisma/client";
 import { getSession } from "@/lib/auth/session";
 import { reservationSchema, reservationUpdateSchema, type ReservationInput, type ReservationUpdateInput } from "@/lib/validations/reservation";
 import { revalidatePath } from "next/cache";
-import { addDays, differenceInDays, differenceInMonths, addMonths } from "date-fns";
+import { addDays, differenceInMonths, addMonths } from "date-fns";
 import { generateMonthlyPayments } from "@/lib/payments/monthly";
 import {
   businessDayBounds,
@@ -17,6 +17,7 @@ import { countCompletedPaymentsForReservation } from "@/lib/payments/queries";
 import { ZodError } from "zod";
 import { recordDomainEvent } from "@/lib/notifications/record-event";
 import { canTransition } from "@/lib/reservations/state-machine";
+import { nightsBetweenDateOnly } from "@/lib/domain/timezone";
 
 export type CalendarReservation = {
   id: string;
@@ -404,7 +405,15 @@ function calculateTotalPrice(
     return Number(property.monthlyPrice || 0) * monthlyCount * unitsBooked;
   }
 
-  const nights = differenceInDays(endDate, startDate) + 1;
+  // `nightsBetweenDateOnly` en vez de `differenceInDays`: este último es correcto
+  // solo mientras el proceso corra en UTC. `createReservation` construye estas
+  // fechas con `new Date("YYYY-MM-DD")` (medianoche UTC); leídas como wall-time
+  // en una zona con DST, un rango que cruza el fin del horario de verano chileno
+  // pierde una noche — medido en `America/Santiago`, del 2 al 8 de abril de 2026
+  // daba 6 en vez de 7, o sea cobraba de menos. En producción (Vercel, UTC) el
+  // resultado es el mismo, pero la corrección dejaba de ser una propiedad del
+  // código para pasar a depender de la zona del deploy, sin nada que la fijara.
+  const nights = nightsBetweenDateOnly(startDate, endDate);
   return Number(property.dailyPrice) * nights * unitsBooked;
 }
 

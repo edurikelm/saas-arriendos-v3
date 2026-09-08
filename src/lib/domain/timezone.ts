@@ -52,6 +52,30 @@ export function dateOnlyKey(date: Date | string): string {
 }
 
 /**
+ * Numero de noches entre dos campos DATE-ONLY del dominio (`Reservation.startDate`
+ * / `endDate`), respetando la convencion "Ultima Noche": `end` es la ultima noche
+ * que duerme el huesped (inclusiva), no el dia de check-out. `start === end` → 1 noche.
+ *
+ * Opera enteramente sobre claves `YYYY-MM-DD` (via `dateOnlyKey` + `dateKeyToDayIndex`),
+ * inmune a DST: `Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1` sobre
+ * `Date` reales se rompe en el dia de 25h del fin del horario de verano chileno
+ * (abril) — la division dividida por 86400000 da `N + 0.04`, `Math.ceil` sube a
+ * `N+1`, y el `+1` final produce una noche de mas. Este calculo evita esa division
+ * por completo.
+ *
+ * `Date` se normaliza con `dateOnlyKey` (slice UTC de `toISOString()`), correcto
+ * para campos leidos desde la base (anclados a mediodia local, lejos de medianoche).
+ * Si el caller tiene un `Date` de wall-time local (ej. un date-picker en el
+ * navegador), debe normalizarlo a su propia clave ANTES de llamar a esta funcion
+ * — ver `getNights` en `src/components/reservations/reservation-status.ts`.
+ */
+export function nightsBetweenDateOnly(start: string | Date, end: string | Date): number {
+  const startKey = dateOnlyKey(start);
+  const endKey = dateOnlyKey(end);
+  return Math.max(1, dateKeyToDayIndex(endKey) - dateKeyToDayIndex(startKey) + 1);
+}
+
+/**
  * Dias calendario entre un campo date-only y "hoy" en America/Santiago.
  * 0 = hoy, mayor a 0 = futuro, menor a 0 = pasado.
  *

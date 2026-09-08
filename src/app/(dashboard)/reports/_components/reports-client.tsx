@@ -22,6 +22,7 @@ import { PropertySummaryTable } from "@/components/reports/property-summary-tabl
 import { startOfMonth, endOfMonth, subMonths, startOfYear, format } from "date-fns";
 import { es } from "date-fns/locale/es";
 import { isReportsRangeAllowed } from "@/lib/reports/kpis";
+import { nightsBetweenDateOnly } from "@/lib/domain/timezone";
 import { computeTrend, selectTopDebtors, computeGroupedByPropertyFromSummary } from "@/lib/reports/trend";
 
 type QuickRange = "current_month" | "prev_month" | "last_3" | "last_6" | "year_to_date" | "custom";
@@ -231,9 +232,7 @@ export function ReportsClient({
       }
       const entry = map.get(r.propertyName)!;
       entry.totalReservations += 1;
-      entry.totalNights += Math.ceil(
-        (r.endDate.getTime() - r.startDate.getTime()) / (1000 * 60 * 60 * 24)
-      ) + 1;
+      entry.totalNights += nightsBetweenDateOnly(r.startDate, r.endDate);
       entry.totalRevenue = (entry.totalRevenue ?? 0) + r.totalPrice;
       if (r.paymentStatus === "COMPLETED") entry.paidRevenue += r.totalPrice;
       else entry.pendingRevenue += r.totalPrice;

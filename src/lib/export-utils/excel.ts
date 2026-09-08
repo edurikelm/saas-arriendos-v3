@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { nightsBetweenDateOnly } from "@/lib/domain/timezone";
 
 export interface ReservationDetail {
   id: string;
@@ -40,9 +41,7 @@ export function exportToExcel(
       "Email": d.clientEmail,
       "Inicio": d.startDate.toLocaleDateString("es-CL"),
       "Fin": d.endDate.toLocaleDateString("es-CL"),
-      "Noches": Math.ceil(
-        (d.endDate.getTime() - d.startDate.getTime()) / (1000 * 60 * 60 * 24)
-      ) + 1,
+      "Noches": nightsBetweenDateOnly(d.startDate, d.endDate),
       "Total": d.totalPrice,
       "Estado Reserva": d.status,
       "Estado Pago": d.paymentStatus,
