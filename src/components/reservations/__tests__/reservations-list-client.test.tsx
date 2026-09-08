@@ -46,15 +46,11 @@ vi.mock("@/hooks/use-media-query", () => ({
 
 vi.mock("@/hooks/use-reservation-filters", () => ({
   useReservationFilters: vi.fn(() => ({
-    serverFilters: { propertyId: "", billingType: "", status: "" },
-    paymentFilter: "",
+    serverFilters: { propertyId: "", billingType: "", status: "", temporal: "all", payment: "all" },
     searchQuery: "",
     debouncedSearch: "",
-    filteredReservations: [],
     hasActiveFilters: false,
-    hasClientFilters: false,
     updateServerFilter: vi.fn(),
-    updatePaymentFilter: vi.fn(),
     handleSearchChange: vi.fn(),
     clearAllFilters: vi.fn(),
   })),
@@ -247,13 +243,11 @@ function setupCounter({
   page,
   filas,
   total,
-  hasClientFilters = false,
   serverCount = filas,
 }: {
   page: number;
   filas: number;
   total: number;
-  hasClientFilters?: boolean;
   serverCount?: number;
 }) {
   vi.mocked(usePagination).mockReturnValue({
@@ -264,15 +258,11 @@ function setupCounter({
   } as unknown as ReturnType<typeof usePagination>);
 
   vi.mocked(useReservationFilters).mockReturnValue({
-    serverFilters: { propertyId: "", billingType: "", status: "" },
-    paymentFilter: hasClientFilters ? "pending" : "",
+    serverFilters: { propertyId: "", billingType: "", status: "", temporal: "all", payment: "all" },
     searchQuery: "",
     debouncedSearch: "",
-    filteredReservations: Array.from({ length: filas }, (_, i) => fakeReservation(`r${i}`)),
-    hasActiveFilters: hasClientFilters,
-    hasClientFilters,
+    hasActiveFilters: false,
     updateServerFilter: vi.fn(),
-    updatePaymentFilter: vi.fn(),
     handleSearchChange: vi.fn(),
     clearAllFilters: vi.fn(),
   } as unknown as ReturnType<typeof useReservationFilters>);
@@ -316,19 +306,10 @@ describe("ReservationsListClient - contador de resultados", () => {
     expect(container.textContent).toContain("Mostrando 21-24 de 24 reservas");
   });
 
-  it("con un filtro de cliente activo no promete un rango que no describe nada", () => {
-    // Los filtros de cliente recortan solo la página cargada, así que "de {total}"
-    // (total del servidor sin filtrar) no corresponde. Antes salía, por ejemplo,
-    // "Mostrando 11-2 de 24 reservas" con 2 filas en pantalla.
-    const { container } = setupCounter({
-      page: 2,
-      filas: 2,
-      total: 24,
-      hasClientFilters: true,
-      serverCount: 10,
-    });
-    expect(container.textContent).toContain("2 de 10 en esta página");
-    expect(container.textContent).not.toContain("Mostrando 11-2");
+  it("sin resultados no imprime un rango degenerado", () => {
+    // El empty state de abajo ya dice qué pasó; "Mostrando 0-0 de 0" es ruido.
+    const { container } = setupCounter({ page: 1, filas: 0, total: 0 });
+    expect(container.textContent).not.toContain("0-0");
   });
 
   it("singular cuando hay una sola reserva", () => {

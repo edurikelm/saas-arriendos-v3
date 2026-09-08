@@ -11,8 +11,9 @@ export async function GET(request: Request) {
     const status = searchParams.get("status") || undefined;
     const billingType = searchParams.get("billingType") || undefined;
     const temporal = searchParams.get("temporal") || undefined;
+    const payment = searchParams.get("payment") || undefined;
 
-    const result = await getReservations({ page, limit, search, propertyId, status, billingType, temporal });
+    const result = await getReservations({ page, limit, search, propertyId, status, billingType, temporal, payment });
     return NextResponse.json(result);
   } catch (error) {
     console.error("Error fetching reservations:", error);

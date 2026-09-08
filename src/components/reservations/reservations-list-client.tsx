@@ -89,6 +89,7 @@ export function ReservationsListClient({
       if (filters.billingType) params.append("billingType", filters.billingType);
       if (filters.status) params.append("status", filters.status);
       if (filters.temporal && filters.temporal !== "all") params.append("temporal", filters.temporal);
+      if (filters.payment && filters.payment !== "all") params.append("payment", filters.payment);
       // La búsqueda va al servidor: filtrarla en cliente solo miraba las ≤10
       // filas de la página cargada.
       if (filters.search.trim()) params.append("search", filters.search.trim());
@@ -107,20 +108,13 @@ export function ReservationsListClient({
 
   const {
     serverFilters,
-    paymentFilter,
     searchQuery,
     debouncedSearch,
-    filteredReservations,
     hasActiveFilters,
-    hasClientFilters,
     updateServerFilter,
-    updatePaymentFilter,
     handleSearchChange,
     clearAllFilters,
-  } = useReservationFilters({
-    serverReservations,
-    onServerFiltersChange: fetchReservations,
-  });
+  } = useReservationFilters({ onServerFiltersChange: fetchReservations });
 
   // Reset to page 1 when server filters change
   useEffect(() => {
@@ -134,8 +128,8 @@ export function ReservationsListClient({
   // Effective view mode: mobile always uses list
   const effectiveViewMode = isMobile ? "list" : viewMode;
 
-  const rangeStart = filteredReservations.length === 0 ? 0 : (page - 1) * limit + 1;
-  const rangeEnd = (page - 1) * limit + filteredReservations.length;
+  const rangeStart = serverReservations.length === 0 ? 0 : (page - 1) * limit + 1;
+  const rangeEnd = (page - 1) * limit + serverReservations.length;
 
   // Deep-link from external systems: /reservations?reservationId=abc123 → redirect to detail page.
   // The preview-from-list pattern was removed (list always navigates to detail page directly).
@@ -281,20 +275,49 @@ export function ReservationsListClient({
 
             {/* Filter Chips Row */}
             <div className="flex flex-wrap items-center gap-2">
-              {/* Vista temporal. Va primero porque decide QUÉ porción se mira;
-                  los chips que siguen la acotan. Es server-side, así que
-                  respeta la paginación en vez de recortar la página cargada. */}
-              <FilterPill
-                ariaLabel="Vista temporal"
-                value={serverFilters.temporal}
-                onChange={(v) => updateServerFilter("temporal", v)}
-                options={[
-                  { value: "all", label: "Todas" },
-                  { value: "active", label: "Activas" },
-                  { value: "upcoming", label: "Próximas" },
-                ]}
-                className="mr-1"
-              />
+              {/* Los dos controles binarios van juntos y con más aire entre sí
+                  que el resto: con el gap-2 de la fila quedaban a 8px y se leían
+                  como un solo control de siete opciones. El gap va en el
+                  contenedor y no como margen del segundo, porque al envolver en
+                  móvil un margen dejaba al segundo grupo con sangría suelta. */}
+              <div className="flex flex-wrap items-center gap-4">
+                {/* Vista temporal. Va primero porque decide QUÉ porción se mira;
+                    los chips que siguen la acotan. Es server-side, así que
+                    respeta la paginación en vez de recortar la página cargada. */}
+                <FilterPill
+                  ariaLabel="Vista temporal"
+                  value={serverFilters.temporal}
+                  onChange={(v) => updateServerFilter("temporal", v)}
+                  options={[
+                    { value: "all", label: "Todas" },
+                    { value: "active", label: "Activas" },
+                    { value: "upcoming", label: "Próximas" },
+                    { value: "past", label: "Terminadas" },
+                  ]}
+                />
+
+
+                {/* Tipo de arriendo. Era un dropdown para un binario: tres clics
+                    (abrir, elegir, cerrar) para algo que cabe en uno. Un
+                    segmented control lo resuelve en un clic y además deja el
+                    estado a la vista sin abrir nada. */}
+                <FilterPill
+                  ariaLabel="Tipo de arriendo"
+                  value={serverFilters.billingType || "all"}
+                  onChange={(v) => updateServerFilter("billingType", v === "all" ? "" : v)}
+                  options={[
+                    { value: "all", label: "Ambos" },
+                    { value: "DAILY", label: "Diaria" },
+                    { value: "MONTHLY", label: "Mensual" },
+                  ]}
+                />
+              </div>
+
+              {/* Los dos segmented controls son las dimensiones binarias que
+                  se miran de un vistazo. Los dropdowns que siguen son para lo
+                  que no cabe en pills: la propiedad crece con el catálogo, y
+                  los otros dos tienen más opciones. */}
+              <div className="mx-1 h-4 w-px bg-border" />
 
               {/* Propiedad */}
               <FilterChip
@@ -325,20 +348,21 @@ export function ReservationsListClient({
                 </DropdownMenuContent>
               </FilterChip>
 
+
               {/* Estado */}
+              {/* Confirmación. Antes este chip se llamaba "Estado" y filtraba el
+                  ciclo de vida (PENDING/CONFIRMED/CANCELLED/COMPLETED) mientras
+                  la columna del mismo nombre muestra el estado TEMPORAL — así que
+                  "Confirmada" no correspondía a ningún valor visible, y en
+                  producción "Cancelada" y "Completada" no matcheaban nada. Lo
+                  temporal se fue al toggle (que ahora incluye "Terminadas") y acá
+                  queda lo único que el toggle no cubre: si la reserva está
+                  confirmada o no. */}
               <FilterChip
-                label="Estado"
+                label="Confirmación"
                 value={serverFilters.status}
-                valueLabel={
-                  serverFilters.status === "PENDING"
-                    ? "Pendiente"
-                    : serverFilters.status === "CONFIRMED"
-                      ? "Confirmada"
-                      : serverFilters.status === "CANCELLED"
-                        ? "Cancelada"
-                        : "Completada"
-                }
-                clearAriaLabel="Quitar filtro de estado"
+                valueLabel={serverFilters.status === "PENDING" ? "Sin confirmar" : "Confirmadas"}
+                clearAriaLabel="Quitar filtro de confirmación"
                 onClear={() => updateServerFilter("status", "")}
                 activeClassName="bg-primary/10 border-primary/20 text-primary hover:bg-primary/10 hover:text-primary"
               >
@@ -347,114 +371,67 @@ export function ReservationsListClient({
                     onClick={() => updateServerFilter("status", "")}
                     className={!serverFilters.status ? "bg-accent" : ""}
                   >
-                    Todos los estados
+                    Todas
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => updateServerFilter("status", "PENDING")}
                     className={serverFilters.status === "PENDING" ? "bg-accent" : ""}
                   >
-                    Pendiente
+                    Sin confirmar
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => updateServerFilter("status", "CONFIRMED")}
                     className={serverFilters.status === "CONFIRMED" ? "bg-accent" : ""}
                   >
-                    Confirmada
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => updateServerFilter("status", "CANCELLED")}
-                    className={serverFilters.status === "CANCELLED" ? "bg-accent" : ""}
-                  >
-                    Cancelada
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => updateServerFilter("status", "COMPLETED")}
-                    className={serverFilters.status === "COMPLETED" ? "bg-accent" : ""}
-                  >
-                    Completada
+                    Confirmadas
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </FilterChip>
 
-              {/* Tipo */}
+
+              {/* Cobranza. Las dos opciones son las que Prisma puede resolver como
+                  filtro de relación, o sea en el servidor y respetando la
+                  paginación. Las anteriores (Pagado / Pendiente / Exceso)
+                  comparaban la suma de pagos contra el total —un agregado que no
+                  se puede filtrar en la base sin denormalizar— y se aplicaban en
+                  el cliente sobre las ≤10 filas cargadas. "Exceso", además, no
+                  ocurre nunca en producción. */}
               <FilterChip
-                label="Tipo"
-                value={serverFilters.billingType}
-                valueLabel={serverFilters.billingType === "DAILY" ? "Diaria" : "Mensual"}
-                clearAriaLabel="Quitar filtro de tipo"
-                onClear={() => updateServerFilter("billingType", "")}
+                label="Cobranza"
+                value={serverFilters.payment === "all" ? "" : serverFilters.payment}
+                valueLabel={serverFilters.payment === "unpaid" ? "Sin abonos" : "Con vencidas"}
+                clearAriaLabel="Quitar filtro de cobranza"
+                onClear={() => updateServerFilter("payment", "all")}
                 activeClassName="bg-primary/10 border-primary/20 text-primary hover:bg-primary/10 hover:text-primary"
               >
                 <DropdownMenuContent className="ring-1 ring-foreground/10">
                   <DropdownMenuItem
-                    onClick={() => updateServerFilter("billingType", "")}
-                    className={!serverFilters.billingType ? "bg-accent" : ""}
+                    onClick={() => updateServerFilter("payment", "all")}
+                    className={serverFilters.payment === "all" ? "bg-accent" : ""}
                   >
-                    Todos los tipos
+                    Toda la cobranza
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={() => updateServerFilter("billingType", "DAILY")}
-                    className={serverFilters.billingType === "DAILY" ? "bg-accent" : ""}
+                    onClick={() => updateServerFilter("payment", "overdue")}
+                    className={serverFilters.payment === "overdue" ? "bg-accent" : ""}
                   >
-                    Diario
+                    Con cuotas vencidas
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={() => updateServerFilter("billingType", "MONTHLY")}
-                    className={serverFilters.billingType === "MONTHLY" ? "bg-accent" : ""}
+                    onClick={() => updateServerFilter("payment", "unpaid")}
+                    className={serverFilters.payment === "unpaid" ? "bg-accent" : ""}
                   >
-                    Mensual
+                    Sin abonos
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </FilterChip>
 
-              {/* Pago */}
-              <FilterChip
-                label="Pago"
-                value={paymentFilter}
-                valueLabel={
-                  paymentFilter === "paid"
-                    ? "Pagado"
-                    : paymentFilter === "pending"
-                      ? "Pendiente"
-                      : "Exceso"
-                }
-                clearAriaLabel="Quitar filtro de pago"
-                onClear={() => updatePaymentFilter("")}
-                activeClassName="bg-primary/10 border-primary/20 text-primary hover:bg-primary/10 hover:text-primary"
-              >
-                <DropdownMenuContent className="ring-1 ring-foreground/10">
-                  <DropdownMenuItem
-                    onClick={() => updatePaymentFilter("")}
-                    className={!paymentFilter ? "bg-accent" : ""}
-                  >
-                    Todos los pagos
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => updatePaymentFilter("paid")}
-                    className={paymentFilter === "paid" ? "bg-accent" : ""}
-                  >
-                    Pagado
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => updatePaymentFilter("pending")}
-                    className={paymentFilter === "pending" ? "bg-accent" : ""}
-                  >
-                    Pendiente
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => updatePaymentFilter("overpaid")}
-                    className={paymentFilter === "overpaid" ? "bg-accent" : ""}
-                  >
-                    Exceso
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </FilterChip>
-
-              {/* Separator */}
-              <div className="h-4 w-px bg-border mx-1" />
-
-              {/* Limpiar filtros */}
+              {/* El divisor vive con el botón: dibujado siempre, dejaba un `|`
+                  suelto al final de la fila cuando no había nada que limpiar
+                  — y en móvil, envuelto, colgando solo en su propia línea. */}
               {hasActiveFilters && (
+                <>
+                  <div className="mx-1 h-4 w-px bg-border" />
                 <Button
                   variant="ghost"
                   size="sm"
@@ -464,6 +441,7 @@ export function ReservationsListClient({
                   <X className="mr-1.5 h-3.5 w-3.5" />
                   Limpiar filtros
                 </Button>
+                </>
               )}
             </div>
           </div>
@@ -474,7 +452,7 @@ export function ReservationsListClient({
               {/*
                 El rango tiene que salir del offset de la página MÁS cuántas filas
                 se están dibujando. La versión anterior era
-                `Math.min(page * limit, filteredReservations.length)`, que mezcla
+                `Math.min(page * limit, serverReservations.length)`, que mezcla
                 un offset global con el largo de la página actual: en la página 2
                 imprimía "Mostrando 11-10 de 24 reservas", con el rango al revés.
 
@@ -483,12 +461,12 @@ export function ReservationsListClient({
                 así que "de {total}" — el total del servidor sin filtrar — no
                 describe lo que se ve. Ahí el contador dice lo que sí es cierto.
               */}
-              {filteredReservations.length === 0
-                ? /* El empty state de abajo ya dice qué pasó; un rango "0-0 de 0"
-                     solo agrega ruido. */ null
-                : hasClientFilters
-                  ? `${filteredReservations.length} de ${serverReservations.length} en esta página`
-                  : `Mostrando ${rangeStart}-${rangeEnd} de ${total} reserva${total !== 1 ? "s" : ""}`}
+              {/* Ya no hay filtros de página: todos viajan al servidor, así que
+                  el rango siempre describe lo que se ve. El empty state de abajo
+                  se encarga del caso sin resultados — un "0-0 de 0" sería ruido. */}
+              {serverReservations.length === 0
+                ? null
+                : `Mostrando ${rangeStart}-${rangeEnd} de ${total} reserva${total !== 1 ? "s" : ""}`}
             </div>
             {total > limit && (
               <Pagination
@@ -503,7 +481,7 @@ export function ReservationsListClient({
             )}
           </div>
 
-          {filteredReservations.length === 0 ? (
+          {serverReservations.length === 0 ? (
             <div className="rounded-2xl border border-dashed bg-muted/20 p-10 text-center">
               <Calendar className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
               <h3 className="text-lg font-medium">No hay reservas con estos filtros</h3>
@@ -517,7 +495,7 @@ export function ReservationsListClient({
             </div>
           ) : effectiveViewMode === "table" ? (
               <ReservationTable
-                reservations={filteredReservations}
+                reservations={serverReservations}
                 onEdit={(id) => {
                   const res = serverReservations.find((r) => r.id === id);
                   if (res) setEditingReservation(res);
@@ -534,7 +512,7 @@ export function ReservationsListClient({
               devuelve al contenido la altura que gastaban los marcos.
             */
             <div className="overflow-hidden rounded-md border border-t-2 border-border border-t-primary bg-card">
-              {filteredReservations.map((reservation) => (
+              {serverReservations.map((reservation) => (
                 <ReservationListItem
                   key={reservation.id}
                   reservation={reservation}

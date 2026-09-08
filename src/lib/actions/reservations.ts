@@ -9,6 +9,7 @@ import { addDays, differenceInDays, differenceInMonths, addMonths } from "date-f
 import { generateMonthlyPayments } from "@/lib/payments/monthly";
 import {
   businessDayBounds,
+  normalizePaymentFilter,
   normalizeTemporal,
   sliceBuckets,
 } from "@/lib/reservations/list-order";
@@ -43,8 +44,10 @@ export async function getReservations(params?: {
   billingType?: string;
   startDate?: string;
   endDate?: string;
-  /** Vista temporal: `active` | `upcoming` | `all` (default). */
+  /** Vista temporal: `active` | `upcoming` | `past` | `all` (default). */
   temporal?: string;
+  /** Cobranza: `unpaid` | `overdue` | `all` (default). */
+  payment?: string;
 }) {
   const session = await getSession();
   if (!session) return { data: [], total: 0, page: 1, totalPages: 0 };
@@ -103,6 +106,38 @@ export async function getReservations(params?: {
     and.push({ ...ABIERTA, startDate: { lt: startOfTomorrow }, endDate: { gte: startOfToday } });
   } else if (temporal === "upcoming") {
     and.push({ ...ABIERTA, startDate: { gte: startOfTomorrow } });
+  } else if (temporal === "past") {
+    and.push({ NOT: VIVA });
+  }
+
+  // Cobranza. Se resuelve en el servidor como filtro de relación: antes se
+  // aplicaba en el cliente y solo miraba las filas ya cargadas.
+  //
+  // Excluye SOLO las canceladas, no las finalizadas. Es el mismo criterio que
+  // usa la columna "Por cobrar" (`getFinanceDisplay`): una reserva cancelada no
+  // debe nada, pero una que terminó y quedó con saldo sí — y es justamente la
+  // que hay que perseguir. Filtrar con `ABIERTA` habría escondido ese caso.
+  const COBRABLE: Prisma.ReservationWhereInput = { status: { not: "CANCELLED" } };
+  const payment = normalizePaymentFilter(params?.payment);
+  if (payment === "unpaid") {
+    and.push({
+      ...COBRABLE,
+      // Un EXTRA (multa, limpieza) no es un abono del arriendo: una reserva con
+      // una multa cobrada y nada más sigue siendo "sin abonos". En la base
+      // `paymentType` es no-nulable con default RESERVATION, así que `not` basta
+      // — el `?? "RESERVATION"` de `getReservationPaidAmount` es defensivo para
+      // el tipo del cliente, que es más laxo que el schema.
+      payments: {
+        none: { status: "COMPLETED", deletedAt: null, paymentType: { not: "EXTRA" } },
+      },
+    });
+  } else if (payment === "overdue") {
+    and.push({
+      ...COBRABLE,
+      payments: {
+        some: { status: { not: "COMPLETED" }, deletedAt: null, dueDate: { lt: startOfToday } },
+      },
+    });
   }
 
   const where: Prisma.ReservationWhereInput = {
@@ -156,12 +191,14 @@ export async function getReservations(params?: {
   let reservations: Prisma.ReservationGetPayload<{ include: typeof RESERVATION_INCLUDE }>[];
   let total: number;
 
-  if (temporal === "active" || temporal === "upcoming") {
+  if (temporal !== "all") {
     // El toggle ya acotó a un solo bucket: alcanza una query.
     const orderBy: Prisma.ReservationOrderByWithRelationInput[] =
       temporal === "active"
         ? [{ endDate: "asc" }, { id: "asc" }]
-        : [{ startDate: "asc" }, { id: "asc" }];
+        : temporal === "upcoming"
+          ? [{ startDate: "asc" }, { id: "asc" }]
+          : [{ endDate: "desc" }, { id: "asc" }];
 
     [reservations, total] = await Promise.all([
       prisma.reservation.findMany({ where, skip, take: limit, include: RESERVATION_INCLUDE, orderBy }),

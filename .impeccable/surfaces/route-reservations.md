@@ -66,10 +66,29 @@ Un filtro de cliente solo mira ≤10 filas, así que buscar a alguien que está 
 página 3 desde la página 1 no lo encuentra. El único que queda en cliente es el
 de pago, que depende de los pagos ya cargados de cada fila.
 
-**El toggle temporal decide qué porción se mira; los chips la acotan.** Por eso
-va primero en la fila. El default es "Todas": `/reservations` es el registro
-completo, y esconder filas al cargar rompería el modelo de "Mostrando X de Y" —
-el orden ya resuelve el hundimiento sin ocultar nada.
+**Las dimensiones binarias van en segmented controls; el resto en dropdowns.**
+Vista temporal (Todas / Activas / Próximas / Terminadas) y tipo de arriendo
+(Ambos / Diaria / Mensual) se ven y se cambian en un clic, sin abrir nada; los
+dos van juntos y con más aire entre sí que el resto de la fila, porque pegados se
+leen como un solo control. Quedan en dropdown la propiedad —que crece con el
+catálogo— y los dos filtros de más opciones. El default del toggle es "Todas":
+`/reservations` es el registro completo, y esconder filas al cargar rompería el
+modelo de "Mostrando X de Y" — el orden ya resuelve el hundimiento sin ocultar
+nada.
+
+**Un control, una dimensión.** El chip "Estado" filtraba ciclo de vida mientras
+la columna del mismo nombre muestra estado temporal, así que "Confirmada" no
+correspondía a ningún valor visible. Lo temporal se fue al toggle y el chip quedó
+como "Confirmación" (sin confirmar / confirmadas), que es lo único que el toggle
+no cubre.
+
+**Los filtros de cobranza seleccionan lo que la columna muestra.** "Sin abonos" y
+"Con cuotas vencidas" usan el mismo criterio que `getFinanceDisplay`: excluyen las
+canceladas —que no deben nada— pero no las finalizadas, porque una que terminó
+con saldo es justamente la que hay que perseguir. Las opciones anteriores
+(Pagado / Pendiente / Exceso) comparaban la suma de pagos contra el total, un
+agregado que no se puede filtrar en la base sin denormalizar; "Exceso" además no
+ocurre nunca en producción.
 
 **El contador dice lo que hay en pantalla.** El rango sale del offset de página
 más las filas dibujadas. Mientras haya un filtro de cliente activo (búsqueda o
@@ -94,8 +113,7 @@ en vez de prometer un rango contra el total del servidor.
   vencimiento, la rama de cuotas ya lo cubre sin tocar la UI.
 - La lista no está agrupada por estado. Si alguna vez se agrupa, aplica The
   Grouped Status Rule y el color del monto se va al encabezado del grupo.
-- El chip "Estado" filtra por ciclo de vida (`PENDING` / `CONFIRMED` /
-  `CANCELLED` / `COMPLETED`), pero la columna "Estado" muestra el estado
-  **temporal** (Activa / Próxima / Finalizada / Cancelada). Filtrar por
-  "Confirmada" no corresponde a ningún valor que la columna muestre. El toggle
-  temporal cubre parte de la confusión; unificarlos es una decisión aparte.
+- Aislar solo las canceladas ya no se puede: "Terminadas" las mezcla con las
+  finalizadas. Si hiciera falta, va como opción del toggle, no de vuelta al chip.
+- No hay filtro por "saldado". Requiere denormalizar el monto cobrado en la
+  reserva para poder compararlo con `totalPrice` en la base.

@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { getReservationPaidAmount } from "@/lib/payments/calculations";
-import type { Reservation } from "@/components/reservations/types";
 
 export interface ReservationFilters {
   propertyId: string;
@@ -15,30 +13,36 @@ export interface ReservationFilters {
 /** Los filtros que viajan al servidor y por lo tanto afectan la paginación. */
 export type ServerReservationFilters = Pick<
   ReservationFilters,
-  "propertyId" | "billingType" | "status" | "temporal"
+  "propertyId" | "billingType" | "status" | "temporal" | "payment"
 > & { search: string };
 
+type ServerFilterKey = keyof Omit<ServerReservationFilters, "search">;
+
 export interface UseReservationFiltersOptions {
-  serverReservations: Reservation[];
   onServerFiltersChange: (filters: ServerReservationFilters) => void;
 }
 
+/**
+ * Filtros de la lista de reservas. **Todos viajan al servidor**, así que todos
+ * respetan la paginación.
+ *
+ * Antes la búsqueda y el filtro de pago se aplicaban en el cliente sobre las
+ * ≤10 filas ya cargadas: filtrar "Pendiente" o buscar un nombre desde la
+ * página 1 no veía nada de la página 2. Como ya no queda ningún filtro de
+ * página, el contador de la lista puede mostrar siempre un rango real y
+ * desapareció la variante "N de M en esta página".
+ */
 export function useReservationFilters({
-  serverReservations,
   onServerFiltersChange,
 }: UseReservationFiltersOptions) {
   // Server-side filters (propertyId, billingType, status → trigger re-fetch)
-  const [serverFilters, setServerFilters] = useState<
-    Pick<ReservationFilters, "propertyId" | "billingType" | "status" | "temporal">
-  >({
+  const [serverFilters, setServerFilters] = useState<Omit<ServerReservationFilters, "search">>({
     propertyId: "",
     billingType: "",
     status: "",
     temporal: "all",
+    payment: "all",
   });
-
-  // Local filters (payment → client-side, no re-fetch)
-  const [paymentFilter, setPaymentFilter] = useState("");
 
   // Client search (debounced, local filter)
   const [searchQuery, setSearchQuery] = useState("");
@@ -65,80 +69,36 @@ export function useReservationFilters({
     onServerFiltersChange({ ...serverFilters, search: debouncedSearch });
   }, [serverFilters, debouncedSearch, onServerFiltersChange]);
 
-  const updateServerFilter = useCallback(<K extends keyof Pick<ReservationFilters, "propertyId" | "billingType" | "status" | "temporal">>(
+  const updateServerFilter = useCallback(<K extends ServerFilterKey>(
     key: K,
-    value: ReservationFilters[K]
+    value: ServerReservationFilters[K]
   ) => {
     setServerFilters((prev) => ({ ...prev, [key]: value }));
   }, []);
 
   const clearAllFilters = useCallback(() => {
-    setServerFilters({ propertyId: "", billingType: "", status: "", temporal: "all" });
-    setPaymentFilter("");
+    setServerFilters({ propertyId: "", billingType: "", status: "", temporal: "all", payment: "all" });
     setSearchQuery("");
     setDebouncedSearch("");
   }, []);
 
-  /**
-   * Filtros que se aplican SOLO a la página actual (no vuelven al servidor).
-   * El contador de la lista los necesita aparte: mientras estén activos, el
-   * rango "X-Y de {total}" no describe nada, porque `total` es el total del
-   * servidor sin filtrar y las filas visibles son un subconjunto de una página.
-   *
-   * Desde que la búsqueda se resuelve en el servidor, el único que queda acá es
-   * el filtro de pago — que depende de los pagos ya cargados de cada fila.
-   */
-  const hasClientFilters = useMemo(() => paymentFilter !== "", [paymentFilter]);
-
-  const hasActiveFilters = useMemo(() =>
-    serverFilters.propertyId !== "" ||
-    serverFilters.billingType !== "" ||
-    serverFilters.status !== "" ||
-    serverFilters.temporal !== "all" ||
-    paymentFilter !== "" ||
-    debouncedSearch !== "",
-  [serverFilters, paymentFilter, debouncedSearch]);
-
-  // Apply local filters (payment + search) to server reservations
-  const filteredReservations = useMemo(() => {
-    let result = serverReservations;
-
-    // Payment filter
-    //
-    // "pending" significa "queda saldo por cobrar", no "no tiene ningún abono".
-    // La versión anterior descartaba cualquier reserva con `paidAmount > 0`, así
-    // que una con $200.000 abonados de $620.000 — que debe $420.000 y es
-    // justamente a la que hay que perseguir — quedaba fuera del filtro con el
-    // que uno busca a los que deben.
-    //
-    // Las canceladas quedan fuera: no tienen saldo por cobrar (misma regla que
-    // `getFinanceTone` en reservation-finance.ts).
-    if (paymentFilter) {
-      result = result.filter((res) => {
-        const paidAmount = getReservationPaidAmount(res.payments);
-        const totalPrice = Number(res.totalPrice);
-        if (paymentFilter === "paid") return totalPrice > 0 && paidAmount >= totalPrice;
-        if (paymentFilter === "pending") return res.status !== "CANCELLED" && paidAmount < totalPrice;
-        if (paymentFilter === "overpaid") return paidAmount > totalPrice;
-        return true;
-      });
-    }
-
-    // La búsqueda ya no se filtra acá: viaja al servidor con el resto de los
-    // filtros que afectan la paginación.
-    return result;
-  }, [serverReservations, paymentFilter]);
+  const hasActiveFilters = useMemo(
+    () =>
+      serverFilters.propertyId !== "" ||
+      serverFilters.billingType !== "" ||
+      serverFilters.status !== "" ||
+      serverFilters.temporal !== "all" ||
+      serverFilters.payment !== "all" ||
+      debouncedSearch !== "",
+    [serverFilters, debouncedSearch],
+  );
 
   return {
     serverFilters,
-    paymentFilter,
     searchQuery,
     debouncedSearch,
-    filteredReservations,
     hasActiveFilters,
-    hasClientFilters,
     updateServerFilter,
-    updatePaymentFilter: setPaymentFilter,
     handleSearchChange,
     clearAllFilters,
   };

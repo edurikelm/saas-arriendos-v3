@@ -38,10 +38,30 @@
 
 import { nowKeyInBusinessTz } from "@/lib/domain/timezone";
 
-export type ReservationTemporal = "active" | "upcoming" | "all";
+export type ReservationTemporal = "active" | "upcoming" | "past" | "all";
 
 export function normalizeTemporal(value?: string | null): ReservationTemporal {
-  return value === "active" || value === "upcoming" ? value : "all";
+  return value === "active" || value === "upcoming" || value === "past" ? value : "all";
+}
+
+/**
+ * Filtro de cobranza. Las dos opciones son las que Prisma puede expresar como
+ * filtro de relación sobre `payments`, y por lo tanto resolver en el servidor.
+ *
+ * La versión anterior ofrecía "Pagado" / "Pendiente" / "Exceso" y se aplicaba en
+ * el cliente sobre las ≤10 filas ya cargadas: filtrar "Pendiente" desde la
+ * página 1 no veía nada de la página 2. Esas tres comparan la suma de pagos
+ * contra `totalPrice`, que es un agregado y no se puede filtrar en la base sin
+ * denormalizar. "Exceso", además, no ocurre nunca en producción.
+ *
+ * - `unpaid`: ningún pago de arriendo cobrado.
+ * - `overdue`: alguna cuota sin cobrar con vencimiento pasado — el mismo criterio
+ *   que pinta el monto en rojo en la columna "Por cobrar".
+ */
+export type ReservationPaymentFilter = "unpaid" | "overdue" | "all";
+
+export function normalizePaymentFilter(value?: string | null): ReservationPaymentFilter {
+  return value === "unpaid" || value === "overdue" ? value : "all";
 }
 
 /**
