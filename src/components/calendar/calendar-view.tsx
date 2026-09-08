@@ -527,7 +527,7 @@ export function CalendarView({
       ) : (
         <>
           {showExternalBlocks && overbookedDays.length > 0 && (
-            <div className="mb-4 flex items-start gap-3 rounded-xl border border-l-2 border-l-warning bg-warning/10 px-4 py-3 text-sm text-foreground">
+            <div className="mb-4 flex items-start gap-3 rounded-xl border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-foreground">
               <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
               <div>
                 <p className="font-semibold">
