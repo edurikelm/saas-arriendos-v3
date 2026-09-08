@@ -6,6 +6,7 @@ import { es } from "date-fns/locale/es";
 import { ChevronLeft, ChevronRight, Calendar, Home, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { channelColors } from "@/lib/calendar/channel-colors";
+import { computeScrollLeftForToday } from "@/lib/calendar/scroll";
 import { getNights } from "@/components/reservations/reservation-status";
 
 interface Payment {
@@ -272,6 +273,10 @@ export function CalendarTimeline({ reservations, externalBlocks = [], conflicts 
   properties?: Property[];
 }) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  // Clave (yyyy-MM) del mes ya posicionado en "hoy" por el auto-scroll de abajo.
+  // Evita re-scrollear en cada resize/medición mientras el usuario navega el
+  // mismo mes (ver efecto de auto-scroll más abajo).
+  const scrolledMonthKeyRef = useRef<string | null>(null);
   const [timelineViewportWidth, setTimelineViewportWidth] = useState(0);
   const [scrollState, setScrollState] = useState({ canScrollLeft: false, canScrollRight: false });
   const monthStart = startOfMonth(currentMonth);
@@ -287,6 +292,10 @@ export function CalendarTimeline({ reservations, externalBlocks = [], conflicts 
       : minDayWidth
   );
   const timelineWidth = propertyColumnWidth + days.length * dayWidth;
+  // Misma noción de "hoy" que resalta la columna del header/fila más abajo
+  // (isSameDay(day, today)) — el auto-scroll apunta exactamente a esa columna.
+  const todayIndex = days.findIndex((day) => isSameDay(day, today));
+  const monthKey = format(monthStart, "yyyy-MM");
 
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -331,6 +340,27 @@ export function CalendarTimeline({ reservations, externalBlocks = [], conflicts 
 
     return () => window.cancelAnimationFrame(frame);
   }, [timelineWidth]);
+
+  // Auto-scroll a "hoy" al montar y cuando cambia el mes mostrado — no en cada
+  // resize (guard vía scrolledMonthKeyRef) para no pelear con el usuario mientras
+  // navega. Espera a que timelineViewportWidth tenga una medición real (>0): antes
+  // de eso dayWidth cae al mínimo (42px) por defecto y el offset calculado sería
+  // incorrecto. Sin animación (asignación directa) — Calm Water Rule (DESIGN.md).
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    if (timelineViewportWidth <= 0) return;
+    if (scrolledMonthKeyRef.current === monthKey) return;
+
+    container.scrollLeft = computeScrollLeftForToday({
+      todayIndex: todayIndex === -1 ? null : todayIndex,
+      dayWidth,
+      propertyColumnWidth,
+      clientWidth: timelineViewportWidth,
+      contentWidth: timelineWidth,
+    });
+    scrolledMonthKeyRef.current = monthKey;
+  }, [timelineViewportWidth, todayIndex, dayWidth, propertyColumnWidth, timelineWidth, monthKey]);
 
   const activeReservations = reservations.filter((res) => {
     const start = parseCalendarDate(res.startDate);
