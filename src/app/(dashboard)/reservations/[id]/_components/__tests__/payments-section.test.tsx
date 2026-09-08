@@ -3,6 +3,27 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import * as React from 'react';
 import { PaymentsSection, type PaymentsSectionActions } from '../payments-section';
 import type { Payment } from '@/components/payments/payments-table';
+import { nowKeyInBusinessTz } from '@/lib/domain/timezone';
+
+/**
+ * Día de negocio desplazado `offset` días, como ISO a mediodía UTC.
+ *
+ * `dueDate` es una fecha date-only del dominio y se compara con `dateOnlyKey`,
+ * que hace slice de los primeros 10 caracteres — o sea lee el día **UTC** del
+ * string. Construirlo con `const d = new Date(); d.setDate(d.getDate() - 1)`
+ * resta en hora LOCAL y después serializa en UTC: pasadas las 20:00 en Chile el
+ * UTC ya corresponde al día siguiente, así que "ayer" caía en el día de hoy y
+ * dejaba de estar vencido. Estos tests se ponían rojos según la hora a la que se
+ * corriera la suite, y como el repo no tiene CI, la suite se corre a mano — o
+ * sea el rojo aparecía de noche y no había forma de saber si era propio.
+ *
+ * El mediodía UTC replica cómo el backend guarda estas fechas (15:00/16:00 UTC)
+ * y deja el día calendario a salvo de cualquier desfase de zona.
+ */
+function businessDay(offset: number): string {
+  const [y, m, d] = nowKeyInBusinessTz().split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + offset, 12)).toISOString();
+}
 
 /** Wrapper para los tests: ignora los props legacy (reservationId/client/propertyName
  *  que ya no usa PaymentsSection) y provee defaults para actions + modals. Los tests
@@ -431,11 +452,7 @@ describe('PaymentsSection - focus card de vencidos', () => {
   // La focus card vivia dentro de PaymentsTimeline, asi que solo existia para
   // reservas mensuales: en las diarias el KPI anunciaba dinero atrasado y no
   // habia forma de llegar a el. Ahora vive en la seccion y sirve a las dos.
-  const yesterday = () => {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    return d.toISOString();
-  };
+  const yesterday = () => businessDay(-1);
 
   const overdueReservation = (billingType: string) =>
     createMockReservation({
@@ -533,9 +550,7 @@ describe('PaymentsSection - reserva cerrada', () => {
 
 describe('PaymentsSection - overdue KPI', () => {
   it('cuenta como vencido un pendiente con dueDate pasada', () => {
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterday = businessDay(-1);
 
     const reservation = createMockReservation({
       status: 'PENDING',
@@ -545,7 +560,7 @@ describe('PaymentsSection - overdue KPI', () => {
           amount: '50000',
           status: 'PENDING',
           paymentType: 'RESERVATION',
-          dueDate: yesterday.toISOString(),
+          dueDate: yesterday,
         }),
       ],
     });
@@ -571,8 +586,7 @@ describe('PaymentsSection - overdue KPI', () => {
   });
 
   it('no anuncia vencidos cuando no hay pagos vencidos', () => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrow = businessDay(1);
 
     const reservation = createMockReservation({
       status: 'PENDING',
@@ -582,7 +596,7 @@ describe('PaymentsSection - overdue KPI', () => {
           amount: '50000',
           status: 'PENDING',
           paymentType: 'RESERVATION',
-          dueDate: tomorrow.toISOString(),
+          dueDate: tomorrow,
         }),
       ],
     });
@@ -634,8 +648,7 @@ describe('PaymentsSection - overdue KPI', () => {
   });
 
   it('no cuenta como vencido un pago EXTRA con dueDate pasada', () => {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterday = businessDay(-1);
 
     const reservation = createMockReservation({
       status: 'PENDING',
@@ -646,7 +659,7 @@ describe('PaymentsSection - overdue KPI', () => {
           status: 'PENDING',
           paymentType: 'EXTRA',
           title: 'Limpieza',
-          dueDate: yesterday.toISOString(),
+          dueDate: yesterday,
         }),
       ],
     });
@@ -668,8 +681,7 @@ describe('PaymentsSection - overdue KPI', () => {
   });
 
   it('no cuenta como vencido un pago soft-deleted', () => {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterday = businessDay(-1);
 
     const reservation = createMockReservation({
       status: 'PENDING',
@@ -679,7 +691,7 @@ describe('PaymentsSection - overdue KPI', () => {
           amount: '50000',
           status: 'PENDING',
           paymentType: 'RESERVATION',
-          dueDate: yesterday.toISOString(),
+          dueDate: yesterday,
           deletedAt: '2025-01-01T00:00:00.000Z',
         }),
       ],
@@ -704,11 +716,10 @@ describe('PaymentsSection - overdue KPI', () => {
 
 
 describe("PaymentsSection - 10 states from issue #218 brief", () => {
-  const today = new Date();
-  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
-  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
-  const twoDaysAgo = new Date(today); twoDaysAgo.setDate(today.getDate() - 2);
-  const nextMonth = new Date(today); nextMonth.setMonth(today.getMonth() + 1);
+  const tomorrow = businessDay(1);
+  const yesterday = businessDay(-1);
+  const twoDaysAgo = businessDay(-2);
+  const nextMonth = businessDay(30);
 
   // Helper to create a reservation with payments
   const makeReservation = (overrides = {}) => {
@@ -758,9 +769,9 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
       status: "CONFIRMED",
       totalPrice: "300000",
       payments: [
-        makePayment({ id: "p1", installmentIndex: 1, status: "COMPLETED", paidAt: yesterday.toISOString(), dueDate: yesterday.toISOString() }),
-        makePayment({ id: "p2", installmentIndex: 2, status: "PENDING", dueDate: tomorrow.toISOString() }),
-        makePayment({ id: "p3", installmentIndex: 3, status: "PENDING", dueDate: nextMonth.toISOString() }),
+        makePayment({ id: "p1", installmentIndex: 1, status: "COMPLETED", paidAt: yesterday, dueDate: yesterday }),
+        makePayment({ id: "p2", installmentIndex: 2, status: "PENDING", dueDate: tomorrow }),
+        makePayment({ id: "p3", installmentIndex: 3, status: "PENDING", dueDate: nextMonth }),
       ],
     });
     render(
@@ -792,9 +803,9 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
       status: "COMPLETED",
       totalPrice: "300000",
       payments: [
-        makePayment({ id: "p1", installmentIndex: 1, status: "COMPLETED", paidAt: yesterday.toISOString() }),
-        makePayment({ id: "p2", installmentIndex: 2, status: "COMPLETED", paidAt: yesterday.toISOString() }),
-        makePayment({ id: "p3", installmentIndex: 3, status: "COMPLETED", paidAt: yesterday.toISOString() }),
+        makePayment({ id: "p1", installmentIndex: 1, status: "COMPLETED", paidAt: yesterday }),
+        makePayment({ id: "p2", installmentIndex: 2, status: "COMPLETED", paidAt: yesterday }),
+        makePayment({ id: "p3", installmentIndex: 3, status: "COMPLETED", paidAt: yesterday }),
       ],
     });
     render(
@@ -824,9 +835,9 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
       status: "CONFIRMED",
       totalPrice: "300000",
       payments: [
-        makePayment({ id: "p1", installmentIndex: 1, status: "COMPLETED", paidAt: yesterday.toISOString() }),
-        makePayment({ id: "p2", installmentIndex: 2, status: "PENDING", dueDate: twoDaysAgo.toISOString() }),
-        makePayment({ id: "p3", installmentIndex: 3, status: "PENDING", dueDate: yesterday.toISOString() }),
+        makePayment({ id: "p1", installmentIndex: 1, status: "COMPLETED", paidAt: yesterday }),
+        makePayment({ id: "p2", installmentIndex: 2, status: "PENDING", dueDate: twoDaysAgo }),
+        makePayment({ id: "p3", installmentIndex: 3, status: "PENDING", dueDate: yesterday }),
       ],
     });
     render(
@@ -877,7 +888,7 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
     const reservation = makeReservation({
       status: "COMPLETED",
       totalPrice: "50000",
-      payments: [makePayment({ id: "p1", status: "COMPLETED", paidAt: yesterday.toISOString() })],
+      payments: [makePayment({ id: "p1", status: "COMPLETED", paidAt: yesterday })],
     });
     render(
       <TestPaymentsSection
@@ -959,7 +970,7 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
     const reservation = makeReservation({
       status: "CANCELLED",
       totalPrice: "200000",
-      payments: [makePayment({ id: "p1", status: "COMPLETED", paidAt: yesterday.toISOString() })],
+      payments: [makePayment({ id: "p1", status: "COMPLETED", paidAt: yesterday })],
     });
     render(
       <TestPaymentsSection
@@ -984,7 +995,7 @@ describe("PaymentsSection - 10 states from issue #218 brief", () => {
     const reservation = makeReservation({
       status: "COMPLETED",
       totalPrice: "200000",
-      payments: [makePayment({ id: "p1", status: "COMPLETED", paidAt: yesterday.toISOString() })],
+      payments: [makePayment({ id: "p1", status: "COMPLETED", paidAt: yesterday })],
     });
     render(
       <TestPaymentsSection
