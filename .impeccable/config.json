@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "src/components/reservations/reservations-list-client.tsx"
+        ],
+        "createdAt": "2026-09-07T02:28:17.853Z",
+        "reason": "DESIGN.md lo define como firma del sistema: 'dos pixeles de acento (border-t-2 border-t-primary en cada tabla)' en el Overview, y la signature de DataTable lo incluye. La lista movil replica ese framing a proposito para leerse como la misma tabla en otro ancho."
+      }
+    ]
+  }
+}

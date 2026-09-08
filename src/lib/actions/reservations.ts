@@ -7,6 +7,12 @@ import { reservationSchema, reservationUpdateSchema, type ReservationInput, type
 import { revalidatePath } from "next/cache";
 import { addDays, differenceInDays, differenceInMonths, addMonths } from "date-fns";
 import { generateMonthlyPayments } from "@/lib/payments/monthly";
+import {
+  businessDayBounds,
+  normalizePaymentFilter,
+  normalizeTemporal,
+  sliceBuckets,
+} from "@/lib/reservations/list-order";
 import { countCompletedPaymentsForReservation } from "@/lib/payments/queries";
 import { ZodError } from "zod";
 import { recordDomainEvent } from "@/lib/notifications/record-event";
@@ -38,6 +44,10 @@ export async function getReservations(params?: {
   billingType?: string;
   startDate?: string;
   endDate?: string;
+  /** Vista temporal: `active` | `upcoming` | `past` | `all` (default). */
+  temporal?: string;
+  /** Cobranza: `unpaid` | `overdue` | `all` (default). */
+  payment?: string;
 }) {
   const session = await getSession();
   if (!session) return { data: [], total: 0, page: 1, totalPages: 0 };
@@ -46,83 +56,187 @@ export async function getReservations(params?: {
   const limit = params?.limit || 10;
   const skip = (page - 1) * limit;
 
-  const where: Prisma.ReservationWhereInput = { userId: session.userId };
+  // Todos los filtros van como cláusulas de un `AND` en vez de escribir campos
+  // sueltos del `where`. Antes, `params.startDate/endDate` y el filtro temporal
+  // se disputaban las mismas claves (`where.startDate`, `where.endDate`) y
+  // `params.search` asignaba `where.OR` directo, así que un filtro podía pisar a
+  // otro en silencio.
+  const and: Prisma.ReservationWhereInput[] = [];
 
   if (params?.propertyId) {
-    where.propertyId = params.propertyId;
+    and.push({ propertyId: params.propertyId });
   }
 
   if (params?.status && (params.status === "PENDING" || params.status === "CONFIRMED" || params.status === "CANCELLED" || params.status === "COMPLETED")) {
-    where.status = params.status;
+    and.push({ status: params.status });
   }
 
   if (params?.billingType && (params.billingType === "DAILY" || params.billingType === "MONTHLY")) {
-    where.billingType = params.billingType;
+    and.push({ billingType: params.billingType });
   }
 
   if (params?.startDate && params?.endDate) {
-    where.startDate = {
-      gte: new Date(params.startDate),
-    };
-    where.endDate = {
-      lte: new Date(params.endDate),
-    };
+    and.push({
+      startDate: { gte: new Date(params.startDate) },
+      endDate: { lte: new Date(params.endDate) },
+    });
   }
 
   if (params?.search) {
-    where.OR = [
-      { client: { name: { contains: params.search, mode: "insensitive" } } },
-      { property: { name: { contains: params.search, mode: "insensitive" } } },
-    ];
+    // `client.email` estaba solo en el filtro de cliente. Al mover la búsqueda
+    // al servidor había que traerlo, o buscar por correo dejaba de funcionar.
+    and.push({
+      OR: [
+        { client: { name: { contains: params.search, mode: "insensitive" } } },
+        { client: { email: { contains: params.search, mode: "insensitive" } } },
+        { property: { name: { contains: params.search, mode: "insensitive" } } },
+      ],
+    });
   }
 
-  const [reservations, total] = await Promise.all([
-    prisma.reservation.findMany({
-      where,
-      skip,
-      take: limit,
-      include: {
-        property: {
-          select: {
-            id: true,
-            name: true,
-            color: true,
-            dailyPrice: true,
-            monthlyPrice: true,
-            unitsAvailable: true,
-          },
-        },
-        client: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-          },
-        },
-        payments: {
-          where: { deletedAt: null },
-          select: {
-            id: true,
-            paymentType: true,
-            title: true,
-            description: true,
-            amount: true,
-            status: true,
-            method: true,
-            initPoint: true,
-            expiresAt: true,
-            installmentIndex: true,
-            dueDate: true,
-            paidAt: true,
-            receiptUrl: true,
-          },
-        },
+  const temporal = normalizeTemporal(params?.temporal);
+  const { startOfToday, startOfTomorrow } = businessDayBounds();
+
+  // Una reserva cancelada o cerrada no está viva por más futuro que tengan sus
+  // fechas: la columna Estado ya la muestra como "Cancelada" / "Finalizada".
+  const ABIERTA: Prisma.ReservationWhereInput = { status: { notIn: ["CANCELLED", "COMPLETED"] } };
+  const VIVA: Prisma.ReservationWhereInput = { ...ABIERTA, endDate: { gte: startOfToday } };
+
+  if (temporal === "active") {
+    and.push({ ...ABIERTA, startDate: { lt: startOfTomorrow }, endDate: { gte: startOfToday } });
+  } else if (temporal === "upcoming") {
+    and.push({ ...ABIERTA, startDate: { gte: startOfTomorrow } });
+  } else if (temporal === "past") {
+    and.push({ NOT: VIVA });
+  }
+
+  // Cobranza. Se resuelve en el servidor como filtro de relación: antes se
+  // aplicaba en el cliente y solo miraba las filas ya cargadas.
+  //
+  // Excluye SOLO las canceladas, no las finalizadas. Es el mismo criterio que
+  // usa la columna "Por cobrar" (`getFinanceDisplay`): una reserva cancelada no
+  // debe nada, pero una que terminó y quedó con saldo sí — y es justamente la
+  // que hay que perseguir. Filtrar con `ABIERTA` habría escondido ese caso.
+  const COBRABLE: Prisma.ReservationWhereInput = { status: { not: "CANCELLED" } };
+  const payment = normalizePaymentFilter(params?.payment);
+  if (payment === "unpaid") {
+    and.push({
+      ...COBRABLE,
+      // Un EXTRA (multa, limpieza) no es un abono del arriendo: una reserva con
+      // una multa cobrada y nada más sigue siendo "sin abonos". En la base
+      // `paymentType` es no-nulable con default RESERVATION, así que `not` basta
+      // — el `?? "RESERVATION"` de `getReservationPaidAmount` es defensivo para
+      // el tipo del cliente, que es más laxo que el schema.
+      payments: {
+        none: { status: "COMPLETED", deletedAt: null, paymentType: { not: "EXTRA" } },
       },
-      orderBy: { startDate: "desc" },
-    }),
-    prisma.reservation.count({ where }),
-  ]);
+    });
+  } else if (payment === "overdue") {
+    and.push({
+      ...COBRABLE,
+      payments: {
+        some: { status: { not: "COMPLETED" }, deletedAt: null, dueDate: { lt: startOfToday } },
+      },
+    });
+  }
+
+  const where: Prisma.ReservationWhereInput = {
+    userId: session.userId,
+    ...(and.length > 0 ? { AND: and } : {}),
+  };
+
+  const RESERVATION_INCLUDE = {
+  property: {
+    select: {
+      id: true,
+      name: true,
+      color: true,
+      dailyPrice: true,
+      monthlyPrice: true,
+      unitsAvailable: true,
+    },
+  },
+  client: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+    },
+  },
+  payments: {
+    where: { deletedAt: null },
+    select: {
+      id: true,
+      paymentType: true,
+      title: true,
+      description: true,
+      amount: true,
+      status: true,
+      method: true,
+      initPoint: true,
+      expiresAt: true,
+      installmentIndex: true,
+      dueDate: true,
+      paidAt: true,
+      receiptUrl: true,
+    },
+  },
+  } satisfies Prisma.ReservationInclude;
+
+  // Orden: primero lo vivo (lo que termina antes), después lo terminado (lo más
+  // reciente primero). El desempate por `id` evita que una fila se repita o se
+  // salte al paginar — dos reservas de producción comparten `startDate`.
+  // Ver `@/lib/reservations/list-order` para el porqué del corte en dos buckets.
+  let reservations: Prisma.ReservationGetPayload<{ include: typeof RESERVATION_INCLUDE }>[];
+  let total: number;
+
+  if (temporal !== "all") {
+    // El toggle ya acotó a un solo bucket: alcanza una query.
+    const orderBy: Prisma.ReservationOrderByWithRelationInput[] =
+      temporal === "active"
+        ? [{ endDate: "asc" }, { id: "asc" }]
+        : temporal === "upcoming"
+          ? [{ startDate: "asc" }, { id: "asc" }]
+          : [{ endDate: "desc" }, { id: "asc" }];
+
+    [reservations, total] = await Promise.all([
+      prisma.reservation.findMany({ where, skip, take: limit, include: RESERVATION_INCLUDE, orderBy }),
+      prisma.reservation.count({ where }),
+    ]);
+  } else {
+    const liveWhere: Prisma.ReservationWhereInput = { ...where, AND: [...and, VIVA] };
+    const pastWhere: Prisma.ReservationWhereInput = { ...where, AND: [...and, { NOT: VIVA }] };
+
+    const [liveCount, totalCount] = await Promise.all([
+      prisma.reservation.count({ where: liveWhere }),
+      prisma.reservation.count({ where }),
+    ]);
+    total = totalCount;
+
+    const slice = sliceBuckets(skip, limit, liveCount);
+    const [live, past] = await Promise.all([
+      slice.live
+        ? prisma.reservation.findMany({
+            where: liveWhere,
+            skip: slice.live.skip,
+            take: slice.live.take,
+            include: RESERVATION_INCLUDE,
+            orderBy: [{ endDate: "asc" }, { id: "asc" }],
+          })
+        : Promise.resolve([]),
+      slice.past
+        ? prisma.reservation.findMany({
+            where: pastWhere,
+            skip: slice.past.skip,
+            take: slice.past.take,
+            include: RESERVATION_INCLUDE,
+            orderBy: [{ endDate: "desc" }, { id: "asc" }],
+          })
+        : Promise.resolve([]),
+    ]);
+    reservations = [...live, ...past];
+  }
 
   const data = reservations.map((r) => ({
     id: r.id,

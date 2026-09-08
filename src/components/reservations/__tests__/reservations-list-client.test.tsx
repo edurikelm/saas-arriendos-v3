@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Reservation } from "../types";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ReservationsListClient } from "../reservations-list-client";
 
@@ -45,14 +46,11 @@ vi.mock("@/hooks/use-media-query", () => ({
 
 vi.mock("@/hooks/use-reservation-filters", () => ({
   useReservationFilters: vi.fn(() => ({
-    serverFilters: { propertyId: "", billingType: "", status: "" },
-    paymentFilter: "",
+    serverFilters: { propertyId: "", billingType: "", status: "", temporal: "all", payment: "all" },
     searchQuery: "",
     debouncedSearch: "",
-    filteredReservations: [],
     hasActiveFilters: false,
     updateServerFilter: vi.fn(),
-    updatePaymentFilter: vi.fn(),
     handleSearchChange: vi.fn(),
     clearAllFilters: vi.fn(),
   })),
@@ -211,5 +209,112 @@ describe("ReservationsListClient - deep-link ?create=true", () => {
     // Assert: la URL no se tocó (sin router.replace). Esto confirma que el
     // botón local NO dispara el deep-link effect ni ensucia el history.
     expect(replaceMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Contador "Mostrando X-Y de Z"
+// ---------------------------------------------------------------------------
+
+import { usePagination } from "@/hooks/use-pagination";
+import { useReservationFilters } from "@/hooks/use-reservation-filters";
+
+function fakeReservation(id: string): Reservation {
+  return {
+    id,
+    propertyId: "p1",
+    clientId: "c1",
+    startDate: "2026-09-01T16:00:00.000Z",
+    endDate: "2026-09-05T16:00:00.000Z",
+    billingType: "DAILY",
+    unitsBooked: 1,
+    totalPrice: "100000",
+    status: "CONFIRMED",
+    bookingAirbnb: false,
+    notes: null,
+    createdAt: "2026-08-01T00:00:00.000Z",
+    property: { id: "p1", name: "Depto", unitsAvailable: 1, dailyPrice: "50000", monthlyPrice: null },
+    client: { id: "c1", name: "Juan Pérez", email: "j@x.com" },
+    payments: [],
+  };
+}
+
+function setupCounter({
+  page,
+  filas,
+  total,
+  serverCount = filas,
+}: {
+  page: number;
+  filas: number;
+  total: number;
+  serverCount?: number;
+}) {
+  vi.mocked(usePagination).mockReturnValue({
+    page,
+    limit: 10,
+    goToPage: vi.fn(),
+    setLimit: vi.fn(),
+  } as unknown as ReturnType<typeof usePagination>);
+
+  vi.mocked(useReservationFilters).mockReturnValue({
+    serverFilters: { propertyId: "", billingType: "", status: "", temporal: "all", payment: "all" },
+    searchQuery: "",
+    debouncedSearch: "",
+    hasActiveFilters: false,
+    updateServerFilter: vi.fn(),
+    handleSearchChange: vi.fn(),
+    clearAllFilters: vi.fn(),
+  } as unknown as ReturnType<typeof useReservationFilters>);
+
+  return render(
+    <ReservationsListClient
+      initialData={{
+        data: Array.from({ length: serverCount }, (_, i) => fakeReservation(`s${i}`)),
+        total,
+        totalPages: Math.ceil(total / 10),
+        page,
+      }}
+      properties={mockProperties}
+      clients={mockClients}
+      plan="PRO"
+    />
+  );
+}
+
+describe("ReservationsListClient - contador de resultados", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseSearchParams.mockReturnValue(new URLSearchParams());
+  });
+
+  it("página 1: el rango arranca en 1 y termina en las filas dibujadas", () => {
+    const { container } = setupCounter({ page: 1, filas: 10, total: 24 });
+    expect(container.textContent).toContain("Mostrando 1-10 de 24 reservas");
+  });
+
+  it("página 2: el rango avanza — antes imprimía '11-10', al revés", () => {
+    // Regresión: `Math.min(page * limit, filteredReservations.length)` mezclaba
+    // el offset global con el largo de la página actual.
+    const { container } = setupCounter({ page: 2, filas: 10, total: 24 });
+    expect(container.textContent).toContain("Mostrando 11-20 de 24 reservas");
+    expect(container.textContent).not.toContain("11-10");
+  });
+
+  it("última página parcial: termina en el total, no en un múltiplo del limit", () => {
+    const { container } = setupCounter({ page: 3, filas: 4, total: 24 });
+    expect(container.textContent).toContain("Mostrando 21-24 de 24 reservas");
+  });
+
+  it("sin resultados no imprime un rango degenerado", () => {
+    // El empty state de abajo ya dice qué pasó; "Mostrando 0-0 de 0" es ruido.
+    const { container } = setupCounter({ page: 1, filas: 0, total: 0 });
+    expect(container.textContent).not.toContain("0-0");
+  });
+
+  it("singular cuando hay una sola reserva", () => {
+    const { container } = setupCounter({ page: 1, filas: 1, total: 1 });
+    expect(container.textContent).toContain("Mostrando 1-1 de 1 reserva");
+    expect(container.textContent).not.toContain("1 reservas");
   });
 });

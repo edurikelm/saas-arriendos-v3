@@ -150,3 +150,53 @@ describe("Reservation temporal status — regresión bug 'PRÓXIMA En 1 días' c
     expect(container.textContent).not.toContain("Activa");
   });
 });
+
+describe("Reservation table — el pill no repite lo que dice Estancia", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-11T12:00:00.000Z")); // 11 ago 2026 en SCL
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("activa: Estancia lleva el ordinal y el pill deja de decir cuánto falta", () => {
+    // 9 → 14 ago son 6 noches; hoy 11 ago es la noche 3. El sublabel del pill
+    // habría dicho "4 noches" (las que faltan, inclusivas de hoy): números
+    // distintos a propósito, para que la aserción no pase por casualidad.
+    const { container } = render(
+      <ReservationTable
+        reservations={[{
+          ...baseReservation,
+          startDate: "2026-08-09T16:00:00.000Z",
+          endDate: "2026-08-14T16:00:00.000Z",
+          billingType: "DAILY",
+          status: "CONFIRMED",
+        }]}
+      />
+    );
+
+    expect(container.textContent).toContain("Activa");
+    expect(container.textContent).toContain("noche 3 de 6");
+    expect(container.textContent).not.toContain("4 noches");
+  });
+
+  it("próxima: el pill conserva su sublabel, que ninguna otra celda calcula", () => {
+    const { container } = render(
+      <ReservationTable
+        reservations={[{
+          ...baseReservation,
+          startDate: "2026-08-15T16:00:00.000Z",
+          endDate: "2026-08-18T16:00:00.000Z",
+          billingType: "DAILY",
+          status: "CONFIRMED",
+        }]}
+      />
+    );
+
+    expect(container.textContent).toContain("Próxima");
+    expect(container.textContent).toContain("En 4 días");
+    // Y Estancia muestra el total, sin ordinal: la estadía no empezó.
+    expect(container.textContent).toContain("4 noches");
+  });
+});

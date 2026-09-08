@@ -1,50 +1,45 @@
 "use client";
 
-import { MoreVertical, Eye, Pencil, Ban, Trash2 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { DataTable } from "@/components/ui/data-table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { getInclusiveMonths } from "@/lib/reservation-dates";
-import { getReservationPaidAmount } from "@/lib/payments/calculations";
-import { dateKeyToDayIndex } from "@/lib/domain/timezone";
+import { cn } from "@/lib/utils";
 import type { Reservation } from "./types";
-import { formatDate, formatPrice } from "./reservations-utils";
-import { ReservationPill, reservationPillDotClass, type PillTone } from "./reservation-pill";
-import { getReservationTone, getTemporalStatus } from "./reservation-status";
+import { formatDate, getInitials } from "./reservations-utils";
+import { ReservationPill } from "./reservation-pill";
+import {
+  formatStayProgress,
+  getReservationTone,
+  getStayProgress,
+  getTemporalStatus,
+} from "./reservation-status";
+import { getFinanceDisplay } from "./reservation-finance";
+import { ReservationActionsMenu } from "./reservation-actions-menu";
 
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[part.length - 1] || part[0])
-    .join("")
-    .toUpperCase();
-}
+/**
+ * Padding + hover de cada celda. El hover vive en la celda y no en el `<tr>`
+ * porque la columna de acciones es `sticky` y necesita fondo propio: con el
+ * hover en la fila, la celda fija lo tapaba (o lo pintaba dos veces).
+ */
+const CELL = "px-6 py-5 bg-card group-hover:bg-muted/30 transition-colors";
 
-function getNights(startDate: string, endDate: string): number {
-  // start_date / end_date son date-only en el dominio (CONTEXT.md).
-  // diff en días calendario (dateKeyToDayIndex usa UTC, evita drift por DST).
-  const startKey = startDate.slice(0, 10);
-  const endKey = endDate.slice(0, 10);
-  return Math.max(1, dateKeyToDayIndex(endKey) - dateKeyToDayIndex(startKey) + 1);
-}
-
-function getMonths(startDate: string, endDate: string): number {
-  return getInclusiveMonths(startDate, endDate);
-}
-
-function getPaymentTone(paidAmount: number, totalPrice: number): PillTone {
-  if (paidAmount >= totalPrice && totalPrice > 0) return "success";
-  if (paidAmount > 0) return "warning";
-  return "destructive";
-}
+/**
+ * La columna de acciones se fija al borde derecho.
+ *
+ * Medido al ancho real de contenido de un laptop de 1280 (sidebar 256 +
+ * padding 48 → 959px útiles): la tabla necesitaba 987px con los nombres cortos
+ * que hay hoy en producción y 1062px con nombres de largo normal
+ * ("Departamento Vista al Mar"). En el segundo caso el botón ⋮ quedaba entero
+ * fuera de la zona visible, y como las filas no son clickeables (The Row
+ * Isolation Rule) el scroll horizontal era el único camino a Ver / Editar /
+ * Cancelar, sin nada que lo señalara. Fijándola, el menú es alcanzable a
+ * cualquier ancho.
+ *
+ * Lleva `px-4` en vez del `px-6` del resto: contiene un solo botón de 32px, no
+ * texto. Como la celda fija se dibuja ENCIMA de lo que scrollea, los 16px que
+ * ahorra son margen real para la columna de montos — con `px-6`, un arriendo de
+ * 12 meses ("10 de 12 cuotas cobradas" junto a un monto de 8 dígitos) metía el
+ * subtexto 6px por debajo de esta columna. Con `px-4` sobran 10px.
+ */
+const ACTIONS_CELL = "sticky right-0 z-10 border-l border-border px-4";
 
 export function ReservationTable({ reservations, onEdit, onCancel, onDelete }: {
   reservations: Reservation[];
@@ -52,8 +47,10 @@ export function ReservationTable({ reservations, onEdit, onCancel, onDelete }: {
   onCancel?: (id: string) => void;
   onDelete?: (id: string) => void;
 }) {
-  const router = useRouter();
-  // Reservations arrive pre-sorted from the server (createdAt desc). No client-side sort UI.
+  // Las filas llegan ordenadas del servidor: primero lo vigente (lo que termina
+  // antes), después lo terminado (lo más reciente primero). Ver
+  // `@/lib/reservations/list-order`. Sin sort en cliente — con paginación
+  // server-side, reordenar acá solo mezclaría la página actual.
   const sorted = reservations;
 
   return (
@@ -65,38 +62,37 @@ export function ReservationTable({ reservations, onEdit, onCancel, onDelete }: {
             "Propiedad",
             "Estado",
             "Estancia",
-            "Finanzas",
-            "Tipo",
-            { label: "Acciones", align: "right" },
+            // La columna dice qué magnitud contiene. "Finanzas" nombraba un tema,
+            // no una cantidad, y por eso toleraba una cifra distinta en cada fila.
+            { label: "Por cobrar", align: "right" },
+            {
+              label: "Acciones",
+              align: "right",
+              // La celda fija necesita fondo OPACO (si no, los `th` que pasan
+              // por debajo al scrollear se transparentan a través). `bg-muted`
+              // suelto se ve más oscuro que el resto del header, que es
+              // `bg-muted/50` sobre la card: 243,244,246 contra 249,249,250.
+              // `color-mix` de los mismos dos tokens da ese compuesto exacto,
+              // ya opaco — sin hardcodear un color.
+              className:
+                "sticky right-0 z-20 border-l border-border px-4 bg-[color-mix(in_srgb,var(--muted)_50%,var(--card))]",
+            },
           ]}
         >
           {sorted.map((res) => {
-            const paidAmount = getReservationPaidAmount(res.payments);
-            const totalPrice = Number(res.totalPrice);
             const temporal = getTemporalStatus(res.startDate, res.endDate, res.billingType, res.status);
             const stateTone = getReservationTone(res.status, res.startDate, res.endDate);
-            const paymentTone = getPaymentTone(paidAmount, totalPrice);
-            const duration = res.billingType === "MONTHLY" ? `${getMonths(res.startDate, res.endDate)} meses` : `${getNights(res.startDate, res.endDate)} noches`;
-
-            const finLabel = paymentTone === "success"
-              ? "Saldado"
-              : paymentTone === "warning"
-                ? formatPrice(totalPrice - paidAmount)
-                : formatPrice(totalPrice);
-            const finSubtext = paymentTone === "success"
-              ? res.status === "COMPLETED"
-                ? `${formatPrice(paidAmount)} completado`
-                : `${formatPrice(paidAmount)} pagado`
-              : paymentTone === "warning"
-                ? `Restante de ${formatPrice(totalPrice)}`
-                : res.status === "CANCELLED"
-                  ? "Pendiente de pago"
-                  : "Sin abonos";
+            const fin = getFinanceDisplay(res.payments, res.totalPrice, res.status, res.startDate);
+            // El sublabel distingue DAILY de MONTHLY ("noche 7 de 12" vs
+            // "mes 3 de 4") y dice cuánto va de cuánto. La columna "Tipo"
+            // repetía solo la primera mitad, en 107px que la tabla no tenía.
+            const stay = getStayProgress(res.startDate, res.endDate, res.billingType, res.status);
+            const duration = formatStayProgress(stay);
 
             return (
-              <tr key={res.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+              <tr key={res.id} className="group border-b last:border-0">
                 {/* Huésped */}
-                <td className="px-6 py-5">
+                <td className={CELL}>
                   <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
                       {getInitials(res.client.name)}
@@ -108,93 +104,51 @@ export function ReservationTable({ reservations, onEdit, onCancel, onDelete }: {
                   </div>
                 </td>
                 {/* Propiedad */}
-                <td className="px-6 py-5 text-xs font-medium text-foreground">
+                <td className={cn(CELL, "text-xs font-medium text-foreground")}>
                   {res.property.name}
                 </td>
                 {/* Estado */}
-                <td className="px-6 py-5 align-middle">
+                <td className={cn(CELL, "align-middle")}>
                   <div className="flex flex-col items-start gap-1">
                     <ReservationPill tone={stateTone} label={temporal.label} />
-                    {temporal.sublabel && (
-                      <span className="text-[9px] text-muted-foreground">{temporal.sublabel}</span>
+                    {/* El sublabel del pill dice cuánto FALTA ("2 meses"), y la celda de
+                        Estancia ya dice en qué va ("MES 3 DE 4"): el mismo hecho contado
+                        dos veces en columnas vecinas. Se muestra solo cuando Estancia no
+                        lleva ordinal — o sea en "Próxima · En 13 días", donde el sublabel
+                        aporta algo que ninguna otra celda calcula. La condición se ata al
+                        progreso y no al texto del label, para que no puedan divergir.
+                        En el detalle y en la agenda del dashboard el sublabel se mantiene:
+                        ahí no hay Estancia que compense. */}
+                    {stay.current == null && temporal.sublabel && (
+                      <span className="text-[10px] text-muted-foreground">{temporal.sublabel}</span>
                     )}
                   </div>
                 </td>
                 {/* Estancia */}
-                <td className="px-6 py-5">
-                  <div className="text-xs text-foreground font-medium whitespace-nowrap tabular-nums">
-                    {formatDate(res.startDate)} - {formatDate(res.endDate)}
+                <td className={CELL}>
+                  <div className="whitespace-nowrap text-xs font-medium tabular-nums text-foreground">
+                    {formatDate(res.startDate)} – {formatDate(res.endDate)}
                   </div>
                   <div className="mt-0.5">
-                    <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-tight">{duration}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{duration}</span>
                   </div>
                 </td>
-                {/* Finanzas */}
-                <td className="px-6 py-5">
-                  <div className="flex items-stretch gap-3">
-<div className={`w-0.5 rounded-full ${reservationPillDotClass[paymentTone]}`} />
-                    <div className="flex flex-col">
-                      <p className={`text-xs font-bold tabular-nums ${paymentTone === "success" ? "text-success" : paymentTone === "warning" ? "text-foreground" : "text-destructive-text"}`}>
-                        {finLabel}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground tabular-nums">{finSubtext}</p>
-                    </div>
-                  </div>
-                </td>
-                {/* Tipo */}
-                <td className="px-6 py-5">
-                  <div className="flex justify-start">
-                    <span className="inline-flex px-2 py-0.5 rounded bg-muted text-muted-foreground text-[9px] font-bold uppercase">
-                      {res.billingType === "DAILY" ? "Diaria" : "Mensual"}
-                    </span>
-                  </div>
+                {/* Por cobrar — misma magnitud en todas las filas, alineada a la
+                    derecha para que los dígitos se comparen en vertical. */}
+                <td className={cn(CELL, "text-right")}>
+                  <p className={cn("text-xs font-bold tabular-nums", fin.labelClassName)}>
+                    {fin.label}
+                  </p>
+                  <p className="whitespace-nowrap text-[10px] tabular-nums text-muted-foreground">{fin.subtext}</p>
                 </td>
                 {/* Acciones */}
-                <td className="px-6 py-5 text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      className="inline-flex size-8 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                      aria-label="Más acciones"
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => router.push(`/reservations/${res.id}`)}>
-                        <Eye className="mr-1.5 h-4 w-4" />
-                        Ver
-                      </DropdownMenuItem>
-                      {onEdit && (
-                        <DropdownMenuItem onClick={() => onEdit(res.id)}>
-                          <Pencil className="mr-1.5 h-4 w-4" />
-                          Editar
-                        </DropdownMenuItem>
-                      )}
-                      {(res.status === "PENDING" || res.status === "CONFIRMED") && onCancel && (
-                        <>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            variant="destructive"
-                            onClick={() => onCancel(res.id)}
-                          >
-                            <Ban className="mr-1.5 h-4 w-4" />
-                            Cancelar
-                          </DropdownMenuItem>
-                        </>
-                      )}
-                      {(res.status === "CANCELLED" || res.status === "COMPLETED") && onDelete && (
-                        <>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            variant="destructive"
-                            onClick={() => onDelete(res.id)}
-                          >
-                            <Trash2 className="mr-1.5 h-4 w-4" />
-                            Eliminar
-                          </DropdownMenuItem>
-                        </>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                <td className={cn(CELL, ACTIONS_CELL, "text-right")}>
+                  <ReservationActionsMenu
+                    reservation={res}
+                    onEdit={onEdit}
+                    onCancel={onCancel}
+                    onDelete={onDelete}
+                  />
                 </td>
               </tr>
             );

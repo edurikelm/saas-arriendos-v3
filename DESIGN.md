@@ -203,7 +203,7 @@ El modo de la app es **Operate**. No persuade, no entretiene, no educa — opera
 La paleta es de baja saturación en neutros (gris-verdoso apenas perceptible, no gris puro) y saturación media-alta en el eje semántico. La excepción es el eje de marca (Verdigris), que es deliberadamente vivo para que active states destaquen sin gritar. **No hay colores de "data" sueltos** — los charts heredan la rampa teal del primary (`--chart-1` a `--chart-5` son verdes descendientes), no una paleta arcoíris.
 
 ### Primary
-- **Verdigris** (`oklch(0.7227 0.1920 149.5793)`): Color de marca. Usado en active state del sidebar owner, accent strip superior de tablas (`border-t-2`), icon container de KpiCard primario, fondo de filter pills activos, texto de link primario. **Su rol es señalar navegación activa y resultado positivo, no decoración.** En dark mode se mantiene como `Verdigris Deep` (`#2DBE85`).
+- **Verdigris** (`oklch(0.7227 0.1920 149.5793)`): Color de marca. Usado en active state del sidebar owner, accent strip superior de tablas (`border-t-2`), fill de la ProgressBar del `<KpiCard>`, fondo de filter pills activos, texto de link primario. **No** en el icon container del `<KpiCard>`: `KpiTone` no tiene tono `primary` y `default` va a `bg-muted text-muted-foreground`. **Su rol es señalar navegación activa y resultado positivo, no decoración.** En dark mode se mantiene como `Verdigris Deep` (`#2DBE85`).
 
 ### Semantic
 - **Calm Sea** (`oklch(0.65 0.16 150)`): Estado de éxito — reservas CONFIRMED, pagos COMPLETED, KPIs de cobranza ≥85%, sublabel positivo en indicadores.
@@ -458,9 +458,9 @@ Primitive único para KPIs del producto. API: `label`, `value`, `unit?`, `icon?`
 
 - **Container:** `rounded-lg border border-border bg-card p-4`. Sin shadow.
 - **Label:** `text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1`.
-- **Value:** `text-xl font-bold tabular-nums`. Color: `text-foreground` por defecto; cambia a `text-{tone}` cuando `tone` es `success`, `warning` o `destructive`. `default` e `info` quedan en `text-foreground` (estados neutros sin énfasis de color).
-- **Icon container (opcional):** `size-9 rounded-xl bg-{tone}/10 text-{tone}` en esquina superior derecha. Sin container si no se pasa icon.
-- **Indicator (opcional):** `text-[10px] font-medium mt-1` con TrendingUp (positive) o AlertTriangle (warning/neutral).
+- **Value:** `text-xl font-bold tabular-nums`. Color: `text-{tone}-text` cuando `tone` es `success`, `warning` o `destructive`; `default` e `info` quedan en `text-foreground` (estados neutros sin énfasis de color). **No** `text-{tone}` a secas: son tokens de RELLENO y sobre card miden 3.03:1 (`success`) y 2.05:1 (`warning`) en claro, bajo AA. Ver The Fill-vs-Text Rule, que ya documenta la medición de este mismo valor a 20px bold.
+- **Icon container (opcional):** `size-9 rounded-xl bg-{tone}/10 text-{tone}-text` en esquina superior derecha; `bg-muted text-muted-foreground` para `default`. Sin container si no se pasa icon. El ícono va sobre el tinte al 10%, no sobre card, y ahí los tokens de relleno miden 2.59 / 2.55 / 1.81:1 en claro — bajo el piso de 3:1 que WCAG 1.4.11 pide a un gráfico no textual.
+- **Indicator (opcional):** `text-[10px] font-medium mt-1` con TrendingUp (positive) o AlertTriangle (warning/neutral). Acá **sí** van los `-foreground` (`text-success-foreground` / `text-warning-foreground`): es metadata de 10px, no una cifra coloreada, así que el Don't sobre `-foreground` no aplica y el tono oscuro se lee. **Nunca `text-destructive-foreground`**: ese rompe el patrón por ser blanco — `--destructive` hace doble uso como relleno de botón destructivo — y sobre card daría 1.00:1.
 - **ProgressBar (opcional):** `h-1 rounded-full bg-muted` con fill `bg-primary`.
 - **Regla:** No shadow, no status dot (eliminado en ADR-0024). Una sola variante en producto — no coexisten con otros KPI primitives.
 
@@ -509,6 +509,12 @@ Dos variantes intencionales (owner vs admin) — ver sección Layout.
 - **Owner active state:** `bg-primary/10 text-primary font-medium`. El teal al 10% preserva el lenguaje plano (sin shadow) y permite que el teal del texto sea el verdadero indicador.
 - **Admin active state:** `bg-sidebar-accent text-sidebar-accent-foreground font-medium`. Pale mint con texto oscuro — más neutro, prioriza lectura sobre marca.
 - **User footer:** Avatar + nombre + rol/plan + trigger ⋮ → dropdown con [Tema] + [Cerrar sesión]. El theme picker vive solo aquí, no en navbar.
+
+### Named Rules
+
+**The Row Isolation Rule.** Las filas de `<DataTable>` no llevan `onClick` que navegue. Solo el botón o link de la columna de acciones navega al detalle. Previene selección accidental de texto, doble-trigger y problemas de accesibilidad. **Corolario:** como la fila no es clickeable, esa columna es el *único* camino a las acciones — si se sale del área visible por ancho, la tabla queda de solo lectura y nada lo señala.
+
+**The One KPI Voice Rule.** Existe un solo primitive de KPI: `<KpiCard>`. Si necesitas algo "diferente", es señal de que el KPI no calza — replantéalo, no inventes un primitive paralelo.
 
 ---
 

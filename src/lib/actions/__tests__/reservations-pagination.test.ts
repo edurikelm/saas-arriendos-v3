@@ -152,13 +152,20 @@ describe('getReservations pagination', () => {
     vi.mocked(mockPrisma.reservation.count).mockResolvedValue(0);
 
     await getReservations({ search: 'casa' });
+    // La búsqueda incluye `client.email`: al moverla del cliente al servidor,
+    // sin ese campo se habría perdido buscar por correo.
     expect(mockPrisma.reservation.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          OR: [
-            { client: { name: { contains: 'casa', mode: 'insensitive' } } },
-            { property: { name: { contains: 'casa', mode: 'insensitive' } } },
-          ],
+          AND: expect.arrayContaining([
+            {
+              OR: [
+                { client: { name: { contains: 'casa', mode: 'insensitive' } } },
+                { client: { email: { contains: 'casa', mode: 'insensitive' } } },
+                { property: { name: { contains: 'casa', mode: 'insensitive' } } },
+              ],
+            },
+          ]),
         }),
       })
     );
@@ -177,15 +184,23 @@ describe('getReservations pagination', () => {
       billingType: 'DAILY',
     });
 
+    // Cada filtro es una cláusula independiente del AND. Antes se escribían
+    // como campos sueltos del `where` y el filtro temporal habría pisado a
+    // `params.startDate/endDate`, que usan las mismas claves.
     expect(mockPrisma.reservation.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          status: 'PENDING',
-          billingType: 'DAILY',
-          OR: [
-            { client: { name: { contains: 'casa', mode: 'insensitive' } } },
-            { property: { name: { contains: 'casa', mode: 'insensitive' } } },
-          ],
+          AND: expect.arrayContaining([
+            { status: 'PENDING' },
+            { billingType: 'DAILY' },
+            {
+              OR: [
+                { client: { name: { contains: 'casa', mode: 'insensitive' } } },
+                { client: { email: { contains: 'casa', mode: 'insensitive' } } },
+                { property: { name: { contains: 'casa', mode: 'insensitive' } } },
+              ],
+            },
+          ]),
         }),
       })
     );
@@ -201,7 +216,9 @@ describe('getReservations pagination', () => {
     await getReservations({ billingType: 'MONTHLY' });
     expect(mockPrisma.reservation.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ billingType: 'MONTHLY' }),
+        where: expect.objectContaining({
+          AND: expect.arrayContaining([{ billingType: 'MONTHLY' }]),
+        }),
       })
     );
   });
@@ -234,5 +251,84 @@ describe('getReservations pagination', () => {
 
     const result = await getReservations();
     expect(result).toEqual({ data: [], total: 0, page: 1, totalPages: 0 });
+  });
+});
+
+describe('getReservations — orden por relevancia', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const conSesion = async () => {
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+  };
+
+  it('devuelve lo vivo antes que lo terminado, cada bucket con su propio orden', async () => {
+    // Regresión de la queja original: con `startDate desc`, dos arriendos
+    // mensuales vigentes quedaban debajo de tres reservas diarias terminadas.
+    await conSesion();
+    // Orden de las llamadas: count(vivo), count(total); luego findMany(vivo), findMany(terminado).
+    vi.mocked(mockPrisma.reservation.count)
+      .mockResolvedValueOnce(2)
+      .mockResolvedValueOnce(3);
+    vi.mocked(mockPrisma.reservation.findMany)
+      .mockResolvedValueOnce([makeReservation('vive-a'), makeReservation('vive-b')])
+      .mockResolvedValueOnce([makeReservation('termino')]);
+
+    const result = await getReservations({});
+
+    expect(result.data.map((r) => r.id)).toEqual(['vive-a', 'vive-b', 'termino']);
+    expect(result.total).toBe(3);
+
+    const [live, past] = vi.mocked(mockPrisma.reservation.findMany).mock.calls;
+    expect(live[0].orderBy).toEqual([{ endDate: 'asc' }, { id: 'asc' }]);
+    expect(past[0].orderBy).toEqual([{ endDate: 'desc' }, { id: 'asc' }]);
+  });
+
+  it('todo orderBy desempata por id — sin eso, paginar puede repetir o saltar filas', async () => {
+    await conSesion();
+    vi.mocked(mockPrisma.reservation.count).mockResolvedValue(0);
+    vi.mocked(mockPrisma.reservation.findMany).mockResolvedValue([]);
+
+    for (const temporal of ['all', 'active', 'upcoming']) {
+      vi.mocked(mockPrisma.reservation.findMany).mockClear();
+      await getReservations({ temporal });
+      for (const call of vi.mocked(mockPrisma.reservation.findMany).mock.calls) {
+        const orderBy = call[0].orderBy as Array<Record<string, string>>;
+        expect(orderBy[orderBy.length - 1]).toEqual({ id: 'asc' });
+      }
+    }
+  });
+
+  it('el toggle acota con una sola query, sin partir en buckets', async () => {
+    await conSesion();
+    vi.mocked(mockPrisma.reservation.count).mockResolvedValue(0);
+    vi.mocked(mockPrisma.reservation.findMany).mockResolvedValue([]);
+
+    await getReservations({ temporal: 'active' });
+    expect(mockPrisma.reservation.findMany).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(mockPrisma.reservation.findMany).mock.calls[0][0].orderBy).toEqual([
+      { endDate: 'asc' },
+      { id: 'asc' },
+    ]);
+
+    vi.mocked(mockPrisma.reservation.findMany).mockClear();
+    await getReservations({ temporal: 'upcoming' });
+    // Las próximas se ordenan por cuándo llegan, no por cuándo terminan.
+    expect(vi.mocked(mockPrisma.reservation.findMany).mock.calls[0][0].orderBy).toEqual([
+      { startDate: 'asc' },
+      { id: 'asc' },
+    ]);
+  });
+
+  it('un temporal desconocido cae en "all" en vez de filtrar de más', async () => {
+    await conSesion();
+    vi.mocked(mockPrisma.reservation.count).mockResolvedValue(0);
+    vi.mocked(mockPrisma.reservation.findMany).mockResolvedValue([]);
+
+    await getReservations({ temporal: 'cualquier-cosa' });
+    // "all" parte en dos buckets, así que hay dos counts.
+    expect(mockPrisma.reservation.count).toHaveBeenCalledTimes(2);
   });
 });
