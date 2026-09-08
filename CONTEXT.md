@@ -210,6 +210,7 @@ El detalle completo de una reserva vive en **ruta dedicada** `/reservations/[id]
 - Solo plan PRO. Sync manual vía server action, automático vía Vercel Cron con auth `Bearer ${ICAL_CRON_SECRET}`.
 - **iCal NO es fuente financiera**: el sync nunca crea `Payment`, `ReservationClient` ni `Reservation`; la conversión de un **Bloqueo de Canal Externo** a **Reserva** es siempre manual desde la UI. Ver ADR-0018 ("Semántica de fuente").
 - Todas las fechas importadas/exportadas vía iCal se interpretan en wall-time `America/Santiago`. Ver ADR-0020.
+- **Alarma de sobreventa (`/calendar`)**: para una propiedad y un día, `consumidas = Σ unitsBooked` de **Reservas** no canceladas que cubren ese día + cantidad de **Bloqueos de Canal Externo** activos que lo cubren; hay sobreventa cuando `consumidas > unitsAvailable`. Implementada en `computeOverbookedDays` (`src/lib/calendar/conflicts.ts`), que reemplazó a la función vieja `computeConflictDates` (marcaba "conflicto" comparando fechas sin `propertyId` ni unidades, así que cruzaba propiedades distintas y alarmaba sin sobreventa real). El banner en `calendar-view.tsx` y el marcado de celda en `calendar-timeline.tsx` (fila de la propiedad afectada, además del dot en el header del día) solo se calculan cuando el toggle "Bloqueos" (`showExternalBlocks`) está activo, porque sin él no se traen los bloqueos. **Limitación conocida**: el calendario solo consulta reservas `billingType: DAILY`; las reservas `MONTHLY` no aportan a `consumidas`, así que la alarma puede sub-contar y no avisar de una sobreventa real que involucre una reserva mensual.
 
 ### Timeline (vista por defecto)
 
@@ -248,7 +249,7 @@ El detalle completo de una reserva vive en **ruta dedicada** `/reservations/[id]
 - Un **Calendario Externo** puede sincronizarse manualmente y también en una cadencia automática diaria.
 - El calendario exportado de una propiedad incluye **Reservas** activas y **Bloqueos de Canal Externo** activos, evitando reexportar bloqueos hacia el mismo **Canal Externo** que los originó.
 - Un **Feed de Exportación iCal** se identifica por `(propertyId, channel)` y genera una URL tokenizada por canal. El token se almacena como hash SHA-256 (no bcrypt). La URL es válida para polling de canales externos. El token raw solo se muestra una vez al crear o regenerar el feed.
-- Cuando una **Reserva** interna se solapa con un **Bloqueo de Canal Externo**, la **Reserva** prevalece y el bloqueo externo queda como conflicto visible para el owner.
+- Cuando una **Reserva** interna se solapa con un **Bloqueo de Canal Externo**, la **Reserva** prevalece: el bloqueo nunca impide operar sobre la reserva. El solapamiento **por sí solo no se marca en la UI** — solo se alarma cuando las unidades consumidas superan `unitsAvailable` (ver "Alarma de sobreventa" en Calendarios Externos). Una propiedad de 3 unidades con 1 reserva y 1 bloqueo no tiene problema y no se marca.
 - Para disponibilidad, una **Reserva** y un **Bloqueo de Canal Externo** consumen unidades de la propiedad; cada bloqueo externo consume 1 unidad y solo la **Reserva** afecta pagos y reportes financieros.
 - Un **Recordatorio de Pago** pertenece a un **Pago** pendiente, se dirige al **Owner** y solo se emite para reservas en estado **PENDING** o **CONFIRMED**.
 - Un **Documento de Reserva** pertenece a una **Reserva** con **Billing Type** mensual.
