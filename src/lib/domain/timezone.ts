@@ -26,6 +26,82 @@ export function getDateKeyInTz(date: Date | string, tz: string = BUSINESS_TIME_Z
 }
 
 /**
+ * Offset de `tz` en milisegundos en un instante dado: cuánto hay que sumarle a
+ * la hora de pared (leída como si fuera UTC) para obtener el instante real.
+ * Positivo al oeste de Greenwich (Santiago: +3h o +4h según el horario de verano).
+ */
+function tzOffsetMs(at: Date, tz: string): number {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(at);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)!.value);
+  // `hour` puede venir "24" para medianoche segun el motor; `% 24` lo normaliza.
+  const wallAsUtc = Date.UTC(
+    get("year"),
+    get("month") - 1,
+    get("day"),
+    get("hour") % 24,
+    get("minute"),
+    get("second"),
+  );
+  return at.getTime() - wallAsUtc;
+}
+
+/**
+ * Instante en que empieza el día `dateKey` (YYYY-MM-DD) en `tz` — la medianoche
+ * de pared de esa zona, no la medianoche UTC.
+ *
+ * Hace falta para construir rangos de negocio (un año, un mes) como instantes
+ * sin depender de la zona del proceso. `new Date(year, 0, 1)` usa la hora local
+ * del servidor: en Chile da el instante correcto por casualidad, y en UTC —donde
+ * corre el deploy— da el 31 de diciembre anterior a las 21:00 de Santiago.
+ *
+ * Se resuelve en dos pasadas porque el offset puede cambiar entre el instante de
+ * prueba y el resultado: si la fecha cae justo en un cambio de hora, la primera
+ * corrección aterriza en el otro lado de la transición y hay que recalcular.
+ */
+export function startOfDayInTz(dateKey: string, tz: string = BUSINESS_TIME_ZONE): Date {
+  const probe = new Date(`${dateKey}T00:00:00.000Z`);
+  const firstOffset = tzOffsetMs(probe, tz);
+  const secondOffset = tzOffsetMs(new Date(probe.getTime() + firstOffset), tz);
+
+  // Se prueban los dos offsets y gana el que efectivamente aterriza en el día
+  // pedido. No alcanza con "recalcular y confiar": en el arranque del horario de
+  // verano la medianoche local NO EXISTE (el reloj salta de 23:59 a 01:00), así
+  // que uno de los dos candidatos cae en el día anterior. Verificar contra la
+  // clave es lo único que distingue los dos sentidos del cambio de hora.
+  for (const offset of [firstOffset, secondOffset]) {
+    const candidate = new Date(probe.getTime() + offset);
+    if (getDateKeyInTz(candidate, tz) === dateKey) return candidate;
+  }
+
+  // Medianoche inexistente y ningún candidato aterrizó: el día empieza en la
+  // transición misma. El menor de los dos ya está dentro del día pedido.
+  return new Date(probe.getTime() + Math.min(firstOffset, secondOffset));
+}
+
+/**
+ * Último instante del día `dateKey` en `tz` (un milisegundo antes de que empiece
+ * el día siguiente).
+ *
+ * El día siguiente se deriva de la CLAVE, no sumando 24h al instante: en un día
+ * de 25h (fin del horario de verano) sumar 24h cae todavía dentro del mismo día,
+ * y el rango quedaría corto por una hora.
+ */
+export function endOfDayInTz(dateKey: string, tz: string = BUSINESS_TIME_ZONE): Date {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const nextKey = new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10);
+  return new Date(startOfDayInTz(nextKey, tz).getTime() - 1);
+}
+
+/**
  * Converts a dateKey (YYYY-MM-DD) to a day index (days since Unix epoch).
  * Uses UTC to avoid timezone offsets.
  */

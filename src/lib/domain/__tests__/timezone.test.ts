@@ -10,6 +10,8 @@ import {
   isBeforeTodayInBusinessTz,
   isOverdueInBusinessTz,
   dateOnlyKey,
+  startOfDayInTz,
+  endOfDayInTz,
   daysFromTodayDateOnly,
   isOverdueDateOnly,
   formatDateOnly,
@@ -417,5 +419,74 @@ describe("formatInstant", () => {
     expect(formatInstant(undefined)).toBe("—");
     expect(formatInstant("")).toBe("—");
     expect(formatInstant("not-a-date")).toBe("—");
+  });
+});
+
+// Limites de dia como INSTANTES en la zona de negocio. Estos tests son
+// significativos solo si valen igual corriendo el proceso en cualquier zona:
+// el bug que los motivo (#270 / serie anual con 13 meses) existia justamente
+// porque el rango se construia con `new Date(year, 0, 1)`, hora local del
+// proceso, y coincidia con la de negocio solo cuando la suite corria en Chile.
+describe("startOfDayInTz / endOfDayInTz", () => {
+  const TZ = BUSINESS_TIME_ZONE;
+
+  function todosLosDiasDe(year: number): string[] {
+    const dias: string[] = [];
+    const d = new Date(Date.UTC(year, 0, 1));
+    while (d.getUTCFullYear() === year) {
+      dias.push(d.toISOString().slice(0, 10));
+      d.setUTCDate(d.getUTCDate() + 1);
+    }
+    return dias;
+  }
+
+  it("el inicio del dia cae dentro del dia pedido, y un ms antes es el dia anterior", () => {
+    for (const key of ["2026-01-01", "2026-06-15", "2026-12-31"]) {
+      const start = startOfDayInTz(key, TZ);
+      expect(getDateKeyInTz(start, TZ)).toBe(key);
+      expect(getDateKeyInTz(new Date(start.getTime() - 1), TZ)).not.toBe(key);
+    }
+  });
+
+  it("el fin del dia cae dentro del dia pedido, y un ms despues es el dia siguiente", () => {
+    for (const key of ["2026-01-01", "2026-06-15", "2026-12-31"]) {
+      const end = endOfDayInTz(key, TZ);
+      expect(getDateKeyInTz(end, TZ)).toBe(key);
+      expect(getDateKeyInTz(new Date(end.getTime() + 1), TZ)).not.toBe(key);
+    }
+  });
+
+  // Barrido de los 365 dias en vez de adivinar cuales son las transiciones:
+  // si la primitiva se rompe en algun borde, aparece sin que haya que saber
+  // de antemano donde esta.
+  it("las invariantes valen para TODOS los dias del ano, transiciones incluidas", () => {
+    const duraciones = new Set<number>();
+    for (const key of todosLosDiasDe(2026)) {
+      const start = startOfDayInTz(key, TZ);
+      const end = endOfDayInTz(key, TZ);
+      expect(getDateKeyInTz(start, TZ)).toBe(key);
+      expect(getDateKeyInTz(end, TZ)).toBe(key);
+      expect(getDateKeyInTz(new Date(start.getTime() - 1), TZ)).not.toBe(key);
+      expect(getDateKeyInTz(new Date(end.getTime() + 1), TZ)).not.toBe(key);
+      duraciones.add((end.getTime() + 1 - start.getTime()) / 3_600_000);
+    }
+    // Chile tiene dos cambios de hora al ano: un dia de 23h y otro de 25h.
+    expect([...duraciones].sort((a, b) => a - b)).toEqual([23, 24, 25]);
+  });
+
+  it("el ano completo son exactamente 12 meses, no 13", () => {
+    const start = startOfDayInTz("2026-01-01", TZ);
+    const end = endOfDayInTz("2026-12-31", TZ);
+    expect(getDateKeyInTz(start, TZ).slice(0, 7)).toBe("2026-01");
+    expect(getDateKeyInTz(end, TZ).slice(0, 7)).toBe("2026-12");
+  });
+
+  it("un pago del 31-dic a las 22:00 en Santiago sigue siendo del 31-dic", () => {
+    // 31-dic 22:00 SCL = 1-ene 01:00 UTC. Es el caso que `getFullYear()` del
+    // proceso clasificaba en el ano siguiente al correr en UTC.
+    const pago = new Date("2027-01-01T01:00:00.000Z");
+    expect(getDateKeyInTz(pago, TZ)).toBe("2026-12-31");
+    const end = endOfDayInTz("2026-12-31", TZ);
+    expect(pago.getTime()).toBeLessThanOrEqual(end.getTime());
   });
 });
