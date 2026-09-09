@@ -5,6 +5,8 @@ import { AlertTriangle, TrendingUp } from "lucide-react";
 export type KpiTone = "default" | "success" | "info" | "warning" | "destructive";
 export type KpiIndicatorVariant = "positive" | "warning" | "neutral";
 
+export type KpiCardDensity = "comfortable" | "compact";
+
 export interface KpiCardProps {
   label: string;
   value: string | number;
@@ -19,6 +21,12 @@ export interface KpiCardProps {
     value: number;
   };
   sublabel?: string;
+  // Opt-in only — default "comfortable" preserves today's render on all 9
+  // existing surfaces (dashboard, reports, payments, admin, clientes,
+  // soporte, detalle de reserva...). "compact" hides icon/indicator/progress
+  // bar below `sm` to fit a 2x2 grid above the fold on /calendar mobile;
+  // from `sm` up it renders identically to "comfortable" either way.
+  density?: KpiCardDensity;
 }
 
 // Tonos para el icon container (esquina superior derecha del card). El icono
@@ -81,8 +89,10 @@ export function KpiCard({
   indicator,
   progressBar,
   sublabel,
+  density = "comfortable",
 }: KpiCardProps) {
   const progressValue = progressBar ? Math.max(0, Math.min(100, progressBar.value)) : null;
+  const isCompact = density === "compact";
 
   return (
     <div role="group" aria-label={label} className="rounded-lg border border-border bg-card p-3 sm:p-4">
@@ -94,6 +104,7 @@ export function KpiCard({
           <div
             className={cn(
               "flex size-7 shrink-0 items-center justify-center rounded-lg sm:size-9 sm:rounded-xl",
+              isCompact && "hidden sm:flex",
               iconContainerToneClass[tone]
             )}
             aria-hidden="true"
@@ -116,6 +127,7 @@ export function KpiCard({
         <div
           className={cn(
             "mt-1 flex items-center gap-0.5 text-[10px] font-medium",
+            isCompact && "hidden sm:flex",
             indicatorClasses(indicator.variant)
           )}
         >
@@ -124,7 +136,7 @@ export function KpiCard({
         </div>
       )}
       {progressValue !== null && (
-        <div className="mt-2 h-1 w-full rounded-full bg-muted">
+        <div className={cn("mt-2 h-1 w-full rounded-full bg-muted", isCompact && "hidden sm:block")}>
           <div
             className="h-1 rounded-full bg-primary"
             style={{ width: `${progressValue}%` }}
