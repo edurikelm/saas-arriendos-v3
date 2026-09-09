@@ -16,6 +16,7 @@ import {
   externalBlocksRowTop,
 } from "@/lib/calendar/lanes";
 import { getNights } from "@/components/reservations/reservation-status";
+import { getInclusiveMonths } from "@/lib/reservation-dates";
 
 interface Payment {
   id: string;
@@ -431,7 +432,7 @@ export function CalendarTimeline({ reservations, externalBlocks = [], overbooked
                 <h3 className="font-semibold">
                   {selectedPropertyId && selectedPropertyId !== "all"
                     ? `Sin reservas en ${properties?.find((p) => p.id === selectedPropertyId)?.name ?? "esta propiedad"} este mes`
-                    : "Sin reservas diarias este mes"}
+                    : "Sin reservas este mes"}
                 </h3>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Cuando existan reservas, apareceran como barras por propiedad y rango de fechas.
@@ -547,7 +548,20 @@ export function CalendarTimeline({ reservations, externalBlocks = [], overbooked
                           ? "text-success-foreground" // dark green on solid green (visible)
                           : "text-success"; // CONFIRMED upcoming on light green
 
-                      // Badge "Nn" — adapts to bar bg for color cohesion
+                      const isMonthly = res.billingType === "MONTHLY";
+
+                      // Badge de duración — adapts to bar bg for color cohesion.
+                      // MONTHLY muestra "Nm" (cuotas mensuales), no "Nn" (noches):
+                      // una mensual se cobra por mes fijo, no por noche (CONTEXT.md
+                      // "Precio"), así que contar noches en la barra sugeriría una
+                      // unidad de facturación que no es la real — un número grande
+                      // y plausible pero engañoso (ej. "90n" para una reserva de 3
+                      // cuotas). "Nm" usa `getInclusiveMonths`, el mismo cálculo con
+                      // el que se deriva el precio y con el que ya se diferencia
+                      // MONTHLY en `ReservationPreviewDialog` ("X meses" vs "X
+                      // noches") — mismo lenguaje visual, sin inventar un componente
+                      // nuevo ni tocar el color (Status Color Doctrine sigue
+                      // codificando solo estado).
                       const badgeClass =
                         isCancelled
                           ? "bg-white/20 text-destructive-foreground"
@@ -560,17 +574,20 @@ export function CalendarTimeline({ reservations, externalBlocks = [], overbooked
                           : "bg-primary/20 text-primary";
 
                       // Progressive disclosure del contenido según el ancho disponible.
-                      // Barras estrechas (<90px): ocultan chip de noches.
+                      // Barras estrechas (<90px): ocultan chip de duración (noches/meses).
                       // Barras muy estrechas (<60px): ocultan también el icono (solo nombre).
                       // Barras mínimas (<36px): ocultan todo excepto el dot de status.
                       const barWidthPx = Math.max(duration * dayWidth - 8, 34);
-                      const showNightsBadge = barWidthPx >= 90;
+                      const showDurationBadge = barWidthPx >= 90;
                       const showStatusIcon = barWidthPx >= 60;
                       const showClientName = barWidthPx >= 36;
+                      const durationLabel = isMonthly
+                        ? `${getInclusiveMonths(res.startDate, res.endDate)} meses`
+                        : `${getNights(res.startDate, res.endDate)} noches`;
                       const ariaLabel = [
                         res.client.name,
                         statusConfig[res.status]?.label ?? res.status,
-                        `${getNights(res.startDate, res.endDate)} noches`,
+                        durationLabel,
                         `${formatDate(res.startDate)} a ${formatDate(res.endDate)}`,
                       ].join(", ");
 
@@ -603,9 +620,9 @@ export function CalendarTimeline({ reservations, externalBlocks = [], overbooked
                               className={`mx-auto h-1.5 w-1.5 shrink-0 rounded-full ${iconColorClass}`}
                             />
                           )}
-                          {showNightsBadge && (
+                          {showDurationBadge && (
                             <span aria-hidden="true" className={`hidden shrink-0 rounded-sm px-1.5 py-0.5 font-medium sm:inline-flex ${badgeClass}`}>
-                              {getNights(res.startDate, res.endDate)}n
+                              {isMonthly ? `${getInclusiveMonths(res.startDate, res.endDate)}m` : `${getNights(res.startDate, res.endDate)}n`}
                             </span>
                           )}
                         </button>

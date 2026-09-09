@@ -76,6 +76,78 @@ describe("CalendarTimeline reservation bar", () => {
   });
 });
 
+describe("CalendarTimeline MONTHLY reservations", () => {
+  // MONTHLY pasa a ser ciudadana de primera del timeline: misma barra, mismo
+  // tratamiento de click y de estado que DAILY. Solo cambia el badge de
+  // duración (meses en vez de noches) — ver comentario en calendar-timeline.tsx.
+  const monthlyReservation = makeRes({
+    id: "r-monthly",
+    billingType: "MONTHLY",
+    startDate: "2025-01-01",
+    endDate: "2025-03-31", // 3 meses inclusivos (getInclusiveMonths)
+  });
+
+  it("renders a MONTHLY reservation as a clickable bar, same as DAILY", () => {
+    const onSelectReservation = vi.fn();
+    const { container } = render(
+      <CalendarTimeline
+        reservations={[monthlyReservation]}
+        currentMonth={currentMonth}
+        onSelectReservation={onSelectReservation}
+      />
+    );
+    const reservationBar = container.querySelector("button[title]") as HTMLElement | null;
+    expect(reservationBar).toBeTruthy();
+    fireEvent.click(reservationBar!);
+    expect(onSelectReservation).toHaveBeenCalledWith("r-monthly");
+  });
+
+  it("badge shows months ('Nm'), not nights ('Nn'), for a MONTHLY reservation", () => {
+    const { container } = render(
+      <CalendarTimeline
+        reservations={[monthlyReservation]}
+        currentMonth={currentMonth}
+        onSelectReservation={() => {}}
+      />
+    );
+    const spans = Array.from(container.querySelectorAll("span"));
+    const monthChip = spans.find((s) => /^\d+m$/.test(s.textContent?.trim() || ""));
+    expect(monthChip).toBeDefined();
+    expect(monthChip!.textContent?.trim()).toBe("3m");
+    // No debe haber un chip "Nn" (noches) para esta reserva mensual.
+    const nightChip = spans.find((s) => /^\d+n$/.test(s.textContent?.trim() || ""));
+    expect(nightChip).toBeUndefined();
+  });
+
+  it("aria-label of a MONTHLY bar reports 'meses', not 'noches'", () => {
+    const { container } = render(
+      <CalendarTimeline
+        reservations={[monthlyReservation]}
+        currentMonth={currentMonth}
+        onSelectReservation={() => {}}
+      />
+    );
+    const reservationBar = container.querySelector("button[title]") as HTMLElement | null;
+    const ariaLabel = reservationBar!.getAttribute("aria-label");
+    expect(ariaLabel).toMatch(/3 meses/);
+    expect(ariaLabel).not.toMatch(/noches/);
+  });
+
+  it("a DAILY bar still shows the nights badge ('Nn'), unaffected by the MONTHLY change", () => {
+    const { container } = render(
+      <CalendarTimeline
+        reservations={[makeRes()]}
+        currentMonth={currentMonth}
+        onSelectReservation={() => {}}
+      />
+    );
+    const spans = Array.from(container.querySelectorAll("span"));
+    const nightChip = spans.find((s) => /^\d+n$/.test(s.textContent?.trim() || ""));
+    expect(nightChip).toBeDefined();
+    expect(nightChip!.textContent?.trim()).toBe("6n"); // Jan 10-15 → 6 noches
+  });
+});
+
 describe("CalendarMonthGrid navigation", () => {
   it("renders the 'Hoy' button with a rectangular radius", () => {
     render(

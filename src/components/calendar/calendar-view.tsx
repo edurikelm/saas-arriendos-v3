@@ -20,7 +20,12 @@ import type { ReservationInput } from "@/lib/validations/reservation";
 import { createReservation, getCalendarReservations } from "@/lib/actions/reservations";
 import { computeOverbookedDays } from "@/lib/calendar/conflicts";
 import { nowKeyInBusinessTz } from "@/lib/domain/timezone";
-import { calculateOccupancyRate, portfolioOccupancyDenominator, prorateRevenueToRange } from "@/lib/reports/kpis";
+import {
+  calculateOccupancyRate,
+  portfolioOccupancyDenominator,
+  prorateMonthlyRevenueToRange,
+  prorateRevenueToRange,
+} from "@/lib/reports/kpis";
 
 function parseCalendarDate(dateString: string): Date {
   const [year, month, day] = dateString.slice(0, 10).split("-").map(Number);
@@ -170,22 +175,26 @@ export function CalendarView({
     fetchReservations();
   };
 
-  const dailyReservations = reservations.filter((r) => r.billingType === "DAILY");
+  // `reservations` ya incluye ambos billingType (DAILY y MONTHLY) — el server
+  // action `getCalendarReservations` dejó de filtrar por billingType porque
+  // una mensual consume unidades igual que una diaria y debe alimentar la
+  // alarma de sobreventa, la ocupación y el revenue de este calendario, igual
+  // que ya ocurre en /reports (ver CONTEXT.md sección "Calendario").
 
   // Canceladas ocultas por default (modo Operate: el timeline refleja estado vigente,
   // no archivo histórico). El toggle `showCancelled` permite verlas bajo demanda.
   // El conteo se calcula siempre (sin filtrar) para alimentar el sublabel "X canceladas
   // ocultas" y el contador del toggle.
   const cancelledCount = useMemo(
-    () => dailyReservations.filter((r) => r.status === "CANCELLED").length,
-    [dailyReservations],
+    () => reservations.filter((r) => r.status === "CANCELLED").length,
+    [reservations],
   );
-  const visibleDailyReservations = useMemo(
+  const visibleReservations = useMemo(
     () =>
       showCancelled
-        ? dailyReservations
-        : dailyReservations.filter((r) => r.status !== "CANCELLED"),
-    [dailyReservations, showCancelled],
+        ? reservations
+        : reservations.filter((r) => r.status !== "CANCELLED"),
+    [reservations, showCancelled],
   );
 
   // Reservas que consumen disponibilidad real: SIEMPRE no-canceladas, sin importar
@@ -193,9 +202,9 @@ export function CalendarView({
   // o no — atar la aritmética de ocupación a un toggle de visualización produciría
   // sobreventa fantasma al prenderlo (una reserva cancelada "reaparecería" y sumaría
   // unidades que en realidad están libres).
-  const activeDailyReservations = useMemo(
-    () => dailyReservations.filter((r) => r.status !== "CANCELLED"),
-    [dailyReservations],
+  const activeReservations = useMemo(
+    () => reservations.filter((r) => r.status !== "CANCELLED"),
+    [reservations],
   );
 
   // Alarma de sobreventa: para cada propiedad y día, unidades consumidas (reservas
@@ -206,10 +215,21 @@ export function CalendarView({
   // propiedad (imposible que compita por la misma unidad) y también marcaba
   // propiedades con unidades de sobra. Solo se calcula cuando `showExternalBlocks`
   // está prendido porque sin ese toggle no se traen los bloqueos.
+  // El resultado se ACOTA al mes visible. `computeOverbookedDays` recorre el rango
+  // completo de cada reserva, y las reservas que se traen son las que INTERSECTAN
+  // el mes — no las que caben en él. Dos reservas que se solapan fuera del mes
+  // visible producían días de sobreventa que el banner contaba pero el timeline no
+  // podía marcar, porque solo dibuja los días del mes. Medido con un inquilino
+  // mensual (sep→dic) más una diaria 28-sep→20-oct sobre 1 unidad: el banner decía
+  // "23 días" cuando en septiembre había 3. Se volvió frecuente al incluir las
+  // reservas MONTHLY, que abarcan muchos meses. Acotar acá —y no solo en el
+  // conteo— mantiene alineados el número, las propiedades afectadas y las celdas
+  // marcadas: los tres salen de la misma lista.
+  const visibleMonthKey = format(currentMonth, "yyyy-MM");
   const overbookedDays = useMemo(() => {
     if (!showExternalBlocks) return [];
     return computeOverbookedDays(
-      activeDailyReservations.map((r) => ({
+      activeReservations.map((r) => ({
         propertyId: r.property.id,
         startDate: r.startDate,
         endDate: r.endDate,
@@ -221,8 +241,8 @@ export function CalendarView({
         endDate: b.endDate,
       })),
       properties.map((p) => ({ id: p.id, unitsAvailable: p.unitsAvailable })),
-    );
-  }, [activeDailyReservations, externalBlocks, properties, showExternalBlocks]);
+    ).filter((d) => d.date.startsWith(visibleMonthKey));
+  }, [activeReservations, externalBlocks, properties, showExternalBlocks, visibleMonthKey]);
 
   const overbookedDayCount = useMemo(
     () => new Set(overbookedDays.map((d) => d.date)).size,
@@ -239,8 +259,8 @@ export function CalendarView({
   const calendarKpis = useMemo(() => {
     // P0-3 fix: filter by selectedPropertyId when not "all"
     const filteredReservations = selectedPropertyId === "all"
-      ? dailyReservations
-      : dailyReservations.filter((r) => r.property.id === selectedPropertyId);
+      ? reservations
+      : reservations.filter((r) => r.property.id === selectedPropertyId);
 
     const activeThisMonth = filteredReservations.filter((r) => {
       if (r.status === "CANCELLED") return false;
@@ -281,14 +301,19 @@ export function CalendarView({
       return r.endDate.slice(0, 10) === todayKey;
     }).length;
 
-    // Revenue prorrateado por noches dentro del mes. Exacto (no estimación) para
-    // DAILY porque totalPrice = noches × daily_price × units (CONTEXT.md, sección
-    // Precio) — antes se sumaba el totalPrice COMPLETO de cualquier reserva que
-    // solo tocara el mes, mezclando ingresos de otros meses.
+    // Revenue prorrateado dentro del mes — DAILY por noches, MONTHLY por cuotas
+    // (mes calendario). Ambos son exactos (no estimaciones), pero con aritmética
+    // distinta: DAILY es lineal por noche (totalPrice = noches × daily_price ×
+    // units), MONTHLY no lo es (totalPrice = meses inclusivos × monthly_price ×
+    // units, precio fijo por cuota). Prorratear una mensual por noches daría un
+    // número plausible y equivocado — ver JSDoc de `prorateMonthlyRevenueToRange`
+    // en src/lib/reports/kpis.ts. Antes se sumaba el totalPrice COMPLETO de
+    // cualquier reserva que solo tocara el mes, mezclando ingresos de otros meses.
     const projectedRevenue = activeThisMonth.reduce((sum, r) => {
       const start = parseCalendarDate(r.startDate);
       const end = parseCalendarDate(r.endDate);
-      return sum + prorateRevenueToRange(Number(r.totalPrice), start, end, monthStart, monthEnd);
+      const prorate = r.billingType === "MONTHLY" ? prorateMonthlyRevenueToRange : prorateRevenueToRange;
+      return sum + prorate(Number(r.totalPrice), start, end, monthStart, monthEnd);
     }, 0);
 
     return {
@@ -297,7 +322,7 @@ export function CalendarView({
       departuresToday,
       projectedRevenue,
     };
-  }, [dailyReservations, properties, selectedPropertyId, monthStart, monthEnd]);
+  }, [reservations, properties, selectedPropertyId, monthStart, monthEnd]);
 
   // Filter external blocks to selected property (if not "all")
   const visibleExternalBlocks = useMemo(() => {
@@ -443,7 +468,7 @@ export function CalendarView({
           density="compact"
           tone={calendarKpis.projectedRevenue > 0 ? "default" : "warning"}
           indicator={{
-            text: `${dailyReservations.filter((r) => r.status !== "CANCELLED").length} reservas activas`,
+            text: `${reservations.filter((r) => r.status !== "CANCELLED").length} reservas activas`,
             variant: "neutral",
           }}
         />
@@ -555,11 +580,11 @@ export function CalendarView({
           <CalendarTimeline
             selectedPropertyId={selectedPropertyId}
             properties={properties}
-            reservations={visibleDailyReservations.map((r) => ({
+            reservations={visibleReservations.map((r) => ({
               ...r,
               propertyId: r.property.id,
               clientId: "",
-              billingType: "DAILY" as const,
+              billingType: r.billingType,
               unitsBooked: r.unitsBooked ?? 1,
               bookingAirbnb: false,
               notes: null,
