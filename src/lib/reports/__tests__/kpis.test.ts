@@ -1,7 +1,8 @@
 /**
  * Tests for `prorateRevenueToRange` — pure prorating of a DAILY reservation's
  * `totalPrice` by nights that fall inside a range (e.g. the visible month in
- * `/calendar`).
+ * `/calendar`) — and `prorateMonthlyRevenueToRange`, its MONTHLY counterpart
+ * that prorates by calendar-month installments instead of nights.
  *
  * Fixed at midnight LOCAL time (matches `parseCalendarDate` in calendar-view.tsx
  * and the month boundaries built with `new Date(year, month, day)`), consistent
@@ -9,7 +10,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { prorateRevenueToRange } from "@/lib/reports/kpis";
+import { prorateRevenueToRange, prorateMonthlyRevenueToRange } from "@/lib/reports/kpis";
 
 function d(year: number, month: number, day: number): Date {
   // month is 1-indexed here for readability
@@ -108,5 +109,105 @@ describe("prorateRevenueToRange", () => {
     );
     expect(share).toBe(0);
     expect(Number.isFinite(share)).toBe(true);
+  });
+});
+
+describe("prorateMonthlyRevenueToRange", () => {
+  it("reserva de 3 meses (1 sep → 30 nov), vista desde el mes del medio (octubre) → 1 cuota", () => {
+    // getInclusiveMonths(1 sep, 30 nov) = 3 → 3 cuotas de 100000 c/u.
+    const share = prorateMonthlyRevenueToRange(
+      300000,
+      d(2026, 9, 1),
+      d(2026, 11, 30),
+      d(2026, 10, 1),
+      d(2026, 10, 31),
+    );
+    expect(share).toBe(100000);
+  });
+
+  it("reserva de 3 meses, vista desde el primer mes (septiembre) → 1 cuota", () => {
+    const share = prorateMonthlyRevenueToRange(
+      300000,
+      d(2026, 9, 1),
+      d(2026, 11, 30),
+      d(2026, 9, 1),
+      d(2026, 9, 30),
+    );
+    expect(share).toBe(100000);
+  });
+
+  it("reserva de 3 meses, vista desde el último mes (noviembre) → 1 cuota", () => {
+    const share = prorateMonthlyRevenueToRange(
+      300000,
+      d(2026, 9, 1),
+      d(2026, 11, 30),
+      d(2026, 11, 1),
+      d(2026, 11, 30),
+    );
+    expect(share).toBe(100000);
+  });
+
+  it("reserva de 1 mes → share = total al ver ese mes", () => {
+    const share = prorateMonthlyRevenueToRange(
+      150000,
+      d(2026, 9, 1),
+      d(2026, 9, 30),
+      d(2026, 9, 1),
+      d(2026, 9, 30),
+    );
+    expect(share).toBe(150000);
+  });
+
+  it("reserva mensual que no intersecta el rango visible → 0", () => {
+    const share = prorateMonthlyRevenueToRange(
+      150000,
+      d(2026, 1, 5),
+      d(2026, 1, 30),
+      d(2026, 3, 1),
+      d(2026, 3, 31),
+    );
+    expect(share).toBe(0);
+  });
+
+  it("borde: getInclusiveMonths devuelve 1 aunque la barra toque 2 meses calendario — la cuota vive solo en el mes de inicio", () => {
+    // 20 ago → 5 sep: end.day(5) < start.day(20) → getInclusiveMonths = 1.
+    // La única cuota queda en agosto (mes de startDate), aunque la reserva
+    // visualmente toque también septiembre (1-5 sep).
+    const totalPrice = 200000;
+
+    const augustShare = prorateMonthlyRevenueToRange(
+      totalPrice,
+      d(2026, 8, 20),
+      d(2026, 9, 5),
+      d(2026, 8, 1),
+      d(2026, 8, 31),
+    );
+    expect(augustShare).toBe(totalPrice);
+
+    const septemberShare = prorateMonthlyRevenueToRange(
+      totalPrice,
+      d(2026, 8, 20),
+      d(2026, 9, 5),
+      d(2026, 9, 1),
+      d(2026, 9, 30),
+    );
+    expect(septemberShare).toBe(0);
+  });
+
+  it("las cuotas de una reserva de 3 meses suman exactamente el totalPrice (sin doble conteo)", () => {
+    const totalPrice = 300000;
+    const start = d(2026, 9, 1);
+    const end = d(2026, 11, 30);
+    const months = [
+      [d(2026, 9, 1), d(2026, 9, 30)],
+      [d(2026, 10, 1), d(2026, 10, 31)],
+      [d(2026, 11, 1), d(2026, 11, 30)],
+    ] as const;
+    const total = months.reduce(
+      (sum, [rangeStart, rangeEnd]) =>
+        sum + prorateMonthlyRevenueToRange(totalPrice, start, end, rangeStart, rangeEnd),
+      0,
+    );
+    expect(total).toBe(totalPrice);
   });
 });

@@ -13,9 +13,12 @@
  *   del owner, no solo las que tienen reservas en el período).
  * - `prorateRevenueToRange` — prorratea `totalPrice` de una reserva DAILY por
  *   noches dentro de un rango (exacto, no estimación — ver CONTEXT.md "Precio").
+ * - `prorateMonthlyRevenueToRange` — prorratea `totalPrice` de una reserva
+ *   MONTHLY por CUOTAS (mes calendario), no por noches — el precio mensual
+ *   no es lineal por noche (ver CONTEXT.md "Precio" y JSDoc de la función).
  */
 
-
+import { getInclusiveMonths } from "@/lib/reservation-dates";
 
 export type QuickRange = "current_month" | "prev_month" | "last_3" | "last_6" | "year_to_date" | "custom";
 
@@ -158,6 +161,76 @@ export function prorateRevenueToRange(
   if (nightsInRange <= 0) return 0;
 
   return totalPrice * (nightsInRange / totalNights);
+}
+
+/**
+ * Prorratea el `totalPrice` de una reserva MONTHLY dentro de un rango (ej:
+ * el mes visible en `/calendar`), prorrateando por CUOTAS (mes calendario),
+ * NO por noches.
+ *
+ * `prorateRevenueToRange` es exacto solo para DAILY porque ese precio es
+ * lineal por noche. En MONTHLY no lo es: `totalPrice = meses inclusivos ×
+ * monthly_price × unitsBooked` (CONTEXT.md, sección "Precio") — es un precio
+ * fijo por cuota mensual, no por día. Prorratear una mensual por noches da
+ * un número plausible y equivocado (ej: febrero, con menos días, rendiría
+ * menos que enero por la misma cuota).
+ *
+ * Lo correcto: dividir `totalPrice` en `getInclusiveMonths(reservationStart,
+ * reservationEnd)` cuotas iguales, una por cada mes calendario cubierto,
+ * empezando en el mes de `reservationStart` — el mismo esquema que usa
+ * `generateMonthlyPayments` para las fechas de vencimiento (ADR-0012: "Sep 1
+ * → Sep 1, Oct 1, Nov 1"). El rango recibe la cuota completa de cada mes
+ * calendario que solapa `[rangeStart, rangeEnd]`.
+ *
+ * Caso límite importante: el mes calendario que la reserva TOCA visualmente
+ * no siempre es una cuota. Ej: una reserva 20-ago a 5-sep tiene
+ * `getInclusiveMonths` = 1 (el día 5 < día 20, así que no completa un segundo
+ * mes) → la única cuota vive en agosto. Vista desde septiembre, aunque la
+ * barra cruce esos 5 días, el share es 0 — la cuota ya se facturó en agosto.
+ * Vista desde agosto, el share es el `totalPrice` completo.
+ *
+ * @param totalPrice — precio total de la reserva completa
+ * @param reservationStart — inicio de la reserva (inclusivo)
+ * @param reservationEnd — última noche de la reserva (inclusivo)
+ * @param rangeStart — inicio del rango a prorratear
+ * @param rangeEnd — fin del rango a prorratear (inclusivo)
+ * @returns la porción de `totalPrice` correspondiente a las cuotas cuyo mes
+ *   calendario solapa el rango. Devuelve 0 si ninguna cuota cae en el rango.
+ */
+export function prorateMonthlyRevenueToRange(
+  totalPrice: number,
+  reservationStart: Date,
+  reservationEnd: Date,
+  rangeStart: Date,
+  rangeEnd: Date,
+): number {
+  const months = getInclusiveMonths(reservationStart, reservationEnd);
+  const perInstallment = totalPrice / months;
+
+  const rangeStartDay = Math.floor(rangeStart.getTime() / 86_400_000);
+  const rangeEndDay = Math.floor(rangeEnd.getTime() / 86_400_000);
+
+  const startYear = reservationStart.getFullYear();
+  const startMonth = reservationStart.getMonth(); // 0-indexed
+
+  let total = 0;
+  for (let i = 0; i < months; i++) {
+    const installmentMonthIndex = startMonth + i;
+    const installmentYear = startYear + Math.floor(installmentMonthIndex / 12);
+    const installmentMonth = ((installmentMonthIndex % 12) + 12) % 12;
+
+    const installmentFirstDay = Math.floor(
+      new Date(installmentYear, installmentMonth, 1).getTime() / 86_400_000,
+    );
+    const installmentLastDay = Math.floor(
+      new Date(installmentYear, installmentMonth + 1, 0).getTime() / 86_400_000,
+    );
+
+    const overlapsRange = installmentFirstDay <= rangeEndDay && installmentLastDay >= rangeStartDay;
+    if (overlapsRange) total += perInstallment;
+  }
+
+  return total;
 }
 
 /**

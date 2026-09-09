@@ -967,9 +967,12 @@ export async function getCalendarReservations(options?: {
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 0, 23, 59, 59);
 
+  // Incluye ambos billingType (DAILY y MONTHLY): una reserva mensual consume
+  // unidades igual que una diaria (regla que aplica `checkAvailability`), así
+  // que debe contar para la alarma de sobreventa, la ocupación y el revenue
+  // de `/calendar` — ver CONTEXT.md sección "Calendario".
   const where: Prisma.ReservationWhereInput = {
     userId: session.userId,
-    billingType: "DAILY",
     OR: [
       {
         startDate: { gte: startDate, lte: endDate },
