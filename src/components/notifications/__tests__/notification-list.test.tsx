@@ -15,6 +15,11 @@ vi.mock("@/lib/actions/notifications", () => ({
 beforeAll(() => {
   Object.defineProperty(window, "matchMedia", {
     writable: true,
+    // `configurable` por defecto es false: sin esto la propiedad queda
+    // no-configurable y el teardown de jsdom (modo estricto) tira
+    // "TypeError: Cannot delete property 'matchMedia'", que vitest reporta como
+    // Unhandled Error y hace salir la suite con codigo 1 aunque todo pase.
+    configurable: true,
     value: (query: string) => ({
       matches: false,
       media: query,
