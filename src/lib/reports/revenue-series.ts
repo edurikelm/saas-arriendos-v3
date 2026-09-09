@@ -11,7 +11,12 @@
  * Source of truth: ADR-0030
  */
 
-import { getDateKeyInTz, BUSINESS_TIME_ZONE } from "@/lib/domain/timezone";
+import {
+  getDateKeyInTz,
+  startOfDayInTz,
+  endOfDayInTz,
+  BUSINESS_TIME_ZONE,
+} from "@/lib/domain/timezone";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -159,8 +164,14 @@ export function buildAnnualCollectedCash(
   ownerTz: string = BUSINESS_TIME_ZONE,
   cancelledPaymentIds?: Set<string>,
 ): AnnualCollectedCash {
-  const yearStart = new Date(year, 0, 1);
-  const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999);
+  // El rango se construye en la zona de negocio, no en la del proceso.
+  // `new Date(year, 0, 1)` usa la hora local del servidor: en Chile da el
+  // instante correcto por casualidad, pero en UTC —donde corre el deploy—
+  // equivale al 31 de diciembre anterior a las 21:00 de Santiago, así que
+  // `buildMonthlyCollectedCash` derivaba `startKey` "YYYY-1-12" y la serie
+  // salía con 13 meses arrancando en diciembre del año anterior.
+  const yearStart = startOfDayInTz(`${year}-01-01`, ownerTz);
+  const yearEnd = endOfDayInTz(`${year}-12-31`, ownerTz);
 
   const byMonth = buildMonthlyCollectedCash(
     payments,
@@ -175,7 +186,11 @@ export function buildAnnualCollectedCash(
   for (const p of payments) {
     if (!isEligibleCashPayment(p)) continue;
     if (p.paidAt === null) continue;
-    const paidYear = new Date(p.paidAt).getFullYear();
+    // El año del pago se lee en la zona de negocio, igual que el `monthKey` de
+    // `buildMonthlyCollectedCash`. Con `getFullYear()` —hora local del proceso—
+    // un pago del 31-dic 22:00 en Santiago cae en el año siguiente al correr en
+    // UTC, así que `byMethod` dejaba de cuadrar con `byMonth` y con `totalCash`.
+    const paidYear = Number(getDateKeyInTz(p.paidAt, ownerTz).slice(0, 4));
     if (paidYear !== year) continue;
     byMethod[p.method] = (byMethod[p.method] ?? 0) + Number(p.amount);
   }
