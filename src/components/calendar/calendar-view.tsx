@@ -306,20 +306,20 @@ export function CalendarView({
   }, [externalBlocks, selectedPropertyId]);
 
   const headerActions = (
-    // Mobile: vertical stack con cada item full-width (mejor tap targets,
-    // no compite con el toolbar de mes/Hoy). sm+: horizontal inline.
-    <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center">
-      <Button
-        variant="default"
-        onClick={() => setCreateDialogOpen(true)}
-        className="w-full sm:w-auto"
-      >
+    // Mobile: fila que envuelve (flex-wrap) en vez del stack vertical anterior
+    // (3 alturas completas de ~112px). El Select toma el espacio sobrante
+    // (flex-1 min-w-0) y los botones quedan a ancho automático — el Button
+    // del sistema trae shrink-0 en su base y no se comprime, así que sin
+    // flex-wrap el sobrante se dibujaría fuera del contenedor. sm+: idéntico
+    // a como estaba (una sola fila, sin necesidad de wrap).
+    <div className="flex w-full flex-row flex-wrap items-center gap-2 sm:w-auto">
+      <Button variant="default" onClick={() => setCreateDialogOpen(true)}>
         <Plus className="mr-2 h-4 w-4" />
         <span className="hidden sm:inline text-foreground">Nueva Reserva</span>
         <span className="sm:hidden text-foreground">Nueva</span>
       </Button>
       <Select value={selectedPropertyId} onValueChange={(v) => setSelectedPropertyId(v || "all")}>
-        <SelectTrigger className="w-full min-w-0 sm:w-48" aria-label="Filtrar por propiedad">
+        <SelectTrigger className="min-w-0 flex-1 sm:w-48 sm:flex-none" aria-label="Filtrar por propiedad">
           <SelectValue placeholder="Propiedades">
             {(value: string | null) => {
               if (!value || value === "all") return "Todas";
@@ -343,7 +343,7 @@ export function CalendarView({
           aria-pressed={showExternalBlocks}
           aria-label="Mostrar bloqueos externos"
           onClick={handleToggleExternalBlocks}
-          className={`h-8 w-full rounded-md px-3 text-[10px] font-bold uppercase tracking-wider transition-colors sm:w-auto ${
+          className={`h-8 rounded-md px-3 text-[10px] font-bold uppercase tracking-wider transition-colors ${
             showExternalBlocks ? "bg-primary text-foreground" : "bg-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -357,13 +357,16 @@ export function CalendarView({
   return (
     <div className="space-y-6">
       {/* 1. Page header (Stitch "Calendario de Ocupación").
-            Mobile: h1 más pequeño (text-xl) y subtítulo más discreto (text-[11px])
-            para reducir altura vertical y empujar el timeline hacia el fold.
-            md+: h1 text-2xl (Tier 2 de Display), subtítulo text-xs. */}
+            Mobile: h1 más pequeño (text-xl) para reducir altura vertical y
+            empujar el timeline hacia el fold. md+: h1 text-2xl (Tier 2 de
+            Display). Subtítulo usa text-xs (12px, escalón documentado en
+            DESIGN.md) en todos los tamaños — antes usaba un literal de 11px en
+            mobile, fuera de la rampa tipográfica (10 / 12 / 14), que además ya
+            colapsaba a text-xs desde sm: unificar no cambia nada en desktop. */}
       <div className="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Calendario de Ocupación</h1>
-          <p className="text-[11px] text-muted-foreground sm:text-xs">
+          <p className="text-xs text-muted-foreground">
             Gestiona la disponibilidad de tus unidades en tiempo real.
           </p>
           {/* Sublabel: comunica cuántas canceladas están ocultas (solo cuando hay
@@ -390,12 +393,17 @@ export function CalendarView({
             que es la sección accionable prioritaria del calendario.
             En <640px ocupaba 4 alturas verticales (stack) — ahora 2 alturas (2x2).
             El Revenue card con value largo cabe porque el KpiCard usa text-lg en
-            mobile + padding reducido (p-3). */}
+            mobile + padding reducido (p-3). density="compact" es opt-in (default
+            "comfortable" en las otras 9 superficies que usan KpiCard): oculta
+            icono/indicador/barra de progreso por debajo de `sm` (~117px → ~67px
+            por card) y los restaura sin cambios desde `sm` — solo /calendar pasa
+            esta prop. */}
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4 sm:gap-4">
         <KpiCard
           label="Ocupación Media"
           value={`${calendarKpis.occupancyRate}%`}
           icon={Building2}
+          density="compact"
           tone={
             calendarKpis.occupancyRate >= 85
               ? "success"
@@ -416,6 +424,7 @@ export function CalendarView({
           label="Llegadas Hoy"
           value={calendarKpis.arrivalsToday}
           icon={CalendarCheck}
+          density="compact"
           tone="info"
           unit="Check-ins"
         />
@@ -423,6 +432,7 @@ export function CalendarView({
           label="Salidas Hoy"
           value={calendarKpis.departuresToday}
           icon={CalendarCheck}
+          density="compact"
           tone="default"
           unit="Check-outs"
         />
@@ -430,6 +440,7 @@ export function CalendarView({
           label="Revenue Proyectado"
           value={formatCLP(calendarKpis.projectedRevenue)}
           icon={Wallet}
+          density="compact"
           tone={calendarKpis.projectedRevenue > 0 ? "default" : "warning"}
           indicator={{
             text: `${dailyReservations.filter((r) => r.status !== "CANCELLED").length} reservas activas`,
