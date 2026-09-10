@@ -26,7 +26,7 @@ colors:
 
   # Neutral — Muted
   driftwood: "oklch(0.9670 0.0029 264.5419)"
-  slate-whisper: "#64748b"
+  slate-whisper: "oklch(0.53 0.035 257)"
 
   # Border
   sea-mist: "oklch(0.9276 0.0058 264.5313)"
@@ -64,6 +64,12 @@ typography:
     fontSize: "0.625rem"
     fontWeight: 700
     letterSpacing: "0.05em"
+    textTransform: "uppercase"
+  micro-label:
+    fontFamily: "DM Sans, sans-serif"
+    fontSize: "0.5625rem"
+    fontWeight: 700
+    letterSpacing: "-0.01em"
     textTransform: "uppercase"
   mono:
     fontFamily: "IBM Plex Mono, monospace"
