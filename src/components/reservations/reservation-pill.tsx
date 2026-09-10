@@ -28,8 +28,12 @@ const toneClassNames: Record<PillTone, string> = {
   // tinte se comia el contraste del texto: 3.94:1 en claro. La distincion pasa al
   // BORDE, que no cuesta contraste — mismo fondo que `info` (4.69:1) y borde
   // opaco contra el 20% del otro. El par relleno documentado del Badge no servia
-  // aca: `bg-info` + `text-info-foreground` mide 1.58:1 en oscuro, porque en ese
-  // tema los dos tokens son claros.
+  // aca: `bg-info` + `text-info-foreground` medía 1.58:1 en oscuro, porque en ese
+  // tema los dos tokens eran claros (L=0.70 relleno, L=0.85 foreground). Esa
+  // trampa ya no existe: `--info-foreground` se fijo a un valor unico sin tema
+  // (oklch(0.27 0.12 210)), asi que el par mide 4.56:1 claro / 5.63:1 oscuro
+  // sobre `bg-info`. Igual seguimos usando `-text` aca porque este pill se
+  // sienta sobre `bg-info/10` (tinte), no sobre `bg-info` opaco.
   "info-strong": "border-info bg-info/10 text-info-text",
   warning: "border-warning/25 bg-warning/10 text-warning-text",
   destructive: "border-destructive/25 bg-destructive/10 text-destructive-text",

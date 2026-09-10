@@ -4,7 +4,7 @@ import { channelColors } from "../channel-colors";
 describe("channelColors", () => {
   it("AIRBNB maps to bg-info", () => {
     expect(channelColors.AIRBNB.dotClass).toBe("bg-info");
-    expect(channelColors.AIRBNB.labelClass).toBe("text-info");
+    expect(channelColors.AIRBNB.labelClass).toBe("text-info-text");
   });
 
   it("BOOKING_COM maps to bg-primary", () => {

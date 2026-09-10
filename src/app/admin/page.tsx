@@ -66,8 +66,8 @@ const activityVisuals: Record<
   { icon: LucideIcon; container: string }
 > = {
   OWNER_REGISTERED: { icon: UserPlus, container: "bg-primary/10 text-primary" },
-  SUPPORT_TICKET: { icon: LifeBuoy, container: "bg-warning/10 text-warning" },
-  PAYMENT_COMPLETED: { icon: Wallet, container: "bg-info/10 text-info" },
+  SUPPORT_TICKET: { icon: LifeBuoy, container: "bg-warning/10 text-warning-text" },
+  PAYMENT_COMPLETED: { icon: Wallet, container: "bg-info/10 text-info-text" },
 };
 
 function activityVisual(item: SystemActivityItem) {

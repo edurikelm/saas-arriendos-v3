@@ -66,7 +66,7 @@ export function PlanAlertBanner({
       className="flex flex-col gap-2 sm:flex-row sm:items-center rounded-lg border border-warning/20 bg-warning/10 px-3 py-2"
     >
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        <Icon className="size-4 shrink-0 text-warning" />
+        <Icon className="size-4 shrink-0 text-warning-text" />
         <p className="text-xs text-foreground">
           <span className="font-medium">{title}</span>
           <span className="text-muted-foreground"> · {body}</span>

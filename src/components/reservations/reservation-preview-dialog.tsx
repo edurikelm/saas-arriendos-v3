@@ -163,7 +163,7 @@ export function ReservationPreviewDialog({
           </p>
           {pendingAmount > 0 && (
             <div className="mt-2 p-2 rounded bg-warning/10 ring-1 ring-warning/20">
-              <p className="text-xs font-semibold text-warning">
+              <p className="text-xs font-semibold text-warning-text">
                 Pendiente: {formatPrice(pendingAmount)}
               </p>
             </div>
@@ -175,7 +175,7 @@ export function ReservationPreviewDialog({
           <span className={cn(
             "px-3 py-1.5 rounded-md text-xs font-medium",
             reservation.billingType === "MONTHLY"
-              ? "bg-info/10 text-info-foreground"
+              ? "bg-info/10 text-info-text"
               : "bg-secondary text-secondary-foreground"
           )}>
             {reservation.billingType === "MONTHLY" ? "Mensual" : "Diario"}
@@ -183,7 +183,7 @@ export function ReservationPreviewDialog({
           <span className={cn(
             "px-3 py-1.5 rounded-md text-xs font-medium",
             reservation.bookingAirbnb
-              ? "bg-success/10 text-success-foreground"
+              ? "bg-success/10 text-success-text"
               : "bg-muted text-muted-foreground"
           )}>
             {reservation.bookingAirbnb ? "Airbnb" : "Directo"}

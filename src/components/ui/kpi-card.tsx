@@ -48,10 +48,11 @@ const iconContainerToneClass: Record<KpiTone, string> = {
 // default e info quedan en foreground (estados neutros sin énfasis de color).
 // The Fill-vs-Text Rule (DESIGN.md): --success/--warning son tokens de RELLENO,
 // no de texto — medidos sobre --card en claro dan 3.03:1 / 2.05:1, bajo AA.
-// Los "-foreground" tambien pasan, pero estan en L=0.30: a 20px bold se leen
-// negros y el tono deja de comunicar, que es el unico trabajo de un valor
-// coloreado. Va el "-text" de cada tono, que se sienta en ~5.3:1 igual que
-// --destructive-text: pasa AA y sigue leyendose verde y ambar.
+// Los "-foreground" tampoco: ese nivel es para texto ENCIMA del relleno opaco
+// del mismo tono, y a L=0.27-0.40 sobre card se leen negros — el tono deja de
+// comunicar, que es el unico trabajo de un valor coloreado. Va el "-text" de
+// cada tono, que se sienta en ~5.3:1 igual que --destructive-text: pasa AA y
+// sigue leyendose verde y ambar.
 const valueToneClass: Record<KpiTone, string> = {
   default: "text-foreground",
   success: "text-success-text",
@@ -67,16 +68,19 @@ function IndicatorIcon({ variant }: { variant: KpiIndicatorVariant }) {
 }
 
 function indicatorClasses(variant: KpiIndicatorVariant): string {
-  // text-success-foreground (oklch 0.30 0.10 150, dark green) passes WCAG AA on white card bg;
-  // text-primary (verdigris #22c55e) is too light for normal-size text (2.27:1 fail).
-  if (variant === "positive") return "text-success-foreground";
-  // text-warning-foreground (oklch 0.30 0.10 60), NOT text-destructive-foreground: the
-  // *-foreground tokens are normally a dark, readable-on-card color (13.93:1 light /
-  // 10.43:1 dark for warning), but --destructive-foreground breaks that pattern — it's
-  // white (oklch 1.0000 0 0), because --destructive doubles as a solid fill for
-  // destructive buttons. On --card (also white in light mode) that's 1.00:1, i.e.
-  // invisible text. See issue #235 for the sibling problem on --destructive itself.
-  if (variant === "warning") return "text-warning-foreground";
+  // text-success-text: es texto de 10px sobre --card, no sobre el relleno del
+  // mismo tono, asi que el nivel que aplica es "-text", no "-foreground" (Fill-
+  // vs-Text Rule, DESIGN.md). Antes esto usaba text-success-foreground, que
+  // pasa AA pero esta pensado para sentarse ENCIMA de bg-success opaco (texto
+  // de badge relleno): a L=0.28 sobre --card se lee negro, y un indicator que
+  // no comunica el tono no esta haciendo su trabajo. Numericamente pasaba; era
+  // el nivel equivocado igual.
+  if (variant === "positive") return "text-success-text";
+  // text-warning-text por la misma razon. NOT text-destructive-foreground: ese
+  // token es blanco a proposito — --destructive dobla como relleno solido de
+  // boton destructivo — y sobre --card (blanco en claro) da 1.00:1, invisible.
+  // Ver issue #235 para el problema hermano en --destructive mismo.
+  if (variant === "warning") return "text-warning-text";
   return "text-muted-foreground";
 }
 

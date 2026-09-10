@@ -63,7 +63,7 @@ export function PendingBalancesCard({ saldos }: PendingBalancesCardProps) {
         {count === 0 ? (
           <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
             <p className="flex items-center justify-center gap-2">
-              <Check className="size-4 text-success" aria-hidden />
+              <Check className="size-4 text-success-text" aria-hidden />
               Sin saldos pendientes. Todas las reservas activas están pagadas.
             </p>
           </div>

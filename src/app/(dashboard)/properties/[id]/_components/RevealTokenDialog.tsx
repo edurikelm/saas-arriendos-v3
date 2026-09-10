@@ -128,8 +128,8 @@ export function RevealTokenDialog({
           <div className="space-y-4">
             <div className="rounded-lg border border-warning/20 bg-warning/10 p-4">
               <div className="flex gap-3">
-                <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
-                <div className="text-sm text-warning-foreground">
+                <AlertTriangle className="h-5 w-5 text-warning-text shrink-0 mt-0.5" />
+                <div className="text-sm text-warning-text">
                   <p className="font-medium">Esta URL solo se muestra una vez</p>
                   <p className="mt-1">
                     No podrás ver la URL completa después de cerrar este diálogo.
@@ -157,8 +157,8 @@ export function RevealTokenDialog({
           <div className="space-y-4">
             <div className="rounded-lg border border-warning/20 bg-warning/10 p-4">
               <div className="flex gap-3">
-                <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
-                <p className="text-sm text-warning-foreground">
+                <AlertTriangle className="h-5 w-5 text-warning-text shrink-0 mt-0.5" />
+                <p className="text-sm text-warning-text">
                   Guarda esta URL en un lugar seguro. La necesitarás para configurar
                   el calendario en {channelLabels[channel]}.
                 </p>
@@ -180,7 +180,7 @@ export function RevealTokenDialog({
                   disabled={copied}
                 >
                   {copied ? (
-                    <Check className="h-4 w-4 text-success" />
+                    <Check className="h-4 w-4 text-success-text" />
                   ) : (
                     <Copy className="h-4 w-4" />
                   )}
