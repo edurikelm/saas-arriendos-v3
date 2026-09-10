@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Payment } from "@/components/payments/payments-table";
@@ -19,6 +19,36 @@ vi.mock("@/lib/actions/payments", () => ({
   regeneratePaymentLink: vi.fn(),
   restorePayment: vi.fn(),
 }));
+
+/**
+ * `useMediaQuery` decide tabla vs lista, y jsdom no implementa `matchMedia`.
+ * Default = desktop (`matches: false`), que es la vista de tabla que afirman
+ * los tests de este archivo. `setViewport` cambia a móvil donde haga falta.
+ *
+ * `configurable: true` no es opcional: sin eso la propiedad queda
+ * no-configurable y el teardown de jsdom en modo estricto tira "Cannot delete
+ * property 'matchMedia'", que vitest reporta como Unhandled Error y hace salir
+ * la suite en 1 aunque todo pase. Mismo patrón que `occupancy-strip.test.tsx`.
+ */
+function setViewport(isMobile: boolean) {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: isMobile,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  });
+}
+
+beforeEach(() => setViewport(false));
+afterEach(() => Reflect.deleteProperty(window, "matchMedia"));
 
 import { PaymentsTableClient } from "../payment-actions";
 import { generatePaymentLink, deletePayment, restorePayment } from "@/lib/actions/payments";
@@ -53,7 +83,7 @@ describe("PaymentsTableClient", () => {
   it("renderiza la tabla con datos mock", () => {
     render(<PaymentsTableClient payments={[createMockPayment()]} />);
 
-    expect(screen.getByText("Cuota")).toBeTruthy();
+    expect(screen.getByText("Cliente")).toBeTruthy();
     expect(screen.getByText("Monto")).toBeTruthy();
   });
 
@@ -67,11 +97,10 @@ describe("PaymentsTableClient", () => {
     expect(screen.getAllByText("Marcar como pagado").length).toBeGreaterThanOrEqual(2);
   });
 
-  it("muestra mensaje cuando no hay pagos", () => {
+  it("muestra la tabla con sus encabezados cuando no hay pagos", () => {
     render(<PaymentsTableClient payments={[]} />);
 
-    // Table renders empty state
-    expect(screen.getByText("Cuota")).toBeTruthy();
+    expect(screen.getByText("Cliente")).toBeTruthy();
   });
 
   it("llama router.refresh() después de generatePaymentLink exitoso", async () => {
@@ -108,12 +137,16 @@ describe("PaymentsTableClient", () => {
     expect(mockRefresh).not.toHaveBeenCalled();
   });
 
-  it("variant=full muestra columnas de contexto (Cliente, Propiedad)", () => {
+  it("la propiedad va bajo el cliente, no en su propia columna", () => {
     render(<PaymentsTableClient payments={[createMockPayment()]} />);
 
-    // Column headers when full variant (with context columns)
-    expect(screen.getByText("Cliente")).toBeTruthy();
-    expect(screen.getByText("Propiedad")).toBeTruthy();
+    const headers = Array.from(document.querySelectorAll("thead th")).map((th) =>
+      th.textContent?.trim(),
+    );
+    expect(headers).toContain("Cliente");
+    expect(headers).not.toContain("Propiedad");
+    // Pero el dato sigue estando, como segunda línea de esa celda.
+    expect(screen.getByText("Cabaña del Bosque")).toBeTruthy();
   });
 });
 
@@ -217,5 +250,41 @@ describe("PaymentsTableClient - handleDeletePayment", () => {
     });
 
     confirmSpy.mockRestore();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Tabla vs lista según el ancho
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("PaymentsTableClient - corte por viewport", () => {
+  it("en escritorio renderiza la tabla", () => {
+    setViewport(false);
+
+    render(<PaymentsTableClient payments={[createMockPayment()]} />);
+
+    expect(document.querySelector("table")).toBeTruthy();
+  });
+
+  it("en móvil renderiza la lista, no la tabla", () => {
+    // La tabla necesitaba 1668px: en 375px el monto, el estado y las acciones
+    // quedaban a más de 1300px de scroll horizontal, y como la fila no es
+    // clickeable eso dejaba la página de solo lectura en el teléfono.
+    setViewport(true);
+
+    render(<PaymentsTableClient payments={[createMockPayment()]} />);
+
+    expect(document.querySelector("table")).toBeNull();
+    expect(screen.getByText("Cabaña del Bosque")).toBeTruthy();
+  });
+
+  it("monta una sola de las dos vistas, sin duplicar acciones", () => {
+    // Con `hidden md:block` se montaban las dos y cada botón quedaba dos veces
+    // en el DOM. `getByRole` es la afirmación: falla si hay más de uno.
+    setViewport(true);
+
+    render(<PaymentsTableClient payments={[createMockPayment()]} />);
+
+    expect(screen.getByRole("button", { name: /marcar como pagado/i })).toBeTruthy();
   });
 });
