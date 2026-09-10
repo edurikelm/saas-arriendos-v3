@@ -143,7 +143,7 @@ export function UrgentCollectionCard({
             <p className="text-xl font-semibold text-warning-text">
               {formatCLP(totalAmount)}
             </p>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               {totalCount} {totalCount === 1 ? "alerta" : "alertas"} en total
             </p>
           </div>
@@ -222,13 +222,13 @@ export function UrgentCollectionCard({
 
                         <div className="flex w-full flex-wrap items-center gap-4 md:w-auto md:justify-end">
                           <div className="text-left md:text-right">
-                            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                               Monto
                             </p>
                             <p className="text-base font-bold text-foreground">
                               {formatCLP(item.amount)}
                             </p>
-                            <p className="text-[11px] text-muted-foreground">
+                            <p className="text-xs text-muted-foreground">
                               Vence {formatDate(item.dueDate)}
                             </p>
                           </div>

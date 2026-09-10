@@ -143,7 +143,7 @@ export function ReservationPreviewDialog({
                 <p className="text-sm font-bold text-foreground">
                   {formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}
                 </p>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   {reservation.billingType === "MONTHLY"
                     ? `${nights} meses`
                     : `${nights} noches`}

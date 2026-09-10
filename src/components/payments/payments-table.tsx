@@ -262,7 +262,7 @@ export function PaymentsTable({
             {!compact && (
               <td className="px-6 py-4 align-middle">
                 <div className="flex flex-col gap-1">
-                  <Badge variant={statusCfg.variant} className="h-5 text-[11px] font-medium w-fit">
+                  <Badge variant={statusCfg.variant}>
                     {statusCfg.label}
                   </Badge>
                   {isPending && payment.overdueDays != null && payment.overdueDays > 0 && (
@@ -271,7 +271,7 @@ export function PaymentsTable({
                     </p>
                   )}
                   {isPending && isMercadoPago && isExpired && (
-                    <Badge variant="destructive" className="h-5 text-[11px] font-medium w-fit">
+                    <Badge variant="destructive">
                       Expirado
                     </Badge>
                   )}
