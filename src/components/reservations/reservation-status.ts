@@ -29,6 +29,7 @@ import {
   dateKeyToDayIndex,
   dateOnlyKey,
   getDateKeyInTz,
+  localDateKey,
   nightsBetweenDateOnly,
 } from "@/lib/domain/timezone";
 import { getInclusiveMonths } from "@/lib/reservation-dates";
@@ -256,13 +257,21 @@ export function getNights(startDate: string | Date, endDate: string | Date): num
 }
 
 /**
- * Para inputs Date (no strings), extrae el dateKey (`YYYY-MM-DD`) en
- * wall-time `America/Santiago`. Necesario porque `dateOnlyKey` (importado
- * de `@/lib/domain/timezone`) solo hace slice directo para strings — un
- * `Date` de este helper se interpreta con `getDateKeyInTz` en su zona.
+ * Para inputs `Date` (no strings) que vienen de un date-picker del
+ * navegador, extrae el dateKey (`YYYY-MM-DD`) leyendo los componentes de
+ * calendario LOCALES vía `localDateKey`.
+ *
+ * Antes esta función reinterpretaba el instante en `America/Santiago` con
+ * `getDateKeyInTz`, que para un `Date` de picker da exactamente el mismo día
+ * equivocado que el slice UTC en cualquier offset positivo (Europa, Asia,
+ * Oceanía) — el remedio documentado no remediaba. El único caller que pasa
+ * `Date` de picker es `getNights` desde `reservation-form.tsx:167`
+ * (`getNights(dateRange.from, dateRange.to)`); el conteo de noches salía
+ * bien por casualidad porque `start` y `end` se corrían el mismo día y la
+ * resta entre los dos no cambiaba.
  */
 function toDateKeyLocal(date: Date): string {
-  return getDateKeyInTz(date, BUSINESS_TIME_ZONE);
+  return localDateKey(date);
 }
 
 /**

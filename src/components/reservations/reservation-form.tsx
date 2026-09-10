@@ -20,6 +20,7 @@ import { createClient } from "@/lib/actions/clients";
 import { toast } from "sonner";
 import { getBlockedDates } from "@/lib/actions/reservations";
 import { getNights } from "@/components/reservations/reservation-status";
+import { dateOnlyKey, localDateKey } from "@/lib/domain/timezone";
 import type { ClientInput } from "@/lib/validations/client";
 import {
   Building2,
@@ -64,10 +65,21 @@ export function ReservationForm({
   const [isCreateClientOpen, setIsCreateClientOpen] = useState(false);
   const [serverError, setServerError] = useState<string | undefined>();
 
-  const formatDateForInput = (date: Date | string | undefined): string => {
+  // Dos formas de fecha entran a este formulario y necesitan tratamientos
+  // opuestos (ver `src/lib/domain/timezone.ts`): `initialData` viene de la
+  // base (date-only, anclado a 15:00/16:00 UTC) y usa `dateOnlyKey`; los
+  // valores del date-picker (`react-day-picker` entrega medianoche LOCAL del
+  // navegador) usan `localDateKey`. Fusionarlas en una sola función fue el
+  // bug de raíz: un slice UTC único se equivoca un día para una de las dos
+  // formas en cualquier offset positivo. No las vuelvas a fusionar.
+  const formatBaseDateForInput = (date: Date | string | undefined): string => {
     if (!date) return "";
-    const d = new Date(date);
-    return d.toISOString().split("T")[0];
+    return dateOnlyKey(date);
+  };
+
+  const formatPickerDateForInput = (date: Date | undefined): string => {
+    if (!date) return "";
+    return localDateKey(date);
   };
 
   const [dateRange, setDateRange] = React.useState<{
@@ -102,8 +114,8 @@ export function ReservationForm({
     defaultValues: {
       propertyId: initialData?.propertyId || "",
       clientId: initialData?.clientId || "",
-      startDate: formatDateForInput(initialData?.startDate),
-      endDate: formatDateForInput(initialData?.endDate),
+      startDate: formatBaseDateForInput(initialData?.startDate),
+      endDate: formatBaseDateForInput(initialData?.endDate),
       billingType: initialData?.billingType || "DAILY",
       unitsBooked: initialData?.unitsBooked || 1,
       bookingAirbnb: initialData?.bookingAirbnb || false,
@@ -126,11 +138,11 @@ export function ReservationForm({
 
   const handleDateRangeChange = (date: { from: Date | undefined; to: Date | undefined }) => {
     setDateRange(date);
-    setValue("startDate", date.from ? formatDateForInput(date.from) : "");
-    setValue("endDate", date.to ? formatDateForInput(date.to) : "");
+    setValue("startDate", date.from ? formatPickerDateForInput(date.from) : "");
+    setValue("endDate", date.to ? formatPickerDateForInput(date.to) : "");
     if (isMonthly && date.from && months) {
       const end = calculateEndDate(date.from, months);
-      setValue("endDate", formatDateForInput(end));
+      setValue("endDate", formatPickerDateForInput(end));
     }
   };
 
@@ -140,7 +152,7 @@ export function ReservationForm({
     if (dateRange.from && value) {
       const end = calculateEndDate(dateRange.from, value);
       setDateRange((prev) => ({ ...prev, to: end }));
-      setValue("endDate", formatDateForInput(end));
+      setValue("endDate", formatPickerDateForInput(end));
     }
   };
   const selectedProperty = properties.find((p) => p.id === selectedPropertyId);
@@ -323,11 +335,11 @@ export function ReservationForm({
                       date={{ from: dateRange.from, to: undefined }}
                       onDateChange={(date) => {
                         setDateRange({ from: date.from, to: undefined });
-                        setValue("startDate", date.from ? formatDateForInput(date.from) : "");
+                        setValue("startDate", date.from ? formatPickerDateForInput(date.from) : "");
                         if (months && date.from) {
                           const end = calculateEndDate(date.from, months);
                           setDateRange({ from: date.from, to: end });
-                          setValue("endDate", formatDateForInput(end));
+                          setValue("endDate", formatPickerDateForInput(end));
                         } else {
                           setValue("endDate", "");
                         }

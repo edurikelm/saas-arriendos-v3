@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { localDateKey } from "@/lib/domain/timezone";
 import { ChevronDown, X } from "lucide-react";
 
 interface Property {
@@ -125,8 +126,10 @@ export function PaymentsFilters({
   }
 
   function handleDateChange(range: { from: Date | undefined; to: Date | undefined }) {
-    setDateFrom(range?.from ? range.from.toISOString().split("T")[0] : "");
-    setDateTo(range?.to ? range.to.toISOString().split("T")[0] : "");
+    // Valores del date-picker (medianoche LOCAL del navegador): usar
+    // localDateKey, no slice UTC — ver src/lib/domain/timezone.ts.
+    setDateFrom(range?.from ? localDateKey(range.from) : "");
+    setDateTo(range?.to ? localDateKey(range.to) : "");
   }
 
   const hasFilters = propertyId || method || status || paymentType || dateFrom || dateTo;
