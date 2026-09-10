@@ -20,6 +20,42 @@
         ],
         "createdAt": "2026-09-08T14:17:48.520Z",
         "reason": "DESIGN.md:402 (Two-Pixel Accent Rule) lo manda para tablas top-level de pagina y DESIGN.md:394 da la firma exacta; el timeline es la tabla de datos de /calendar (role=grid/row/columnheader/rowheader/gridcell) y se renderiza sin Card wrapper. Mismo patron que data-table.tsx (accentTop) y payments-cards-list.tsx. Precedente identico ya ignorado en reservations-list-client.tsx. La critica impeccable de 2026-08-21 (P1-4) lo marco por FALTARLE este accent."
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "0.8rem",
+        "createdAt": "2026-09-10T16:38:29.918Z",
+        "reason": "shadcn upstream (button sm, celdas del calendario). DESIGN.md lo documenta como la unica excepcion viva de la escala; el scope por archivo lo enforcea src/lib/design/__tests__/type-scale.test.ts"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#3b82f6",
+        "createdAt": "2026-09-10T16:38:30.054Z",
+        "reason": "Paleta del color picker de propiedades: es input del usuario, no del sistema. DESIGN.md ya la lista como excepcion sancionada"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#000",
+        "createdAt": "2026-09-10T16:38:30.159Z",
+        "reason": "Fixture de test, no UI de producto"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "oklch(0 0 0 / 0.15)",
+        "createdAt": "2026-09-10T16:38:40.014Z",
+        "reason": "Tinte de sombra, no color de paleta. Las sombras son negro con alfa por convencion; su vocabulario vive nombrado en el sidecar (extensions.shadows) y gobernado por la Calm Water Rule"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "hsl(0 0% 0% / 0.12)",
+        "createdAt": "2026-09-10T16:38:40.154Z",
+        "reason": "Tinte de sombra de .card-hover, no color de paleta"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "hsl(0 0% 0% / 0.08)",
+        "createdAt": "2026-09-10T16:38:40.275Z",
+        "reason": "Tinte de sombra de .card-hover, no color de paleta"
       }
     ]
   }

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 type MercadoPagoSettingsProps = {
   oauthStatus?: string;
@@ -115,7 +116,11 @@ export function MercadoPagoSettings({ oauthStatus }: MercadoPagoSettingsProps) {
     return (
       <Card className="rounded-lg">
         <CardContent className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-muted-foreground" />
+          {/* Era un spinner a mano (`animate-spin rounded-full border-b-2`),
+              el unico del repo con ese idiom: el resto del producto carga con
+              Loader2 de lucide. Ademas disparaba el detector, que leia el
+              borde grueso sobre un elemento redondeado como un acento de card. */}
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
       </Card>
     );

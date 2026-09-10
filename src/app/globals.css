@@ -483,11 +483,14 @@ html {
 }
 .timeline-scroll::-webkit-scrollbar-track {
   background: var(--muted);
-  border-radius: 3px;
+  /* La barra mide 6px de alto, asi que 3px ya era el radio completo. Va el
+     token documentado (rounded.full) en vez de un literal fuera de escala:
+     renderiza identico y deja de necesitar una excepcion en el detector. */
+  border-radius: 9999px;
 }
 .timeline-scroll::-webkit-scrollbar-thumb {
   background: var(--border);
-  border-radius: 3px;
+  border-radius: 9999px;
 }
 .timeline-scroll::-webkit-scrollbar-thumb:hover {
   background: color-mix(in oklch, var(--border) 80%, var(--foreground) 20%);
