@@ -17,7 +17,7 @@ export interface ChannelColors {
 export const channelColors: Record<Channel, ChannelColors> = {
   AIRBNB: {
     dotClass: "bg-info",
-    labelClass: "text-info",
+    labelClass: "text-info-text",
   },
   BOOKING_COM: {
     dotClass: "bg-primary",

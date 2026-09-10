@@ -15,7 +15,13 @@
   --secondary: oklch(0.9514 0.0250 236.8242);
   --secondary-foreground: oklch(0.4461 0.0263 256.8018);
   --muted: oklch(0.9670 0.0029 264.5419);
-  --muted-foreground: #64748b;
+  /* Un paso mas oscuro que #64748b (oklch(0.556 0.035 257)), mismo hue y
+     mismo chroma, solo baja L a 0.53. Antes fallaba AA en 2 de sus 3 fondos
+     reales: --muted 4.32, --background 4.47, --card 4.76. Con este valor:
+     4.79 / 4.96 / 5.27 — los 3 pasan. bg-muted + text-muted-foreground
+     aparece en 55 archivos, asi que el fix va en el token, no en cada sitio.
+     Solo en claro: en .dark mide 7.00 / 7.24 / 6.71 y ya pasaba AA. */
+  --muted-foreground: oklch(0.53 0.035 257);
   --accent: oklch(0.9505 0.0507 163.0508);
   --accent-foreground: #131f1a;
   --destructive: oklch(0.6368 0.2078 25.3313);
@@ -51,19 +57,33 @@
 
   /* === Project-specific tokens (kept, harmonized to teal palette) === */
   --success: oklch(0.65 0.16 150);
-  --success-foreground: oklch(0.30 0.10 150);
+  /* A diferencia de --destructive-foreground (blanco a proposito: va sobre
+     bg-destructive en botones y badges de notificacion, y ahi funciona), el
+     par bg-{tono}+text-{tono}-foreground de success/warning/info mentia: el
+     relleno casi no cambia entre temas (--success 0.65->0.70, --warning
+     0.78->0.78, --info 0.65->0.70) pero el companero se invertia (L=0.30 en
+     claro -> L=0.85 en oscuro), asi que en oscuro el texto quedaba invisible
+     sobre su propio relleno (1.67 / 1.24 / 1.59:1). Fix: un unico valor sin
+     tema — igual que --brand-secondary en este mismo archivo — que funcione
+     sobre el relleno en ambos temas. Medido sobre bg-{tono}: claro
+     4.58 / 4.63 / 4.56, oscuro 5.55 / 4.63 / 5.63. Todos AA. Por eso estas
+     tres lineas NO se repiten en .dark: heredan de aqui. */
+  --success-foreground: oklch(0.28 0.10 150);
   --warning: oklch(0.78 0.16 75);
-  --warning-foreground: oklch(0.30 0.10 60);
+  --warning-foreground: oklch(0.40 0.10 60);
   --info: oklch(0.65 0.13 200);
-  --info-foreground: oklch(0.30 0.12 210);
-  /* Companeros legibles COMO TEXTO, espejando --destructive-text. Los de
-     relleno miden 3.03:1 / 2.05:1 / 2.97:1 sobre --card, bajo AA. Los
-     -foreground si pasan, pero estan en L=0.30: a 20px bold se leen negros y
-     el tono deja de comunicar, que es justo el trabajo de un valor de KPI
-     coloreado. Estos se sientan en ~5.3:1, el mismo punto que eligio
-     --destructive-text (5.34:1): pasan AA y siguen leyendose verde, ambar y
-     cyan. Medidos sobre --card y sobre bg-{tone}/10, que es el otro fondo
-     real del producto (el contenedor de icono del KpiCard). */
+  --info-foreground: oklch(0.27 0.12 210);
+  /* Companeros legibles COMO TEXTO, espejando --destructive-text. Este es el
+     UNICO nivel valido para texto e iconos: los de relleno miden 3.03 / 2.05 /
+     2.97:1 sobre --card, bajo AA, y los -foreground de arriba viven sobre el
+     relleno opaco, no sobre card — a L=0.27-0.40 se leen negros y el tono deja
+     de comunicar, que es justo el trabajo de un valor de KPI coloreado. Estos
+     se sientan en ~5.3:1, el mismo punto que eligio --destructive-text
+     (5.34:1): pasan AA y siguen leyendose verde, ambar y cyan. Medidos sobre
+     --card y sobre bg-{tone}/10, que es el otro fondo real del producto (el
+     contenedor de icono del KpiCard). El guardian que impide que alguien
+     vuelva a usar el nivel equivocado vive en
+     src/lib/design/__tests__/fill-vs-text.test.ts. */
   --success-text: oklch(0.51 0.15 150);
   --warning-text: oklch(0.53 0.14 75);
   --info-text: oklch(0.51 0.12 200);
@@ -143,11 +163,12 @@
 
   /* === Project-specific tokens (dark) === */
   --success: oklch(0.70 0.17 150);
-  --success-foreground: oklch(0.85 0.15 150);
   --warning: oklch(0.78 0.17 75);
-  --warning-foreground: oklch(0.85 0.15 75);
   --info: oklch(0.70 0.15 200);
-  --info-foreground: oklch(0.85 0.12 210);
+  /* --success/warning/info-foreground NO se redefinen aqui: heredan el
+     valor unico de :root (ver el comentario junto a --success-foreground
+     en claro). Un color pensado para sentarse sobre un relleno que casi no
+     cambia entre temas no deberia tener version de tema. */
   /* En oscuro hay que ACLARAR, no oscurecer, igual que --destructive-text. */
   --success-text: oklch(0.75 0.16 150);
   --warning-text: oklch(0.82 0.16 75);

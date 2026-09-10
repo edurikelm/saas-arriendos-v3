@@ -134,7 +134,7 @@ export function MercadoPagoSettings({ oauthStatus }: MercadoPagoSettingsProps) {
           <div
             className={`rounded-md border px-3 py-2 text-sm ${
               oauthMessage.tone === "success"
-                ? "border-success/20 bg-success/10 text-success-foreground"
+                ? "border-success/20 bg-success/10 text-success-text"
                 : "border-destructive/20 bg-destructive/10 text-destructive-text"
             }`}
           >
@@ -145,7 +145,7 @@ export function MercadoPagoSettings({ oauthStatus }: MercadoPagoSettingsProps) {
         <div className="flex items-center gap-2">
           <span
             className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium ${
-              isConnected ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"
+              isConnected ? "bg-success/15 text-success-text" : "bg-muted text-muted-foreground"
             }`}
           >
             {isConnected ? "Conectado" : "No conectado"}

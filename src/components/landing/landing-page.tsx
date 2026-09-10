@@ -422,7 +422,7 @@ function Hero() {
             <div className="col-span-6 col-start-7 -mt-48 floating [animation-delay:-1.5s]">
               <div className="glass p-6 rounded-3xl shadow-2xl border border-border/60 ring-1 ring-border">
                 <div className="flex items-center gap-4 mb-5">
-                  <div className="size-10 rounded-full bg-success/10 flex items-center justify-center text-success shadow-inner">
+                  <div className="size-10 rounded-full bg-success/10 flex items-center justify-center text-success-text shadow-inner">
                     <Check className="size-5" aria-hidden="true" />
                   </div>
                   <div>
@@ -589,7 +589,7 @@ function FeaturesBento() {
           </FeatureCard>
 
           <FeatureCard className="md:col-span-4">
-            <div className="size-14 rounded-2xl bg-info/10 text-info flex items-center justify-center mb-8 shadow-inner">
+            <div className="size-14 rounded-2xl bg-info/10 text-info-text flex items-center justify-center mb-8 shadow-inner">
               <BarChart3 className="size-7" aria-hidden="true" />
             </div>
             <h3 className="text-3xl font-bold mb-4 text-foreground tracking-tight">

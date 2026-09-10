@@ -11,11 +11,13 @@ import { KpiCard } from "../kpi-card";
  * verify them.
  */
 describe("KpiCard indicator (P0 contrast fix)", () => {
-  it("renders text-warning-foreground for the warning variant, not text-destructive-foreground", () => {
-    // text-warning-foreground on --card: 13.93:1 light / 10.43:1 dark — passes AA.
-    // text-destructive-foreground on --card: 1.00:1 light — white text on white card,
-    // effectively invisible. That token is the white-on-fill color for destructive
-    // buttons, not a readable foreground-on-card color.
+  it("renders text-warning-text for the warning variant, not text-destructive-foreground", () => {
+    // text-warning-text on --card: 5.40:1 light / 9.62:1 dark — passes AA and
+    // still reads amber. text-warning-foreground is the wrong level here: it's
+    // meant to sit ON TOP OF bg-warning opaque (badge fill text), not on --card.
+    // text-destructive-foreground on --card: 1.00:1 light — white text on white
+    // card, effectively invisible. That token is the white-on-fill color for
+    // destructive buttons, not a readable foreground-on-card color.
     render(
       <KpiCard
         label="Pagos Pendientes"
@@ -28,14 +30,14 @@ describe("KpiCard indicator (P0 contrast fix)", () => {
     expect(indicatorEl).not.toBeNull();
     const tokens = indicatorEl!.className.split(/\s+/);
 
-    expect(tokens).toContain("text-warning-foreground");
+    expect(tokens).toContain("text-warning-text");
     expect(tokens).not.toContain("text-destructive-foreground");
   });
 
-  it("renders text-success-foreground for the positive variant", () => {
-    // text-success-foreground on --card passes WCAG AA in both themes (dark green
-    // on light, light green on dark) — unaffected by this fix, covered here so the
-    // test documents the full contract of indicatorClasses().
+  it("renders text-success-text for the positive variant", () => {
+    // text-success-text on --card passes WCAG AA in both themes and keeps
+    // reading green — unaffected by this fix, covered here so the test
+    // documents the full contract of indicatorClasses().
     render(
       <KpiCard
         label="Ingresos Mensuales"
@@ -48,7 +50,7 @@ describe("KpiCard indicator (P0 contrast fix)", () => {
     expect(indicatorEl).not.toBeNull();
     const tokens = indicatorEl!.className.split(/\s+/);
 
-    expect(tokens).toContain("text-success-foreground");
+    expect(tokens).toContain("text-success-text");
   });
 
   it("renders text-muted-foreground for the neutral variant", () => {

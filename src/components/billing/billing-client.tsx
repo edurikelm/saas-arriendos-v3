@@ -79,7 +79,7 @@ export function BillingClient({ subscription, usage, activeExternalCalendarCount
               )}
               {isCancelled && subscription?.currentPeriodEnd && (
                 <div className="rounded-lg border border-warning/20 bg-warning/10 p-4">
-                  <p className="text-sm text-warning">
+                  <p className="text-sm text-warning-text">
                     Tu plan sigue activo hasta el{" "}
                     {new Date(subscription.currentPeriodEnd).toLocaleDateString("es-CL", {
                       day: "2-digit",
@@ -108,7 +108,7 @@ export function BillingClient({ subscription, usage, activeExternalCalendarCount
 
             {subscription?.status === "PENDING" && (
               <div className="rounded-lg border border-warning/20 bg-warning/10 p-4">
-                <p className="text-sm text-warning">
+                <p className="text-sm text-warning-text">
                   Tienes un pago pendiente de autorizar. Revisa tu email o contacta a
                   soporte si no lo recibiste.
                 </p>
@@ -118,7 +118,7 @@ export function BillingClient({ subscription, usage, activeExternalCalendarCount
             {isPro && (
               <>
                 <div className="rounded-lg border border-success/20 bg-success/10 p-4">
-                  <p className="text-sm text-success">
+                  <p className="text-sm text-success-text">
                     Tienes acceso completo a las funciones PRO: iCal, documentos, propiedades
                     ilimitadas.
                   </p>
@@ -209,7 +209,7 @@ function FeatureRow({
         <Check
           className={
             included
-              ? "size-4 text-success"
+              ? "size-4 text-success-text"
               : "size-4 text-muted-foreground/30"
           }
         />
@@ -240,7 +240,7 @@ function UsageRow({
         <span>{label}</span>
         <span
           className={
-            isAtLimit ? "text-warning font-medium" : "text-muted-foreground"
+            isAtLimit ? "text-warning-text font-medium" : "text-muted-foreground"
           }
         >
           {current}

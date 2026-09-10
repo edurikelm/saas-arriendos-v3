@@ -69,9 +69,9 @@ function renderReservationRow(reservation: DashboardUpcomingReservation) {
     ? "font-bold text-primary"
     : isActive
       ? daysToEnd === 0
-        ? "font-bold text-warning"
+        ? "font-bold text-warning-text"
         : daysToEnd <= 2
-          ? "font-medium text-warning"
+          ? "font-medium text-warning-text"
           : "text-muted-foreground"
       : daysToStart <= 2
         ? "font-medium text-primary"
@@ -204,7 +204,7 @@ export default async function DashboardPage() {
         <Card className="ring-1 ring-foreground/10">
           <CardHeader>
             <div className="flex items-start gap-3">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-warning/10 text-warning">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-warning/10 text-warning-text">
                 <AlertCircle className="size-4" />
               </div>
               <div className="space-y-1">

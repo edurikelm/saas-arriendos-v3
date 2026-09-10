@@ -670,7 +670,7 @@ export function ReportsClient({
           {/* P5: Banner when collection filters are active — clarifies filters don't affect KPIs */}
           {hasActiveCollectionFilters && (
             <div role="note" aria-live="polite" className="mb-4 flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2">
-              <AlertTriangle className="size-4 text-warning shrink-0 mt-0.5" aria-hidden="true" />
+              <AlertTriangle className="size-4 text-warning-text shrink-0 mt-0.5" aria-hidden="true" />
               <p className="text-xs text-foreground">
                 Los filtros aplicados aquí solo afectan esta tabla. No modifican los KPIs financieros ni el Resumen por Propiedad.
               </p>

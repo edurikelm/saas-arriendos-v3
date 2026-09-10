@@ -83,7 +83,7 @@ export function PlanOverviewCard({ subscription, usage }: PlanOverviewCardProps)
 
         {hasActiveCancellation && periodEnd && (
           <div className="rounded-lg border border-warning/20 bg-warning/10 p-4">
-            <p className="text-sm text-warning-foreground">
+            <p className="text-sm text-warning-text">
               Tu plan sigue activo hasta el {formatLongDate(periodEnd)}.
               Después bajarás a FREE automáticamente.
             </p>
@@ -92,7 +92,7 @@ export function PlanOverviewCard({ subscription, usage }: PlanOverviewCardProps)
 
         {isPending && (
           <div className="rounded-lg border border-warning/20 bg-warning/10 p-4">
-            <p className="text-sm text-warning-foreground">
+            <p className="text-sm text-warning-text">
               Tienes un pago de Mercado Pago pendiente de autorizar. Si no lo
               recibiste, contacta a soporte.
             </p>

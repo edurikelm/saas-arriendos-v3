@@ -83,7 +83,7 @@ export function CancelSubscriptionDialog({
       <DialogContent className="w-[95vw] sm:max-w-lg" aria-describedby="cancel-dialog-description">
         <DialogHeader>
           <div className="flex items-center gap-2">
-            <AlertTriangle className="size-5 text-warning" />
+            <AlertTriangle className="size-5 text-warning-text" />
             <DialogTitle>Cancelar suscripcion PRO</DialogTitle>
           </div>
           {formattedEnd && (
@@ -98,10 +98,10 @@ export function CancelSubscriptionDialog({
         <div className="space-y-4">
           {/* Lista de features que perderas */}
           <div className="rounded-lg border border-warning/20 bg-warning/10 p-4">
-            <p className="text-sm font-medium text-warning mb-2">
+            <p className="text-sm font-medium text-warning-text mb-2">
               Funciones que perderás al bajar a FREE:
             </p>
-            <ul className="space-y-1.5 text-sm text-warning">
+            <ul className="space-y-1.5 text-sm text-warning-text">
               {LOST_FEATURES.map((feature) => (
                 <li key={feature} className="flex items-start gap-2">
                   <span className="mt-1 size-1.5 rounded-full bg-warning shrink-0" />
@@ -117,10 +117,10 @@ export function CancelSubscriptionDialog({
               role="status"
               className="rounded-lg border border-warning/20 bg-warning/10 p-4"
             >
-              <p className="text-sm font-medium text-warning mb-2">
+              <p className="text-sm font-medium text-warning-text mb-2">
                 Calendarios externos sincronizados
               </p>
-              <p className="text-sm text-warning">
+              <p className="text-sm text-warning-text">
                 Tienes {activeExternalCalendarCount}{" "}
                 {activeExternalCalendarCount === 1 ? "calendario externo" : "calendarios externos"}
                 {" "}sincronizado{activeExternalCalendarCount === 1 ? "" : "s"}.

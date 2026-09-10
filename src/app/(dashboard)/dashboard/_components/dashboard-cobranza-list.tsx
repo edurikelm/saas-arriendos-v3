@@ -78,13 +78,15 @@ const GROUP_LABEL: Record<CobranzaGroupKey, string> = {
  * por grupo — dos veces en todo el card — y el monto recupera
  * `text-foreground`, que es lo que permite compararlo entre filas.
  *
- * `warning` usa su `*-foreground` (el token legible sobre card, oscuro en
- * light / claro en dark) y NO `--warning`, que es el token de relleno: a
- * 0.78 de lightness sobre card blanco no alcanza contraste AA.
+ * `warning` usa su `*-text` (el token legible sobre card en ambos temas) y
+ * NO `--warning`, que es el token de relleno: a 0.78 de lightness sobre
+ * card blanco no alcanza contraste AA. Tampoco `*-foreground`: ese nivel es
+ * para texto que va ENCIMA del relleno del mismo tono, no sobre card — acá
+ * se leería negro en claro y dejaría de comunicar el tono.
  */
 const GROUP_TEXT: Record<CobranzaGroupKey, string> = {
   OVERDUE: "text-destructive-text",
-  DUE_SOON: "text-warning-foreground",
+  DUE_SOON: "text-warning-text",
 };
 
 /** Orden de render de los grupos. `items` ya llega en este orden. */
@@ -343,7 +345,7 @@ export function DashboardCobranzaList({
         )}
         {groups.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 py-6 text-center">
-            <CheckCircle2 className="size-5 text-success" aria-hidden="true" />
+            <CheckCircle2 className="size-5 text-success-text" aria-hidden="true" />
             <p className="text-xs font-bold text-foreground">Sin cobros pendientes</p>
             <p className="text-[10px] text-muted-foreground">
               No hay vencimientos en los próximos 7 días.

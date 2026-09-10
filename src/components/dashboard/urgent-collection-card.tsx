@@ -140,7 +140,7 @@ export function UrgentCollectionCard({
 
           <div className="shrink-0 rounded-lg bg-warning/10 px-4 py-2 text-right">
             <p className="text-xs font-medium text-muted-foreground">Total a cobrar</p>
-            <p className="text-xl font-semibold text-warning-foreground">
+            <p className="text-xl font-semibold text-warning-text">
               {formatCLP(totalAmount)}
             </p>
             <p className="text-[11px] text-muted-foreground">
@@ -171,7 +171,7 @@ export function UrgentCollectionCard({
               disabled={vencenHoy.length === 0}
               className="gap-2"
             >
-              <CalendarClock className="size-4 text-warning-foreground" />
+              <CalendarClock className="size-4 text-warning-text" />
               Vencen hoy
               {vencenHoy.length > 0 ? (
                 <Badge variant="warning" className="ml-1">
@@ -184,7 +184,7 @@ export function UrgentCollectionCard({
               disabled={proximos7Dias.length === 0}
               className="gap-2"
             >
-              <CalendarClock className="size-4 text-info-foreground" />
+              <CalendarClock className="size-4 text-info-text" />
               Próx. 7 días
               {proximos7Dias.length > 0 ? (
                 <Badge variant="info" className="ml-1">

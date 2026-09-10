@@ -262,7 +262,7 @@ export function ReservationDocumentsPanel({ reservationId }: { reservationId: st
             className={cn(
               "text-[10px] font-medium uppercase tracking-wider text-center px-4 py-2",
               remaining === 0
-                ? "text-warning"
+                ? "text-warning-text"
                 : "text-muted-foreground",
             )}
           >

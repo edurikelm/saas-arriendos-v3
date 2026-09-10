@@ -370,11 +370,11 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
               {stats.hasMpIntegration ? (
                 stats.isMpConnected ? (
                   <div className="flex items-start gap-3">
-                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-success/10 text-success-foreground">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-success/10 text-success-text">
                       <CheckCircle2 className="size-5" />
                     </div>
                     <div className="space-y-0.5">
-                      <p className="text-sm font-medium text-success">
+                      <p className="text-sm font-medium text-success-text">
                         Conectado y activo
                       </p>
                       <p className="text-xs text-muted-foreground">
@@ -384,11 +384,11 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                   </div>
                 ) : (
                   <div className="flex items-start gap-3">
-                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-warning/10 text-warning-foreground">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-warning/10 text-warning-text">
                       <AlertTriangle className="size-5" />
                     </div>
                     <div className="space-y-0.5">
-                      <p className="text-sm font-medium text-warning">
+                      <p className="text-sm font-medium text-warning-text">
                         Cuenta conectada pero inactiva
                       </p>
                       <p className="text-xs text-muted-foreground">
@@ -440,7 +440,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                   <span className="size-2 rounded-full bg-success" />
                   <span className="text-sm text-muted-foreground">Pagado</span>
                 </div>
-                <span className="font-semibold tabular-nums text-success">
+                <span className="font-semibold tabular-nums text-success-text">
                   {formatCLP(stats.paidAmount)}
                 </span>
               </div>
@@ -449,7 +449,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                   <span className="size-2 rounded-full bg-warning" />
                   <span className="text-sm text-muted-foreground">Pendiente</span>
                 </div>
-                <span className="font-semibold tabular-nums text-warning">
+                <span className="font-semibold tabular-nums text-warning-text">
                   {formatCLP(stats.pendingAmount)}
                 </span>
               </div>
@@ -790,7 +790,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">
                       Pagado
                     </p>
-                    <p className="mt-1 font-heading text-xl font-semibold tabular-nums text-success">
+                    <p className="mt-1 font-heading text-xl font-semibold tabular-nums text-success-text">
                       {formatCLP(stats.paidAmount)}
                     </p>
                   </div>
@@ -798,7 +798,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">
                       Pendiente
                     </p>
-                    <p className="mt-1 font-heading text-xl font-semibold tabular-nums text-warning">
+                    <p className="mt-1 font-heading text-xl font-semibold tabular-nums text-warning-text">
                       {formatCLP(stats.pendingAmount)}
                     </p>
                   </div>
@@ -895,7 +895,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
                     <div
                       className={`flex size-10 shrink-0 items-center justify-center rounded-full ${
                         completed
-                          ? "bg-success/10 text-success-foreground"
+                          ? "bg-success/10 text-success-text"
                           : "bg-muted text-muted-foreground"
                       }`}
                     >
