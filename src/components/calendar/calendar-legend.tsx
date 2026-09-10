@@ -13,9 +13,15 @@ interface StatusStateEntry {
 // El strikethrough vive SOLO dentro de las reservation pills (calendar-timeline.tsx),
 // nunca en los labels de la leyenda — un label tachado sugiere que el filtro está
 // deshabilitado, lo cual es un anti-patrón de UX.
+// Los íconos van sobre `--card`, así que llevan el compañero `-text` de cada
+// tono y no el token de RELLENO (Fill-vs-Text Rule, DESIGN.md). "Cancelada" ya
+// lo hacía bien; "Pendiente" y "Confirmada" usaban `--warning`/`--success` a
+// secas, que sobre card miden 2.05:1 y 3.03:1 en claro. Además tienen que
+// coincidir con el tono de las barras del timeline, que ahora usan los mismos
+// tokens — si la leyenda y la barra no comparten color, la leyenda no explica nada.
 const STATUS_STATES: StatusStateEntry[] = [
-  { label: "Pendiente", icon: AlertCircle, colorClass: "text-warning" },
-  { label: "Confirmada", icon: CheckCircle2, colorClass: "text-success" },
+  { label: "Pendiente", icon: AlertCircle, colorClass: "text-warning-text" },
+  { label: "Confirmada", icon: CheckCircle2, colorClass: "text-success-text" },
   { label: "Cancelada", icon: XCircle, colorClass: "text-destructive-text", opacityClass: "opacity-75" },
   { label: "Completada", icon: CheckCircle2, colorClass: "text-muted-foreground", opacityClass: "opacity-75" },
 ];

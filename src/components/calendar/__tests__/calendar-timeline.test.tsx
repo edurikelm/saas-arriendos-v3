@@ -260,10 +260,10 @@ describe("CalendarTimeline polish — status color doctrine", () => {
     expect(cls).not.toMatch(/bg-primary/);
   });
 
-  it("CONFIRMED bar in a future month uses primary token (Verdigris)", () => {
-    // Para evitar dependencia de `new Date()` en runtime, usamos una fecha futura
-    // fija donde la reserva cae en "upcoming" (no ended) → bg-primary/10.
-    // El branch temporal (active vs upcoming) se cubre por integración manual.
+  it("una CONFIRMED futura usa el tinte success con texto -text, no el relleno", () => {
+    // La Status Color Doctrine (DESIGN.md) mapea CONFIRMED → success "sin
+    // excepciones"; antes la barra usaba `primary`, que no tiene compañero
+    // `-text` legible — por eso el tinte medía 2.09:1 sobre el fondo real.
     const futureMonth = new Date("2099-06-15T00:00:00");
     const { container } = render(
       <CalendarTimeline
@@ -272,10 +272,31 @@ describe("CalendarTimeline polish — status color doctrine", () => {
         onSelectReservation={() => {}}
       />
     );
-    const reservationBar = container.querySelector("button[title]") as HTMLElement | null;
-    expect(reservationBar).toBeTruthy();
-    const cls = reservationBar!.className;
-    expect(cls).toMatch(/bg-primary/);
+    const cls = (container.querySelector("button[title]") as HTMLElement).className;
+    expect(cls).toMatch(/bg-success\/10/);
+    expect(cls).toMatch(/text-success-text/);
+    // El token de RELLENO no puede aparecer como color de texto.
+    expect(cls.split(/\s+/)).not.toContain("text-success");
+  });
+
+  it("una PENDING en curso NO se pinta como una confirmada", () => {
+    // Regresión: `active` se evaluaba antes que `PENDING` y `isReservationActive`
+    // solo excluye canceladas, así que una reserva con saldo pendiente que ya
+    // empezó salía con el sólido de "confirmada" — idéntica a una pagada. El
+    // único rastro era el ícono ámbar sobre verde: 1.11:1, invisible.
+    const hoy = new Date();
+    const ayer = new Date(hoy.getTime() - 2 * 86_400_000).toISOString().slice(0, 10);
+    const manana = new Date(hoy.getTime() + 2 * 86_400_000).toISOString().slice(0, 10);
+    const { container } = render(
+      <CalendarTimeline
+        reservations={[makeRes({ status: "PENDING", startDate: ayer, endDate: manana })]}
+        currentMonth={hoy}
+        onSelectReservation={() => {}}
+      />
+    );
+    const cls = (container.querySelector("button[title]") as HTMLElement).className;
+    expect(cls).toMatch(/bg-warning/); // conserva el tono de "debe plata"
+    expect(cls).not.toMatch(/bg-success/); // y no se disfraza de pagada
   });
 
   it("CANCELLED bar keeps destructive bg with line-through (terminal state)", () => {
