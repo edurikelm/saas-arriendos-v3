@@ -70,6 +70,38 @@ export function CalendarLegend({ showChannels = false }: CalendarLegendProps) {
       </div>
 
       {/* Divider */}
+      <div className="h-4 w-px bg-border" aria-hidden="true" />
+
+      {/* Tipo de arriendo — el grosor del borde es el canal, porque el color ya
+          está tomado por el estado. Sin esta entrada el grosor sería un secreto:
+          una leyenda que no explica lo que se ve no sirve de nada. */}
+      <div className="flex items-center gap-x-3 gap-y-1">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+          Tipo
+        </span>
+        <div className="flex items-center gap-x-2">
+          <div className="inline-flex items-center gap-1">
+            <span
+              className="inline-block h-3 w-5 shrink-0 rounded-sm border border-success bg-success/10"
+              aria-hidden="true"
+            />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Diaria
+            </span>
+          </div>
+          <div className="inline-flex items-center gap-1">
+            <span
+              className="inline-block h-3 w-5 shrink-0 rounded-sm border-2 border-success bg-success/10"
+              aria-hidden="true"
+            />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Mensual
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Divider */}
       {showChannels && (
         <div
           className="h-4 w-px bg-border"
