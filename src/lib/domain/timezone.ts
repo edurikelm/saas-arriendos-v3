@@ -111,6 +111,40 @@ export function dateKeyToDayIndex(dateKey: string): number {
 }
 
 /**
+ * Clave de dia calendario (YYYY-MM-DD) de un `Date` producido por un
+ * date-picker del navegador (`react-day-picker` entrega `new Date(a, m, d)`,
+ * medianoche LOCAL del navegador).
+ *
+ * Lee los componentes de calendario LOCALES (`getFullYear`/`getMonth`/
+ * `getDate`) en vez de pasar por UTC, porque el instante UTC de un `Date` de
+ * picker es un artefacto de la zona del navegador, no el dia que el usuario
+ * tocó. Medido con Node 22 pidiendo siempre el 14-sep-2026 vía `new Date(2026, 8, 14)`:
+ *
+ * | TZ                  | slice UTC (`toISOString().slice(0,10)`) | localDateKey |
+ * |---------------------|------------------------------------------|--------------|
+ * | America/Santiago    | 09-14 ok                                  | 09-14 ok     |
+ * | Europe/Madrid       | 09-13 MAL                                 | 09-14 ok     |
+ * | Asia/Tokyo          | 09-13 MAL                                 | 09-14 ok     |
+ * | Pacific/Kiritimati  | 09-13 MAL                                 | 09-14 ok     |
+ * | Pacific/Midway      | 09-14 ok                                  | 09-14 ok     |
+ *
+ * El slice UTC se equivoca un dia en cualquier offset positivo (toda Europa,
+ * Africa al este de Greenwich, Asia, Oceania) — exactamente donde este
+ * helper es necesario.
+ *
+ * NO sirve para campos date-only de la base (`Reservation.startDate/endDate`,
+ * `Payment.dueDate`): esos llegan anclados a 15:00/16:00 UTC (ver
+ * ADR-0020), y reinterpretarlos por componentes locales cruza medianoche
+ * desde UTC+8 en adelante. Para esos usar `dateOnlyKey`.
+ */
+export function localDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * Clave de dia calendario (YYYY-MM-DD) de un campo DATE-ONLY del dominio
  * (Reservation.startDate/endDate, Payment.dueDate).
  *
@@ -140,10 +174,11 @@ export function dateOnlyKey(date: Date | string): string {
  * por completo.
  *
  * `Date` se normaliza con `dateOnlyKey` (slice UTC de `toISOString()`), correcto
- * para campos leidos desde la base (anclados a mediodia local, lejos de medianoche).
+ * para campos leidos desde la base (anclados a 15:00/16:00 UTC, lejos de medianoche).
  * Si el caller tiene un `Date` de wall-time local (ej. un date-picker en el
  * navegador), debe normalizarlo a su propia clave ANTES de llamar a esta funcion
- * — ver `getNights` en `src/components/reservations/reservation-status.ts`.
+ * con `localDateKey` (mismo archivo) — NO con `getDateKeyInTz`, que reinterpreta
+ * el instante en zona y reproduce el mismo off-by-one que el slice UTC.
  */
 export function nightsBetweenDateOnly(start: string | Date, end: string | Date): number {
   const startKey = dateOnlyKey(start);
