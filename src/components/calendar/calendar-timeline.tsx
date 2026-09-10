@@ -524,29 +524,65 @@ export function CalendarTimeline({ reservations, externalBlocks = [], overbooked
 //
 // PENDING vs CONFIRMED-upcoming differentiation: ambas son "no iniciadas" pero PENDING
 // carga peso semántico (dinero pendiente). Mismo bg-tint, distinto accent token.
+                      // Dos dimensiones ortogonales, no una escalera:
+                      //   HUE   = estado de pago  (warning = debe / success = pagada)
+                      //   PESO  = temporalidad    (sólido = en curso / tinte = futura)
+                      //
+                      // Antes `active` se evaluaba ANTES de `PENDING`, y como
+                      // `isReservationActive` solo excluye canceladas, una reserva con
+                      // saldo pendiente que ya empezó se pintaba con el sólido de
+                      // "confirmada": idéntica a una pagada. El único rastro que quedaba
+                      // era el ícono ámbar sobre verde, medido en 1.11:1 — invisible.
+                      // Ahora el estado de pago elige el tono y la temporalidad el peso,
+                      // así que ninguna de las dos se come a la otra.
+                      //
+                      // CONFIRMED usa `success`, no `primary`: la Status Color Doctrine
+                      // (DESIGN.md) mapea CONFIRMED → success, que además es lo que ya
+                      // dice la leyenda. `primary` no tiene compañero `-text` legible,
+                      // que es la razón de fondo por la que el tinte quedaba en 2.09:1.
+                      //
+                      // Los tintes usan `-text` y no el token de relleno, por la
+                      // Fill-vs-Text Rule. Cancelada pasa de sólido a tinte: en sólido
+                      // medía 3.76:1 y además una reserva cancelada no necesita gritar.
+                      // INTERIM: la barra de CONFIRMED en curso queda con `primary`
+                      // sólido, sin tocar. Migrarla a `success` (que es lo que manda
+                      // la Status Color Doctrine) empeoraba su contraste en oscuro de
+                      // 2.17:1 a 1.66:1, porque en oscuro `--success-foreground` es
+                      // `oklch(0.85)` sobre un relleno `oklch(0.70)`: claro sobre claro.
+                      // Ningún token existente sirve para texto sobre relleno en AMBOS
+                      // temas —el relleno tiene lightness media en los dos— así que los
+                      // sólidos necesitan trabajo de tokens y se resuelven aparte. Acá
+                      // solo se toma lo que no regresiona.
+                      const isPending = res.status === "PENDING";
                       const barClass = isCancelled
-                        ? "border-destructive/40 bg-destructive text-destructive-foreground line-through"
+                        ? "border-destructive/30 bg-destructive/10 text-destructive-text line-through"
                         : ended
-                        ? "border-border bg-muted text-foreground opacity-60 line-through decoration-muted-foreground/60"
+                        ? "border-border bg-muted text-muted-foreground line-through decoration-muted-foreground/60"
+                        : isPending
+                        ? active
+                          // Tinte + borde a full en vez de relleno: el borde es elemento
+                          // gráfico (umbral 3:1) y distingue "en curso" sin poner texto
+                          // encima de un relleno, que es donde se cae el contraste.
+                          ? "border-warning bg-warning/10 text-warning-text"
+                          : "border-warning/30 bg-warning/10 text-warning-text"
                         : active
                         ? "border-primary/30 bg-primary text-primary-foreground"
-                        : res.status === "PENDING"
-                        ? "border-warning/30 bg-warning/10 text-warning"
-                        : "border-primary/20 bg-primary/10 text-primary"; // CONFIRMED upcoming
+                        : "border-success/20 bg-success/10 text-success-text";
 
-                      // Icon color matches the legend's status color. Uses -foreground variant
-                      // when the legend color would clash with the bar bg (red on green, etc).
-                      // PENDING → text-warning per DESIGN.md:209 (Amber Hour = "reservas con saldo pendiente").
-                      const iconColorClass =
-                        res.status === "PENDING"
-                          ? "text-warning"
-                          : res.status === "CANCELLED"
-                          ? "text-destructive-foreground"
-                          : res.status === "COMPLETED"
-                          ? "text-foreground opacity-60" // matches bar wrapper opacity for visual unity
-                          : active
-                          ? "text-success-foreground" // dark green on solid green (visible)
-                          : "text-success"; // CONFIRMED upcoming on light green
+                      // El ícono hereda el mismo par tono/peso que la barra: sobre un
+                      // relleno va el `-foreground`, sobre un tinte va el `-text`.
+                      // Antes el ícono de PENDING era `text-warning` (token de relleno)
+                      // y, con el bug de arriba, terminaba ámbar sobre verde sólido:
+                      // 1.11:1 en claro, 1.16:1 en oscuro.
+                      const iconColorClass = isCancelled
+                        ? "text-destructive-text"
+                        : ended
+                        ? "text-muted-foreground"
+                        : isPending
+                        ? "text-warning-text"
+                        : active
+                        ? "text-success-foreground" // sin cambios: sobre el sólido primary mide 5.65:1
+                        : "text-success-text";
 
                       const isMonthly = res.billingType === "MONTHLY";
 
@@ -562,16 +598,19 @@ export function CalendarTimeline({ reservations, externalBlocks = [], overbooked
                       // noches") — mismo lenguaje visual, sin inventar un componente
                       // nuevo ni tocar el color (Status Color Doctrine sigue
                       // codificando solo estado).
-                      const badgeClass =
-                        isCancelled
-                          ? "bg-white/20 text-destructive-foreground"
-                          : ended
-                          ? "bg-white/20 text-foreground opacity-60"
-                          : active
-                          ? "bg-white/20 text-primary-foreground"
-                          : res.status === "PENDING"
-                          ? "bg-warning/20 text-warning"
-                          : "bg-primary/20 text-primary";
+                      // El chip sigue el mismo par tono/peso que la barra y el ícono.
+                      // `bg-white/20` se fue: sobre un tinte claro aclaraba el chip
+                      // hasta desaparecer, y arrastraba los tokens de relleno como
+                      // color de texto igual que el resto.
+                      const badgeClass = isCancelled
+                        ? "bg-destructive/15 text-destructive-text"
+                        : ended
+                        ? "bg-foreground/10 text-muted-foreground"
+                        : isPending
+                        ? "bg-warning/20 text-warning-text"
+                        : active
+                        ? "bg-white/20 text-primary-foreground" // sin cambios, va sobre el sólido
+                        : "bg-success/20 text-success-text";
 
                       // Progressive disclosure del contenido según el ancho disponible.
                       // Barras estrechas (<90px): ocultan chip de duración (noches/meses).

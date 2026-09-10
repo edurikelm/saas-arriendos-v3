@@ -26,16 +26,28 @@ describe("CalendarLegend", () => {
       });
     });
 
-    it("status icons carry the semantic color class that mirrors the bar bg", () => {
+    it("los íconos usan el compañero -text de cada tono, no el token de relleno", () => {
       const { container } = render(<CalendarLegend />);
-      // PENDING → text-warning (Amber Hour, per DESIGN.md:209 — "reservas con saldo pendiente")
-      // CONFIRMED → text-success (matches bg-primary bar)
-      // CANCELLED → text-destructive-text (matches bg-destructive bar)
-      // COMPLETADA → text-muted-foreground (matches bg-muted bar)
-      expect(container.querySelectorAll(".text-warning").length).toBeGreaterThan(0);
-      expect(container.querySelectorAll(".text-success").length).toBeGreaterThan(0);
+      // Fill-vs-Text Rule (DESIGN.md): sobre `--card` va `--{tono}-text`, nunca
+      // `--{tono}` a secas. Los de relleno miden 2.05:1 (warning) y 3.03:1
+      // (success) sobre card en claro, bajo el mínimo AA de 4.5:1.
+      expect(container.querySelectorAll(".text-warning-text").length).toBeGreaterThan(0);
+      expect(container.querySelectorAll(".text-success-text").length).toBeGreaterThan(0);
       expect(container.querySelectorAll(".text-destructive-text").length).toBeGreaterThan(0);
       expect(container.querySelectorAll(".text-muted-foreground").length).toBeGreaterThan(0);
+    });
+
+    it("ningún ícono usa un token de RELLENO como color de texto", () => {
+      const { container } = render(<CalendarLegend showChannels />);
+      // Guarda directa contra la regresión: `text-warning` / `text-success` /
+      // `text-info` como color de texto. Los dots de canal SÍ pueden usar el
+      // relleno (`bg-{tono}`) porque son superficie, no texto.
+      for (const prohibido of ["text-warning", "text-success", "text-info"]) {
+        const usados = [...container.querySelectorAll<HTMLElement>("*")].filter((el) =>
+          el.classList.contains(prohibido),
+        );
+        expect(usados, `${prohibido} es token de relleno, no de texto`).toHaveLength(0);
+      }
     });
 
     it("CANCELLED and COMPLETADA labels do NOT carry line-through (only the bar pills do)", () => {
