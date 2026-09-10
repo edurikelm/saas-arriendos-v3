@@ -82,7 +82,15 @@ export async function getPayments(filters?: {
   const session = await getSession();
   if (!session) return { payments: [], total: 0, totalPages: 0 };
 
-  const where: Prisma.PaymentWhereInput = {};
+  // Aislamiento por owner. Ancla el listado a las reservas del usuario de la
+  // sesión y va acá, en el `where` base, no en cada callsite: `findMany` y
+  // `count` derivan ambos de este objeto, así que no pueden divergir. Antes
+  // solo el `groupBy` de cuotas lo llevaba —tiene su propio `where` porque el
+  // total de cuotas debe ignorar los filtros de la vista— y las otras dos
+  // queries devolvían los pagos de todas las cuentas.
+  const where: Prisma.PaymentWhereInput = {
+    reservation: { userId: session.userId },
+  };
 
   if (filters?.reservationId) {
     const reservation = await prisma.reservation.findFirst({
@@ -113,9 +121,10 @@ export async function getPayments(filters?: {
     where.createdAt = { ...where.createdAt as object, lte: new Date(filters.dateTo + "T23:59:59") };
   }
 
-  // propertyId filter via reservation
+  // propertyId filter via reservation — se mergea sobre el `userId` del where
+  // base, no lo reemplaza.
   if (filters?.propertyId) {
-    where.reservation = { ...(where.reservation as object) ?? {}, propertyId: filters.propertyId };
+    where.reservation = { ...(where.reservation as object), propertyId: filters.propertyId };
   }
 
   const page = filters?.page ?? 1;

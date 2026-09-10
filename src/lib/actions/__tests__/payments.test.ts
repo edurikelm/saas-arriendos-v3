@@ -3599,3 +3599,100 @@ describe('processMercadoPagoWebhook - mpMetadata merchant_order path', () => {
     );
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// getPayments - aislamiento por owner (multi-tenant)
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('getPayments - aislamiento por owner', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  /** Deja las tres queries del listado devolviendo vacío. */
+  async function stubEmptyQueries() {
+    const { prisma } = await import('@/lib/db/prisma');
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.payment.count).mockResolvedValue(0);
+    vi.mocked(prisma.payment.groupBy).mockResolvedValue([]);
+    return prisma;
+  }
+
+  it('findMany se ancla a las reservas del usuario de la sesión', async () => {
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    const prisma = await stubEmptyQueries();
+
+    const { getPayments } = await import('../payments');
+    await getPayments();
+
+    expect(vi.mocked(prisma.payment.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          reservation: { userId: 'user-1' },
+          deletedAt: null,
+        }),
+      })
+    );
+  });
+
+  it('count se ancla al mismo owner que findMany', async () => {
+    // El total de la paginación tiene que contar sobre el mismo universo que
+    // las filas; si divergen, el contador miente.
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    const prisma = await stubEmptyQueries();
+
+    const { getPayments } = await import('../payments');
+    await getPayments();
+
+    expect(vi.mocked(prisma.payment.count)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          reservation: { userId: 'user-1' },
+          deletedAt: null,
+        }),
+      })
+    );
+  });
+
+  it('el filtro de propiedad se suma al owner, no lo reemplaza', async () => {
+    // `where.reservation` lo escriben dos reglas distintas. Si la de propiedad
+    // sobrescribe el objeto en vez de mergearlo, pedir una propiedad ajena
+    // devolvería los pagos de otra cuenta.
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    const prisma = await stubEmptyQueries();
+
+    const { getPayments } = await import('../payments');
+    await getPayments({ propertyId: 'prop-9' });
+
+    expect(vi.mocked(prisma.payment.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          reservation: { userId: 'user-1', propertyId: 'prop-9' },
+        }),
+      })
+    );
+  });
+
+  it('los demás filtros conviven con el ancla de owner', async () => {
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    const prisma = await stubEmptyQueries();
+
+    const { getPayments } = await import('../payments');
+    await getPayments({ status: 'PENDING', method: 'CASH', paymentType: 'EXTRA' });
+
+    expect(vi.mocked(prisma.payment.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          reservation: { userId: 'user-1' },
+          status: 'PENDING',
+          method: 'CASH',
+          paymentType: 'EXTRA',
+        }),
+      })
+    );
+  });
+});
