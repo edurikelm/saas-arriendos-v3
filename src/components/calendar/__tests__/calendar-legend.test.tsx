@@ -13,7 +13,7 @@ describe("CalendarLegend", () => {
     });
 
     it("each status entry has an icon (svg) child", () => {
-      const { container } = render(<CalendarLegend />);
+      render(<CalendarLegend />);
       const statusContainer = screen.getByText("Estado").parentElement!;
       const entries = Array.from(statusContainer.querySelectorAll("div")).filter((d) =>
         ["Pendiente", "Confirmada", "Cancelada", "Completada"].some((s) =>

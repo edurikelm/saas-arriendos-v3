@@ -279,6 +279,37 @@ describe("CalendarTimeline polish — status color doctrine", () => {
     expect(cls.split(/\s+/)).not.toContain("text-success");
   });
 
+  it("el grosor del borde distingue mensual de diaria", () => {
+    // El color ya codifica estado, asi que el tipo de arriendo va en el grosor:
+    // 1px diaria, 2px mensual. Es propiedad de la barra entera, no del borde
+    // izquierdo — una mensual que viene de meses anteriores llega recortada al
+    // borde del mes, y un tope izquierdo se leeria como "aca empieza", que es
+    // falso. Tampoco va una trama sobre el relleno: medida, baja el contraste
+    // del texto de 4.81:1 a 2.73:1 donde la raya cruza las letras.
+    const mes = new Date("2099-06-15T00:00:00");
+    const render1 = render(
+      <CalendarTimeline
+        reservations={[makeRes({ status: "CONFIRMED", billingType: "DAILY", startDate: "2099-06-10", endDate: "2099-06-15" })]}
+        currentMonth={mes}
+        onSelectReservation={() => {}}
+      />
+    );
+    const diaria = (render1.container.querySelector("button[title]") as HTMLElement).className.split(/\s+/);
+    expect(diaria).toContain("border");
+    expect(diaria).not.toContain("border-2");
+    render1.unmount();
+
+    const render2 = render(
+      <CalendarTimeline
+        reservations={[makeRes({ status: "CONFIRMED", billingType: "MONTHLY", startDate: "2099-06-10", endDate: "2099-06-15" })]}
+        currentMonth={mes}
+        onSelectReservation={() => {}}
+      />
+    );
+    const mensual = (render2.container.querySelector("button[title]") as HTMLElement).className.split(/\s+/);
+    expect(mensual).toContain("border-2");
+  });
+
   it("una PENDING en curso NO se pinta como una confirmada", () => {
     // Regresión: `active` se evaluaba antes que `PENDING` y `isReservationActive`
     // solo excluye canceladas, así que una reserva con saldo pendiente que ya

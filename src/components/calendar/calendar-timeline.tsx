@@ -91,15 +91,6 @@ function isReservationEnded(res: Reservation): boolean {
   return end < today || res.status === "COMPLETED";
 }
 
-function isReservationActive(res: Reservation): boolean {
-  if (res.status === "CANCELLED") return false;
-  const start = parseCalendarDate(res.startDate);
-  const end = parseCalendarDate(res.endDate);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return start <= today && end >= today;
-}
-
 function getReservationsInDay(reservations: Reservation[], date: Date): Reservation[] {
   return reservations.filter((res) => {
     const start = parseCalendarDate(res.startDate);
@@ -513,17 +504,6 @@ export function CalendarTimeline({ reservations, externalBlocks = [], overbooked
                       const StatusIcon = status.icon;
                       const isCancelled = res.status === "CANCELLED";
                       const ended = isReservationEnded(res);
-                      const active = !isCancelled && !ended && isReservationActive(res);
-
-// Status → bar color mapping (per DESIGN.md Status Color Doctrine):
-//   - CONFIRMED active  → solid primary (Verdigris)
-//   - CONFIRMED upcoming → primary/10 tint (upcoming reservation, no salience)
-//   - PENDING             → warning/10 tint (Amber Hour = "saldo pendiente" — DESIGN.md:209)
-//   - CANCELLED           → destructive bg with line-through
-//   - COMPLETED (ended)   → muted bg + line-through (terminal, faded)
-//
-// PENDING vs CONFIRMED-upcoming differentiation: ambas son "no iniciadas" pero PENDING
-// carga peso semántico (dinero pendiente). Mismo bg-tint, distinto accent token.
                       // Dos dimensiones ortogonales, no una escalera:
                       //   HUE   = estado de pago  (warning = debe / success = pagada)
                       //   PESO  = temporalidad    (sólido = en curso / tinte = futura)
@@ -553,21 +533,35 @@ export function CalendarTimeline({ reservations, externalBlocks = [], overbooked
                       // temas —el relleno tiene lightness media en los dos— así que los
                       // sólidos necesitan trabajo de tokens y se resuelven aparte. Acá
                       // solo se toma lo que no regresiona.
+                      // Un canal por señal, y ninguno hace dos trabajos:
+                      //
+                      //   TONO          → estado (success / warning / destructive / muted)
+                      //   TINTE al 10%  → construcción única de todas las barras
+                      //   GROSOR BORDE  → tipo de arriendo (1px diaria, 2px mensual)
+                      //   temporalidad  → la columna de hoy, NO la barra
+                      //
+                      // Se elimina el relleno sólido para "en curso". No era solo un
+                      // problema de contraste (2.28:1 claro / 2.17:1 oscuro, sin token
+                      // que lo salve en ambos temas): era redundante. Una reserva en
+                      // curso es, por definición, la que cruza la columna de hoy — y el
+                      // timeline ya la resalta en todas las filas. Con lane stacking una
+                      // propiedad ocupada apila 3-5 barras; en verde saturado la fila se
+                      // volvía un bloque de color, y lo más ruidoso de la pantalla pasaba
+                      // a ser "esto pasa ahora", que es lo que MENOS necesita gritar.
+                      // Ahora los únicos tonos cálidos son el ámbar de pendiente y el de
+                      // sobreventa: las dos cosas accionables.
                       const isPending = res.status === "PENDING";
-                      const barClass = isCancelled
+                      const isMonthly = res.billingType === "MONTHLY";
+                      const barTone = isCancelled
                         ? "border-destructive/30 bg-destructive/10 text-destructive-text line-through"
                         : ended
                         ? "border-border bg-muted text-muted-foreground line-through decoration-muted-foreground/60"
                         : isPending
-                        ? active
-                          // Tinte + borde a full en vez de relleno: el borde es elemento
-                          // gráfico (umbral 3:1) y distingue "en curso" sin poner texto
-                          // encima de un relleno, que es donde se cae el contraste.
-                          ? "border-warning bg-warning/10 text-warning-text"
-                          : "border-warning/30 bg-warning/10 text-warning-text"
-                        : active
-                        ? "border-primary/30 bg-primary text-primary-foreground"
-                        : "border-success/20 bg-success/10 text-success-text";
+                        ? "border-warning/40 bg-warning/10 text-warning-text"
+                        : "border-success/40 bg-success/10 text-success-text";
+                      // El grosor va acá y no en la base para que no compitan dos clases
+                      // de ancho de borde por especificidad.
+                      const barClass = `${isMonthly ? "border-2" : "border"} ${barTone}`;
 
                       // El ícono hereda el mismo par tono/peso que la barra: sobre un
                       // relleno va el `-foreground`, sobre un tinte va el `-text`.
@@ -580,11 +574,7 @@ export function CalendarTimeline({ reservations, externalBlocks = [], overbooked
                         ? "text-muted-foreground"
                         : isPending
                         ? "text-warning-text"
-                        : active
-                        ? "text-success-foreground" // sin cambios: sobre el sólido primary mide 5.65:1
                         : "text-success-text";
-
-                      const isMonthly = res.billingType === "MONTHLY";
 
                       // Badge de duración — adapts to bar bg for color cohesion.
                       // MONTHLY muestra "Nm" (cuotas mensuales), no "Nn" (noches):
@@ -608,8 +598,6 @@ export function CalendarTimeline({ reservations, externalBlocks = [], overbooked
                         ? "bg-foreground/10 text-muted-foreground"
                         : isPending
                         ? "bg-warning/20 text-warning-text"
-                        : active
-                        ? "bg-white/20 text-primary-foreground" // sin cambios, va sobre el sólido
                         : "bg-success/20 text-success-text";
 
                       // Progressive disclosure del contenido según el ancho disponible.
@@ -635,7 +623,7 @@ export function CalendarTimeline({ reservations, externalBlocks = [], overbooked
                           key={res.id}
                           onClick={() => onSelectReservation(res.id)}
                           aria-label={ariaLabel}
-                          className={`group absolute flex h-8 items-center gap-1.5 overflow-hidden rounded-md border px-2 text-left text-xs transition-all hover:z-20 focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-2 sm:px-3 ${barClass}`}
+                          className={`group absolute flex h-8 items-center gap-1.5 overflow-hidden rounded-md px-2 text-left text-xs transition-all hover:z-20 focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-2 sm:px-3 ${barClass}`}
                           style={{
                             left: `${leftOffset * dayWidth + 4}px`,
                             top: `${laneTop(lane)}px`,
