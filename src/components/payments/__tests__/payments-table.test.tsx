@@ -509,3 +509,62 @@ describe('PaymentsTable - compact mode', () => {
     expect(dot).toBeTruthy();
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// Orden de filas por variante
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('PaymentsTable - orden de filas', () => {
+  /** Lee la columna "Cliente" de cada fila, en el orden en que se renderizan. */
+  function renderedClients(): string[] {
+    return Array.from(document.querySelectorAll('tbody tr')).map(
+      (row) => row.querySelectorAll('td')[1]?.textContent?.trim() ?? '',
+    );
+  }
+
+  it('variante "full" respeta el orden del servidor, no reordena por cuota', () => {
+    // Historial global tal como lo entrega `getPayments`: `createdAt` desc,
+    // mezclando reservas distintas. Los `installmentIndex` van a contrapelo
+    // a propósito — si la tabla reordenara por cuota, el resultado saldría
+    // invertido.
+    const payments = [
+      createMockPayment({ id: 'p1', clientName: 'Tercero', installmentIndex: 3, createdAt: '2025-09-01T10:00:00Z' }),
+      createMockPayment({ id: 'p2', clientName: 'Segundo', installmentIndex: 2, createdAt: '2025-08-01T10:00:00Z' }),
+      createMockPayment({ id: 'p3', clientName: 'Primero', installmentIndex: 1, createdAt: '2025-07-01T10:00:00Z' }),
+    ];
+
+    render(<PaymentsTable payments={payments} variant="full" />);
+
+    expect(renderedClients()).toEqual(['Tercero', 'Segundo', 'Primero']);
+  });
+
+  it('variante "full" no manda al tope los pagos sin cuota', () => {
+    // `installmentIndex ?? 0` colapsaba arriendos diarios y cobros extra al
+    // inicio del listado, delante de cualquier cuota.
+    const payments = [
+      createMockPayment({ id: 'p1', clientName: 'Con cuota', installmentIndex: 5 }),
+      createMockPayment({ id: 'p2', clientName: 'Sin cuota', installmentIndex: null, paymentType: 'EXTRA', title: 'Multa' }),
+    ];
+
+    render(<PaymentsTable payments={payments} variant="full" />);
+
+    expect(renderedClients()).toEqual(['Con cuota', 'Sin cuota']);
+  });
+
+  it('variante "reservation" sí ordena por cuota', () => {
+    // Dentro de una reserva todas las filas comparten la misma serie de
+    // cuotas, y ese es el orden natural de lectura.
+    const payments = [
+      createMockPayment({ id: 'p1', installmentIndex: 3, installmentLabel: '3 / 3' }),
+      createMockPayment({ id: 'p2', installmentIndex: 1, installmentLabel: '1 / 3' }),
+      createMockPayment({ id: 'p3', installmentIndex: 2, installmentLabel: '2 / 3' }),
+    ];
+
+    render(<PaymentsTable payments={payments} variant="reservation" />);
+
+    const cuotas = Array.from(document.querySelectorAll('tbody tr')).map(
+      (row) => row.querySelectorAll('td')[0]?.textContent?.trim() ?? '',
+    );
+    expect(cuotas).toEqual(['1 / 3', '2 / 3', '3 / 3']);
+  });
+});

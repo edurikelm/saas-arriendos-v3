@@ -169,9 +169,20 @@ export function PaymentsTable({
     { label: "Acciones", align: "right" },
   ];
 
-  const sortedPayments = [...payments].sort(
-    (a, b) => (a.installmentIndex ?? 0) - (b.installmentIndex ?? 0)
-  );
+  // Orden por cuota SOLO dentro de una reserva. Ahí el índice de cuota es el
+  // orden natural y todas las filas comparten la misma serie.
+  //
+  // La variante `"full"` (/payments) es un historial global de varias reservas:
+  // ordenar por `installmentIndex` intercala series distintas y colapsa a 0
+  // todo lo que no es cuota (arriendos diarios, cobros extra), así que la
+  // columna "Fecha creación" sale sin orden aparente. Ahí manda el orden del
+  // servidor (`createdAt` desc en `getPayments`).
+  const sortedPayments =
+    variant === "full"
+      ? payments
+      : [...payments].sort(
+          (a, b) => (a.installmentIndex ?? 0) - (b.installmentIndex ?? 0)
+        );
 
   return (
     <DataTable headers={headers} caption="Listado de pagos" emptyState={emptyState}>
