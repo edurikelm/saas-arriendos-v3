@@ -1,0 +1,64 @@
+name: CI
+
+# Se dispara en PRs hacia master y en push a master. El push cubre el caso de
+# un merge que rompe algo pese a que el PR estaba verde (por ejemplo, dos PRs
+# que pasan por separado y chocan al integrarse).
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+# Si se empuja de nuevo a la misma rama, cancela la corrida anterior: no tiene
+# sentido gastar minutos en un commit que ya quedó obsoleto. En master NO se
+# cancela, porque cada commit de master debe quedar con su propio veredicto.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
+jobs:
+  verify:
+    name: Typecheck · Lint · Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # La suite es hermética: los tests mockean Prisma y la sesión, así que no
+    # hace falta levantar Postgres ni ningún servicio. Verificado revisando los
+    # archivos que mencionan PrismaClient/DATABASE_URL — todos lo hacen dentro
+    # de un `vi.mock`.
+    #
+    # `npm ci` dispara el `postinstall`, que corre `scripts/setup-env.mjs`
+    # (crea `.env` desde `.env.example`, que está trackeado) y después
+    # `prisma generate`. Prisma 7 exige que DATABASE_URL exista al cargar
+    # `prisma.config.ts` aunque `generate` no abra conexión; los placeholders
+    # de `.env.example` alcanzan.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # `lint`, no `lint:strict`. El repo arrastra ~998 warnings preexistentes
+      # (`no-explicit-any`, `no-unused-vars`) y `lint:strict` usa
+      # `--max-warnings=0`, así que nacería en rojo por deuda vieja y no por el
+      # cambio que se está revisando. `lint` falla solo con errores, que hoy
+      # son 0. Migrar a `lint:strict` es un objetivo aparte, cuando la deuda
+      # esté saldada.
+      - name: Lint
+        run: npm run lint
+
+      # Corre siempre, aunque typecheck o lint fallen: es más útil ver el
+      # panorama completo en una sola corrida que arreglar de a un paso por vez.
+      - name: Tests
+        if: always()
+        run: npm run test:run
