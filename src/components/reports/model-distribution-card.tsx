@@ -40,14 +40,14 @@ export function ModelDistributionCard({
         <h3 className="text-xs font-bold text-foreground uppercase tracking-wider mb-1">
           {title}
         </h3>
-        <p className="text-[11px] text-muted-foreground mb-3">{description}</p>
+        <p className="text-xs text-muted-foreground mb-3">{description}</p>
 
         {/* Valor principal con label visible */}
         <div className="flex items-baseline gap-2">
           <span className="text-2xl font-bold text-foreground">
             ${collectedCash.toLocaleString("CLP")}
           </span>
-          <span className="text-[11px] text-muted-foreground">Cobrado de arriendo</span>
+          <span className="text-xs text-muted-foreground">Cobrado de arriendo</span>
         </div>
 
         {/* % del cobrado de arriendo */}

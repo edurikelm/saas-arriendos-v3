@@ -426,7 +426,7 @@ function Hero() {
                     <Check className="size-5" aria-hidden="true" />
                   </div>
                   <div>
-                    <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.2em] mb-0.5">
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] mb-0.5">
                       Mercado Pago
                     </div>
                     <div className="text-base font-bold text-foreground">

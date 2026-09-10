@@ -135,13 +135,13 @@ function renderReservationRow(reservation: DashboardUpcomingReservation) {
       <td className="px-4 py-3 text-right">
         {isMonthly && installmentAmount !== null ? (
           <>
-            <div className="text-[13.5px] font-bold text-foreground tabular-nums">
+            <div className="text-sm font-bold text-foreground tabular-nums">
               {formatCLP(installmentAmount)}
             </div>
             <div className="text-[9px] text-muted-foreground">/mes</div>
           </>
         ) : (
-          <div className="text-[13.5px] font-bold text-foreground tabular-nums">
+          <div className="text-sm font-bold text-foreground tabular-nums">
             {formatCLP(reservation.totalPrice)}
           </div>
         )}

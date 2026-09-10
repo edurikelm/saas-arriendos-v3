@@ -447,7 +447,15 @@ export function OccupancyStrip({
                                 {reservation.client.name}
                               </span>
                               <span
-                                className={`text-[8px] font-bold uppercase tracking-tighter ${
+                                // `truncate` (igual que el nombre del cliente
+                                // arriba) es lo que impide que "N noches"
+                                // envuelva en barras angostas: al envolver, el
+                                // contenido pasa de 31px a 44px dentro de una
+                                // barra de 32px y se recorta en vertical.
+                                // Medido: sin esto se rompe desde 64px de ancho
+                                // a 9px — y ya se rompia desde 56px a 8px, o
+                                // sea que el bug es anterior a este cambio.
+                                className={`truncate text-[9px] font-bold uppercase tracking-tighter ${
                                   isActive
                                     ? "text-primary-foreground/90"
                                     : "text-primary/80"
