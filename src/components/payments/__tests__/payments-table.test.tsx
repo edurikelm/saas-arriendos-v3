@@ -330,40 +330,122 @@ describe('PaymentsTable - emptyState', () => {
 // variant="full" — todas las columnas
 // ────────────────────────────────────────────────────────────────────────────
 
-describe('PaymentsTable - variant="full"', () => {
-  it('muestra columnas de contexto (Fecha creación, Cliente, Propiedad)', () => {
-    const payment = createMockPayment();
+describe('PaymentsTable - variant="full" (fila a dos niveles)', () => {
+  it('tiene cinco columnas, no una por dato', () => {
+    // Once columnas necesitaban 1668px contra los 1086px reales de un
+    // escritorio de 1440. Propiedad, cuota, medio y las tres fechas pasaron a
+    // ser la segunda línea de la columna que las explica.
+    render(<PaymentsTable payments={[createMockPayment()]} variant="full" />);
 
-    render(<PaymentsTable payments={[payment]} variant="full" />);
-
-    expect(screen.getByText('Fecha creación')).toBeTruthy();
-    expect(screen.getByText('Cliente')).toBeTruthy();
-    expect(screen.getByText('Propiedad')).toBeTruthy();
+    const headers = Array.from(document.querySelectorAll('thead th')).map(
+      (th) => th.textContent?.trim(),
+    );
+    expect(headers).toEqual(['Cliente', 'Concepto', 'Monto', 'Estado', 'Acciones']);
   });
 
-  it('muestra columnas de installment siempre (independiente de los datos)', () => {
-    const payment = createMockPayment({ installmentIndex: null, installmentLabel: null });
+  it('la columna Cliente lleva el nombre arriba y la propiedad debajo', () => {
+    const payment = createMockPayment({
+      clientName: 'Carlos Rodríguez',
+      propertyName: 'Cabaña del Bosque',
+    });
 
     render(<PaymentsTable payments={[payment]} variant="full" />);
 
-    expect(screen.getByText('Cuota')).toBeTruthy();
-    expect(screen.getByText('Vencimiento')).toBeTruthy();
+    expect(screen.getByText('Carlos Rodríguez')).toBeTruthy();
+    expect(screen.getByText('Cabaña del Bosque')).toBeTruthy();
   });
 
-  it('muestra columna Concepto', () => {
-    const payment = createMockPayment();
+  it('la columna Monto lleva el medio de pago debajo', () => {
+    const payment = createMockPayment({ method: 'CASH', amount: '50000' });
 
     render(<PaymentsTable payments={[payment]} variant="full" />);
 
-    expect(screen.getByText('Concepto')).toBeTruthy();
+    expect(screen.getByText('Efectivo')).toBeTruthy();
   });
 
-  it('renderiza fecha de creación formateada', () => {
-    const payment = createMockPayment({ createdAt: '2025-07-15T10:00:00Z' });
+  it('la cuota va bajo el concepto, no en su propia columna', () => {
+    const payment = createMockPayment({ installmentIndex: 3, installmentLabel: '3 / 12' });
 
     render(<PaymentsTable payments={[payment]} variant="full" />);
 
-    expect(screen.getByText('15 jul 2025')).toBeTruthy();
+    expect(screen.getByText('Cuota 3 / 12')).toBeTruthy();
+    expect(screen.queryByText('Vencimiento')).toBeNull();
+  });
+
+  it('la columna Acciones se fija al borde derecho', () => {
+    // Corolario de The Row Isolation Rule: como la fila no es clickeable, esa
+    // columna es el único camino a las acciones. Si se sale del área visible
+    // por ancho, la tabla queda de solo lectura y nada lo señala.
+    render(<PaymentsTable payments={[createMockPayment()]} variant="full" />);
+
+    const th = Array.from(document.querySelectorAll('thead th')).at(-1);
+    const td = Array.from(document.querySelectorAll('tbody tr td')).at(-1);
+    expect(th?.className).toContain('sticky');
+    expect(td?.className).toContain('sticky');
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// La fecha que el estado hace relevante (segunda línea de "Estado")
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('PaymentsTable - fecha por estado', () => {
+  it('un pago cobrado se explica por cuándo entró la plata', () => {
+    const payment = createMockPayment({ status: 'COMPLETED', paidAt: '2025-08-04T10:00:00Z' });
+
+    render(<PaymentsTable payments={[payment]} variant="full" />);
+
+    expect(screen.getByText('Pagado 4 ago 2025')).toBeTruthy();
+  });
+
+  it('un pendiente al día se explica por cuándo vence', () => {
+    const payment = createMockPayment({
+      status: 'PENDING',
+      paidAt: null,
+      dueDate: '2025-09-20T15:00:00Z',
+      overdueDays: null,
+    });
+
+    render(<PaymentsTable payments={[payment]} variant="full" />);
+
+    expect(screen.getByText(/^Vence /)).toBeTruthy();
+  });
+
+  it('la mora gana sobre el vencimiento y va coloreada', () => {
+    const payment = createMockPayment({
+      status: 'PENDING',
+      paidAt: null,
+      dueDate: '2025-08-05T15:00:00Z',
+      overdueDays: 36,
+    });
+
+    render(<PaymentsTable payments={[payment]} variant="full" />);
+
+    const linea = screen.getByText('Vencido hace 36 días');
+    expect(linea).toBeTruthy();
+    expect(linea.className).toContain('text-destructive-text');
+    expect(screen.queryByText(/^Vence /)).toBeNull();
+  });
+
+  it('singulariza un solo día de mora', () => {
+    const payment = createMockPayment({ status: 'PENDING', paidAt: null, overdueDays: 1 });
+
+    render(<PaymentsTable payments={[payment]} variant="full" />);
+
+    expect(screen.getByText('Vencido hace 1 día')).toBeTruthy();
+  });
+
+  it('cae a la fecha de emisión cuando el estado no aporta ninguna', () => {
+    const payment = createMockPayment({
+      status: 'FAILED',
+      paidAt: null,
+      dueDate: null,
+      createdAt: '2025-07-15T10:00:00Z',
+    });
+
+    render(<PaymentsTable payments={[payment]} variant="full" />);
+
+    expect(screen.getByText('Emitido 15 jul 2025')).toBeTruthy();
   });
 });
 
@@ -515,10 +597,14 @@ describe('PaymentsTable - compact mode', () => {
 // ────────────────────────────────────────────────────────────────────────────
 
 describe('PaymentsTable - orden de filas', () => {
-  /** Lee la columna "Cliente" de cada fila, en el orden en que se renderizan. */
+  /**
+   * Lee el nombre de cliente de cada fila, en el orden en que se renderizan.
+   * En la variante "full" Cliente es la primera columna, y el nombre es su
+   * primera línea — la segunda es la propiedad.
+   */
   function renderedClients(): string[] {
     return Array.from(document.querySelectorAll('tbody tr')).map(
-      (row) => row.querySelectorAll('td')[1]?.textContent?.trim() ?? '',
+      (row) => row.querySelector('td')?.querySelector('p')?.textContent?.trim() ?? '',
     );
   }
 

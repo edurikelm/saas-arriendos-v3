@@ -501,6 +501,16 @@ Los callsites que NO encajan en estos helpers (select+groupby custom, where+incl
 
 **Límite**: este seam es **solo UI**. No reemplaza las reglas financieras de negocio ni las server actions de `lib/actions/payments.ts`. La transición de estado, validación de montos, generación de links y auditoría permanecen en la capa de servidor.
 
+### Presentación del listado de pagos
+
+`PaymentsTable` tiene tres variantes y **la variante `"full"` de `/payments` no comparte layout con las otras dos**. Las de reserva (`"reservation"`, `"extra"`) son una columna por dato, que a seis o siete columnas entra en el ancho de un diálogo. El listado global llegó a once columnas y necesitaba 1668px contra los 1086px reales de un escritorio de 1440 con el sidebar: fecha de pago, medio, estado y acciones quedaban fuera del área visible. Por el corolario de The Row Isolation Rule (`DESIGN.md`) eso dejaba la página de **solo lectura** sin que nada lo señalara, porque la columna de acciones es el único camino a las acciones.
+
+La variante `"full"` agrupa entonces los mismos datos en **cinco columnas a dos niveles** —el dato arriba, su metadata debajo—: Cliente absorbe propiedad, Concepto absorbe cuota y descripción, Monto absorbe el medio de pago, y Estado absorbe las tres columnas de fecha vía `getStatusDateLine`, que elige la única fecha que el estado hace relevante. La columna de acciones va `sticky right-0`, igual que en `reservation-table.tsx`, que resolvió el mismo problema antes: eso la mantiene alcanzable con nombres largos y a 1280, donde solo hay 976px.
+
+Bajo 768px la página no renderiza la tabla sino `PaymentListItem`, filas divididas dentro de un contenedor con el framing de `DataTable`. El corte se decide con `useMediaQuery`, **no** con `hidden md:block`: montar las dos presentaciones deja dos copias de cada botón de acción en el DOM. Mismo criterio y mismo breakpoint que `reservations-list-client.tsx`.
+
+**El ordenamiento también depende de la variante.** `"full"` respeta el orden del servidor (`createdAt` desc); las variantes de reserva ordenan por `installmentIndex`, que solo es el orden natural cuando todas las filas comparten la misma serie de cuotas.
+
 ## Estado del proyecto / Backlog activo
 
 **Última verificación de baseline** (post /impeccable /reservations audit closes, 2026-08-20):

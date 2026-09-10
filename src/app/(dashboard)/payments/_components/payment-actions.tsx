@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { PaymentsTable, type Payment } from "@/components/payments/payments-table";
+import { PaymentListItem } from "@/components/payments/payment-list-item";
 import { MarkPaidDialog } from "@/components/dashboard/mark-paid-dialog";
 import {
   generatePaymentLink,
@@ -15,6 +17,8 @@ import {
 
 export function PaymentsTableClient({ payments }: { payments: Payment[] }) {
   const router = useRouter();
+  // <768px: mismo breakpoint que /reservations.
+  const isMobile = useMediaQuery("(max-width: 767px)");
   const [markPaidId, setMarkPaidId] = useState<string | null>(null);
   const [generatingLinkId, setGeneratingLinkId] = useState<string | null>(null);
   const [regeneratingLinkId, setRegeneratingLinkId] = useState<string | null>(null);
@@ -166,21 +170,36 @@ export function PaymentsTableClient({ payments }: { payments: Payment[] }) {
     }
   }
 
+  // Los handlers son los mismos en las dos presentaciones; solo cambia el
+  // layout.
+  const rowHandlers = {
+    onGenerateLink: handleGenerateLink,
+    onRegenerateLink: handleRegenerateLink,
+    onMarkPaid: setMarkPaidId,
+    onDeletePayment: handleDeletePayment,
+    onAttachReceipt: handleAttachReceipt,
+    onSendLink: handleSendLink,
+    generatingLinkId,
+    regeneratingLinkId,
+    attachingReceiptId,
+  };
+
   return (
     <>
-      <PaymentsTable
-        payments={payments}
-        variant="full"
-        generatingLinkId={generatingLinkId}
-        regeneratingLinkId={regeneratingLinkId}
-        onGenerateLink={handleGenerateLink}
-        onRegenerateLink={handleRegenerateLink}
-        onMarkPaid={setMarkPaidId}
-        onDeletePayment={handleDeletePayment}
-        onAttachReceipt={handleAttachReceipt}
-        attachingReceiptId={attachingReceiptId}
-        onSendLink={handleSendLink}
-      />
+      {isMobile ? (
+        /* Filas dentro de un contenedor único, con el mismo framing que
+           `DataTable` le da a la tabla en desktop. Se elige con la media query
+           y no con `hidden md:block` para no montar las dos: cada fila trae
+           botones, y renderizar ambas dejaba dos copias de cada acción en el
+           DOM. Mismo criterio que `reservations-list-client.tsx`. */
+        <div className="overflow-hidden rounded-md border border-t-2 border-border border-t-primary bg-card">
+          {payments.map((payment) => (
+            <PaymentListItem key={payment.id} payment={payment} {...rowHandlers} />
+          ))}
+        </div>
+      ) : (
+        <PaymentsTable payments={payments} variant="full" {...rowHandlers} />
+      )}
 
       <MarkPaidDialog
         paymentId={markPaidId}
