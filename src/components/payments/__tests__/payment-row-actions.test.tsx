@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { Payment } from "../payments-table";
 
 vi.mock("sonner", () => ({
@@ -622,14 +623,15 @@ describe("PaymentRowActions — pago FAILED", () => {
   });
 
   it("con link vencido, regenerar es la primaria y las otras dos van al menú", async () => {
-    // El desplegable de Base UI no se abre en jsdom, así que se afirma que el
-    // disparador existe: solo se renderiza con DOS o más acciones secundarias,
-    // y las únicas elegibles acá son marcar pagado y eliminar. Que el menú
-    // contenga ambas se verificó en el navegador contra la página real.
+    // El desplegable de Base UI SÍ abre en jsdom; monta el popup de forma
+    // asíncrona, así que hay que consultarlo con `findBy*` y no con `getBy*`.
     await renderFailed({ method: "MERCADO_PAGO", initPoint: "https://mp/x", expiresAt: pasado });
 
     expect(screen.getByRole("button", { name: /regenerar link/i })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /más acciones/i })).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: /más acciones/i }));
+
+    expect(await screen.findByRole("menuitem", { name: /marcar como pagado/i })).toBeTruthy();
+    expect(await screen.findByRole("menuitem", { name: /eliminar pago/i })).toBeTruthy();
   });
 
   it("en efectivo o transferencia ofrece marcar pagado y eliminar, sin links", async () => {
