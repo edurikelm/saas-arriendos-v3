@@ -3,25 +3,20 @@
 import * as React from "react";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Calendar, Plus, X, X as XIcon, Search, ChevronDown } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Calendar, Plus, X, X as XIcon, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { ReservationForm } from "@/components/reservations/reservation-form";
 import { ReservationTable } from "@/components/reservations/reservation-table";
 import { ReservationListItem } from "@/components/reservations/reservation-list-item";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Pagination } from "@/components/ui/pagination";
-import { cn } from "@/lib/utils";
 import { usePagination } from "@/hooks/use-pagination";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useReservationFilters, type ServerReservationFilters } from "@/hooks/use-reservation-filters";
 import { FilterPill } from "@/components/ui/filter-pill";
+import { FilterChip } from "@/components/ui/filter-chip";
 import { toast } from "sonner";
 import {
   createReservation,
@@ -339,7 +334,6 @@ export function ReservationsListClient({
                 valueMaxWidth="max-w-[140px]"
                 clearAriaLabel="Quitar filtro de propiedad"
                 onClear={() => updateServerFilter("propertyId", "")}
-                activeClassName="bg-primary/10 border-primary/20 text-primary hover:bg-primary/10 hover:text-primary"
               >
                 <DropdownMenuContent className="ring-1 ring-foreground/10">
                   <DropdownMenuItem
@@ -376,7 +370,6 @@ export function ReservationsListClient({
                 valueLabel={serverFilters.status === "PENDING" ? "Sin confirmar" : "Confirmadas"}
                 clearAriaLabel="Quitar filtro de confirmación"
                 onClear={() => updateServerFilter("status", "")}
-                activeClassName="bg-primary/10 border-primary/20 text-primary hover:bg-primary/10 hover:text-primary"
               >
                 <DropdownMenuContent className="ring-1 ring-foreground/10">
                   <DropdownMenuItem
@@ -414,7 +407,6 @@ export function ReservationsListClient({
                 valueLabel={serverFilters.payment === "unpaid" ? "Sin abonos" : "Con vencidas"}
                 clearAriaLabel="Quitar filtro de cobranza"
                 onClear={() => updateServerFilter("payment", "all")}
-                activeClassName="bg-primary/10 border-primary/20 text-primary hover:bg-primary/10 hover:text-primary"
               >
                 <DropdownMenuContent className="ring-1 ring-foreground/10">
                   <DropdownMenuItem
@@ -631,72 +623,4 @@ export function ReservationsListClient({
   );
 }
 
-/**
- * A filter chip that shows a DropdownMenu trigger + an inline clear (X) button
- * as a SIBLING (not nested). Nesting a button inside the DropdownMenuTrigger
- * would render invalid HTML and make the clear unreachable via keyboard.
- */
-interface FilterChipProps {
-  label: string;
-  value: string | null;
-  valueLabel?: string;
-  valueMaxWidth?: string;
-  onClear: () => void;
-  clearAriaLabel: string;
-  activeClassName?: string;
-  children: React.ReactNode;
-}
-
-function FilterChip({
-  label,
-  value,
-  valueLabel,
-  valueMaxWidth,
-  onClear,
-  clearAriaLabel,
-  activeClassName,
-  children,
-}: FilterChipProps) {
-  return (
-    <div className="inline-flex items-center gap-0.5">
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          className={cn(
-            buttonVariants({ variant: "outline", size: "sm" }),
-            "h-7 px-2.5 text-xs font-medium gap-1.5",
-            value && activeClassName
-          )}
-        >
-          <span>{label}</span>
-          {value && valueLabel && (
-            <>
-              <span className="text-muted-foreground/60">·</span>
-              <span
-                className={cn("font-bold truncate", valueMaxWidth)}
-              >
-                {valueLabel}
-              </span>
-            </>
-          )}
-          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-        </DropdownMenuTrigger>
-        {children}
-      </DropdownMenu>
-      {value && (
-        <button
-          type="button"
-          onClick={(e) => {
-            // Prevent the trigger from opening if focus shifts unexpectedly.
-            e.stopPropagation();
-            onClear();
-          }}
-          aria-label={clearAriaLabel}
-          className="-ml-1 inline-flex h-5 w-5 items-center justify-center rounded text-primary/70 hover:bg-primary/15 hover:text-primary transition-colors"
-        >
-          <X className="h-3 w-3" />
-        </button>
-      )}
-    </div>
-  );
-}
 

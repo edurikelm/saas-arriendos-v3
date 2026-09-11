@@ -3,15 +3,11 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { FilterChip } from "@/components/ui/filter-chip";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { localDateKey } from "@/lib/domain/timezone";
-import { ChevronDown, Search, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 
 interface Property {
   id: string;
@@ -151,15 +147,18 @@ export function PaymentsFilters({
   const hasFilters = propertyId || method || status || paymentType || search || dateFrom || dateTo;
   const hasDateRange = dateFrom || dateTo;
 
-  // Chip labels
-  const propertyLabel = propertyId
-    ? properties.find((p) => p.id === propertyId)?.name ?? "Propiedad"
-    : "Propiedad";
-  const methodLabel = method ? METHOD_LABELS[method] ?? method : "Método";
-  const statusLabel = status ? STATUS_LABELS[status] ?? status : "Estado";
-  const paymentTypeLabel = paymentType
+  // Valor legible del filtro activo, o `undefined` si está apagado. El chip
+  // muestra SIEMPRE el nombre de la dimensión y le suma el valor al lado; antes
+  // el valor reemplazaba al nombre, así que un chip activo dejaba de decir qué
+  // filtraba — el mismo problema que tenía el de fechas.
+  const propertyValueLabel = propertyId
+    ? properties.find((p) => p.id === propertyId)?.name
+    : undefined;
+  const methodValueLabel = method ? METHOD_LABELS[method] ?? method : undefined;
+  const statusValueLabel = status ? STATUS_LABELS[status] ?? status : undefined;
+  const paymentTypeValueLabel = paymentType
     ? PAYMENT_TYPE_LABELS[paymentType] ?? paymentType
-    : "Tipo";
+    : undefined;
 
   return (
     <div className="space-y-4">
@@ -180,18 +179,13 @@ export function PaymentsFilters({
 
       {/* Filter Chips Row */}
       <div className="flex flex-wrap items-center gap-2">
-        {/* Propiedad */}
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
-              propertyId
-                ? "bg-primary/10 border-primary/20 text-primary"
-                : "bg-card border-border text-foreground hover:border-primary"
-            }`}
-          >
-            {propertyLabel}
-            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-          </DropdownMenuTrigger>
+        <FilterChip
+          label="Propiedad"
+          value={propertyId}
+          valueLabel={propertyValueLabel}
+          valueMaxWidth="max-w-[140px]"
+          onClear={() => handlePropertyChange("")}
+        >
           <DropdownMenuContent className="ring-1 ring-foreground/10">
             <DropdownMenuItem
               onClick={() => handlePropertyChange("")}
@@ -209,20 +203,14 @@ export function PaymentsFilters({
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
-        </DropdownMenu>
+        </FilterChip>
 
-        {/* Método */}
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
-              method
-                ? "bg-primary/10 border-primary/20 text-primary"
-                : "bg-card border-border text-foreground hover:border-primary"
-            }`}
-          >
-            {methodLabel}
-            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-          </DropdownMenuTrigger>
+        <FilterChip
+          label="Método"
+          value={method}
+          valueLabel={methodValueLabel}
+          onClear={() => handleMethodChange("")}
+        >
           <DropdownMenuContent className="ring-1 ring-foreground/10">
             <DropdownMenuItem
               onClick={() => handleMethodChange("")}
@@ -230,39 +218,24 @@ export function PaymentsFilters({
             >
               Todos los métodos
             </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => handleMethodChange("MERCADO_PAGO")}
-              className={method === "MERCADO_PAGO" ? "bg-accent" : ""}
-            >
-              Mercado Pago
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => handleMethodChange("CASH")}
-              className={method === "CASH" ? "bg-accent" : ""}
-            >
-              Efectivo
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => handleMethodChange("TRANSFER")}
-              className={method === "TRANSFER" ? "bg-accent" : ""}
-            >
-              Transferencia
-            </DropdownMenuItem>
+            {Object.entries(METHOD_LABELS).map(([value, label]) => (
+              <DropdownMenuItem
+                key={value}
+                onClick={() => handleMethodChange(value)}
+                className={method === value ? "bg-accent" : ""}
+              >
+                {label}
+              </DropdownMenuItem>
+            ))}
           </DropdownMenuContent>
-        </DropdownMenu>
+        </FilterChip>
 
-        {/* Estado */}
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
-              status
-                ? "bg-primary/10 border-primary/20 text-primary"
-                : "bg-card border-border text-foreground hover:border-primary"
-            }`}
-          >
-            {statusLabel}
-            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-          </DropdownMenuTrigger>
+        <FilterChip
+          label="Estado"
+          value={status}
+          valueLabel={statusValueLabel}
+          onClear={() => handleStatusChange("")}
+        >
           <DropdownMenuContent className="ring-1 ring-foreground/10">
             <DropdownMenuItem
               onClick={() => handleStatusChange("")}
@@ -270,39 +243,24 @@ export function PaymentsFilters({
             >
               Todos los estados
             </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => handleStatusChange("PENDING")}
-              className={status === "PENDING" ? "bg-accent" : ""}
-            >
-              Pendiente
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => handleStatusChange("COMPLETED")}
-              className={status === "COMPLETED" ? "bg-accent" : ""}
-            >
-              Completado
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => handleStatusChange("FAILED")}
-              className={status === "FAILED" ? "bg-accent" : ""}
-            >
-              Fallido
-            </DropdownMenuItem>
+            {Object.entries(STATUS_LABELS).map(([value, label]) => (
+              <DropdownMenuItem
+                key={value}
+                onClick={() => handleStatusChange(value)}
+                className={status === value ? "bg-accent" : ""}
+              >
+                {label}
+              </DropdownMenuItem>
+            ))}
           </DropdownMenuContent>
-        </DropdownMenu>
+        </FilterChip>
 
-        {/* Tipo */}
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
-              paymentType
-                ? "bg-primary/10 border-primary/20 text-primary"
-                : "bg-card border-border text-foreground hover:border-primary"
-            }`}
-          >
-            {paymentTypeLabel}
-            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-          </DropdownMenuTrigger>
+        <FilterChip
+          label="Tipo"
+          value={paymentType}
+          valueLabel={paymentTypeValueLabel}
+          onClear={() => handlePaymentTypeChange("")}
+        >
           <DropdownMenuContent className="ring-1 ring-foreground/10">
             <DropdownMenuItem
               onClick={() => handlePaymentTypeChange("")}
@@ -310,20 +268,17 @@ export function PaymentsFilters({
             >
               Todos
             </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => handlePaymentTypeChange("RESERVATION")}
-              className={paymentType === "RESERVATION" ? "bg-accent" : ""}
-            >
-              Arriendo
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => handlePaymentTypeChange("EXTRA")}
-              className={paymentType === "EXTRA" ? "bg-accent" : ""}
-            >
-              Extra
-            </DropdownMenuItem>
+            {Object.entries(PAYMENT_TYPE_LABELS).map(([value, label]) => (
+              <DropdownMenuItem
+                key={value}
+                onClick={() => handlePaymentTypeChange(value)}
+                className={paymentType === value ? "bg-accent" : ""}
+              >
+                {label}
+              </DropdownMenuItem>
+            ))}
           </DropdownMenuContent>
-        </DropdownMenu>
+        </FilterChip>
 
         {/* DateRangePicker como chip */}
         <DateRangePicker
