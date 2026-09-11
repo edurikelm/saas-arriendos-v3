@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { nowKeyInBusinessTz } from "@/lib/domain/timezone";
+import { endOfDayInTz, nowKeyInBusinessTz, startOfDayInTz } from "@/lib/domain/timezone";
 import { parseAmountQuery } from "@/lib/payments/search";
 
 /**
@@ -93,15 +93,31 @@ export function buildPaymentsWhere(
     where.paymentType = filters.paymentType;
   }
 
+  // Rango de fechas sobre `createdAt`, con los dos bordes en la zona del
+  // negocio.
+  //
+  // Antes cada borde se construía distinto y ninguno de los dos era Santiago:
+  // `new Date("2026-09-01")` es medianoche UTC —la forma date-only del estándar
+  // se interpreta en UTC— y `new Date("2026-09-01T23:59:59")` es hora LOCAL DEL
+  // PROCESO, porque la forma con hora y sin offset se interpreta local. O sea
+  // que los dos extremos del mismo rango no compartían referencia, y además el
+  // resultado cambiaba entre la máquina de desarrollo y el deploy.
+  //
+  // El efecto no era teórico: `createdAt` es un instante real, y un cobro
+  // registrado a las 21:34 de Santiago se guarda como 00:34 UTC del día
+  // SIGUIENTE. Medido contra producción, 3 de 13 pagos caían en un día distinto
+  // del que muestra la tabla —que formatea en la zona del navegador— así que
+  // filtrar por el día en que se registró un cobro no lo encontraba.
+  //
+  // `startOfDayInTz` / `endOfDayInTz` resuelven la medianoche de pared de
+  // Santiago, incluidos los dos bordes de cambio de hora: el día en que la
+  // medianoche local no existe y el de 25 horas.
   if (filters.dateFrom) {
-    where.createdAt = { ...(where.createdAt as object), gte: new Date(filters.dateFrom) };
+    where.createdAt = { ...(where.createdAt as object), gte: startOfDayInTz(filters.dateFrom) };
   }
 
   if (filters.dateTo) {
-    where.createdAt = {
-      ...(where.createdAt as object),
-      lte: new Date(filters.dateTo + "T23:59:59"),
-    };
+    where.createdAt = { ...(where.createdAt as object), lte: endOfDayInTz(filters.dateTo) };
   }
 
   // Se mergea sobre el `userId` del where base, no lo reemplaza.

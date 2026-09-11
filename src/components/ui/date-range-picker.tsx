@@ -22,6 +22,16 @@ interface DateRangePickerProps {
   blockedDates?: string[]
   mode?: "range" | "single"
   id?: string
+  /**
+   * Nombre del campo que se está filtrando, p. ej. "Emisión".
+   *
+   * Un rango de fechas no dice sobre QUÉ fecha aplica, y en una tabla con tres
+   * —emisión, vencimiento y pago— eso no se adivina. Con label, el chip lee
+   * "Emisión" vacío y "Emisión: 1 sept 2026 - 30 sept 2026" con rango elegido.
+   * Sin label queda el texto genérico de antes, que es lo que usan los otros
+   * dos callsites donde el contexto ya lo dice.
+   */
+  label?: string
 }
 
 export function DateRangePicker({
@@ -31,6 +41,7 @@ export function DateRangePicker({
   blockedDates = [],
   mode = "range",
   id,
+  label,
 }: DateRangePickerProps) {
   // Comparación por dateKey en wall-time SCL (ADR-0020). Antes: `new Date(blocked)`
   // + `setHours(0,0,0,0)` era timezone-frágil — en zonas UTC+ un string
@@ -64,15 +75,13 @@ export function DateRangePicker({
       >
         <CalendarIcon className="mr-2 shrink-0" />
         {date?.from ? (
-          date.to ? (
-            <span className="truncate">
-              {format(date.from, "PP", { locale: es })} - {format(date.to, "PP", { locale: es })}
-            </span>
-          ) : (
-            format(date.from, "PP", { locale: es })
-          )
+          <span className="truncate">
+            {label ? `${label}: ` : ""}
+            {format(date.from, "PP", { locale: es })}
+            {date.to ? ` - ${format(date.to, "PP", { locale: es })}` : ""}
+          </span>
         ) : (
-          <span>Seleccionar fechas</span>
+          <span>{label ?? "Seleccionar fechas"}</span>
         )}
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">

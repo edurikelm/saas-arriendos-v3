@@ -122,3 +122,30 @@ describe("PaymentsFilters - buscador", () => {
     expect(screen.queryByRole("button", { name: /limpiar filtros/i })).toBeNull();
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// El chip de fechas dice sobre qué fecha filtra
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("PaymentsFilters - chip de fechas", () => {
+  it("sin rango, el chip nombra el campo en vez de decir 'Seleccionar fechas'", () => {
+    // Un rango de fechas no dice sobre QUÉ fecha aplica, y la tabla tiene tres:
+    // emisión, vencimiento y pago. El filtro usa la de emisión.
+    renderFilters({});
+
+    expect(screen.getByText("Emisión")).toBeTruthy();
+    expect(screen.queryByText("Seleccionar fechas")).toBeNull();
+  });
+
+  it("con rango elegido, el campo sigue visible junto a las fechas", () => {
+    renderFilters({ dateFrom: "2026-09-01", dateTo: "2026-09-30" });
+
+    expect(screen.getByText(/^Emisión:/)).toBeTruthy();
+  });
+
+  it("el rango cuenta como filtro activo", () => {
+    renderFilters({ dateFrom: "2026-09-01", dateTo: "2026-09-30" });
+
+    expect(screen.getByRole("button", { name: /limpiar filtros/i })).toBeTruthy();
+  });
+});

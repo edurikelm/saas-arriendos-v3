@@ -391,11 +391,21 @@ describe('PaymentsTable - variant="full" (fila a dos niveles)', () => {
 
 describe('PaymentsTable - fecha por estado', () => {
   it('un pago cobrado se explica por cuándo entró la plata', () => {
-    const payment = createMockPayment({ status: 'COMPLETED', paidAt: '2025-08-04T10:00:00Z' });
+    // Fechas lejos del fin de año a propósito, y se afirma el AÑO y no el día:
+    // `paidAt` y `createdAt` son instantes reales y la celda los formatea en la
+    // zona del navegador, así que el día puede correrse uno según dónde corra
+    // la suite. Lo que este test cuida es de qué campo sale la fecha.
+    const payment = createMockPayment({
+      status: 'COMPLETED',
+      paidAt: '2025-08-04T10:00:00Z',
+      createdAt: '2024-06-15T10:00:00Z',
+    });
 
     render(<PaymentsTable payments={[payment]} variant="full" />);
 
-    expect(screen.getByText('Pagado 4 ago 2025')).toBeTruthy();
+    expect(screen.getByText(/^Pagado /)).toBeTruthy();
+    expect(screen.getByText(/^Pagado .*2025$/)).toBeTruthy();
+    expect(screen.queryByText(/2024/)).toBeNull();
   });
 
   it('un pendiente al día se explica por cuándo vence', () => {
@@ -445,7 +455,8 @@ describe('PaymentsTable - fecha por estado', () => {
 
     render(<PaymentsTable payments={[payment]} variant="full" />);
 
-    expect(screen.getByText('Emitido 15 jul 2025')).toBeTruthy();
+    // El año y no el día: ver la nota del test de "Pagado".
+    expect(screen.getByText(/^Emitido .*2025$/)).toBeTruthy();
   });
 });
 
