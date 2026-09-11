@@ -3887,6 +3887,18 @@ describe('getPayments - contacto del cliente', () => {
     expect(payments[0].clientPhone).toBe('+56912345678');
   });
 
+  it('expone el reservationId, que habilita ir a la reserva', async () => {
+    // Desde un pago no había forma de llegar a su reserva.
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    await stubOnePayment();
+
+    const { getPayments } = await import('../payments');
+    const { payments } = await getPayments();
+
+    expect(payments[0].reservationId).toBe('res-1');
+  });
+
   it('expone el billingType, que decide el concepto del mensaje', async () => {
     const { getSession } = await import('@/lib/auth/session');
     vi.mocked(getSession).mockResolvedValue(mockSession);

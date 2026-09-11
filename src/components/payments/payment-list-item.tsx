@@ -8,8 +8,7 @@ import {
   getConceptSubline,
   getStatusDateLine,
   paymentStatusConfig,
-  getConceptBadgeVariant,
-  getConceptLabel,
+  getConceptBadges,
   isPaymentExpired,
   formatAmount,
   type Payment,
@@ -82,12 +81,15 @@ export function PaymentListItem({
 
       {/* Concepto · estado */}
       <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5">
-        <Badge
-          variant={getConceptBadgeVariant(payment)}
-          className="text-[10px] font-bold uppercase tracking-tight"
-        >
-          {getConceptLabel(payment).primary}
-        </Badge>
+        {getConceptBadges(payment).map((badge) => (
+          <Badge
+            key={badge.label}
+            variant={badge.variant}
+            className="text-[10px] font-bold uppercase tracking-tight"
+          >
+            {badge.label}
+          </Badge>
+        ))}
         <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
         {isPending && isMercadoPago && isExpired && (
           <Badge variant="destructive">Expirado</Badge>
@@ -133,6 +135,7 @@ export function PaymentListItem({
           generatingLinkId={generatingLinkId}
           regeneratingLinkId={regeneratingLinkId}
           attachingReceiptId={attachingReceiptId}
+          showReservationLink
         />
       </div>
     </div>

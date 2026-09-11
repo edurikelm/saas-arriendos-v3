@@ -65,6 +65,8 @@ const FULL_ACTIONS_CELL = "sticky right-0 z-10 border-l border-border px-4";
 
 export interface Payment {
   id: string;
+  /** Reserva a la que pertenece el cobro. Habilita "Ver reserva". */
+  reservationId?: string | null;
   installmentIndex?: number | null;
   amount: string;
   dueDate?: string | null;
@@ -137,6 +139,48 @@ export function getConceptLabel(payment: Payment): { primary: string } {
 
 type ConceptVariant = "info" | "warning";
 
+export interface ConceptBadge {
+  label: string;
+  variant: ConceptVariant;
+}
+
+/** El cobro pertenece a una reserva mensual. */
+function isMonthly(payment: Payment): boolean {
+  if (payment.billingType) return payment.billingType === "MONTHLY";
+  // Sin `billingType` —las variantes de reserva no lo traen— la existencia de
+  // cuota es la única señal disponible.
+  return payment.installmentIndex != null;
+}
+
+/**
+ * Badges de la columna Concepto en el listado global.
+ *
+ * El primero dice a qué clase de arriendo pertenece el cobro, "Diario" o
+ * "Mensual". Antes decía "Arriendo" o "Mensualidad", que no son términos
+ * paralelos: uno nombra el contrato y el otro la cuota, así que la columna
+ * cambiaba de eje entre filas.
+ *
+ * El segundo aparece solo en los cobros EXTRA. Antes un extra se distinguía
+ * únicamente por el TONO del badge —ámbar en vez de azul— y por mostrar su
+ * título en lugar de un concepto. El color como única señal no le sirve a
+ * quien no lo distingue (WCAG 1.4.1), y el título tampoco alcanza: hay que
+ * saber de antemano que "Limpieza post salida" no es un concepto de arriendo.
+ * Ahora lo dice una palabra.
+ *
+ * El título del extra no se pierde: pasa a encabezar la segunda línea.
+ */
+export function getConceptBadges(payment: Payment): ConceptBadge[] {
+  const badges: ConceptBadge[] = [
+    { label: isMonthly(payment) ? "Mensual" : "Diario", variant: "info" },
+  ];
+
+  if (payment.paymentType === "EXTRA") {
+    badges.push({ label: "Extra", variant: "warning" });
+  }
+
+  return badges;
+}
+
 export function isPaymentExpired(payment: Payment): boolean {
   if (!payment.expiresAt) return false;
   return new Date(payment.expiresAt) < new Date();
@@ -166,6 +210,10 @@ export const METHOD_LABELS: Record<string, string> = {
  */
 export function getConceptSubline(payment: Payment): string | null {
   const parts: string[] = [];
+
+  // El título encabeza: en un cobro extra es el dato ("Multa por daños"), y
+  // los badges de arriba solo dicen que es un extra de un arriendo mensual.
+  if (payment.paymentType === "EXTRA" && payment.title) parts.push(payment.title);
 
   const cuota = payment.installmentLabel ?? payment.installmentIndex;
   if (cuota != null) parts.push(`Cuota ${cuota}`);
@@ -345,12 +393,17 @@ export function PaymentsTable({
 
               {/* Concepto · cuota y descripción */}
               <td className={FULL_CELL}>
-                <Badge
-                  variant={getConceptBadgeVariant(payment)}
-                  className="w-fit text-[10px] font-bold uppercase tracking-tight"
-                >
-                  {getConceptLabel(payment).primary}
-                </Badge>
+                <div className="flex flex-wrap items-center gap-1">
+                  {getConceptBadges(payment).map((badge) => (
+                    <Badge
+                      key={badge.label}
+                      variant={badge.variant}
+                      className="text-[10px] font-bold uppercase tracking-tight"
+                    >
+                      {badge.label}
+                    </Badge>
+                  ))}
+                </div>
                 {conceptSubline && (
                   <p className="mt-1 line-clamp-1 text-[10px] text-muted-foreground">
                     {conceptSubline}
@@ -399,6 +452,7 @@ export function PaymentsTable({
                   generatingLinkId={generatingLinkId}
                   regeneratingLinkId={regeneratingLinkId}
                   attachingReceiptId={attachingReceiptId}
+                  showReservationLink
                 />
               </td>
             </tr>

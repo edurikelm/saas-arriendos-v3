@@ -675,3 +675,53 @@ describe("PaymentRowActions — PENDING conserva su comportamiento", () => {
     expect(screen.queryByRole("button", { name: /eliminar/i })).toBeNull();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ver reserva
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("PaymentRowActions — ver reserva", () => {
+  it("es un enlace real, no un botón con handler", async () => {
+    // "Button es nativo, no Link": un ancla permite abrir en pestaña nueva y
+    // copiar el destino.
+    const { PaymentRowActions } = await renderComponent();
+    render(
+      <PaymentRowActions
+        payment={createMockPayment({ reservationId: "res-7" })}
+        showReservationLink
+      />,
+    );
+
+    const enlace = screen.getByRole("link", { name: /ver reserva/i });
+    expect(enlace.getAttribute("href")).toBe("/reservations/res-7");
+  });
+
+  it("no se ofrece sin el opt-in", async () => {
+    // Dentro del detalle de una reserva el enlace llevaría a la página donde
+    // ya se está.
+    const { PaymentRowActions } = await renderComponent();
+    render(<PaymentRowActions payment={createMockPayment({ reservationId: "res-7" })} />);
+
+    expect(screen.queryByRole("link", { name: /ver reserva/i })).toBeNull();
+  });
+
+  it("no desplaza la acción primaria del cobro", async () => {
+    // Es navegación, no una acción sobre el pago: va última entre las
+    // secundarias para que "Marcar como pagado" siga siendo lo primero.
+    const { PaymentRowActions } = await renderComponent();
+    render(
+      <PaymentRowActions
+        payment={createMockPayment({
+          status: "PENDING",
+          paidAt: null,
+          method: "CASH",
+          reservationId: "res-7",
+        })}
+        onMarkPaid={vi.fn()}
+        showReservationLink
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /marcar como pagado/i })).toBeTruthy();
+  });
+});

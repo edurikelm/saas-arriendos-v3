@@ -509,6 +509,10 @@ La variante `"full"` agrupa entonces los mismos datos en **cinco columnas a dos 
 
 Bajo 768px la página no renderiza la tabla sino `PaymentListItem`, filas divididas dentro de un contenedor con el framing de `DataTable`. El corte se decide con `useMediaQuery`, **no** con `hidden md:block`: montar las dos presentaciones deja dos copias de cada botón de acción en el DOM. Mismo criterio y mismo breakpoint que `reservations-list-client.tsx`.
 
+**La columna Concepto lleva dos badges en `"full"`.** El primero dice a qué clase de arriendo pertenece el cobro, `Diario` o `Mensual`, derivado de `billingType` con la existencia de cuota como respaldo. El segundo, `Extra`, aparece solo en los cobros `EXTRA`. Reemplaza a `Arriendo` / `Mensualidad`, que no eran términos paralelos —uno nombra el contrato y el otro la cuota, así que la columna cambiaba de eje entre filas— y a distinguir el extra únicamente por el TONO del badge, que es color como única señal (WCAG 1.4.1). El título del cobro extra no se pierde: encabeza la segunda línea. Las variantes de reserva siguen mostrando el título, porque ahí la clase de arriendo es la misma en todas las filas.
+
+**Desde un pago se llega a su reserva.** La acción `viewReservation` es un `<Link>` y no un `<Button>` con handler, por la regla "Button es nativo, no Link". Va última entre las secundarias, para no desplazar la acción primaria del cobro, y es opt-in vía `showReservationLink`: dentro del detalle de una reserva llevaría a la página donde ya se está.
+
 **El ordenamiento también depende de la variante.** `"full"` respeta el orden del servidor (`createdAt` desc); las variantes de reserva ordenan por `installmentIndex`, que solo es el orden natural cuando todas las filas comparten la misma serie de cuotas.
 
 ### KPIs de `/payments`: describen el listado filtrado

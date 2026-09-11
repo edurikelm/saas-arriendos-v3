@@ -37,7 +37,7 @@ describe("PaymentListItem", () => {
 
     expect(screen.getByText("Carlos Rodríguez")).toBeTruthy();
     expect(screen.getByText("Cabaña del Bosque")).toBeTruthy();
-    expect(screen.getByText("Arriendo")).toBeTruthy();
+    expect(screen.getByText("Diario")).toBeTruthy();
     expect(screen.getByText("$450.000")).toBeTruthy();
     expect(screen.getByText("Pagado")).toBeTruthy();
   });
@@ -109,5 +109,42 @@ describe("PaymentListItem", () => {
     render(<PaymentListItem payment={payment} onMarkPaid={onMarkPaid} />);
 
     expect(screen.getByRole("button", { name: /marcar como pagado/i })).toBeTruthy();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Concepto y salida a la reserva
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("PaymentListItem - concepto y reserva", () => {
+  it("un cobro extra lleva los dos badges", () => {
+    render(
+      <PaymentListItem
+        payment={createMockPayment({
+          paymentType: "EXTRA",
+          billingType: "MONTHLY",
+          title: "Multa por daños",
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Mensual")).toBeTruthy();
+    expect(screen.getByText("Extra")).toBeTruthy();
+  });
+
+  it("ofrece ir a la reserva del cobro", () => {
+    // Hasta acá, desde un pago no había forma de llegar a su reserva.
+    render(
+      <PaymentListItem payment={createMockPayment({ reservationId: "res-7" })} />,
+    );
+
+    const enlace = screen.getByRole("link", { name: /ver reserva/i });
+    expect(enlace.getAttribute("href")).toBe("/reservations/res-7");
+  });
+
+  it("sin reserva conocida no ofrece el enlace", () => {
+    render(<PaymentListItem payment={createMockPayment({ reservationId: null })} />);
+
+    expect(screen.queryByRole("link", { name: /ver reserva/i })).toBeNull();
   });
 });

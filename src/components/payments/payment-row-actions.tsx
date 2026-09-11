@@ -12,9 +12,11 @@ import {
   Trash2,
   Send,
   Paperclip,
+  CalendarDays,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,6 +44,11 @@ export interface PaymentRowActionsProps {
   attachingReceiptId?: string | null;
   /** Internal API — compact cell in modal context (e.g. dialogs over the list). */
   compact?: boolean;
+  /**
+   * Ofrece "Ver reserva". Solo tiene sentido en el listado global: dentro del
+   * detalle de una reserva, el enlace llevaría a la página donde ya se está.
+   */
+  showReservationLink?: boolean;
 }
 
 function isPaymentExpired(payment: Payment): boolean {
@@ -72,7 +79,8 @@ type ActionId =
   | "delete"
   | "viewReceipt"
   | "downloadReceipt"
-  | "attachReceipt";
+  | "attachReceipt"
+  | "viewReservation";
 
 interface ActionConfig {
   icon: LucideIcon;
@@ -147,7 +155,21 @@ export const ACTION_CONFIG: Record<ActionId, ActionConfig> = {
     tooltip: "Adjuntar comprobante",
     hasLoadingState: true,
   },
+  viewReservation: {
+    icon: CalendarDays,
+    label: "Ver reserva",
+    tooltip: "Ver reserva",
+  },
 };
+
+/**
+ * Navegar va en un `<Link>`, nunca en un `<Button>` con handler ("Button es
+ * nativo, no Link"): un ancla real permite abrir en pestaña nueva, copiar el
+ * destino y que el navegador lo trate como lo que es.
+ */
+function reservationHref(payment: Payment): string {
+  return `/reservations/${payment.reservationId}`;
+}
 
 /** Returns true when the action is currently mid-flight for this payment. */
 function isActionLoading(
@@ -221,6 +243,7 @@ export function PaymentRowActions({
   regeneratingLinkId,
   attachingReceiptId,
   compact = false,
+  showReservationLink = false,
 }: PaymentRowActionsProps) {
   const isPending = payment.status === "PENDING";
   const isCompleted = payment.status === "COMPLETED";
@@ -271,6 +294,9 @@ export function PaymentRowActions({
   // Si solo hay onAttachReceipt (viejo), el dropdown item lo invoca.
   const canAttachReceipt = isCompleted && !payment.receiptUrl && (onAttachReceipt || onUploadReceipt);
   const canSendLink = isPending && isMercadoPago && payment.initPoint && onSendLink;
+  // Siempre disponible en el listado: todo cobro pertenece a una reserva, y
+  // hasta acá no había forma de llegar a ella desde el pago.
+  const canViewReservation = showReservationLink && Boolean(payment.reservationId);
 
   // ── Primary action ───────────────────────────────────────────────────────
   const primaryAction: ActionId | null = canGenerateLink
@@ -299,6 +325,9 @@ export function PaymentRowActions({
   // as the primary action — do NOT add it to the dropdown.
   if (canAttachReceipt && primaryAction !== "attachReceipt" && !onUploadReceipt) allSecondary.push("attachReceipt");
   if (canSendLink) allSecondary.push("sendLink");
+  // Va última a propósito: es navegación, no una acción sobre el cobro, y no
+  // debe desplazar a "Generar link" ni a "Marcar como pagado" de la primaria.
+  if (canViewReservation) allSecondary.push("viewReservation");
 
   // ── UX rule: 1 secondary → inline button, 2+ → dropdown ────────────────
   // The single-secondary inline button is icon-only with a tooltip. This
@@ -342,6 +371,39 @@ export function PaymentRowActions({
     );
   };
 
+  // ── Enlace (navegación) ──────────────────────────────────────────────────
+  const renderPrimaryLink = (action: ActionId, href: string) => {
+    const cfg = ACTION_CONFIG[action];
+    return (
+      <Link
+        key={action}
+        href={href}
+        title={cfg.tooltip}
+        aria-label={cfg.tooltip}
+        className={cn(buttonVariants({ variant: "outline", size: "sm" }), btnHeight, "px-2", btnText)}
+      >
+        <cfg.icon className={cn(iconSize, "mr-0.5")} />
+        {cfg.label}
+      </Link>
+    );
+  };
+
+  const renderInlineLink = (action: ActionId, href: string) => {
+    const cfg = ACTION_CONFIG[action];
+    const label = buildInlineSecondaryLabel(action, payment);
+    return (
+      <Link
+        key={action}
+        href={href}
+        title={label}
+        aria-label={label}
+        className={cn(buttonVariants({ variant: "ghost" }), iconBtnSize, "p-0")}
+      >
+        <cfg.icon className={iconSize} />
+      </Link>
+    );
+  };
+
   // ── Inline secondary button (icon-only, ghost) ───────────────────────────
   const renderInlineSecondary = (action: ActionId) => {
     const cfg = ACTION_CONFIG[action];
@@ -373,6 +435,19 @@ export function PaymentRowActions({
     const loading = isActionLoading(action, payment, loadingState);
     const Icon = loading ? Loader2 : cfg.icon;
     const showSeparator = cfg.separatorBefore && !isLast;
+
+    if (action === "viewReservation") {
+      return (
+        <div key={action}>
+          {showSeparator && <DropdownMenuSeparator />}
+          <DropdownMenuItem render={<Link href={reservationHref(payment)} />}>
+            <Icon className="size-3.5 shrink-0" />
+            {cfg.label}
+          </DropdownMenuItem>
+        </div>
+      );
+    }
+
     return (
       <div key={action}>
         {showSeparator && <DropdownMenuSeparator />}
@@ -401,10 +476,17 @@ export function PaymentRowActions({
           compact={compact}
           onSubmit={(file) => onUploadReceipt(payment.id, file)}
         />
+      ) : effectivePrimary === "viewReservation" ? (
+        // Puede quedar como primaria cuando el pago no admite ninguna otra
+        // acción. Sigue siendo navegación, así que sigue siendo un `<Link>`.
+        renderPrimaryLink(effectivePrimary, reservationHref(payment))
       ) : (
         effectivePrimary && renderPrimaryButton(effectivePrimary)
       )}
-      {inlineSecondary && renderInlineSecondary(inlineSecondary)}
+      {inlineSecondary &&
+        (inlineSecondary === "viewReservation"
+          ? renderInlineLink(inlineSecondary, reservationHref(payment))
+          : renderInlineSecondary(inlineSecondary))}
       {dropdownSecondary.length > 0 && (
         <DropdownMenu>
           <DropdownMenuTrigger
