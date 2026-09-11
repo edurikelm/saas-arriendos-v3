@@ -478,18 +478,6 @@ describe('PaymentsTable - concept label', () => {
     expect(screen.getByText('Arriendo')).toBeTruthy();
   });
 
-  it('muestra "Mensualidad" para RESERVATION con installmentIndex (variant="full")', () => {
-    const payment = createMockPayment({
-      paymentType: 'RESERVATION',
-      installmentIndex: 3,
-      title: null,
-    });
-
-    render(<PaymentsTable payments={[payment]} variant="full" />);
-
-    expect(screen.getByText('Mensualidad')).toBeTruthy();
-    expect(screen.queryByText('Cobro extra')).toBeNull();
-  });
 
   it('muestra el title del pago EXTRA (variant="extra")', () => {
     const payment = createMockPayment({
@@ -529,19 +517,6 @@ describe('PaymentsTable - concept badge variant', () => {
     expect(badge).toBeTruthy();
   });
 
-  it('badge variant=info para RESERVATION mensual (variant="full")', () => {
-    const payment = createMockPayment({
-      paymentType: 'RESERVATION',
-      installmentIndex: 3,
-      title: null,
-    });
-
-    render(<PaymentsTable payments={[payment]} variant="full" />);
-
-    expect(screen.getByText('Mensualidad')).toBeTruthy();
-    const badge = screen.getByText('Mensualidad').closest('[class*="bg-info"]');
-    expect(badge).toBeTruthy();
-  });
 
   it('badge variant=warning para EXTRA (variant="extra")', () => {
     const payment = createMockPayment({
@@ -663,5 +638,105 @@ describe('PaymentsTable - orden de filas', () => {
       (row) => row.querySelectorAll('td')[0]?.textContent?.trim() ?? '',
     );
     expect(cuotas).toEqual(['1 / 3', '2 / 3', '3 / 3']);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Concepto en el listado global: clase de arriendo + marca de extra
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('PaymentsTable - badges de concepto (variant="full")', () => {
+  /** Texto de los badges de la celda Concepto, en orden. */
+  function badgesDeConcepto(): string[] {
+    const celda = document.querySelectorAll('tbody tr td')[1];
+    return Array.from(celda.querySelectorAll('[data-slot="badge"]')).map(
+      (b) => b.textContent?.trim() ?? '',
+    );
+  }
+
+  it('dice a qué clase de arriendo pertenece el cobro', () => {
+    // "Arriendo" y "Mensualidad" no eran términos paralelos: uno nombra el
+    // contrato y el otro la cuota, así que la columna cambiaba de eje entre
+    // filas. "Diario" y "Mensual" sí lo son.
+    render(
+      <PaymentsTable
+        payments={[createMockPayment({ paymentType: 'RESERVATION', billingType: 'MONTHLY' })]}
+        variant="full"
+      />,
+    );
+
+    expect(badgesDeConcepto()).toEqual(['Mensual']);
+  });
+
+  it('un arriendo diario dice Diario', () => {
+    render(
+      <PaymentsTable
+        payments={[createMockPayment({ paymentType: 'RESERVATION', billingType: 'DAILY' })]}
+        variant="full"
+      />,
+    );
+
+    expect(badgesDeConcepto()).toEqual(['Diario']);
+  });
+
+  it('un cobro extra suma un segundo badge, sin perder la clase de arriendo', () => {
+    // Antes un extra se distinguía solo por el TONO del badge y por mostrar su
+    // título. El color como única señal no le sirve a quien no lo distingue
+    // (WCAG 1.4.1).
+    render(
+      <PaymentsTable
+        payments={[
+          createMockPayment({ paymentType: 'EXTRA', billingType: 'MONTHLY', title: 'Multa por daños' }),
+        ]}
+        variant="full"
+      />,
+    );
+
+    expect(badgesDeConcepto()).toEqual(['Mensual', 'Extra']);
+  });
+
+  it('el título del extra no se pierde: encabeza la segunda línea', () => {
+    render(
+      <PaymentsTable
+        payments={[
+          createMockPayment({
+            paymentType: 'EXTRA',
+            billingType: 'DAILY',
+            title: 'Multa por daños',
+            installmentIndex: null,
+            installmentLabel: null,
+          }),
+        ]}
+        variant="full"
+      />,
+    );
+
+    expect(screen.getByText('Multa por daños')).toBeTruthy();
+  });
+
+  it('sin billingType, la existencia de cuota decide', () => {
+    // Las variantes de reserva no traen `billingType`.
+    render(
+      <PaymentsTable
+        payments={[
+          createMockPayment({ paymentType: 'RESERVATION', billingType: null, installmentIndex: 3 }),
+        ]}
+        variant="full"
+      />,
+    );
+
+    expect(badgesDeConcepto()).toEqual(['Mensual']);
+  });
+
+  it('el badge de extra va en tono de atención y el de clase en neutro', () => {
+    render(
+      <PaymentsTable
+        payments={[createMockPayment({ paymentType: 'EXTRA', billingType: 'MONTHLY', title: 'Multa' })]}
+        variant="full"
+      />,
+    );
+
+    expect(screen.getByText('Mensual').className).toContain('bg-info');
+    expect(screen.getByText('Extra').className).toContain('bg-warning');
   });
 });
