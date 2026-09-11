@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { PaymentsFilters } from "../payments-filters";
 
 vi.mock("next/navigation", () => ({
@@ -147,5 +148,54 @@ describe("PaymentsFilters - chip de fechas", () => {
     renderFilters({ dateFrom: "2026-09-01", dateTo: "2026-09-30" });
 
     expect(screen.getByRole("button", { name: /limpiar filtros/i })).toBeTruthy();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Los chips usan el primitivo compartido
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("PaymentsFilters - chips de filtro", () => {
+  it("un chip activo sigue diciendo QUÉ filtra, no solo el valor", () => {
+    // Antes el valor reemplazaba al nombre de la dimensión: el chip pasaba a
+    // decir "Casa Central" a secas y se perdía que eso era la propiedad. Es el
+    // mismo problema que tenía el de fechas.
+    renderFilters({ propertyId: "prop-1" });
+
+    const chip = screen.getByRole("button", { name: /casa central/i });
+    expect(chip.textContent).toContain("Propiedad");
+    expect(chip.textContent).toContain("Casa Central");
+  });
+
+  it("un chip apagado muestra solo el nombre de la dimensión", () => {
+    renderFilters({});
+
+    const chip = screen.getByRole("button", { name: /^propiedad/i });
+    expect(chip.textContent?.trim()).toBe("Propiedad");
+  });
+
+  it("cada chip activo trae su propio botón de limpiar", () => {
+    // El primitivo lo renderiza como HERMANO del disparador: anidarlo dentro
+    // daría HTML inválido y lo dejaría inalcanzable por teclado.
+    renderFilters({ propertyId: "prop-1" });
+
+    expect(screen.getByRole("button", { name: "Quitar filtro de propiedad" })).toBeTruthy();
+  });
+
+  it("solo el chip activo trae botón de limpiar", () => {
+    renderFilters({ propertyId: "prop-1" });
+
+    expect(screen.queryByRole("button", { name: "Quitar filtro de método" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Quitar filtro de estado" })).toBeNull();
+  });
+
+  it("limpiar un chip no toca los demás filtros", async () => {
+    const user = userEvent.setup();
+    renderFilters({ propertyId: "prop-1", status: "COMPLETED" });
+
+    await user.click(screen.getByRole("button", { name: "Quitar filtro de propiedad" }));
+
+    // El chip de estado sigue activo, con su valor y su propio limpiar.
+    expect(screen.getByRole("button", { name: "Quitar filtro de estado" })).toBeTruthy();
   });
 });
