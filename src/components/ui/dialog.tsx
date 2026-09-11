@@ -79,7 +79,11 @@ function DialogContent({
             >
               <XIcon
               />
-              <span className="sr-only">Close</span>
+              {/* El producto está en español. Este texto no se ve, pero es el nombre
+                  accesible del botón: un usuario de lector de pantalla lo
+                  escucha en CADA diálogo del producto, y en inglés era el único
+                  del kit que no estaba traducido. */}
+              <span className="sr-only">Cerrar</span>
             </DialogPrimitive.Close>
           )}
         </DialogPrimitive.Popup>
