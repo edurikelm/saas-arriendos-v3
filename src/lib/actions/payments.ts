@@ -14,9 +14,6 @@ import { revalidatePath } from "next/cache";
 import { ZodError } from "zod";
 import { getReservationPaidAmount, getReservationPendingAmount, type PaymentLike } from "@/lib/payments/calculations";
 import {
-  sumCompletedPaymentsForOwner,
-  sumPendingPaymentsForOwner,
-  countPendingPaymentsForOwner,
   markPaymentCompleted,
   getAllPaymentsForReservation,
   getActivePaymentsForReservation,
@@ -24,10 +21,10 @@ import {
   getPaymentByMercadoPagoId,
 } from "@/lib/payments/queries";
 import { paymentLinkExpiresAt } from "@/lib/payments/expiration";
-import { parseAmountQuery } from "@/lib/payments/search";
+import { buildPaymentsWhere, overdueBoundary, type PaymentsFilters } from "@/lib/payments/filters";
 import { confirmReservationIfPaid } from "@/lib/reservations/confirmation";
 import { recordDomainEvent } from "@/lib/notifications/record-event";
-import { daysFromTodayDateOnly, startOfMonthInSantiago } from "@/lib/domain/timezone";
+import { daysFromTodayDateOnly } from "@/lib/domain/timezone";
 
 function buildMercadoPagoNotificationUrl(paymentId: string) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -84,15 +81,20 @@ export async function getPayments(filters?: {
   const session = await getSession();
   if (!session) return { payments: [], total: 0, totalPages: 0 };
 
-  // Aislamiento por owner. Ancla el listado a las reservas del usuario de la
-  // sesión y va acá, en el `where` base, no en cada callsite: `findMany` y
-  // `count` derivan ambos de este objeto, así que no pueden divergir. Antes
-  // solo el `groupBy` de cuotas lo llevaba —tiene su propio `where` porque el
-  // total de cuotas debe ignorar los filtros de la vista— y las otras dos
-  // queries devolvían los pagos de todas las cuentas.
-  const where: Prisma.PaymentWhereInput = {
-    reservation: { userId: session.userId },
-  };
+  // Filtros + aislamiento por owner viven en `buildPaymentsWhere`, compartido
+  // con `getPaymentsKpis`. Que sea el MISMO builder es el punto: si cada uno
+  // armara su filtro, las cifras de arriba y la tabla de abajo podrían volver a
+  // describir conjuntos distintos sin que nada lo señale.
+  const where = buildPaymentsWhere(session.userId, {
+    reservationId: filters?.reservationId,
+    status: filters?.status,
+    method: filters?.method,
+    propertyId: filters?.propertyId,
+    paymentType: filters?.paymentType,
+    search: filters?.search,
+    dateFrom: filters?.dateFrom,
+    dateTo: filters?.dateTo,
+  });
 
   if (filters?.reservationId) {
     const reservation = await prisma.reservation.findFirst({
@@ -100,62 +102,6 @@ export async function getPayments(filters?: {
     });
 
     if (!reservation) return { payments: [], total: 0, totalPages: 0 };
-    where.reservationId = filters.reservationId;
-  }
-
-  if (filters?.status && (filters.status === "PENDING" || filters.status === "COMPLETED" || filters.status === "FAILED")) {
-    where.status = filters.status;
-  }
-
-  if (filters?.method && (filters.method === "MERCADO_PAGO" || filters.method === "CASH" || filters.method === "TRANSFER")) {
-    where.method = filters.method;
-  }
-
-  if (filters?.paymentType && (filters.paymentType === "RESERVATION" || filters.paymentType === "EXTRA")) {
-    where.paymentType = filters.paymentType;
-  }
-
-  if (filters?.dateFrom) {
-    where.createdAt = { ...where.createdAt as object, gte: new Date(filters.dateFrom) };
-  }
-
-  if (filters?.dateTo) {
-    where.createdAt = { ...where.createdAt as object, lte: new Date(filters.dateTo + "T23:59:59") };
-  }
-
-  // propertyId filter via reservation — se mergea sobre el `userId` del where
-  // base, no lo reemplaza.
-  if (filters?.propertyId) {
-    where.reservation = { ...(where.reservation as object), propertyId: filters.propertyId };
-  }
-
-  // Búsqueda libre sobre las cuatro cosas por las que se busca un cobro:
-  // quién lo debe, de qué propiedad, de qué se trata y de cuánto es.
-  //
-  // Va como cláusula de un `AND` y no asignando `where.OR` directo: el `OR`
-  // suelto es una sola clave del objeto, así que un segundo filtro que también
-  // quisiera usarla pisaría a este en silencio. Mismo criterio que
-  // `getReservations`.
-  const search = filters?.search?.trim();
-  if (search) {
-    const amount = parseAmountQuery(search);
-
-    where.AND = [
-      {
-        OR: [
-          { reservation: { client: { name: { contains: search, mode: "insensitive" } } } },
-          { reservation: { property: { name: { contains: search, mode: "insensitive" } } } },
-          // `title` y `description` solo existen en cobros EXTRA; en los de
-          // arriendo son null y `contains` simplemente no calza.
-          { title: { contains: search, mode: "insensitive" } },
-          { description: { contains: search, mode: "insensitive" } },
-          // Monto exacto. Un `startsWith` sobre los dígitos pediría castear la
-          // columna a texto en SQL, y "busco el pago de 450.000" es la forma
-          // real en que alguien busca por monto — no por prefijo.
-          ...(amount !== null ? [{ amount: { equals: amount } }] : []),
-        ],
-      },
-    ];
   }
 
   const page = filters?.page ?? 1;
@@ -1175,31 +1121,82 @@ export async function getCollectionAlerts(): Promise<CollectionAlertsResult> {
 }
 
 export interface PaymentsKpis {
-  cobradoMes: number;
+  /** Suma de los pagos COMPLETED del conjunto filtrado. */
+  cobrado: number;
+  /** Suma de los pagos PENDING del conjunto filtrado. */
   pendiente: number;
   pendienteCount: number;
-  proximos7DiasCount: number;
+  /** Suma de los PENDING con vencimiento anterior a hoy. */
+  vencido: number;
+  vencidoCount: number;
+  /** Suma de TODO el conjunto filtrado, sin importar el estado. */
+  total: number;
+  totalCount: number;
 }
 
-export async function getPaymentsKpis(): Promise<PaymentsKpis> {
+const KPIS_VACIOS: PaymentsKpis = {
+  cobrado: 0,
+  pendiente: 0,
+  pendienteCount: 0,
+  vencido: 0,
+  vencidoCount: 0,
+  total: 0,
+  totalCount: 0,
+};
+
+/**
+ * Cifras del encabezado de `/payments`, siempre sobre el MISMO conjunto que
+ * muestra la tabla.
+ *
+ * Antes no recibía filtros: las tres tarjetas describían todo el negocio
+ * mientras la tabla mostraba lo filtrado, sin nada que lo señalara. Ahora
+ * comparten `buildPaymentsWhere` con `getPayments`, así que no pueden divergir.
+ *
+ * Dos cambios de semántica que vienen con eso:
+ *
+ * - **Cuentan los cobros EXTRA.** Los helpers de `lib/payments/queries.ts`
+ *   fijan `paymentType: "RESERVATION"`, así que una multa o una limpieza
+ *   cobrada no entraba en "cobrado" aunque la fila apareciera en la tabla de
+ *   abajo. Si las cifras describen el listado, tienen que contar sus filas; y
+ *   quien quiera solo arriendo tiene el filtro "Tipo", que ahora ellas siguen.
+ *   Los helpers quedan intactos porque `/reports` depende de su semántica.
+ *
+ * - **"Cobrado" ya no está atado al mes en curso.** El alcance lo fija el
+ *   filtro de fechas de la vista, no una ventana escondida en la cifra.
+ */
+export async function getPaymentsKpis(filters?: PaymentsFilters): Promise<PaymentsKpis> {
   const session = await getSession();
-  if (!session) return { cobradoMes: 0, pendiente: 0, pendienteCount: 0, proximos7DiasCount: 0 };
+  if (!session) return KPIS_VACIOS;
 
-  const startOfMonth = startOfMonthInSantiago();
+  const where = { ...buildPaymentsWhere(session.userId, filters ?? {}), deletedAt: null };
 
-  const [cobradoMes, pendiente, pendienteCount, alerts] = await Promise.all([
-    sumCompletedPaymentsForOwner(session.userId, {
-      from: new Date(startOfMonth),
+  const [porEstado, vencido] = await Promise.all([
+    // Un solo groupBy da cobrado, pendiente y total: el total es la suma de los
+    // grupos, no una cuarta query.
+    prisma.payment.groupBy({
+      by: ["status"],
+      where,
+      _sum: { amount: true },
+      _count: { _all: true },
     }),
-    sumPendingPaymentsForOwner(session.userId),
-    countPendingPaymentsForOwner(session.userId),
-    getCollectionAlerts(),
+    prisma.payment.aggregate({
+      where: { ...where, status: "PENDING", dueDate: { lt: overdueBoundary() } },
+      _sum: { amount: true },
+      _count: { _all: true },
+    }),
   ]);
 
+  const grupo = (status: string) => porEstado.find((g) => g.status === status);
+  const suma = (status: string) => Number(grupo(status)?._sum.amount ?? 0);
+  const cuenta = (status: string) => grupo(status)?._count._all ?? 0;
+
   return {
-    cobradoMes,
-    pendiente,
-    pendienteCount,
-    proximos7DiasCount: alerts.proximos7Dias.length,
+    cobrado: suma("COMPLETED"),
+    pendiente: suma("PENDING"),
+    pendienteCount: cuenta("PENDING"),
+    vencido: Number(vencido._sum.amount ?? 0),
+    vencidoCount: vencido._count._all,
+    total: porEstado.reduce((acc, g) => acc + Number(g._sum.amount ?? 0), 0),
+    totalCount: porEstado.reduce((acc, g) => acc + g._count._all, 0),
   };
 }
