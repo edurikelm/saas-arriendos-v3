@@ -327,6 +327,7 @@ export function PaymentsFilters({
 
         {/* DateRangePicker como chip */}
         <DateRangePicker
+          label="Emisión"
           className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
             hasDateRange
               ? "bg-primary/10 border-primary/20 text-primary"
