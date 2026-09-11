@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useMediaQuery } from "@/hooks/use-media-query";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { PaymentsTable, type Payment } from "@/components/payments/payments-table";
+import type { DataTableSort } from "@/components/ui/data-table";
 import { PaymentListItem } from "@/components/payments/payment-list-item";
 import { MarkPaidDialog } from "@/components/dashboard/mark-paid-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -19,6 +20,7 @@ import {
 
 export function PaymentsTableClient({ payments }: { payments: Payment[] }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   // <768px: mismo breakpoint que /reservations.
   const isMobile = useMediaQuery("(max-width: 767px)");
   const [markPaidId, setMarkPaidId] = useState<string | null>(null);
@@ -162,6 +164,32 @@ export function PaymentsTableClient({ payments }: { payments: Payment[] }) {
     setPaymentToSend(payment);
   }
 
+  // El orden vive en la URL y lo resuelve el servidor, no el cliente: ordenar
+  // en memoria solo reordenaría la página actual, que con 20 filas por página
+  // daría un resultado que parece correcto y no lo es.
+  const sortBy = searchParams.get("sortBy");
+  const sortDir = searchParams.get("sortDir");
+  const sort: DataTableSort | null =
+    sortBy && (sortDir === "asc" || sortDir === "desc") ? { key: sortBy, dir: sortDir } : null;
+
+  function handleSortChange(next: DataTableSort | null) {
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (next) {
+      params.set("sortBy", next.key);
+      params.set("sortDir", next.dir);
+    } else {
+      // Apagar el orden es volver al por defecto del servidor, no pasar otro.
+      params.delete("sortBy");
+      params.delete("sortDir");
+    }
+
+    // Reordenar cambia qué filas caen en la página 1, así que volver al inicio
+    // es lo único que no miente. Mismo criterio que al cambiar un filtro.
+    params.delete("page");
+    router.push(`/payments?${params.toString()}`);
+  }
+
   // Los handlers son los mismos en las dos presentaciones; solo cambia el
   // layout.
   const rowHandlers = {
@@ -190,7 +218,13 @@ export function PaymentsTableClient({ payments }: { payments: Payment[] }) {
           ))}
         </div>
       ) : (
-        <PaymentsTable payments={payments} variant="full" {...rowHandlers} />
+        <PaymentsTable
+          payments={payments}
+          variant="full"
+          sort={sort}
+          onSortChange={handleSortChange}
+          {...rowHandlers}
+        />
       )}
 
       <MarkPaidDialog

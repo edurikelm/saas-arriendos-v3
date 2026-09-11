@@ -19,6 +19,8 @@ interface PaymentsPageProps {
     status?: string;
     paymentType?: string;
     search?: string;
+    sortBy?: string;
+    sortDir?: string;
     dateFrom?: string;
     dateTo?: string;
     page?: string;
@@ -39,6 +41,8 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
       status: params.status,
       paymentType: params.paymentType,
       search: params.search,
+      sortBy: params.sortBy,
+      sortDir: params.sortDir,
       dateFrom: params.dateFrom,
       dateTo: params.dateTo,
       page,
