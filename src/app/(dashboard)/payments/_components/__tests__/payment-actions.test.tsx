@@ -373,3 +373,99 @@ describe("PaymentsTableClient - orden por columna", () => {
     expect(monto?.getAttribute("aria-sort")).toBe("none");
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// Enviar link — el cableado que quedó sin cubrir al reemplazar navigator.share
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("PaymentsTableClient - enviar link", () => {
+  beforeEach(() => {
+    setViewport(false);
+    currentQuery = "";
+    vi.clearAllMocks();
+  });
+
+  const conLink = (): Payment => ({
+    ...createMockPayment(),
+    status: "PENDING",
+    paidAt: null,
+    method: "MERCADO_PAGO",
+    initPoint: "https://mp.com/checkout/abc",
+    expiresAt: "2999-01-01T00:00:00Z",
+    amount: "450000",
+    clientName: "María Fernanda González",
+    clientEmail: "maria@example.com",
+    clientPhone: "+56912345678",
+    propertyName: "Depto Providencia 1204",
+    billingType: "MONTHLY",
+    installmentIndex: 3,
+  });
+
+  it("abre el diálogo del sistema, con el mensaje ya armado", async () => {
+    // `navigator.share` no existe en Chrome ni Firefox de escritorio: el botón
+    // decía "Enviar link" y lo que pasaba era una copia silenciosa de la URL
+    // sola, sin monto ni nombre.
+    render(<PaymentsTableClient payments={[conLink()]} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /más acciones/i }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /enviar link/i }));
+
+    const mensaje = (await screen.findByRole("textbox")) as HTMLTextAreaElement;
+    expect(mensaje.value).toContain("María Fernanda González");
+    expect(mensaje.value).toContain("$450.000");
+    expect(mensaje.value).toContain("https://mp.com/checkout/abc");
+    expect(mensaje.value).toContain("Depto Providencia 1204");
+  });
+
+  it("ofrece los dos canales, no solo el portapapeles", async () => {
+    render(<PaymentsTableClient payments={[conLink()]} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /más acciones/i }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /enviar link/i }));
+
+    expect(await screen.findByRole("button", { name: /whatsapp/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /email/i })).toBeTruthy();
+  });
+});
+
+describe("PaymentsTableClient - orden en móvil", () => {
+  beforeEach(() => {
+    currentQuery = "";
+    mockPush.mockClear();
+  });
+
+  it("la lista trae selector de orden; la tabla no lo duplica", () => {
+    // En escritorio el orden se pide desde la cabecera de la columna.
+    setViewport(true);
+    const { unmount } = render(<PaymentsTableClient payments={[createMockPayment()]} />);
+    expect(screen.getByRole("button", { name: /^orden/i })).toBeTruthy();
+    unmount();
+
+    setViewport(false);
+    render(<PaymentsTableClient payments={[createMockPayment()]} />);
+    expect(screen.queryByRole("button", { name: /^orden/i })).toBeNull();
+  });
+
+  it("elegir un orden en móvil va a la URL, como en escritorio", async () => {
+    setViewport(true);
+    currentQuery = "status=PENDING";
+    render(<PaymentsTableClient payments={[createMockPayment()]} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /^orden/i }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Monto: mayor primero" }));
+
+    const params = new URLSearchParams((mockPush.mock.calls.at(-1)?.[0] as string).split("?")[1]);
+    expect(params.get("sortBy")).toBe("monto");
+    expect(params.get("sortDir")).toBe("desc");
+    // Y conserva los filtros, igual que el orden por cabecera.
+    expect(params.get("status")).toBe("PENDING");
+  });
+
+  it("refleja en el chip el orden que viene de la URL", () => {
+    setViewport(true);
+    currentQuery = "sortBy=cliente&sortDir=asc";
+    render(<PaymentsTableClient payments={[createMockPayment()]} />);
+
+    expect(screen.getByText("Cliente A-Z")).toBeTruthy();
+  });
+});
