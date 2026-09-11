@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { PaymentsTable, type Payment } from "@/components/payments/payments-table";
 import { PaymentListItem } from "@/components/payments/payment-list-item";
 import { MarkPaidDialog } from "@/components/dashboard/mark-paid-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { SendPaymentLinkDialog } from "@/components/reservations/send-payment-link-dialog";
 import {
   generatePaymentLink,
   deletePayment,
@@ -23,6 +25,8 @@ export function PaymentsTableClient({ payments }: { payments: Payment[] }) {
   const [generatingLinkId, setGeneratingLinkId] = useState<string | null>(null);
   const [regeneratingLinkId, setRegeneratingLinkId] = useState<string | null>(null);
   const [attachingReceiptId, setAttachingReceiptId] = useState<string | null>(null);
+  const [paymentToDelete, setPaymentToDelete] = useState<string | null>(null);
+  const [paymentToSend, setPaymentToSend] = useState<Payment | null>(null);
 
   const paymentForMarkPaid = payments.find((p) => p.id === markPaidId) ?? null;
   const markPaidLabel = paymentForMarkPaid
@@ -48,10 +52,11 @@ export function PaymentsTableClient({ payments }: { payments: Payment[] }) {
     }
   }
 
+  // La confirmación la hace `ConfirmDialog`, igual que el mismo borrado en el
+  // detalle de reserva. Antes acá era `window.confirm`, que no toma el estilo
+  // del sistema, no se puede cerrar con la tecla de escape en todos los
+  // navegadores y bloquea el hilo.
   async function handleDeletePayment(paymentId: string) {
-    const confirmed = window.confirm("¿Eliminar este pago? El cliente aún no verá este cobro.");
-    if (!confirmed) return;
-
     try {
       const result = await deletePayment(paymentId);
       if (result.error) {
@@ -145,29 +150,16 @@ export function PaymentsTableClient({ payments }: { payments: Payment[] }) {
     }
   }
 
+  // El envío lo hace `SendPaymentLinkDialog`, el mismo del detalle de reserva:
+  // plantilla editable, botón de WhatsApp y botón de correo.
+  //
+  // Antes acá era `navigator.share`, que en escritorio no existe en Chrome ni
+  // en Firefox. Caía al portapapeles, así que el botón decía "Enviar link" y lo
+  // que pasaba era una copia — y sin mensaje, sin el monto y sin el nombre del
+  // cliente, que es lo que hace que el cobro se entienda al recibirlo.
   function handleSendLink(payment: Payment) {
     if (!payment.initPoint) return;
-    const text = `Hola! Aquí está tu link de pago: ${payment.initPoint}`;
-    if (navigator.share) {
-      navigator
-        .share({ text })
-        .then(() => toast.success("Link compartido"))
-        .catch(() => {
-          try {
-            navigator.clipboard.writeText(payment.initPoint!);
-            toast.success("Link copiado al portapapeles");
-          } catch {
-            toast.error("No se pudo compartir el link");
-          }
-        });
-    } else {
-      try {
-        navigator.clipboard.writeText(payment.initPoint!);
-        toast.success("Link copiado al portapapeles");
-      } catch {
-        toast.error("No se pudo copiar el link");
-      }
-    }
+    setPaymentToSend(payment);
   }
 
   // Los handlers son los mismos en las dos presentaciones; solo cambia el
@@ -176,7 +168,7 @@ export function PaymentsTableClient({ payments }: { payments: Payment[] }) {
     onGenerateLink: handleGenerateLink,
     onRegenerateLink: handleRegenerateLink,
     onMarkPaid: setMarkPaidId,
-    onDeletePayment: handleDeletePayment,
+    onDeletePayment: setPaymentToDelete,
     onAttachReceipt: handleAttachReceipt,
     onSendLink: handleSendLink,
     generatingLinkId,
@@ -213,6 +205,41 @@ export function PaymentsTableClient({ payments }: { payments: Payment[] }) {
         }}
         contextLabel={markPaidLabel}
       />
+
+      <ConfirmDialog
+        open={paymentToDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPaymentToDelete(null);
+        }}
+        title="Eliminar pago"
+        description="El pago se eliminará del registro. Podrás deshacerlo desde la notificación, inmediatamente después."
+        confirmLabel="Eliminar pago"
+        onConfirm={() => {
+          if (!paymentToDelete) return;
+          handleDeletePayment(paymentToDelete);
+          setPaymentToDelete(null);
+        }}
+      />
+
+      {/* Montado solo con un pago elegido: el diálogo arma el mensaje una vez,
+          en el inicializador de su estado, así que si quedara montado entre
+          pagos mostraría el texto del anterior. */}
+      {paymentToSend && (
+        <SendPaymentLinkDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setPaymentToSend(null);
+          }}
+          payment={paymentToSend}
+          client={{
+            name: paymentToSend.clientName ?? "",
+            email: paymentToSend.clientEmail ?? "",
+            phone: paymentToSend.clientPhone ?? undefined,
+          }}
+          propertyName={paymentToSend.propertyName ?? ""}
+          billingType={paymentToSend.billingType ?? "DAILY"}
+        />
+      )}
     </>
   );
 }

@@ -83,6 +83,11 @@ export interface Payment {
   createdAt?: string | Date | null;
   clientName?: string | null;
   propertyName?: string | null;
+  /** Datos de contacto del cliente — los consume `SendPaymentLinkDialog`. */
+  clientEmail?: string | null;
+  clientPhone?: string | null;
+  /** `DAILY` | `MONTHLY`. Decide el concepto del mensaje de envío de link. */
+  billingType?: string | null;
 }
 
 export const paymentStatusConfig: Record<
