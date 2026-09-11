@@ -212,3 +212,24 @@ describe('getPaymentsKpis', () => {
     );
   });
 });
+
+describe('getPaymentsKpis - campo de fecha', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('las cifras filtran por el mismo campo de fecha que la tabla', async () => {
+    // Comparten `buildPaymentsWhere`. Si el campo no se propagara, filtrar por
+    // fecha de pago dejaría la tabla mostrando una cosa y las cifras otra.
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    const prisma = await stubQueries([]);
+
+    const { getPaymentsKpis } = await import('../payments');
+    await getPaymentsKpis({ dateField: 'pago', dateFrom: '2026-09-01', dateTo: '2026-09-30' });
+
+    const where = groupByWhere(prisma)!;
+    expect(where).toHaveProperty('paidAt');
+    expect(where).not.toHaveProperty('createdAt');
+  });
+});

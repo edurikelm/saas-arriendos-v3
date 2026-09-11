@@ -19,6 +19,8 @@ export interface PaymentsFilters {
   propertyId?: string;
   paymentType?: string;
   search?: string;
+  /** Sobre qué fecha aplica el rango. Ver `DATE_FIELDS`. */
+  dateField?: string;
   dateFrom?: string;
   dateTo?: string;
 }
@@ -43,6 +45,49 @@ function isOneOf<T extends readonly string[]>(
 }
 
 /**
+ * Campos de fecha sobre los que se puede filtrar, con la clave de la VISTA.
+ *
+ * Los tres NO son del mismo tipo, y ahí está el filo:
+ *
+ * - `createdAt` y `paidAt` son INSTANTES reales. Su día es el día de pared en
+ *   la zona del negocio, así que sus bordes salen de `startOfDayInTz` /
+ *   `endOfDayInTz`. Un cobro registrado a las 21:34 de Santiago pertenece a ese
+ *   día aunque se guarde como 00:34 UTC del siguiente.
+ * - `dueDate` es DATE-ONLY. El dominio lo compara por clave `YYYY-MM-DD` sobre
+ *   su fecha UTC (`dateOnlyKey`), y en producción sus valores conviven a las
+ *   00:00, 03:00 y 04:00 UTC del día que representan. Aplicarle bordes de
+ *   Santiago lo correría 3 o 4 horas y dejaría fuera los de medianoche.
+ *
+ * Por eso el rango no se construye igual para todos.
+ */
+export const DATE_FIELDS = {
+  emision: "createdAt",
+  pago: "paidAt",
+  vencimiento: "dueDate",
+} as const;
+
+export type PaymentsDateFieldKey = keyof typeof DATE_FIELDS;
+
+export const DEFAULT_DATE_FIELD: PaymentsDateFieldKey = "emision";
+
+export function isPaymentsDateField(value: string | undefined): value is PaymentsDateFieldKey {
+  return value != null && value in DATE_FIELDS;
+}
+
+/** Medianoche UTC del día `key`: el inicio de un campo DATE-ONLY. */
+function dateOnlyStart(key: string): Date {
+  return new Date(`${key}T00:00:00.000Z`);
+}
+
+/** Último instante del día `key` para un campo DATE-ONLY. */
+function dateOnlyEnd(key: string): Date {
+  const [year, month, day] = key.split("-").map(Number);
+  // El día siguiente se deriva de la CLAVE y no sumando 24h, para no depender
+  // de que el día tenga 24 horas.
+  return new Date(Date.UTC(year, month - 1, day + 1) - 1);
+}
+
+/**
  * Instante a partir del cual una cuota ya NO está vencida: la medianoche UTC
  * del día de hoy en la zona del negocio.
  *
@@ -58,7 +103,7 @@ function isOneOf<T extends readonly string[]>(
  * este corte, porque comparte el día UTC con su clave.
  */
 export function overdueBoundary(todayKey: string = nowKeyInBusinessTz()): Date {
-  return new Date(`${todayKey}T00:00:00.000Z`);
+  return dateOnlyStart(todayKey);
 }
 
 /**
@@ -93,31 +138,38 @@ export function buildPaymentsWhere(
     where.paymentType = filters.paymentType;
   }
 
-  // Rango de fechas sobre `createdAt`, con los dos bordes en la zona del
-  // negocio.
+  // Rango de fechas sobre el campo elegido.
   //
-  // Antes cada borde se construía distinto y ninguno de los dos era Santiago:
+  // Antes cada borde se construía distinto y ninguno era Santiago:
   // `new Date("2026-09-01")` es medianoche UTC —la forma date-only del estándar
   // se interpreta en UTC— y `new Date("2026-09-01T23:59:59")` es hora LOCAL DEL
-  // PROCESO, porque la forma con hora y sin offset se interpreta local. O sea
-  // que los dos extremos del mismo rango no compartían referencia, y además el
+  // PROCESO. Los dos extremos del mismo rango no compartían referencia, y el
   // resultado cambiaba entre la máquina de desarrollo y el deploy.
   //
-  // El efecto no era teórico: `createdAt` es un instante real, y un cobro
-  // registrado a las 21:34 de Santiago se guarda como 00:34 UTC del día
-  // SIGUIENTE. Medido contra producción, 3 de 13 pagos caían en un día distinto
-  // del que muestra la tabla —que formatea en la zona del navegador— así que
-  // filtrar por el día en que se registró un cobro no lo encontraba.
-  //
-  // `startOfDayInTz` / `endOfDayInTz` resuelven la medianoche de pared de
-  // Santiago, incluidos los dos bordes de cambio de hora: el día en que la
-  // medianoche local no existe y el de 25 horas.
-  if (filters.dateFrom) {
-    where.createdAt = { ...(where.createdAt as object), gte: startOfDayInTz(filters.dateFrom) };
-  }
+  // Ahora cada borde se construye según el TIPO del campo (ver `DATE_FIELDS`),
+  // que no es el mismo para los tres: dos son instantes y uno es date-only.
+  const fieldKey = isPaymentsDateField(filters.dateField)
+    ? filters.dateField
+    : DEFAULT_DATE_FIELD;
+  const field = DATE_FIELDS[fieldKey];
+  const esDateOnly = field === "dueDate";
 
-  if (filters.dateTo) {
-    where.createdAt = { ...(where.createdAt as object), lte: endOfDayInTz(filters.dateTo) };
+  if (filters.dateFrom || filters.dateTo) {
+    const range: { gte?: Date; lte?: Date } = {};
+
+    if (filters.dateFrom) {
+      range.gte = esDateOnly
+        ? dateOnlyStart(filters.dateFrom)
+        : startOfDayInTz(filters.dateFrom);
+    }
+    if (filters.dateTo) {
+      range.lte = esDateOnly ? dateOnlyEnd(filters.dateTo) : endOfDayInTz(filters.dateTo);
+    }
+
+    // Filtrar por `paidAt` o `dueDate` deja fuera los pagos que no los tienen,
+    // y eso es lo correcto: un cobro sin pagar no "se pagó en septiembre", y
+    // uno sin cuota no vence.
+    where[field] = range;
   }
 
   // Se mergea sobre el `userId` del where base, no lo reemplaza.

@@ -166,3 +166,88 @@ describe("buildPaymentsWhere - el rango de fechas vive en la zona del negocio", 
     expect(getDateKeyInTz(lte)).toBe("2026-06-15");
   });
 });
+
+describe("buildPaymentsWhere - sobre qué fecha aplica el rango", () => {
+  /** El rango con el que quedó el campo pedido. */
+  function rango(dateField: string | undefined, campo: string) {
+    const where = buildPaymentsWhere("user-1", {
+      dateField,
+      dateFrom: "2026-06-15",
+      dateTo: "2026-06-15",
+    }) as Record<string, { gte?: Date; lte?: Date } | undefined>;
+    return where[campo];
+  }
+
+  it("por defecto filtra la emisión", () => {
+    expect(rango(undefined, "createdAt")).toBeDefined();
+    expect(rango(undefined, "paidAt")).toBeUndefined();
+    expect(rango(undefined, "dueDate")).toBeUndefined();
+  });
+
+  it("un campo fuera de la lista blanca cae a la emisión", () => {
+    // Llega de la URL, sin pasar por ningún formulario.
+    expect(rango("mercadoPagoId", "createdAt")).toBeDefined();
+    expect(rango("mercadoPagoId", "dueDate")).toBeUndefined();
+  });
+
+  it("filtra la fecha de pago cuando se pide", () => {
+    expect(rango("pago", "paidAt")).toBeDefined();
+    expect(rango("pago", "createdAt")).toBeUndefined();
+  });
+
+  it("filtra el vencimiento cuando se pide", () => {
+    expect(rango("vencimiento", "dueDate")).toBeDefined();
+    expect(rango("vencimiento", "createdAt")).toBeUndefined();
+  });
+
+  it("los campos de INSTANTE usan el día de pared de Santiago", () => {
+    // `createdAt` y `paidAt` son instantes reales: un cobro de las 21:34 de
+    // Santiago pertenece a ese día aunque se guarde como 00:34 UTC del
+    // siguiente.
+    for (const [campo, clave] of [["createdAt", undefined], ["paidAt", "pago"]] as const) {
+      const r = rango(clave, campo)!;
+      expect(r.gte!.toISOString()).not.toBe("2026-06-15T00:00:00.000Z");
+      expect(getDateKeyInTz(r.gte!)).toBe("2026-06-15");
+      expect(getDateKeyInTz(r.lte!)).toBe("2026-06-15");
+    }
+  });
+
+  it("el campo DATE-ONLY usa medianoche UTC, no la de Santiago", () => {
+    // `dueDate` lo compara el dominio por su fecha UTC (`dateOnlyKey`).
+    // Aplicarle bordes de Santiago lo correría 3 o 4 horas.
+    const r = rango("vencimiento", "dueDate")!;
+
+    expect(r.gte!.toISOString()).toBe("2026-06-15T00:00:00.000Z");
+    expect(r.lte!.toISOString()).toBe("2026-06-15T23:59:59.999Z");
+  });
+
+  it("el rango de vencimiento atrapa las tres horas en que se guarda", () => {
+    // En producción los `dueDate` conviven a las 00:00, 03:00 y 04:00 UTC del
+    // día que representan. Con bordes de Santiago, el de medianoche caería
+    // fuera.
+    const r = rango("vencimiento", "dueDate")!;
+
+    for (const hora of ["00:00:00", "03:00:00", "04:00:00"]) {
+      const d = new Date(`2026-06-15T${hora}.000Z`);
+      expect(d >= r.gte! && d <= r.lte!).toBe(true);
+    }
+  });
+
+  it("sin rango no escribe ninguna cláusula de fecha", () => {
+    // Elegir el campo no filtra por sí solo.
+    const where = buildPaymentsWhere("user-1", { dateField: "pago" });
+
+    expect(where).not.toHaveProperty("paidAt");
+    expect(where).not.toHaveProperty("createdAt");
+  });
+
+  it("acepta un solo borde", () => {
+    const soloDesde = buildPaymentsWhere("user-1", {
+      dateField: "pago",
+      dateFrom: "2026-06-15",
+    }) as { paidAt?: { gte?: Date; lte?: Date } };
+
+    expect(soloDesde.paidAt?.gte).toBeInstanceOf(Date);
+    expect(soloDesde.paidAt?.lte).toBeUndefined();
+  });
+});

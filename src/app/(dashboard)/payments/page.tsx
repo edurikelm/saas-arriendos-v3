@@ -19,6 +19,7 @@ interface PaymentsPageProps {
     status?: string;
     paymentType?: string;
     search?: string;
+    dateField?: string;
     sortBy?: string;
     sortDir?: string;
     dateFrom?: string;
@@ -41,6 +42,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
       status: params.status,
       paymentType: params.paymentType,
       search: params.search,
+      dateField: params.dateField,
       sortBy: params.sortBy,
       sortDir: params.sortDir,
       dateFrom: params.dateFrom,
@@ -57,6 +59,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
       status: params.status,
       paymentType: params.paymentType,
       search: params.search,
+      dateField: params.dateField,
       dateFrom: params.dateFrom,
       dateTo: params.dateTo,
     }),
@@ -68,11 +71,17 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
     status: params.status ?? "",
     paymentType: params.paymentType ?? "",
     search: params.search ?? "",
+    dateField: params.dateField ?? "",
     dateFrom: params.dateFrom ?? "",
     dateTo: params.dateTo ?? "",
   };
 
-  const hasFilters = Object.values(filterProps).some(Boolean);
+  // `dateField` queda FUERA de la cuenta: elegir sobre qué fecha aplica el
+  // rango no es filtrar nada por sí solo. Si contara, abrir el selector
+  // encendería "Limpiar filtros" y haría que los KPIs se declararan filtrados
+  // mostrando exactamente las mismas cifras.
+  const { dateField: _dateField, ...activeFilters } = filterProps;
+  const hasFilters = Object.values(activeFilters).some(Boolean);
 
   return (
     <div className="space-y-6">
