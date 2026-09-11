@@ -4,8 +4,8 @@ import type { SessionUser } from '@/lib/auth/session';
 vi.mock('@/lib/db/prisma', () => ({
   prisma: {
     payment: {
+      groupBy: vi.fn(),
       aggregate: vi.fn(),
-      count: vi.fn(),
     },
     reservation: {
       findFirst: vi.fn(),
@@ -21,21 +21,35 @@ vi.mock('@/lib/actions/reservations', () => ({
   getReservations: vi.fn(),
 }));
 
-vi.mock('@/lib/alerts/collection-alerts', () => ({
-  classifyCollectionAlerts: vi.fn(),
-}));
-
-vi.mock('@/lib/domain/timezone', () => ({
-  ...(vi.importActual('@/lib/domain/timezone') as any),
-  startOfMonthInSantiago: vi.fn(() => '2025-07-01'),
-}));
-
 const mockSession: SessionUser = {
   userId: 'user-1',
   role: 'OWNER',
   plan: 'PRO',
   email: 'test@test.com',
 };
+
+/** Un grupo del `groupBy(["status"])`. */
+const grupo = (status: string, monto: number, n: number) => ({
+  status,
+  _sum: { amount: monto },
+  _count: { _all: n },
+});
+
+async function stubQueries(
+  grupos: ReturnType<typeof grupo>[],
+  vencido = { _sum: { amount: 0 }, _count: { _all: 0 } },
+) {
+  const { prisma } = await import('@/lib/db/prisma');
+  vi.mocked(prisma.payment.groupBy).mockResolvedValue(grupos as never);
+  vi.mocked(prisma.payment.aggregate).mockResolvedValue(vencido as never);
+  return prisma;
+}
+
+/** El `where` con el que se llamó al `groupBy`. */
+function groupByWhere(prisma: { payment: { groupBy: unknown } }) {
+  const groupBy = vi.mocked(prisma.payment.groupBy as (...args: unknown[]) => unknown);
+  return (groupBy.mock.calls.at(-1)?.[0] as { where?: Record<string, unknown> })?.where;
+}
 
 describe('getPaymentsKpis', () => {
   beforeEach(() => {
@@ -47,223 +61,154 @@ describe('getPaymentsKpis', () => {
     vi.mocked(getSession).mockResolvedValue(null);
 
     const { getPaymentsKpis } = await import('../payments');
-    const result = await getPaymentsKpis();
 
-    expect(result).toEqual({ cobradoMes: 0, pendiente: 0, pendienteCount: 0, proximos7DiasCount: 0 });
+    expect(await getPaymentsKpis()).toEqual({
+      cobrado: 0,
+      pendiente: 0,
+      pendienteCount: 0,
+      vencido: 0,
+      vencidoCount: 0,
+      total: 0,
+      totalCount: 0,
+    });
   });
 
-  it('retorna cobradoMes solo con pagos COMPLETED del mes actual', async () => {
+  it('reparte las sumas por estado y totaliza los grupos', async () => {
     const { getSession } = await import('@/lib/auth/session');
-    const { prisma } = await import('@/lib/db/prisma');
-    const { getReservations } = await import('@/lib/actions/reservations');
-    const { classifyCollectionAlerts } = await import('@/lib/alerts/collection-alerts');
-
     vi.mocked(getSession).mockResolvedValue(mockSession);
-
-    vi.mocked(prisma.payment.aggregate)
-      .mockResolvedValueOnce({ _sum: { amount: 150000 } } as any)
-      .mockResolvedValueOnce({ _sum: { amount: 80000 } } as any);
-    vi.mocked(prisma.payment.count).mockResolvedValue(3 as any);
-
-    vi.mocked(getReservations).mockResolvedValue({ data: [], total: 0 } as any);
-    vi.mocked(classifyCollectionAlerts).mockReturnValue({
-      vencidos: [],
-      vencenHoy: [],
-      proximos7Dias: [],
-    });
+    await stubQueries([
+      grupo('COMPLETED', 2700000, 11),
+      grupo('PENDING', 250000, 1),
+      grupo('FAILED', 50000, 1),
+    ]);
 
     const { getPaymentsKpis } = await import('../payments');
-    const result = await getPaymentsKpis();
+    const kpis = await getPaymentsKpis();
 
-    expect(result.cobradoMes).toBe(150000);
-    expect(result.pendiente).toBe(80000);
-    expect(result.pendienteCount).toBe(3);
+    expect(kpis.cobrado).toBe(2700000);
+    expect(kpis.pendiente).toBe(250000);
+    expect(kpis.pendienteCount).toBe(1);
+    // El total incluye FAILED: es la suma de lo que muestra la tabla, no un
+    // subconjunto con criterio propio.
+    expect(kpis.total).toBe(3000000);
+    expect(kpis.totalCount).toBe(13);
   });
 
-  it('excluye EXTRA del cálculo de KPIs', async () => {
+  it('devuelve cero en el estado que no aparece en ningún grupo', async () => {
     const { getSession } = await import('@/lib/auth/session');
-    const { prisma } = await import('@/lib/db/prisma');
-    const { getReservations } = await import('@/lib/actions/reservations');
-    const { classifyCollectionAlerts } = await import('@/lib/alerts/collection-alerts');
-
     vi.mocked(getSession).mockResolvedValue(mockSession);
-
-    vi.mocked(prisma.payment.aggregate)
-      .mockResolvedValueOnce({ _sum: { amount: 0 } } as any)
-      .mockResolvedValueOnce({ _sum: { amount: 0 } } as any);
-    vi.mocked(prisma.payment.count).mockResolvedValue(0 as any);
-
-    vi.mocked(getReservations).mockResolvedValue({ data: [], total: 0 } as any);
-    vi.mocked(classifyCollectionAlerts).mockReturnValue({
-      vencidos: [],
-      vencenHoy: [],
-      proximos7Dias: [],
-    });
+    await stubQueries([grupo('COMPLETED', 100000, 1)]);
 
     const { getPaymentsKpis } = await import('../payments');
-    const result = await getPaymentsKpis();
+    const kpis = await getPaymentsKpis();
 
-    // Verify both aggregate calls were made with paymentType: 'RESERVATION'
-    for (const call of vi.mocked(prisma.payment.aggregate).mock.calls) {
-      expect(call[0]).toMatchObject({
-        where: expect.objectContaining({ paymentType: 'RESERVATION' }),
-      });
-    }
-
-    expect(result.cobradoMes).toBe(0);
-    expect(result.pendiente).toBe(0);
-    expect(result.pendienteCount).toBe(0);
+    expect(kpis.pendiente).toBe(0);
+    expect(kpis.pendienteCount).toBe(0);
   });
 
-  it('excluye pagos soft-deleted', async () => {
+  it('cuenta los cobros EXTRA, a diferencia de los helpers de queries.ts', async () => {
+    // Cambio deliberado de semántica. Los helpers de `lib/payments/queries.ts`
+    // fijan `paymentType: "RESERVATION"`, así que una multa cobrada no entraba
+    // en "cobrado" aunque su fila apareciera en la tabla. Si las cifras
+    // describen el listado, tienen que contar sus filas.
     const { getSession } = await import('@/lib/auth/session');
-    const { prisma } = await import('@/lib/db/prisma');
-    const { getReservations } = await import('@/lib/actions/reservations');
-    const { classifyCollectionAlerts } = await import('@/lib/alerts/collection-alerts');
-
     vi.mocked(getSession).mockResolvedValue(mockSession);
-
-    vi.mocked(prisma.payment.aggregate)
-      .mockResolvedValueOnce({ _sum: { amount: null } } as any)
-      .mockResolvedValueOnce({ _sum: { amount: null } } as any);
-    vi.mocked(prisma.payment.count).mockResolvedValue(0 as any);
-
-    vi.mocked(getReservations).mockResolvedValue({ data: [], total: 0 } as any);
-    vi.mocked(classifyCollectionAlerts).mockReturnValue({
-      vencidos: [],
-      vencenHoy: [],
-      proximos7Dias: [],
-    });
-
-    const { getPaymentsKpis } = await import('../payments');
-    const result = await getPaymentsKpis();
-
-    // Verify all calls include deletedAt: null
-    for (const call of vi.mocked(prisma.payment.aggregate).mock.calls) {
-      expect(call[0]).toMatchObject({
-        where: expect.objectContaining({ deletedAt: null }),
-      });
-    }
-
-    expect(result.cobradoMes).toBe(0);
-    expect(result.pendiente).toBe(0);
-    expect(result.pendienteCount).toBe(0);
-  });
-
-  it('scope por owner (no retorna pagos de otros owners)', async () => {
-    const { getSession } = await import('@/lib/auth/session');
-    const { prisma } = await import('@/lib/db/prisma');
-    const { getReservations } = await import('@/lib/actions/reservations');
-    const { classifyCollectionAlerts } = await import('@/lib/alerts/collection-alerts');
-
-    vi.mocked(getSession).mockResolvedValue(mockSession);
-
-    vi.mocked(prisma.payment.aggregate)
-      .mockResolvedValueOnce({ _sum: { amount: 50000 } } as any)
-      .mockResolvedValueOnce({ _sum: { amount: 30000 } } as any);
-    vi.mocked(prisma.payment.count).mockResolvedValue(2 as any);
-
-    vi.mocked(getReservations).mockResolvedValue({ data: [], total: 0 } as any);
-    vi.mocked(classifyCollectionAlerts).mockReturnValue({
-      vencidos: [],
-      vencenHoy: [],
-      proximos7Dias: [{ paymentId: 'p1', reservationId: 'r1', clientName: 'Test', propertyName: 'Prop', dueDate: '2025-07-10', method: 'MERCADO_PAGO', amount: 10000, initPoint: null, expiresAt: null, daysFromToday: 5 } as any],
-    });
-
-    const { getPaymentsKpis } = await import('../payments');
-    const result = await getPaymentsKpis();
-
-    // Verify all calls scope by reservation.userId = session.userId
-    for (const call of vi.mocked(prisma.payment.aggregate).mock.calls) {
-      expect(call[0]).toMatchObject({
-        where: expect.objectContaining({
-          reservation: expect.objectContaining({ userId: 'user-1' }),
-        }),
-      });
-    }
-
-    expect(result.proximos7DiasCount).toBe(1);
-    expect(result.pendienteCount).toBe(2);
-  });
-
-  it('proximos7DiasCount viene de getCollectionAlerts', async () => {
-    const { getSession } = await import('@/lib/auth/session');
-    const { prisma } = await import('@/lib/db/prisma');
-    const { getReservations } = await import('@/lib/actions/reservations');
-    const { classifyCollectionAlerts } = await import('@/lib/alerts/collection-alerts');
-
-    vi.mocked(getSession).mockResolvedValue(mockSession);
-
-    vi.mocked(prisma.payment.aggregate)
-      .mockResolvedValueOnce({ _sum: { amount: null } } as any)
-      .mockResolvedValueOnce({ _sum: { amount: null } } as any);
-    vi.mocked(prisma.payment.count).mockResolvedValue(4 as any);
-
-    vi.mocked(getReservations).mockResolvedValue({
-      data: [{
-        id: 'r1',
-        status: 'CONFIRMED',
-        client: { name: 'Client' },
-        property: { name: 'Property' },
-        payments: [{
-          id: 'p1',
-          status: 'PENDING',
-          paymentType: 'RESERVATION',
-          method: 'MERCADO_PAGO',
-          amount: 50000,
-          dueDate: '2025-07-10',
-          initPoint: null,
-          expiresAt: null,
-        }],
-      }],
-      total: 1,
-    } as any);
-
-    vi.mocked(classifyCollectionAlerts).mockReturnValue({
-      vencidos: [],
-      vencenHoy: [],
-      proximos7Dias: [
-        { paymentId: 'p1', reservationId: 'r1', clientName: 'Client', propertyName: 'Property', dueDate: '2025-07-10', method: 'MERCADO_PAGO', amount: 50000, initPoint: null, expiresAt: null, daysFromToday: 5 } as any,
-        { paymentId: 'p2', reservationId: 'r2', clientName: 'Client2', propertyName: 'Property2', dueDate: '2025-07-12', method: 'MERCADO_PAGO', amount: 30000, initPoint: null, expiresAt: null, daysFromToday: 7 } as any,
-      ],
-    });
-
-    const { getPaymentsKpis } = await import('../payments');
-    const result = await getPaymentsKpis();
-
-    expect(result.proximos7DiasCount).toBe(2);
-    expect(result.pendienteCount).toBe(4);
-  });
-
-  it('NO cuenta pagos COMPLETED fuera del mes actual en cobradoMes', async () => {
-    const { getSession } = await import('@/lib/auth/session');
-    const { prisma } = await import('@/lib/db/prisma');
-    const { getReservations } = await import('@/lib/actions/reservations');
-    const { classifyCollectionAlerts } = await import('@/lib/alerts/collection-alerts');
-
-    vi.mocked(getSession).mockResolvedValue(mockSession);
-
-    // Only the aggregate call for cobradoMes should be called with paidAt filter
-    vi.mocked(prisma.payment.aggregate).mockResolvedValue({ _sum: { amount: null } } as any);
-    vi.mocked(prisma.payment.count).mockResolvedValue(0 as any);
-
-    vi.mocked(getReservations).mockResolvedValue({ data: [], total: 0 } as any);
-    vi.mocked(classifyCollectionAlerts).mockReturnValue({
-      vencidos: [],
-      vencenHoy: [],
-      proximos7Dias: [],
-    });
+    const prisma = await stubQueries([grupo('COMPLETED', 100000, 2)]);
 
     const { getPaymentsKpis } = await import('../payments');
     await getPaymentsKpis();
 
-    // Verify the cobradoMes aggregate call includes paidAt >= startOfMonth
-    const aggregateCalls = vi.mocked(prisma.payment.aggregate).mock.calls;
-    const cobradoMesCall = aggregateCalls[0];
-    expect(cobradoMesCall[0]).toMatchObject({
-      where: expect.objectContaining({
-        paidAt: expect.objectContaining({ gte: expect.any(Date) }),
-      }),
+    expect(groupByWhere(prisma)).not.toHaveProperty('paymentType');
+  });
+
+  it('respeta el filtro de tipo cuando la vista lo pide', async () => {
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    const prisma = await stubQueries([]);
+
+    const { getPaymentsKpis } = await import('../payments');
+    await getPaymentsKpis({ paymentType: 'RESERVATION' });
+
+    expect(groupByWhere(prisma)).toMatchObject({ paymentType: 'RESERVATION' });
+  });
+
+  it('excluye los soft-deleted', async () => {
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    const prisma = await stubQueries([]);
+
+    const { getPaymentsKpis } = await import('../payments');
+    await getPaymentsKpis();
+
+    expect(groupByWhere(prisma)).toMatchObject({ deletedAt: null });
+  });
+
+  it('se ancla a las reservas del owner', async () => {
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    const prisma = await stubQueries([]);
+
+    const { getPaymentsKpis } = await import('../payments');
+    await getPaymentsKpis();
+
+    expect(groupByWhere(prisma)).toMatchObject({ reservation: { userId: 'user-1' } });
+  });
+
+  it('aplica los mismos filtros que el listado', async () => {
+    // Es el punto del cambio: las cifras describen lo que muestra la tabla.
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    const prisma = await stubQueries([]);
+
+    const { getPaymentsKpis } = await import('../payments');
+    await getPaymentsKpis({ propertyId: 'prop-9', status: 'PENDING', search: 'Pedro' });
+
+    expect(groupByWhere(prisma)).toMatchObject({
+      status: 'PENDING',
+      reservation: { userId: 'user-1', propertyId: 'prop-9' },
+      AND: expect.any(Array),
     });
+  });
+
+  it('lo vencido son los PENDING con vencimiento anterior a hoy', async () => {
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    const prisma = await stubQueries(
+      [grupo('PENDING', 800000, 3)],
+      { _sum: { amount: 250000 }, _count: { _all: 1 } },
+    );
+
+    const { getPaymentsKpis } = await import('../payments');
+    const kpis = await getPaymentsKpis();
+
+    expect(kpis.vencido).toBe(250000);
+    expect(kpis.vencidoCount).toBe(1);
+
+    const where = vi.mocked(prisma.payment.aggregate).mock.calls.at(-1)?.[0]?.where as {
+      status?: string;
+      dueDate?: { lt?: Date };
+    };
+    expect(where.status).toBe('PENDING');
+    expect(where.dueDate?.lt).toBeInstanceOf(Date);
+    // El corte es la medianoche UTC del día de hoy en la zona del negocio.
+    expect(where.dueDate?.lt?.toISOString()).toMatch(/T00:00:00\.000Z$/);
+  });
+
+  it('lo vencido hereda los filtros de la vista', async () => {
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    const prisma = await stubQueries([]);
+
+    const { getPaymentsKpis } = await import('../payments');
+    await getPaymentsKpis({ propertyId: 'prop-9' });
+
+    expect(vi.mocked(prisma.payment.aggregate)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          reservation: { userId: 'user-1', propertyId: 'prop-9' },
+          deletedAt: null,
+        }),
+      }),
+    );
   });
 });

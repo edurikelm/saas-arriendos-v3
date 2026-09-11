@@ -45,7 +45,17 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
       limit: 20,
     }),
     getProperties(),
-    getPaymentsKpis(),
+    // Los MISMOS filtros que el listado: las cifras describen lo que muestra la
+    // tabla, no todo el negocio.
+    getPaymentsKpis({
+      propertyId: params.propertyId,
+      method: params.method,
+      status: params.status,
+      paymentType: params.paymentType,
+      search: params.search,
+      dateFrom: params.dateFrom,
+      dateTo: params.dateTo,
+    }),
   ]);
 
   const filterProps = {
@@ -73,7 +83,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
       </div>
 
       {/* KPIs */}
-      <PaymentsKpis kpis={kpis} />
+      <PaymentsKpis kpis={kpis} filtered={hasFilters} />
 
       {/* Filters */}
       <PaymentsFilters

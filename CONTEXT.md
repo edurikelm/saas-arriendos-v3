@@ -511,6 +511,19 @@ Bajo 768px la página no renderiza la tabla sino `PaymentListItem`, filas dividi
 
 **El ordenamiento también depende de la variante.** `"full"` respeta el orden del servidor (`createdAt` desc); las variantes de reserva ordenan por `installmentIndex`, que solo es el orden natural cuando todas las filas comparten la misma serie de cuotas.
 
+### KPIs de `/payments`: describen el listado filtrado
+
+`buildPaymentsWhere` (`src/lib/payments/filters.ts`) es el **único** constructor del `where` de `/payments`, y lo comparten `getPayments` y `getPaymentsKpis`. Mientras cada uno armaba el suyo, las cifras del encabezado hablaban de todo el negocio y la tabla de abajo de lo filtrado, sin nada que lo señalara.
+
+Las cuatro cifras salen del mismo conjunto, así que suman entre sí: **Cobrado** (`COMPLETED`), **Pendiente**, **Vencido** (`PENDING` con vencimiento anterior a hoy) y **Total** (todo, `FAILED` incluido). Dos cambios de semántica respecto de lo que había:
+
+- **Cuentan los cobros `EXTRA`.** Los helpers de `lib/payments/queries.ts` fijan `paymentType: "RESERVATION"`, así que una multa o una limpieza cobrada no entraba en "cobrado" aunque su fila apareciera en la tabla. Si las cifras describen el listado tienen que contar sus filas, y quien quiera solo arriendo tiene el filtro "Tipo", que ahora ellas siguen. **Los helpers quedan intactos: `/reports` depende de su semántica.** Medido al migrar, en producción el efecto fue un cobro extra de $50.000 que "Cobrado" no estaba mostrando.
+- **"Cobrado" ya no está atado al mes en curso.** El alcance lo fija el filtro de fechas de la vista, no una ventana escondida en la cifra. El sublabel declara en palabras si son del filtro o históricas.
+
+`overdueBoundary()` (mismo archivo) traduce la mora a algo que se le pueda preguntar a la base: la medianoche UTC del día de hoy en la zona del negocio. Es **exactamente equivalente** a `isOverdueDateOnly` (`dateOnlyKey(d) < nowKeyInBusinessTz()`), porque `dateOnlyKey` de un `Date` es su fecha UTC. La equivalencia importa y no basta con que sea parecido: los `dueDate` de producción no están guardados a medianoche, conviven las 00:00, 03:00 y 04:00 UTC del día que representan.
+
+La cuarta tarjeta **era "Próximos vencimientos"** y se cambió por "Vencido". Contaba cuotas con vencimiento entre mañana y siete días, solo de reservas `PENDING` o `CONFIRMED`, vía `classifyCollectionAlerts`: no se deriva del listado y por un rango de fechas pasado siempre habría dado cero. Esa señal sigue viva en `/dashboard`, que además lista los pagos en vez de solo contarlos.
+
 ## Estado del proyecto / Backlog activo
 
 **Última verificación de baseline** (post /impeccable /reservations audit closes, 2026-08-20):
