@@ -427,3 +427,45 @@ describe("PaymentsTableClient - enviar link", () => {
     expect(screen.getByRole("button", { name: /email/i })).toBeTruthy();
   });
 });
+
+describe("PaymentsTableClient - orden en móvil", () => {
+  beforeEach(() => {
+    currentQuery = "";
+    mockPush.mockClear();
+  });
+
+  it("la lista trae selector de orden; la tabla no lo duplica", () => {
+    // En escritorio el orden se pide desde la cabecera de la columna.
+    setViewport(true);
+    const { unmount } = render(<PaymentsTableClient payments={[createMockPayment()]} />);
+    expect(screen.getByRole("button", { name: /^orden/i })).toBeTruthy();
+    unmount();
+
+    setViewport(false);
+    render(<PaymentsTableClient payments={[createMockPayment()]} />);
+    expect(screen.queryByRole("button", { name: /^orden/i })).toBeNull();
+  });
+
+  it("elegir un orden en móvil va a la URL, como en escritorio", async () => {
+    setViewport(true);
+    currentQuery = "status=PENDING";
+    render(<PaymentsTableClient payments={[createMockPayment()]} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /^orden/i }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Monto: mayor primero" }));
+
+    const params = new URLSearchParams((mockPush.mock.calls.at(-1)?.[0] as string).split("?")[1]);
+    expect(params.get("sortBy")).toBe("monto");
+    expect(params.get("sortDir")).toBe("desc");
+    // Y conserva los filtros, igual que el orden por cabecera.
+    expect(params.get("status")).toBe("PENDING");
+  });
+
+  it("refleja en el chip el orden que viene de la URL", () => {
+    setViewport(true);
+    currentQuery = "sortBy=cliente&sortDir=asc";
+    render(<PaymentsTableClient payments={[createMockPayment()]} />);
+
+    expect(screen.getByText("Cliente A-Z")).toBeTruthy();
+  });
+});

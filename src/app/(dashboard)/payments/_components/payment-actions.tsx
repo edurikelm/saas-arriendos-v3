@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { PaymentsTable, type Payment } from "@/components/payments/payments-table";
 import type { DataTableSort } from "@/components/ui/data-table";
 import { PaymentListItem } from "@/components/payments/payment-list-item";
+import { PaymentsSortSelect } from "@/components/payments/payments-sort-select";
 import { MarkPaidDialog } from "@/components/dashboard/mark-paid-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SendPaymentLinkDialog } from "@/components/reservations/send-payment-link-dialog";
@@ -212,10 +213,15 @@ export function PaymentsTableClient({ payments }: { payments: Payment[] }) {
            y no con `hidden md:block` para no montar las dos: cada fila trae
            botones, y renderizar ambas dejaba dos copias de cada acción en el
            DOM. Mismo criterio que `reservations-list-client.tsx`. */
-        <div className="overflow-hidden rounded-md border border-t-2 border-border border-t-primary bg-card">
-          {payments.map((payment) => (
-            <PaymentListItem key={payment.id} payment={payment} {...rowHandlers} />
-          ))}
+        <div className="space-y-3">
+          {/* En escritorio el orden se pide desde la cabecera de la columna;
+              la lista no tiene cabeceras. */}
+          <PaymentsSortSelect sort={sort} onSortChange={handleSortChange} />
+          <div className="overflow-hidden rounded-md border border-t-2 border-border border-t-primary bg-card">
+            {payments.map((payment) => (
+              <PaymentListItem key={payment.id} payment={payment} {...rowHandlers} />
+            ))}
+          </div>
         </div>
       ) : (
         <PaymentsTable
