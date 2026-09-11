@@ -160,40 +160,46 @@ describe("PaymentsTableClient - handleDeletePayment", () => {
     vi.clearAllMocks();
   });
 
-  it("NO llama a deletePayment si window.confirm retorna false", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
-
-    render(
-      <PaymentsTableClient
-        payments={[{ ...createMockPayment(), method: "CASH" }]}
-      />
-    );
-
+  /**
+   * Abre el borrado y devuelve el botón de confirmar del diálogo.
+   *
+   * El de la fila lleva `aria-label` "Eliminar pago · pago de $X" y el del
+   * diálogo es exactamente "Eliminar pago", así que el ancla distingue.
+   */
+  async function abrirBorrado() {
     // Con 1 secundaria destructiva, el delete es inline (icon-only, no dropdown).
-    const deleteBtn = screen.getByRole("button", { name: /eliminar.*pago/i });
-    await userEvent.click(deleteBtn);
+    await userEvent.click(screen.getByRole("button", { name: /eliminar pago ·/i }));
+    return screen.getByRole("button", { name: /^eliminar pago$/i });
+  }
 
-    expect(confirmSpy).toHaveBeenCalledWith(
-      "¿Eliminar este pago? El cliente aún no verá este cobro."
-    );
+  it("pide confirmación antes de borrar, con el diálogo del sistema", async () => {
+    // Antes era `window.confirm`. Ahora es `ConfirmDialog`, igual que el mismo
+    // borrado en el detalle de reserva.
+    render(<PaymentsTableClient payments={[{ ...createMockPayment(), method: "CASH" }]} />);
+
+    await abrirBorrado();
+
+    // Por la descripción y no por el título: "Eliminar pago" es a la vez el
+    // título del diálogo y la etiqueta de su botón de confirmar.
+    expect(screen.getByText(/se eliminará del registro/i)).toBeTruthy();
     expect(deletePayment).not.toHaveBeenCalled();
+  });
 
-    confirmSpy.mockRestore();
+  it("NO llama a deletePayment si se cancela", async () => {
+    render(<PaymentsTableClient payments={[{ ...createMockPayment(), method: "CASH" }]} />);
+
+    await abrirBorrado();
+    await userEvent.click(screen.getByRole("button", { name: /^cancelar$/i }));
+
+    expect(deletePayment).not.toHaveBeenCalled();
   });
 
   it("llama deletePayment y muestra toast con 'Deshacer' tras delete exitoso", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     vi.mocked(deletePayment).mockResolvedValueOnce({ success: true } as any);
 
-    render(
-      <PaymentsTableClient
-        payments={[{ ...createMockPayment(), method: "CASH" }]}
-      />
-    );
+    render(<PaymentsTableClient payments={[{ ...createMockPayment(), method: "CASH" }]} />);
 
-    // Delete inline (1 secundaria destructiva → icon-only button, no dropdown).
-    const deleteBtn = screen.getByRole("button", { name: /eliminar.*pago/i });
-    await userEvent.click(deleteBtn);
+    await userEvent.click(await abrirBorrado());
 
     await waitFor(() => {
       expect(deletePayment).toHaveBeenCalledWith("payment-1");
@@ -208,23 +214,15 @@ describe("PaymentsTableClient - handleDeletePayment", () => {
       })
     );
 
-    confirmSpy.mockRestore();
   });
 
   it("llama a restorePayment al hacer click en 'Deshacer'", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     vi.mocked(deletePayment).mockResolvedValueOnce({ success: true } as any);
     vi.mocked(restorePayment).mockResolvedValueOnce({ success: true } as any);
 
-    render(
-      <PaymentsTableClient
-        payments={[{ ...createMockPayment(), method: "CASH" }]}
-      />
-    );
+    render(<PaymentsTableClient payments={[{ ...createMockPayment(), method: "CASH" }]} />);
 
-    // Delete inline (1 secundaria destructiva → icon-only button, no dropdown).
-    const deleteBtn = screen.getByRole("button", { name: /eliminar.*pago/i });
-    await userEvent.click(deleteBtn);
+    await userEvent.click(await abrirBorrado());
 
     await waitFor(() => {
       expect(deletePayment).toHaveBeenCalled();
@@ -249,7 +247,6 @@ describe("PaymentsTableClient - handleDeletePayment", () => {
       expect(restorePayment).toHaveBeenCalledWith("payment-1");
     });
 
-    confirmSpy.mockRestore();
   });
 });
 
@@ -288,3 +285,4 @@ describe("PaymentsTableClient - corte por viewport", () => {
     expect(screen.getByRole("button", { name: /marcar como pagado/i })).toBeTruthy();
   });
 });
+

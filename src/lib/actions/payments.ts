@@ -120,8 +120,11 @@ export async function getPayments(filters?: {
             property: {
               select: { id: true, name: true },
             },
+            // Correo y telefono alimentan `SendPaymentLinkDialog`, que arma el
+            // mensaje de WhatsApp y el mailto. Sin ellos, /payments solo podia
+            // copiar el link al portapapeles.
             client: {
-              select: { name: true },
+              select: { name: true, email: true, phone: true },
             },
           },
         },
@@ -171,7 +174,10 @@ export async function getPayments(filters?: {
         installmentLabel,
         createdAt: p.createdAt ? p.createdAt.toISOString() : null,
         clientName: p.reservation.client?.name ?? null,
+        clientEmail: p.reservation.client?.email ?? null,
+        clientPhone: p.reservation.client?.phone ?? null,
         propertyName: p.reservation.property?.name ?? null,
+        billingType: p.reservation.billingType,
         dueDate: p.dueDate ? p.dueDate.toISOString() : null,
         paidAt: p.paidAt ? p.paidAt.toISOString() : null,
         expiresAt: p.expiresAt ? p.expiresAt.toISOString() : null,

@@ -3833,3 +3833,84 @@ describe('getPayments - búsqueda', () => {
     );
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// getPayments - datos de contacto para enviar el link
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('getPayments - contacto del cliente', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  async function stubOnePayment() {
+    const { prisma } = await import('@/lib/db/prisma');
+    vi.mocked(prisma.payment.findMany).mockResolvedValue(mockAsAny([
+      {
+        id: 'pay-1',
+        reservationId: 'res-1',
+        amount: 450000 as any,
+        method: 'MERCADO_PAGO',
+        status: 'PENDING',
+        dueDate: null,
+        installmentIndex: null,
+        initPoint: 'https://mp/x',
+        expiresAt: null,
+        deletedAt: null,
+        mercadoPagoId: null,
+        createdAt: new Date(),
+        reservation: {
+          id: 'res-1',
+          totalPrice: 900000 as any,
+          billingType: 'MONTHLY',
+          property: { id: 'prop-1', name: 'Depto Providencia 1204' },
+          client: { name: 'María', email: 'maria@example.com', phone: '+56912345678' },
+        },
+      },
+    ]));
+    vi.mocked(prisma.payment.count).mockResolvedValue(1);
+    vi.mocked(prisma.payment.groupBy).mockResolvedValue([]);
+    return prisma;
+  }
+
+  it('expone correo y teléfono del cliente', async () => {
+    // Los consume `SendPaymentLinkDialog` para armar el WhatsApp y el mailto.
+    // Sin ellos /payments solo podía copiar el link al portapapeles.
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    await stubOnePayment();
+
+    const { getPayments } = await import('../payments');
+    const { payments } = await getPayments();
+
+    expect(payments[0].clientEmail).toBe('maria@example.com');
+    expect(payments[0].clientPhone).toBe('+56912345678');
+  });
+
+  it('expone el billingType, que decide el concepto del mensaje', async () => {
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    await stubOnePayment();
+
+    const { getPayments } = await import('../payments');
+    const { payments } = await getPayments();
+
+    expect(payments[0].billingType).toBe('MONTHLY');
+  });
+
+  it('pide esos campos en el select, no la fila entera del cliente', async () => {
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    const prisma = await stubOnePayment();
+
+    const { getPayments } = await import('../payments');
+    await getPayments();
+
+    const call = vi.mocked(prisma.payment.findMany).mock.calls.at(-1)?.[0] as any;
+    expect(call.include.reservation.select.client.select).toEqual({
+      name: true,
+      email: true,
+      phone: true,
+    });
+  });
+});
