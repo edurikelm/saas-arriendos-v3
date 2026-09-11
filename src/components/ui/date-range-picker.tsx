@@ -32,6 +32,13 @@ interface DateRangePickerProps {
    * dos callsites donde el contexto ya lo dice.
    */
   label?: string
+  /**
+   * Contenido opcional sobre el calendario. Existe para que el consumidor
+   * pueda poner ahí el control de QUÉ se está eligiendo —por ejemplo, sobre
+   * qué campo de fecha aplica el rango— sin gastar un chip aparte ni repetir
+   * la palabra en el disparador.
+   */
+  header?: React.ReactNode
 }
 
 export function DateRangePicker({
@@ -42,6 +49,7 @@ export function DateRangePicker({
   mode = "range",
   id,
   label,
+  header,
 }: DateRangePickerProps) {
   // Comparación por dateKey en wall-time SCL (ADR-0020). Antes: `new Date(blocked)`
   // + `setHours(0,0,0,0)` era timezone-frágil — en zonas UTC+ un string
@@ -85,6 +93,7 @@ export function DateRangePicker({
         )}
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
+        {header && <div className="border-b border-border p-3">{header}</div>}
         {mode === "single" ? (
           <Calendar
             mode="single"

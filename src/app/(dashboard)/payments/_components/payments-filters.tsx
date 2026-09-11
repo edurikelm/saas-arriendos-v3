@@ -5,6 +5,7 @@ import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { FilterChip } from "@/components/ui/filter-chip";
+import { FilterPill } from "@/components/ui/filter-pill";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { localDateKey } from "@/lib/domain/timezone";
 import { Search, X } from "lucide-react";
@@ -21,6 +22,7 @@ interface PaymentsFiltersProps {
   status: string;
   paymentType: string;
   search: string;
+  dateField: string;
   dateFrom: string;
   dateTo: string;
 }
@@ -37,6 +39,21 @@ const STATUS_LABELS: Record<string, string> = {
   FAILED: "Fallido",
 };
 
+/**
+ * Sobre qué fecha aplica el rango.
+ *
+ * Son tres preguntas distintas: cuándo se emitió el cobro, cuándo entró la
+ * plata, y cuándo vence. Hasta acá el filtro aplicaba siempre sobre la emisión
+ * y no lo decía.
+ */
+const DATE_FIELD_OPTIONS = [
+  { value: "emision", label: "Emisión" },
+  { value: "pago", label: "Pago" },
+  { value: "vencimiento", label: "Vencimiento" },
+] as const;
+
+type DateFieldValue = (typeof DATE_FIELD_OPTIONS)[number]["value"];
+
 const PAYMENT_TYPE_LABELS: Record<string, string> = {
   RESERVATION: "Arriendo",
   EXTRA: "Extra",
@@ -49,6 +66,7 @@ export function PaymentsFilters({
   status: initialStatus,
   paymentType: initialPaymentType,
   search: initialSearch,
+  dateField: initialDateField,
   dateFrom: initialDateFrom,
   dateTo: initialDateTo,
 }: PaymentsFiltersProps) {
@@ -137,6 +155,14 @@ export function PaymentsFilters({
     router.push("/payments");
   }
 
+  // Cambiar de campo con un rango puesto re-consulta con el mismo rango sobre
+  // la otra fecha, que es lo que se quiere al comparar "emitidos" contra
+  // "pagados" en el mismo mes. Sin rango no navega: no hay nada que filtrar
+  // todavía.
+  function handleDateFieldChange(value: DateFieldValue) {
+    updateUrl({ dateField: value === "emision" ? "" : value });
+  }
+
   function handleDateChange(range: { from: Date | undefined; to: Date | undefined }) {
     // Valores del date-picker (medianoche LOCAL del navegador): usar
     // localDateKey, no slice UTC — ver src/lib/domain/timezone.ts.
@@ -144,8 +170,15 @@ export function PaymentsFilters({
     setDateTo(range?.to ? localDateKey(range.to) : "");
   }
 
+  // `dateField` NO cuenta como filtro activo: elegir sobre qué fecha aplica el
+  // rango no filtra nada por sí solo.
   const hasFilters = propertyId || method || status || paymentType || search || dateFrom || dateTo;
   const hasDateRange = dateFrom || dateTo;
+
+  const dateField: DateFieldValue =
+    DATE_FIELD_OPTIONS.find((o) => o.value === initialDateField)?.value ?? "emision";
+  const dateFieldLabel =
+    DATE_FIELD_OPTIONS.find((o) => o.value === dateField)?.label ?? "Emisión";
 
   // Valor legible del filtro activo, o `undefined` si está apagado. El chip
   // muestra SIEMPRE el nombre de la dimensión y le suma el valor al lado; antes
@@ -282,7 +315,15 @@ export function PaymentsFilters({
 
         {/* DateRangePicker como chip */}
         <DateRangePicker
-          label="Emisión"
+          label={dateFieldLabel}
+          header={
+            <FilterPill
+              ariaLabel="Fecha sobre la que filtrar"
+              options={DATE_FIELD_OPTIONS}
+              value={dateField}
+              onChange={handleDateFieldChange}
+            />
+          }
           className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
             hasDateRange
               ? "bg-primary/10 border-primary/20 text-primary"

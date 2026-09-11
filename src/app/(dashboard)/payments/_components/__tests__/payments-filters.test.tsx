@@ -1,13 +1,14 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PaymentsFilters } from "../payments-filters";
 
+const mockPush = vi.fn();
+let currentQuery = "";
+
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
-  useSearchParams: () => ({
-    toString: () => "",
-  }),
+  useRouter: () => ({ push: mockPush }),
+  useSearchParams: () => new URLSearchParams(currentQuery),
 }));
 
 const mockProperties = [
@@ -21,6 +22,7 @@ function renderFilters(props: {
   status?: string;
   paymentType?: string;
   search?: string;
+  dateField?: string;
   dateFrom?: string;
   dateTo?: string;
 }) {
@@ -32,6 +34,7 @@ function renderFilters(props: {
       status={props.status ?? ""}
       paymentType={props.paymentType ?? ""}
       search={props.search ?? ""}
+      dateField={props.dateField ?? ""}
       dateFrom={props.dateFrom ?? ""}
       dateTo={props.dateTo ?? ""}
     />
@@ -197,5 +200,120 @@ describe("PaymentsFilters - chips de filtro", () => {
 
     // El chip de estado sigue activo, con su valor y su propio limpiar.
     expect(screen.getByRole("button", { name: "Quitar filtro de estado" })).toBeTruthy();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Sobre qué fecha aplica el rango
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("PaymentsFilters - campo de fecha", () => {
+  it("por defecto el chip dice Emisión", () => {
+    renderFilters({});
+
+    expect(screen.getByText("Emisión")).toBeTruthy();
+  });
+
+  it("el chip refleja el campo elegido", () => {
+    // El disparador dice QUÉ fecha se está filtrando; el selector vive dentro
+    // del calendario para no gastar un chip aparte ni repetir la palabra.
+    renderFilters({ dateField: "pago" });
+
+    expect(screen.getByText("Pago")).toBeTruthy();
+    expect(screen.queryByText("Emisión")).toBeNull();
+  });
+
+  it("con rango elegido, el chip antepone el campo", () => {
+    renderFilters({ dateField: "vencimiento", dateFrom: "2026-09-01", dateTo: "2026-09-30" });
+
+    expect(screen.getByText(/^Vencimiento:/)).toBeTruthy();
+  });
+
+  it("un campo desconocido cae a Emisión", () => {
+    // Llega de la URL, sin pasar por ningún formulario.
+    renderFilters({ dateField: "mercadoPagoId" });
+
+    expect(screen.getByText("Emisión")).toBeTruthy();
+  });
+
+  it("elegir el campo NO cuenta como filtro activo", () => {
+    // Si contara, abrir el selector encendería "Limpiar filtros" y los KPIs se
+    // declararían filtrados mostrando exactamente las mismas cifras.
+    renderFilters({ dateField: "pago" });
+
+    expect(screen.queryByRole("button", { name: /limpiar filtros/i })).toBeNull();
+  });
+
+  it("con rango sí cuenta, sea cual sea el campo", () => {
+    renderFilters({ dateField: "pago", dateFrom: "2026-09-01", dateTo: "2026-09-30" });
+
+    expect(screen.getByRole("button", { name: /limpiar filtros/i })).toBeTruthy();
+  });
+});
+
+describe("PaymentsFilters - cambiar el campo de fecha", () => {
+  beforeEach(() => {
+    currentQuery = "";
+    mockPush.mockClear();
+  });
+
+  /** Params de la última navegación. */
+  function lastPushedParams(): URLSearchParams {
+    const url = mockPush.mock.calls.at(-1)?.[0] as string;
+    return new URLSearchParams(url.split("?")[1] ?? "");
+  }
+
+  /** Renderiza, abre el calendario y devuelve el `userEvent` listo. */
+  async function abrirSelector(props: Parameters<typeof renderFilters>[0] = {}) {
+    renderFilters(props);
+    const user = userEvent.setup();
+    const label = props.dateField === "pago" ? /pago/i : /emisión/i;
+    await user.click(screen.getByRole("button", { name: label }));
+    return user;
+  }
+
+  it("el selector vive dentro del calendario, no en un chip aparte", async () => {
+    await abrirSelector();
+
+    // Las tres opciones, como control segmentado: es el caso de FilterPill.
+    expect(await screen.findByRole("group", { name: /fecha sobre la que filtrar/i })).toBeTruthy();
+  });
+
+  it("elegir Pago lo lleva a la URL", async () => {
+    currentQuery = "dateFrom=2026-09-01&dateTo=2026-09-30";
+    const user = await abrirSelector({ dateFrom: "2026-09-01", dateTo: "2026-09-30" });
+
+    await user.click(screen.getByRole("button", { name: "Pago" }));
+
+    expect(lastPushedParams().get("dateField")).toBe("pago");
+  });
+
+  it("cambiar de campo conserva el rango, para poder comparar el mismo mes", async () => {
+    currentQuery = "dateFrom=2026-09-01&dateTo=2026-09-30";
+    const user = await abrirSelector({ dateFrom: "2026-09-01", dateTo: "2026-09-30" });
+
+    await user.click(screen.getByRole("button", { name: "Vencimiento" }));
+
+    const params = lastPushedParams();
+    expect(params.get("dateFrom")).toBe("2026-09-01");
+    expect(params.get("dateTo")).toBe("2026-09-30");
+  });
+
+  it("volver a Emisión borra el param en vez de escribir el valor por defecto", async () => {
+    currentQuery = "dateField=pago";
+    const user = await abrirSelector({ dateField: "pago" });
+
+    await user.click(screen.getByRole("button", { name: "Emisión" }));
+
+    expect(lastPushedParams().get("dateField")).toBeNull();
+  });
+
+  it("cambiar de campo vuelve a la página 1", async () => {
+    currentQuery = "page=3&dateFrom=2026-09-01";
+    const user = await abrirSelector({ dateFrom: "2026-09-01" });
+
+    await user.click(screen.getByRole("button", { name: "Pago" }));
+
+    expect(lastPushedParams().get("page")).toBeNull();
   });
 });

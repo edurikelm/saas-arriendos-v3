@@ -74,6 +74,7 @@ export async function getPayments(filters?: {
   propertyId?: string;
   paymentType?: string;
   search?: string;
+  dateField?: string;
   dateFrom?: string;
   dateTo?: string;
   sortBy?: string;
@@ -95,6 +96,7 @@ export async function getPayments(filters?: {
     propertyId: filters?.propertyId,
     paymentType: filters?.paymentType,
     search: filters?.search,
+    dateField: filters?.dateField,
     dateFrom: filters?.dateFrom,
     dateTo: filters?.dateTo,
   });
