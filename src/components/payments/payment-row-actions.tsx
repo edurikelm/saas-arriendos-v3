@@ -98,7 +98,15 @@ export const ACTION_CONFIG: Record<ActionId, ActionConfig> = {
   regenerate: {
     icon: RefreshCw,
     label: "Regenerar link",
-    tooltip: "Regenerar link de pago (el anterior expiró)",
+    // Sin el motivo entre paréntesis: la acción cubre dos casos —el link venció,
+    // o el cobro falló y hay que reintentar— y "el anterior expiró" es falso en
+    // el segundo cuando nunca hubo link.
+    //
+    // Sigue empezando por la etiqueta visible del botón. El nombre accesible
+    // sale de `tooltip` vía `aria-label`, así que si deja de contener el texto
+    // que se ve, un usuario que dicta "Regenerar link" ya no puede accionarlo
+    // (WCAG 2.5.3, Label in Name).
+    tooltip: "Regenerar link de pago",
     hasLoadingState: true,
   },
   copy: {
@@ -216,6 +224,7 @@ export function PaymentRowActions({
 }: PaymentRowActionsProps) {
   const isPending = payment.status === "PENDING";
   const isCompleted = payment.status === "COMPLETED";
+  const isFailed = payment.status === "FAILED";
   const isMercadoPago = payment.method === "MERCADO_PAGO";
   const isExpired = isPaymentExpired(payment);
 
@@ -223,12 +232,38 @@ export function PaymentRowActions({
   const loadingState = { generatingLinkId, regeneratingLinkId, attachingReceiptId };
 
   // ── Action eligibility ────────────────────────────────────────────────────
+  //
+  // Un pago FAILED no es un estado terminal. `FAILED` agrupa cinco desenlaces
+  // de Mercado Pago —`cancelled`, `rejected`, `refunded` y `charged_back`— y en
+  // los dos primeros el cobro simplemente no se concretó: el dinero todavía
+  // puede entrar, por reintento o por otra vía. Hasta acá NINGUNA acción era
+  // elegible y la celda quedaba con un guion, así que la fila era un callejón
+  // sin salida.
+  //
+  // Lo que se ofrece está atado a lo que el servidor ya acepta hoy, para que
+  // ningún botón termine en un toast de error:
+  //   `markPaymentAsPaid`      solo rechaza COMPLETED          → sirve
+  //   `deletePayment`          no mira el estado               → sirve
+  //   `regeneratePaymentLink`  no mira el estado, pero exige
+  //                            que no haya link vigente        → sirve si falta
+  //                                                              o expiró
+  //   `generatePaymentLink`    exige PENDING                   → NO se ofrece
   const canGenerateLink = isPending && isMercadoPago && !payment.initPoint && onGenerateLink;
   const canCopyLink = isPending && isMercadoPago && payment.initPoint && !isExpired;
   const canRegenerateLink =
-    isPending && isMercadoPago && isExpired && payment.initPoint && onRegenerateLink;
-  const canMarkPaid = isPending && onMarkPaid;
-  const canDelete = isPending && !isMercadoPago && onDeletePayment;
+    isMercadoPago &&
+    Boolean(onRegenerateLink) &&
+    // PENDING: solo cuando el link que existe venció. Sin link el camino es
+    // "Generar", que es otra acción.
+    ((isPending && Boolean(payment.initPoint) && isExpired) ||
+      // FAILED: también cuando nunca hubo link, porque "Generar" exige PENDING
+      // en el servidor y devolvería error.
+      (isFailed && (!payment.initPoint || isExpired)));
+  const canMarkPaid = (isPending || isFailed) && onMarkPaid;
+  // El `!isMercadoPago` de PENDING evita borrar un cobro con un link vivo dado
+  // al cliente. En un pago fallido esa preocupación no aplica: el cobro ya no
+  // va a prosperar por ese camino.
+  const canDelete = ((isPending && !isMercadoPago) || isFailed) && onDeletePayment;
   const canViewReceipt = Boolean(payment.receiptUrl);
   const canDownloadReceipt = isCompleted && isMercadoPago;
   // La acción es elegible si hay un handler (viejo callback o nuevo Popover).

@@ -554,3 +554,124 @@ describe("PaymentRowActions — compact prop", () => {
     expect(btn?.className).toContain("h-7");
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FAILED — el cobro no se concretó, pero el dinero todavía puede entrar
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("PaymentRowActions — pago FAILED", () => {
+  const pasado = "2020-01-01T00:00:00Z";
+  const futuro = "2999-01-01T00:00:00Z";
+
+  /** Todos los handlers, como los pasa /payments. */
+  const handlers = () => ({
+    onGenerateLink: vi.fn(),
+    onRegenerateLink: vi.fn(),
+    onMarkPaid: vi.fn(),
+    onDeletePayment: vi.fn(),
+  });
+
+  async function renderFailed(payment: Partial<Payment>) {
+    const { PaymentRowActions } = await renderComponent();
+    render(<PaymentRowActions payment={createMockPayment({ status: "FAILED", paidAt: null, ...payment })} {...handlers()} />);
+  }
+
+  it("deja de ser un callejón sin salida", async () => {
+    // Antes NINGUNA acción era elegible con FAILED y la celda renderizaba un
+    // guion: no se podía reintentar, marcar pagado ni eliminar.
+    await renderFailed({ method: "MERCADO_PAGO", initPoint: "https://mp/x", expiresAt: futuro });
+
+    expect(screen.queryByText("—")).toBeNull();
+    expect(screen.getAllByRole("button").length).toBeGreaterThan(0);
+  });
+
+  it("siempre ofrece marcar como pagado", async () => {
+    // Es la recuperación real: el cobro online falló y el cliente pagó en
+    // efectivo o por transferencia.
+    await renderFailed({ method: "MERCADO_PAGO", initPoint: "https://mp/x", expiresAt: futuro });
+
+    expect(screen.getByRole("button", { name: /marcar como pagado/i })).toBeTruthy();
+  });
+
+  it("ofrece eliminar, también en Mercado Pago", async () => {
+    // El `!isMercadoPago` de PENDING evita borrar un cobro con un link vivo
+    // dado al cliente. En un pago fallido esa preocupación no aplica.
+    await renderFailed({ method: "MERCADO_PAGO", initPoint: "https://mp/x", expiresAt: futuro });
+
+    expect(screen.getByRole("button", { name: /eliminar/i })).toBeTruthy();
+  });
+
+  it("ofrece regenerar el link cuando el que había venció", async () => {
+    await renderFailed({ method: "MERCADO_PAGO", initPoint: "https://mp/x", expiresAt: pasado });
+
+    expect(screen.getByRole("button", { name: /regenerar link/i })).toBeTruthy();
+  });
+
+  it("ofrece regenerar el link aunque nunca haya habido uno", async () => {
+    // "Generar" exige PENDING en el servidor y devolvería error; "Regenerar" no
+    // mira el estado, así que es el camino que sí funciona.
+    await renderFailed({ method: "MERCADO_PAGO", initPoint: null, expiresAt: null });
+
+    expect(screen.getByRole("button", { name: /regenerar link/i })).toBeTruthy();
+  });
+
+  it("NO ofrece generar link, que el servidor rechazaría", async () => {
+    await renderFailed({ method: "MERCADO_PAGO", initPoint: null, expiresAt: null });
+
+    expect(screen.queryByRole("button", { name: /^generar link/i })).toBeNull();
+  });
+
+  it("con link vencido, regenerar es la primaria y las otras dos van al menú", async () => {
+    // El desplegable de Base UI no se abre en jsdom, así que se afirma que el
+    // disparador existe: solo se renderiza con DOS o más acciones secundarias,
+    // y las únicas elegibles acá son marcar pagado y eliminar. Que el menú
+    // contenga ambas se verificó en el navegador contra la página real.
+    await renderFailed({ method: "MERCADO_PAGO", initPoint: "https://mp/x", expiresAt: pasado });
+
+    expect(screen.getByRole("button", { name: /regenerar link/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /más acciones/i })).toBeTruthy();
+  });
+
+  it("en efectivo o transferencia ofrece marcar pagado y eliminar, sin links", async () => {
+    await renderFailed({ method: "CASH", initPoint: null, expiresAt: null });
+
+    expect(screen.getByRole("button", { name: /marcar como pagado/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /eliminar/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /link/i })).toBeNull();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PENDING no cambia
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("PaymentRowActions — PENDING conserva su comportamiento", () => {
+  it("sin link sigue ofreciendo Generar, no Regenerar", async () => {
+    // Los dos son elegibles para FAILED, pero en PENDING "Generar" es el camino
+    // correcto y "Regenerar" no debe aparecer compitiendo.
+    const { PaymentRowActions } = await renderComponent();
+    render(
+      <PaymentRowActions
+        payment={createMockPayment({ status: "PENDING", paidAt: null, method: "MERCADO_PAGO", initPoint: null, expiresAt: null })}
+        onGenerateLink={vi.fn()}
+        onRegenerateLink={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /generar link/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /regenerar link/i })).toBeNull();
+  });
+
+  it("en Mercado Pago sigue sin ofrecer eliminar", async () => {
+    const { PaymentRowActions } = await renderComponent();
+    render(
+      <PaymentRowActions
+        payment={createMockPayment({ status: "PENDING", paidAt: null, method: "MERCADO_PAGO", initPoint: "https://mp/x", expiresAt: "2999-01-01T00:00:00Z" })}
+        onDeletePayment={vi.fn()}
+        onMarkPaid={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: /eliminar/i })).toBeNull();
+  });
+});
