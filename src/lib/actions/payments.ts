@@ -22,6 +22,7 @@ import {
 } from "@/lib/payments/queries";
 import { paymentLinkExpiresAt } from "@/lib/payments/expiration";
 import { buildPaymentsWhere, overdueBoundary, type PaymentsFilters } from "@/lib/payments/filters";
+import { buildPaymentsOrderBy } from "@/lib/payments/sort";
 import { confirmReservationIfPaid } from "@/lib/reservations/confirmation";
 import { recordDomainEvent } from "@/lib/notifications/record-event";
 import { daysFromTodayDateOnly } from "@/lib/domain/timezone";
@@ -75,6 +76,8 @@ export async function getPayments(filters?: {
   search?: string;
   dateFrom?: string;
   dateTo?: string;
+  sortBy?: string;
+  sortDir?: string;
   page?: number;
   limit?: number;
 }) {
@@ -129,7 +132,9 @@ export async function getPayments(filters?: {
           },
         },
       },
-      orderBy: { createdAt: "desc" },
+      // Lista blanca: `sortBy` y `sortDir` llegan de la URL. Sin clave válida
+      // cae al orden por defecto, `createdAt` desc.
+      orderBy: buildPaymentsOrderBy(filters?.sortBy, filters?.sortDir),
       skip,
       take: limit,
     }),

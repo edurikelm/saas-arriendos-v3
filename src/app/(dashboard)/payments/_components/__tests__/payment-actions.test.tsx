@@ -8,8 +8,12 @@ vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
+const mockPush = vi.fn();
+let currentQuery = "";
+
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: mockRefresh }),
+  useRouter: () => ({ refresh: mockRefresh, push: mockPush }),
+  useSearchParams: () => new URLSearchParams(currentQuery),
 }));
 
 vi.mock("@/lib/actions/payments", () => ({
@@ -286,3 +290,86 @@ describe("PaymentsTableClient - corte por viewport", () => {
   });
 });
 
+
+// ────────────────────────────────────────────────────────────────────────────
+// Orden por columna
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("PaymentsTableClient - orden por columna", () => {
+  beforeEach(() => {
+    setViewport(false);
+    currentQuery = "";
+    mockPush.mockClear();
+  });
+
+  /** Params de la última navegación, ya parseados. */
+  function lastPushedParams(): URLSearchParams {
+    const url = mockPush.mock.calls.at(-1)?.[0] as string;
+    return new URLSearchParams(url.split("?")[1] ?? "");
+  }
+
+  it("ordenar lleva la clave y la dirección a la URL", () => {
+    // El orden lo resuelve el servidor. Ordenar en memoria solo reordenaría la
+    // página actual: con 20 filas por página, un resultado que parece correcto
+    // y no lo es.
+    render(<PaymentsTableClient payments={[createMockPayment()]} />);
+
+    screen.getByRole("button", { name: /^monto/i }).click();
+
+    const params = lastPushedParams();
+    expect(params.get("sortBy")).toBe("monto");
+    expect(params.get("sortDir")).toBe("asc");
+  });
+
+  it("conserva los filtros activos al ordenar", () => {
+    currentQuery = "propertyId=prop-1&status=PENDING&search=Pedro";
+    render(<PaymentsTableClient payments={[createMockPayment()]} />);
+
+    screen.getByRole("button", { name: /^cliente/i }).click();
+
+    const params = lastPushedParams();
+    expect(params.get("propertyId")).toBe("prop-1");
+    expect(params.get("status")).toBe("PENDING");
+    expect(params.get("search")).toBe("Pedro");
+  });
+
+  it("vuelve a la página 1, porque reordenar cambia qué filas caen en ella", () => {
+    currentQuery = "page=3";
+    render(<PaymentsTableClient payments={[createMockPayment()]} />);
+
+    screen.getByRole("button", { name: /^monto/i }).click();
+
+    expect(lastPushedParams().get("page")).toBeNull();
+  });
+
+  it("refleja en la cabecera el orden que viene de la URL", () => {
+    currentQuery = "sortBy=monto&sortDir=desc";
+    render(<PaymentsTableClient payments={[createMockPayment()]} />);
+
+    const monto = Array.from(document.querySelectorAll("th")).find((th) =>
+      th.textContent?.includes("Monto"),
+    );
+    expect(monto?.getAttribute("aria-sort")).toBe("descending");
+  });
+
+  it("apagar el orden borra los dos params, no pasa un tercer valor", () => {
+    currentQuery = "sortBy=monto&sortDir=desc";
+    render(<PaymentsTableClient payments={[createMockPayment()]} />);
+
+    screen.getByRole("button", { name: /^monto/i }).click();
+
+    const params = lastPushedParams();
+    expect(params.get("sortBy")).toBeNull();
+    expect(params.get("sortDir")).toBeNull();
+  });
+
+  it("una dirección inválida en la URL no deja la cabecera ordenada", () => {
+    currentQuery = "sortBy=monto&sortDir=arriba";
+    render(<PaymentsTableClient payments={[createMockPayment()]} />);
+
+    const monto = Array.from(document.querySelectorAll("th")).find((th) =>
+      th.textContent?.includes("Monto"),
+    );
+    expect(monto?.getAttribute("aria-sort")).toBe("none");
+  });
+});

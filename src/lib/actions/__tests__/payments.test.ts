@@ -3914,3 +3914,72 @@ describe('getPayments - contacto del cliente', () => {
     });
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// getPayments - orden por columna
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('getPayments - orden', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  async function stubEmpty() {
+    const { prisma } = await import('@/lib/db/prisma');
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.payment.count).mockResolvedValue(0);
+    vi.mocked(prisma.payment.groupBy).mockResolvedValue([]);
+    return prisma;
+  }
+
+  function lastOrderBy(prisma: any) {
+    return (vi.mocked(prisma.payment.findMany).mock.calls.at(-1)?.[0] as any)?.orderBy;
+  }
+
+  it('sin orden pedido, el historial va del más reciente al más viejo', async () => {
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    const prisma = await stubEmpty();
+
+    const { getPayments } = await import('../payments');
+    await getPayments();
+
+    expect(lastOrderBy(prisma)).toEqual({ createdAt: 'desc' });
+  });
+
+  it('traduce la clave de la vista al campo de la base', async () => {
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    const prisma = await stubEmpty();
+
+    const { getPayments } = await import('../payments');
+    await getPayments({ sortBy: 'cliente', sortDir: 'desc' });
+
+    expect(lastOrderBy(prisma)).toEqual({ reservation: { client: { name: 'desc' } } });
+  });
+
+  it('una clave fuera de la lista blanca cae al orden por defecto', async () => {
+    // `sortBy` llega de la URL sin pasar por ningún formulario.
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    const prisma = await stubEmpty();
+
+    const { getPayments } = await import('../payments');
+    await getPayments({ sortBy: 'mercadoPagoId', sortDir: 'asc' });
+
+    expect(lastOrderBy(prisma)).toEqual({ createdAt: 'desc' });
+  });
+
+  it('el orden convive con los filtros', async () => {
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    const prisma = await stubEmpty();
+
+    const { getPayments } = await import('../payments');
+    await getPayments({ sortBy: 'monto', sortDir: 'desc', status: 'PENDING' });
+
+    const call = vi.mocked(prisma.payment.findMany).mock.calls.at(-1)?.[0] as any;
+    expect(call.orderBy).toEqual({ amount: 'desc' });
+    expect(call.where).toMatchObject({ status: 'PENDING', reservation: { userId: 'user-1' } });
+  });
+});

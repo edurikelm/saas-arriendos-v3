@@ -1,4 +1,5 @@
 import * as React from "react";
+import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type DataTableHeaderAlign = "left" | "right" | "center";
@@ -15,7 +16,23 @@ export type DataTableHeader =
        * llevar el mismo `sticky` y un fondo propio.
        */
       className?: string;
+      /**
+       * Clave de orden de esta columna, en el vocabulario de la VISTA. Con
+       * `sortKey` y `onSortChange`, el `<th>` pasa a ser un botón.
+       *
+       * Solo tiene sentido en columnas cuya primera línea es UN campo. En una
+       * fila a dos niveles hay celdas que agrupan varios datos, y ordenar por
+       * "la columna" no querría decir nada.
+       */
+      sortKey?: string;
     };
+
+export type DataTableSortDirection = "asc" | "desc";
+
+export interface DataTableSort {
+  key: string;
+  dir: DataTableSortDirection;
+}
 
 interface DataTableProps {
   headers: DataTableHeader[];
@@ -35,17 +52,38 @@ interface DataTableProps {
    * compite con esa señal en vez de sumarle jerarquía.
    */
   accentTop?: boolean;
+  /** Orden activo, o `null` para el orden por defecto del caller. */
+  sort?: DataTableSort | null;
+  /**
+   * Avisa el orden siguiente. El primitive resuelve el ciclo —ascendente,
+   * descendente, apagado— para que no lo reimplemente cada tabla, y `null`
+   * significa volver al orden por defecto.
+   */
+  onSortChange?: (next: DataTableSort | null) => void;
+}
+
+/** Ciclo de una columna: asc → desc → apagado. */
+function nextSort(sortKey: string, current: DataTableSort | null | undefined): DataTableSort | null {
+  if (current?.key !== sortKey) return { key: sortKey, dir: "asc" };
+  if (current.dir === "asc") return { key: sortKey, dir: "desc" };
+  return null;
 }
 
 function normalizeHeader(header: DataTableHeader): {
   label: string;
   align: DataTableHeaderAlign;
   className?: string;
+  sortKey?: string;
 } {
   if (typeof header === "string") {
     return { label: header, align: "left" };
   }
-  return { label: header.label, align: header.align ?? "left", className: header.className };
+  return {
+    label: header.label,
+    align: header.align ?? "left",
+    className: header.className,
+    sortKey: header.sortKey,
+  };
 }
 
 function alignClass(align: DataTableHeaderAlign): string {
@@ -54,7 +92,7 @@ function alignClass(align: DataTableHeaderAlign): string {
   return "text-left";
 }
 
-export function DataTable({ headers, children, emptyState, caption, className, minWidth = "640px", accentTop = true }: DataTableProps) {
+export function DataTable({ headers, children, emptyState, caption, className, minWidth = "640px", accentTop = true, sort, onSortChange }: DataTableProps) {
   return (
     <div
       className={cn(
@@ -69,18 +107,66 @@ export function DataTable({ headers, children, emptyState, caption, className, m
           <thead>
             <tr className="border-b bg-muted/50">
               {headers.map((header, idx) => {
-                const { label, align, className: headerClassName } = normalizeHeader(header);
+                const { label, align, className: headerClassName, sortKey } = normalizeHeader(header);
+                const sortable = Boolean(sortKey && onSortChange);
+                const active = sortable && sort?.key === sortKey ? sort : null;
+                // `aria-sort` va en el `<th>`, no en el botón: es la CELDA la
+                // que está ordenada. Las columnas no ordenables lo omiten —
+                // "none" declararía que participan del orden y no lo hacen.
+                const ariaSort = !sortable
+                  ? undefined
+                  : active
+                    ? active.dir === "asc"
+                      ? "ascending"
+                      : "descending"
+                    : "none";
+
                 return (
                   <th
                     key={`${label}-${idx}`}
                     scope="col"
+                    aria-sort={ariaSort}
                     className={cn(
                       "px-6 py-4 align-middle text-[10px] font-bold uppercase tracking-wider text-muted-foreground",
                       alignClass(align),
                       headerClassName
                     )}
                   >
-                    {label}
+                    {sortable ? (
+                      <button
+                        type="button"
+                        onClick={() => onSortChange?.(nextSort(sortKey!, sort))}
+                        // El nombre accesible arranca por la etiqueta visible,
+                        // y el resto dice qué hace el click (WCAG 2.5.3).
+                        aria-label={`${label}: ${
+                          active?.dir === "asc"
+                            ? "ordenar descendente"
+                            : active
+                              ? "quitar el orden"
+                              : "ordenar ascendente"
+                        }`}
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded transition-colors hover:text-foreground",
+                          // Hereda el uppercase y el tracking del `th`: el botón
+                          // no debe verse distinto de una cabecera cualquiera.
+                          active && "text-foreground",
+                          align === "right" && "flex-row-reverse",
+                        )}
+                      >
+                        <span>{label}</span>
+                        {active ? (
+                          active.dir === "asc" ? (
+                            <ArrowUp className="size-3" aria-hidden="true" />
+                          ) : (
+                            <ArrowDown className="size-3" aria-hidden="true" />
+                          )
+                        ) : (
+                          <ChevronsUpDown className="size-3 opacity-40" aria-hidden="true" />
+                        )}
+                      </button>
+                    ) : (
+                      label
+                    )}
                   </th>
                 );
               })}

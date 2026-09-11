@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Badge } from "@/components/ui/badge";
-import { DataTable, type DataTableHeader } from "@/components/ui/data-table";
+import { DataTable, type DataTableHeader, type DataTableSort } from "@/components/ui/data-table";
 import { PaymentRowActions } from "./payment-row-actions";
 import { cn } from "@/lib/utils";
 import { formatDateOnly } from "@/lib/domain/timezone";
@@ -226,6 +226,8 @@ export function PaymentsTable({
   attachingReceiptId,
   compact = false,
   emptyState,
+  sort,
+  onSortChange,
 }: {
   payments: Payment[];
   onGenerateLink?: (paymentId: string) => void;
@@ -241,6 +243,9 @@ export function PaymentsTable({
   attachingReceiptId?: string | null;
   compact?: boolean;
   emptyState?: React.ReactNode;
+  /** Orden activo. Solo lo usa la variante `"full"`. */
+  sort?: DataTableSort | null;
+  onSortChange?: (next: DataTableSort | null) => void;
 }) {
   // Auto-detect installment column visibility for the "reservation" variant:
   // if any payment has installment data, show the columns; otherwise hide them.
@@ -262,10 +267,12 @@ export function PaymentsTable({
   // Build headers array based on resolved column visibility
   const headers: DataTableHeader[] = isFull
     ? [
-        "Cliente",
+        // Solo ordenan las columnas cuya primera línea es UN campo. Concepto
+        // agrupa badge, cuota y descripción, y Acciones no es un dato.
+        { label: "Cliente", sortKey: "cliente" },
         "Concepto",
-        { label: "Monto", align: "right" },
-        "Estado",
+        { label: "Monto", align: "right", sortKey: "monto" },
+        { label: "Estado", sortKey: "estado" },
         {
           label: "Acciones",
           align: "right",
@@ -306,7 +313,13 @@ export function PaymentsTable({
         );
 
   return (
-    <DataTable headers={headers} caption="Listado de pagos" emptyState={emptyState}>
+    <DataTable
+      headers={headers}
+      caption="Listado de pagos"
+      emptyState={emptyState}
+      sort={isFull ? sort : undefined}
+      onSortChange={isFull ? onSortChange : undefined}
+    >
       {sortedPayments.length === 0 ? null : sortedPayments.map((payment) => {
         const statusCfg = paymentStatusConfig[payment.status] || paymentStatusConfig.PENDING;
         const isPending = payment.status === "PENDING";
