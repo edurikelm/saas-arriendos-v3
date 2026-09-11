@@ -24,6 +24,7 @@ import {
   getPaymentByMercadoPagoId,
 } from "@/lib/payments/queries";
 import { paymentLinkExpiresAt } from "@/lib/payments/expiration";
+import { parseAmountQuery } from "@/lib/payments/search";
 import { confirmReservationIfPaid } from "@/lib/reservations/confirmation";
 import { recordDomainEvent } from "@/lib/notifications/record-event";
 import { daysFromTodayDateOnly, startOfMonthInSantiago } from "@/lib/domain/timezone";
@@ -74,6 +75,7 @@ export async function getPayments(filters?: {
   method?: string;
   propertyId?: string;
   paymentType?: string;
+  search?: string;
   dateFrom?: string;
   dateTo?: string;
   page?: number;
@@ -125,6 +127,35 @@ export async function getPayments(filters?: {
   // base, no lo reemplaza.
   if (filters?.propertyId) {
     where.reservation = { ...(where.reservation as object), propertyId: filters.propertyId };
+  }
+
+  // Búsqueda libre sobre las cuatro cosas por las que se busca un cobro:
+  // quién lo debe, de qué propiedad, de qué se trata y de cuánto es.
+  //
+  // Va como cláusula de un `AND` y no asignando `where.OR` directo: el `OR`
+  // suelto es una sola clave del objeto, así que un segundo filtro que también
+  // quisiera usarla pisaría a este en silencio. Mismo criterio que
+  // `getReservations`.
+  const search = filters?.search?.trim();
+  if (search) {
+    const amount = parseAmountQuery(search);
+
+    where.AND = [
+      {
+        OR: [
+          { reservation: { client: { name: { contains: search, mode: "insensitive" } } } },
+          { reservation: { property: { name: { contains: search, mode: "insensitive" } } } },
+          // `title` y `description` solo existen en cobros EXTRA; en los de
+          // arriendo son null y `contains` simplemente no calza.
+          { title: { contains: search, mode: "insensitive" } },
+          { description: { contains: search, mode: "insensitive" } },
+          // Monto exacto. Un `startsWith` sobre los dígitos pediría castear la
+          // columna a texto en SQL, y "busco el pago de 450.000" es la forma
+          // real en que alguien busca por monto — no por prefijo.
+          ...(amount !== null ? [{ amount: { equals: amount } }] : []),
+        ],
+      },
+    ];
   }
 
   const page = filters?.page ?? 1;
