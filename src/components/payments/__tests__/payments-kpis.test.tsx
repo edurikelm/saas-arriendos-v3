@@ -53,3 +53,50 @@ describe('PaymentsKpis', () => {
     expect(container.querySelectorAll('.text-warning').length).toBe(0);
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// Grilla en móvil
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('PaymentsKpis - grilla', () => {
+  /** El contenedor de la grilla es el padre del primer card. */
+  function grid(): HTMLElement {
+    return screen.getByLabelText('Cobrado este mes').parentElement as HTMLElement;
+  }
+
+  it('usa dos columnas en móvil y tres desde sm', () => {
+    // `grid-cols-3` también en móvil dejaba cada card en 101px a 375px, con el
+    // icono saliéndose hasta 29px. Dos columnas es lo que ya usan dashboard,
+    // calendar y reports.
+    render(<PaymentsKpis kpis={defaultKpis} />);
+
+    // Sobre la lista de clases, no sobre el string: `sm:grid-cols-3` contiene
+    // a `grid-cols-3` como subcadena y un `not.toContain` daría falso negativo.
+    const clases = Array.from(grid().classList);
+    expect(clases).toContain('grid-cols-2');
+    expect(clases).toContain('sm:grid-cols-3');
+    expect(clases).not.toContain('grid-cols-3');
+  });
+
+  it('la tercera card ocupa la fila completa en móvil', () => {
+    // Son tres cards en una grilla de dos columnas: sin esto la última queda
+    // sola dejando un hueco del mismo tamaño al lado.
+    render(<PaymentsKpis kpis={defaultKpis} />);
+
+    const tercera = screen.getByLabelText('Próximos vencimientos').parentElement;
+    expect(tercera?.className).toContain('col-span-2');
+    expect(tercera?.className).toContain('sm:col-span-1');
+  });
+
+  it('las tres cards esconden el icono bajo sm', () => {
+    // `density="compact"`. Con el ancho ya resuelto, el icono pasa a competir
+    // con la cifra, que es el dato.
+    render(<PaymentsKpis kpis={defaultKpis} />);
+
+    for (const label of ['Cobrado este mes', 'Pendiente de cobro', 'Próximos vencimientos']) {
+      const icono = screen.getByLabelText(label).querySelector('[aria-hidden="true"]');
+      expect(icono?.className).toContain('hidden');
+      expect(icono?.className).toContain('sm:flex');
+    }
+  });
+});

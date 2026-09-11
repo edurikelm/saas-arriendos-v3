@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { localDateKey } from "@/lib/domain/timezone";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown, Search, X } from "lucide-react";
 
 interface Property {
   id: string;
@@ -24,6 +24,7 @@ interface PaymentsFiltersProps {
   method: string;
   status: string;
   paymentType: string;
+  search: string;
   dateFrom: string;
   dateTo: string;
 }
@@ -51,6 +52,7 @@ export function PaymentsFilters({
   method: initialMethod,
   status: initialStatus,
   paymentType: initialPaymentType,
+  search: initialSearch,
   dateFrom: initialDateFrom,
   dateTo: initialDateTo,
 }: PaymentsFiltersProps) {
@@ -61,6 +63,7 @@ export function PaymentsFilters({
   const [method, setMethod] = useState(initialMethod);
   const [status, setStatus] = useState(initialStatus);
   const [paymentType, setPaymentType] = useState(initialPaymentType);
+  const [search, setSearch] = useState(initialSearch);
   const [dateFrom, setDateFrom] = useState(initialDateFrom);
   const [dateTo, setDateTo] = useState(initialDateTo);
 
@@ -79,6 +82,18 @@ export function PaymentsFilters({
     },
     [router, searchParams]
   );
+
+  // Debounce de la búsqueda.
+  //
+  // El guard compara contra lo que ya está en la URL en vez de saltarse el
+  // primer render. Así no navega al montar, y BORRAR el campo sí navega: un
+  // `if (search)` como el de las fechas de abajo dejaría el filtro pegado en la
+  // URL y el listado filtrado con el input vacío.
+  useEffect(() => {
+    if (search === initialSearch) return;
+    const timer = setTimeout(() => updateUrl({ search }), 400);
+    return () => clearTimeout(timer);
+  }, [search, initialSearch, updateUrl]);
 
   // Debounce date range changes
   useEffect(() => {
@@ -120,6 +135,7 @@ export function PaymentsFilters({
     setMethod("");
     setStatus("");
     setPaymentType("");
+    setSearch("");
     setDateFrom("");
     setDateTo("");
     router.push("/payments");
@@ -132,7 +148,7 @@ export function PaymentsFilters({
     setDateTo(range?.to ? localDateKey(range.to) : "");
   }
 
-  const hasFilters = propertyId || method || status || paymentType || dateFrom || dateTo;
+  const hasFilters = propertyId || method || status || paymentType || search || dateFrom || dateTo;
   const hasDateRange = dateFrom || dateTo;
 
   // Chip labels
@@ -147,6 +163,21 @@ export function PaymentsFilters({
 
   return (
     <div className="space-y-4">
+      {/* Buscador. Un solo campo sobre cliente, propiedad, concepto y monto —
+          hasta acá la única forma de encontrar un cobro puntual era filtrar y
+          paginar. Mismo patrón y mismo debounce que /reservations. */}
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <input
+          type="search"
+          aria-label="Buscar pagos"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar por cliente, propiedad, concepto o monto..."
+          className="h-10 w-full rounded-lg border border-border bg-card pl-12 pr-4 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/60"
+        />
+      </div>
+
       {/* Filter Chips Row */}
       <div className="flex flex-wrap items-center gap-2">
         {/* Propiedad */}

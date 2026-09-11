@@ -3696,3 +3696,140 @@ describe('getPayments - aislamiento por owner', () => {
     );
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// getPayments - búsqueda libre
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('getPayments - búsqueda', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  async function stubEmptyQueries() {
+    const { prisma } = await import('@/lib/db/prisma');
+    vi.mocked(prisma.payment.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.payment.count).mockResolvedValue(0);
+    vi.mocked(prisma.payment.groupBy).mockResolvedValue([]);
+    return prisma;
+  }
+
+  /** Cláusulas del OR de búsqueda con el que se llamó a `findMany`. */
+  function searchClauses(findMany: { mock: { calls: unknown[][] } }): unknown[] {
+    const call = findMany.mock.calls.at(-1)?.[0] as {
+      where?: { AND?: Array<{ OR?: unknown[] }> };
+    };
+    return call?.where?.AND?.[0]?.OR ?? [];
+  }
+
+  it('busca por cliente, propiedad, título y descripción', async () => {
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    const prisma = await stubEmptyQueries();
+
+    const { getPayments } = await import('../payments');
+    await getPayments({ search: 'María' });
+
+    const clauses = searchClauses(vi.mocked(prisma.payment.findMany));
+    expect(clauses).toEqual([
+      { reservation: { client: { name: { contains: 'María', mode: 'insensitive' } } } },
+      { reservation: { property: { name: { contains: 'María', mode: 'insensitive' } } } },
+      { title: { contains: 'María', mode: 'insensitive' } },
+      { description: { contains: 'María', mode: 'insensitive' } },
+    ]);
+  });
+
+  it('agrega el monto exacto cuando el texto es un número', async () => {
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    const prisma = await stubEmptyQueries();
+
+    const { getPayments } = await import('../payments');
+    await getPayments({ search: '$450.000' });
+
+    const clauses = searchClauses(vi.mocked(prisma.payment.findMany));
+    expect(clauses).toContainEqual({ amount: { equals: 450000 } });
+  });
+
+  it('NO agrega cláusula de monto cuando el texto no trae dígitos', async () => {
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    const prisma = await stubEmptyQueries();
+
+    const { getPayments } = await import('../payments');
+    await getPayments({ search: 'Pedro' });
+
+    const clauses = searchClauses(vi.mocked(prisma.payment.findMany));
+    expect(clauses).toHaveLength(4);
+    expect(JSON.stringify(clauses)).not.toContain('amount');
+  });
+
+  it('la búsqueda no desplaza el ancla de owner', async () => {
+    // El `OR` va como cláusula de un `AND` justamente para no pisar otras
+    // claves del where. El aislamiento por cuenta tiene que sobrevivirlo.
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    const prisma = await stubEmptyQueries();
+
+    const { getPayments } = await import('../payments');
+    await getPayments({ search: 'Pedro' });
+
+    expect(vi.mocked(prisma.payment.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          reservation: { userId: 'user-1' },
+          deletedAt: null,
+        }),
+      })
+    );
+  });
+
+  it('convive con los demás filtros', async () => {
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    const prisma = await stubEmptyQueries();
+
+    const { getPayments } = await import('../payments');
+    await getPayments({ search: 'Pedro', status: 'PENDING', propertyId: 'prop-9' });
+
+    expect(vi.mocked(prisma.payment.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: 'PENDING',
+          reservation: { userId: 'user-1', propertyId: 'prop-9' },
+          AND: expect.any(Array),
+        }),
+      })
+    );
+  });
+
+  it('ignora una búsqueda de puros espacios', async () => {
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    const prisma = await stubEmptyQueries();
+
+    const { getPayments } = await import('../payments');
+    await getPayments({ search: '   ' });
+
+    const call = vi.mocked(prisma.payment.findMany).mock.calls.at(-1)?.[0] as {
+      where?: { AND?: unknown };
+    };
+    expect(call?.where?.AND).toBeUndefined();
+  });
+
+  it('el count aplica la misma búsqueda que findMany', async () => {
+    // Si divergen, el contador y la paginación mienten sobre el resultado.
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+    const prisma = await stubEmptyQueries();
+
+    const { getPayments } = await import('../payments');
+    await getPayments({ search: 'Pedro' });
+
+    expect(vi.mocked(prisma.payment.count)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ AND: expect.any(Array) }),
+      })
+    );
+  });
+});

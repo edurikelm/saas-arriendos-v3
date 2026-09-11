@@ -19,6 +19,7 @@ function renderFilters(props: {
   method?: string;
   status?: string;
   paymentType?: string;
+  search?: string;
   dateFrom?: string;
   dateTo?: string;
 }) {
@@ -29,6 +30,7 @@ function renderFilters(props: {
       method={props.method ?? ""}
       status={props.status ?? ""}
       paymentType={props.paymentType ?? ""}
+      search={props.search ?? ""}
       dateFrom={props.dateFrom ?? ""}
       dateTo={props.dateTo ?? ""}
     />
@@ -86,5 +88,37 @@ describe("PaymentsFilters - dropdown chips", () => {
     // The Tipo chip should have active styling (contains "Extra" text)
     const tipoChip = screen.getByRole("button", { name: /extra/i });
     expect(tipoChip).toBeTruthy();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Buscador
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("PaymentsFilters - buscador", () => {
+  it("renderiza el campo con su etiqueta accesible", () => {
+    renderFilters({});
+
+    const input = screen.getByLabelText("Buscar pagos");
+    expect(input).toBeTruthy();
+    expect(input.getAttribute("placeholder")).toContain("cliente");
+  });
+
+  it("refleja la búsqueda que ya viene en la URL", () => {
+    renderFilters({ search: "María" });
+
+    expect(screen.getByLabelText<HTMLInputElement>("Buscar pagos").value).toBe("María");
+  });
+
+  it("cuenta como filtro activo, así que ofrece limpiarlo", () => {
+    renderFilters({ search: "María" });
+
+    expect(screen.getByRole("button", { name: /limpiar filtros/i })).toBeTruthy();
+  });
+
+  it("sin búsqueda ni filtros no ofrece limpiar", () => {
+    renderFilters({});
+
+    expect(screen.queryByRole("button", { name: /limpiar filtros/i })).toBeNull();
   });
 });

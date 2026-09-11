@@ -18,6 +18,7 @@ interface PaymentsPageProps {
     method?: string;
     status?: string;
     paymentType?: string;
+    search?: string;
     dateFrom?: string;
     dateTo?: string;
     page?: string;
@@ -37,6 +38,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
       method: params.method,
       status: params.status,
       paymentType: params.paymentType,
+      search: params.search,
       dateFrom: params.dateFrom,
       dateTo: params.dateTo,
       page,
@@ -51,6 +53,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
     method: params.method ?? "",
     status: params.status ?? "",
     paymentType: params.paymentType ?? "",
+    search: params.search ?? "",
     dateFrom: params.dateFrom ?? "",
     dateTo: params.dateTo ?? "",
   };
@@ -91,9 +94,11 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
           <ReceiptText className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
           <h3 className="text-lg font-medium">No hay pagos</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            {hasFilters
-              ? "Ningún pago coincide con los filtros seleccionados."
-              : "Aún no tienes pagos registrados."}
+            {params.search
+              ? `Ningún pago coincide con "${params.search}".`
+              : hasFilters
+                ? "Ningún pago coincide con los filtros seleccionados."
+                : "Aún no tienes pagos registrados."}
           </p>
           {hasFilters && (
             <Link
