@@ -396,3 +396,137 @@ export function buildCollectionReportRows(
     return left - right;
   });
 }
+
+// ─── Aging buckets ──────────────────────────────────────────────────────────────
+
+export type AgingBucketKey = "DUE_SOON" | "OVERDUE_1_30" | "OVERDUE_31_60" | "OVERDUE_60_PLUS";
+
+export interface AgingBucket {
+  key: AgingBucketKey;
+  label: string;
+  amount: number;
+  count: number;
+}
+
+export interface AgingSummary {
+  buckets: AgingBucket[];
+  totalDue: number;
+  totalOverdue: number;
+}
+
+const AGING_BUCKET_LABELS: Record<AgingBucketKey, string> = {
+  DUE_SOON: "Vence en 7 días",
+  OVERDUE_1_30: "Vencido 1–30 días",
+  OVERDUE_31_60: "Vencido 31–60 días",
+  OVERDUE_60_PLUS: "Vencido más de 60",
+};
+
+const AGING_BUCKET_ORDER: AgingBucketKey[] = [
+  "DUE_SOON",
+  "OVERDUE_1_30",
+  "OVERDUE_31_60",
+  "OVERDUE_60_PLUS",
+];
+
+/**
+ * Días de atraso de una fila de cobranza respecto de `now`, en wall-time
+ * `America/Santiago` (ADR-0020). `0` si la fila no está vencida
+ * (`overdue === 0`).
+ *
+ * `nextDueDate === null` con `overdue > 0` es un caso borde defensivo (no
+ * debería ocurrir en la práctica: una fila vencida siempre debería poder
+ * fechar su vencimiento) — se reporta `1` como piso conservador: hay atraso,
+ * pero no se puede fechar con precisión.
+ */
+export function daysOverdueForRow(
+  row: Pick<CollectionReportRow, "overdue" | "nextDueDate">,
+  now: Date = new Date(),
+): number {
+  if (row.overdue <= 0) return 0;
+  if (!row.nextDueDate) return 1;
+  return Math.max(1, -daysFromTodayDateOnly(row.nextDueDate, now));
+}
+
+/**
+ * Clasifica una fila vencida (`overdue > 0`) en su tramo de atraso.
+ */
+function classifyOverdueBucket(
+  row: Pick<CollectionReportRow, "overdue" | "nextDueDate">,
+  now: Date,
+): AgingBucketKey {
+  const daysLate = daysOverdueForRow(row, now);
+  if (daysLate <= 30) return "OVERDUE_1_30";
+  if (daysLate <= 60) return "OVERDUE_31_60";
+  return "OVERDUE_60_PLUS";
+}
+
+/**
+ * Agrupa filas de cobranza (`CollectionReportRow[]`) en tramos de antigüedad
+ * de deuda ("aging buckets"), para dar una vista de riesgo de cobranza.
+ *
+ * Reglas (todas en wall-time `America/Santiago`, ADR-0020):
+ *  - Filas con `totalToCollect <= 0` se ignoran (sin deuda, no hay tramo).
+ *  - `overdue > 0` → el tramo lo determinan los días de atraso de
+ *    `nextDueDate` respecto de hoy, el monto que suma es `overdue` y el
+ *    conteo es `row.overdueCount` (cuotas RESERVATION vencidas, no filas —
+ *    una reserva MONTHLY con 3 cuotas vencidas cuenta 3, no 1). Caso borde:
+ *    `nextDueDate === null` con `overdue > 0` no debería dejar
+ *    `overdueCount` en 0 (ver doc de `overdueCount`), pero si ocurriera se
+ *    usa `1` como piso para no reportar un tramo con monto y cero cobros.
+ *  - `overdue === 0` → la fila va a `DUE_SOON` con monto `totalToCollect` y
+ *    conteo `row.dueSoonCount` (cuotas RESERVATION en la ventana), solo si
+ *    `nextDueDate` vence dentro de los próximos 7 días inclusive. Si vence
+ *    después, o no hay `nextDueDate`, la fila no entra a ningún tramo (está
+ *    en seguimiento, no es una alerta).
+ *
+ * Siempre devuelve los 4 tramos, en orden, aunque estén en 0 — para que la
+ * UI pueda renderizar una escalera fija sin condicionales por tramo vacío.
+ */
+export function buildAgingBuckets(
+  rows: CollectionReportRow[],
+  now: Date = new Date(),
+): AgingSummary {
+  const amounts: Record<AgingBucketKey, number> = {
+    DUE_SOON: 0,
+    OVERDUE_1_30: 0,
+    OVERDUE_31_60: 0,
+    OVERDUE_60_PLUS: 0,
+  };
+  const counts: Record<AgingBucketKey, number> = {
+    DUE_SOON: 0,
+    OVERDUE_1_30: 0,
+    OVERDUE_31_60: 0,
+    OVERDUE_60_PLUS: 0,
+  };
+
+  for (const row of rows) {
+    if (row.totalToCollect <= 0) continue;
+
+    if (row.overdue > 0) {
+      const bucket = classifyOverdueBucket(row, now);
+      amounts[bucket] += row.overdue;
+      counts[bucket] += Math.max(row.overdueCount, 1);
+      continue;
+    }
+
+    if (!row.nextDueDate) continue;
+    const daysUntilDue = daysFromTodayDateOnly(row.nextDueDate, now);
+    if (daysUntilDue < 0 || daysUntilDue > 7) continue;
+
+    amounts.DUE_SOON += row.totalToCollect;
+    counts.DUE_SOON += row.dueSoonCount;
+  }
+
+  const buckets: AgingBucket[] = AGING_BUCKET_ORDER.map((key) => ({
+    key,
+    label: AGING_BUCKET_LABELS[key],
+    amount: amounts[key],
+    count: counts[key],
+  }));
+
+  const totalOverdue =
+    amounts.OVERDUE_1_30 + amounts.OVERDUE_31_60 + amounts.OVERDUE_60_PLUS;
+  const totalDue = amounts.DUE_SOON + totalOverdue;
+
+  return { buckets, totalDue, totalOverdue };
+}

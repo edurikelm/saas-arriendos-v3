@@ -18,6 +18,7 @@ import {
   isEligibleCashPayment,
   buildMonthlyCollectedCash,
   buildAnnualCollectedCash,
+  buildCashByMethod,
   type CashPaymentInput,
 } from "@/lib/reports/revenue-series";
 import { BUSINESS_TIME_ZONE } from "@/lib/domain/timezone";
@@ -418,5 +419,92 @@ describe("buildAnnualCollectedCash", () => {
 
     expect(result.byMonth[0].monthKey).toBe("2026-01");
     expect(result.byMonth[11].monthKey).toBe("2026-12");
+  });
+});
+
+// ─── buildCashByMethod ────────────────────────────────────────────────────────
+
+describe("buildCashByMethod", () => {
+  const rangeStart = new Date(Date.UTC(2026, 0, 1, 3, 0, 0)); // Jan 1 00:00 Santiago
+  const rangeEnd = new Date(Date.UTC(2026, 0, 31, 23, 59, 59)); // Jan 31, well within range
+
+  it("groups collected cash by method within the range", () => {
+    const payments: CashPaymentInput[] = [
+      makePayment({ id: "p1", amount: 100000, status: "COMPLETED", paymentType: "RESERVATION", method: "MERCADO_PAGO", paidAt: new Date("2026-01-10T15:00:00.000Z") }),
+      makePayment({ id: "p2", amount: 200000, status: "COMPLETED", paymentType: "RESERVATION", method: "CASH", paidAt: new Date("2026-01-15T15:00:00.000Z") }),
+      makePayment({ id: "p3", amount: 300000, status: "COMPLETED", paymentType: "RESERVATION", method: "TRANSFER", paidAt: new Date("2026-01-20T15:00:00.000Z") }),
+    ];
+
+    const result = buildCashByMethod(payments, rangeStart, rangeEnd);
+
+    expect(result).toEqual({ MERCADO_PAGO: 100000, CASH: 200000, TRANSFER: 300000 });
+  });
+
+  it("sums multiple payments of the same method", () => {
+    const payments: CashPaymentInput[] = [
+      makePayment({ id: "p1", amount: 50000, status: "COMPLETED", paymentType: "RESERVATION", method: "CASH", paidAt: new Date("2026-01-10T15:00:00.000Z") }),
+      makePayment({ id: "p2", amount: 70000, status: "COMPLETED", paymentType: "RESERVATION", method: "CASH", paidAt: new Date("2026-01-11T15:00:00.000Z") }),
+    ];
+
+    const result = buildCashByMethod(payments, rangeStart, rangeEnd);
+
+    expect(result).toEqual({ CASH: 120000 });
+  });
+
+  it("uses the same predicate as isEligibleCashPayment — excludes PENDING / FAILED / EXTRA / deletedAt / null paidAt", () => {
+    const payments: CashPaymentInput[] = [
+      makePayment({ id: "p1", amount: 100000, status: "PENDING", paymentType: "RESERVATION", method: "CASH", paidAt: new Date("2026-01-10T15:00:00.000Z") }),
+      makePayment({ id: "p2", amount: 200000, status: "FAILED", paymentType: "RESERVATION", method: "CASH", paidAt: new Date("2026-01-10T15:00:00.000Z") }),
+      makePayment({ id: "p3", amount: 300000, status: "COMPLETED", paymentType: "EXTRA", method: "CASH", paidAt: new Date("2026-01-10T15:00:00.000Z") }),
+      makePayment({ id: "p4", amount: 400000, status: "COMPLETED", paymentType: "RESERVATION", method: "CASH", paidAt: null }),
+      makePayment({ id: "p5", amount: 500000, status: "COMPLETED", paymentType: "RESERVATION", method: "CASH", paidAt: new Date("2026-01-10T15:00:00.000Z"), deletedAt: new Date("2026-01-11") }),
+      makePayment({ id: "p6", amount: 600000, status: "COMPLETED", paymentType: "RESERVATION", method: "CASH", paidAt: new Date("2026-01-10T15:00:00.000Z") }),
+    ];
+
+    const result = buildCashByMethod(payments, rangeStart, rangeEnd);
+
+    expect(result).toEqual({ CASH: 600000 });
+  });
+
+  it("excludes payments with paidAt outside the range", () => {
+    const payments: CashPaymentInput[] = [
+      makePayment({ id: "p1", amount: 100000, status: "COMPLETED", paymentType: "RESERVATION", method: "CASH", paidAt: new Date("2026-02-01T15:00:00.000Z") }),
+    ];
+
+    const result = buildCashByMethod(payments, rangeStart, rangeEnd);
+
+    expect(result).toEqual({});
+  });
+
+  it("includes cash from CANCELLED reservations — no reservation-status filter at this seam (ADR-0029)", () => {
+    // buildCashByMethod, like collectedCash, doesn't know about reservation
+    // status: the caller (decision-summary.ts) already includes cancelled
+    // reservations' payments in the flat `allPayments` list it builds.
+    const payments: CashPaymentInput[] = [
+      makePayment({ id: "p1", amount: 100000, status: "COMPLETED", paymentType: "RESERVATION", method: "CASH", paidAt: new Date("2026-01-10T15:00:00.000Z") }),
+    ];
+
+    const result = buildCashByMethod(payments, rangeStart, rangeEnd);
+
+    expect(result).toEqual({ CASH: 100000 });
+  });
+
+  it("reconciles with a manually-summed collectedCash over the same payments/range", () => {
+    const payments: CashPaymentInput[] = [
+      makePayment({ id: "p1", amount: 100000, status: "COMPLETED", paymentType: "RESERVATION", method: "MERCADO_PAGO", paidAt: new Date("2026-01-05T15:00:00.000Z") }),
+      makePayment({ id: "p2", amount: 200000, status: "COMPLETED", paymentType: "RESERVATION", method: "CASH", paidAt: new Date("2026-01-10T15:00:00.000Z") }),
+      makePayment({ id: "p3", amount: 300000, status: "COMPLETED", paymentType: "RESERVATION", method: "TRANSFER", paidAt: new Date("2026-01-15T15:00:00.000Z") }),
+      makePayment({ id: "p4", amount: 999999, status: "PENDING", paymentType: "RESERVATION", method: "CASH", paidAt: new Date("2026-01-15T15:00:00.000Z") }), // ineligible
+    ];
+
+    const collectedCash = payments
+      .filter(isEligibleCashPayment)
+      .reduce((sum, p) => sum + p.amount, 0);
+
+    const result = buildCashByMethod(payments, rangeStart, rangeEnd);
+    const sumByMethod = Object.values(result).reduce((a, b) => a + b, 0);
+
+    expect(sumByMethod).toBe(collectedCash);
+    expect(sumByMethod).toBe(600000);
   });
 });

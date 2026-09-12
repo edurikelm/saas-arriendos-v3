@@ -7,10 +7,11 @@ import { startOfMonth, endOfMonth, format, startOfYear, endOfYear } from "date-f
 import { BUSINESS_TIME_ZONE, nightsBetweenDateOnly } from "@/lib/domain/timezone";
 import {
   buildCollectionReportRows,
-  type CollectionDebtStatusFilter,
-  type CollectionBillingFilter,
+  buildAgingBuckets,
+  type AgingSummary,
   type CollectionReportRow,
 } from "@/lib/reports/collection";
+import { selectTopClientDebtors, type ClientDebtor } from "@/lib/reports/trend";
 import { type ReportDecisionSummary } from "@/lib/reports/decision-summary";
 import { buildAnnualCollectedCash, type CashPaymentInput } from "@/lib/reports/revenue-series";
 import { sumCollectionTotals } from "@/lib/reports/kpis";
@@ -433,6 +434,44 @@ export async function getReservationsReportForExport(options?: {
   });
 }
 
+/**
+ * Cuenta cuántas reservas traería `getReservationsReportForExport` con los
+ * mismos filtros, SIN traer las filas ni sus relaciones.
+ *
+ * Existe para que los botones de exportación de `/reports` (sección "Llevarse
+ * el período") puedan declarar cuántas filas van a exportar ANTES del click,
+ * sin repetir la query pesada de `getReservationsReportForExport` en cada
+ * cambio de filtro — un `count()` es una query distinta y mucho más barata
+ * que un `findMany` con `select` de relaciones, así que esto no reintroduce
+ * el costo que ADR-0030 sacó del ciclo de filtrado.
+ */
+export async function getReservationsReportCount(options?: {
+  propertyId?: string;
+  startDate?: Date;
+  endDate?: Date;
+}): Promise<number> {
+  const session = await getSession();
+  if (!session) return 0;
+
+  const where: Prisma.ReservationWhereInput = {
+    userId: session.userId,
+  };
+
+  if (options?.propertyId) {
+    where.propertyId = options.propertyId;
+  }
+
+  if (options?.startDate) {
+    where.startDate = { gte: options.startDate };
+  }
+
+  if (options?.endDate) {
+    where.endDate = { lte: options.endDate };
+  }
+
+  return prisma.reservation.count({ where });
+}
+
 export interface ReservationsReportFilters {
   propertyId?: string;
   status?: string;
@@ -520,39 +559,34 @@ export async function getReservationsReport(
   return { data, total, page, totalPages: Math.ceil(total / limit) };
 }
 
-export interface CollectionReportFilters {
-  billingType?: CollectionBillingFilter;
-  propertyId?: string;
-  clientId?: string;
-  dueDateFrom?: Date;
-  dueDateTo?: Date;
-  debtStatus?: CollectionDebtStatusFilter;
-  page?: number;
-  limit?: number;
-}
-
 export interface CollectionReportTotals {
   totalToCollect: number;
   totalOverdue: number;
   pendingInvoices: number;
 }
 
-export async function getCollectionReport(filters?: CollectionReportFilters): Promise<
-  | (PaginatedResponse<CollectionReportRow> & { totals: CollectionReportTotals })
-  | []
-> {
-  const session = await getSession();
-  if (!session) return [];
-
+/**
+ * Trae las reservas activas (no CANCELLED) del owner en scope, opcionalmente
+ * filtradas por propiedad, con sus pagos no borrados, y arma las filas de
+ * cobranza vía `buildCollectionReportRows`.
+ *
+ * Único consumidor: `getOutstandingSnapshot`, que necesita el universo
+ * COMPLETO de deuda activa (`billingType: "GENERAL"`, `debtStatus: "ACTIVE"`)
+ * — no un subconjunto filtrable por cliente/tipo de arriendo/vencimiento ni
+ * paginado. Esa combinación existía como tabla paginada (`getCollectionReport`)
+ * y se retiró en ADR-0035 por duplicar `/payments`; la firma de este helper
+ * se simplificó junto con ese borrado a lo que su único caller necesita.
+ */
+async function loadCollectionReportRows(
+  userId: string,
+  propertyId: string | undefined,
+  now: Date,
+): Promise<CollectionReportRow[]> {
   const reservations = await prisma.reservation.findMany({
     where: {
-      userId: session.userId,
-      ...(filters?.propertyId ? { propertyId: filters.propertyId } : {}),
-      ...(filters?.clientId ? { clientId: filters.clientId } : {}),
+      userId,
+      ...(propertyId ? { propertyId } : {}),
       status: { not: "CANCELLED" },
-      ...(filters?.billingType && filters.billingType !== "GENERAL"
-        ? { billingType: filters.billingType }
-        : {}),
     },
     select: {
       id: true,
@@ -590,7 +624,7 @@ export async function getCollectionReport(filters?: CollectionReportFilters): Pr
     },
   });
 
-  const rows = buildCollectionReportRows(
+  return buildCollectionReportRows(
     reservations.map((reservation) => ({
       id: reservation.id,
       propertyId: reservation.propertyId,
@@ -609,20 +643,47 @@ export async function getCollectionReport(filters?: CollectionReportFilters): Pr
         deletedAt: payment.deletedAt,
       })),
     })),
-    filters
+    { propertyId, billingType: "GENERAL", debtStatus: "ACTIVE", now },
   );
+}
 
-  const page = filters?.page || 1;
-  const limit = filters?.limit || 10;
-  const total = rows.length;
-  const totalPages = Math.ceil(total / limit);
-  const skip = (page - 1) * limit;
-  const data = rows.slice(skip, skip + limit);
+export interface OutstandingSnapshot {
+  aging: AgingSummary;
+  topDebtors: ClientDebtor[];
+  totals: CollectionReportTotals;
+}
 
-  // Computar totales sobre el CONJUNTO COMPLETO (no la página) para los KPIs
-  const totals = sumCollectionTotals(rows);
+/**
+ * Agregados de deuda activa para la sección "Dónde está la plata que falta"
+ * de `/reports` (foto del presente, no del rango seleccionado).
+ *
+ * Antes, el cliente pedía el conjunto COMPLETO de `CollectionReportRow`
+ * (con un límite artificial de 10.000) solo para reducirlo en el browser a
+ * 4 tramos de antigüedad y 5 nombres — cruzando el límite servidor→cliente
+ * con cientos de objetos de ~17 campos que nunca se muestran. Esta action
+ * calcula los agregados en
+ * el servidor con el mismo camino de datos (`loadCollectionReportRows`) y
+ * devuelve SOLO los agregados.
+ *
+ * `now` se toma una sola vez y se pasa explícito a `buildAgingBuckets` y
+ * `selectTopClientDebtors` para que ambos agregados usen el mismo instante
+ * — el cálculo de atraso ocurre en el servidor, no depende del reloj del
+ * browser (wall-time `America/Santiago`, ADR-0020).
+ */
+export async function getOutstandingSnapshot(
+  filters?: { propertyId?: string },
+): Promise<OutstandingSnapshot | null> {
+  const session = await getSession();
+  if (!session) return null;
 
-  return { data, total, page, totalPages, totals };
+  const now = new Date();
+  const rows = await loadCollectionReportRows(session.userId, filters?.propertyId, now);
+
+  return {
+    aging: buildAgingBuckets(rows, now),
+    topDebtors: selectTopClientDebtors(rows, 5, now),
+    totals: sumCollectionTotals(rows),
+  };
 }
 
 // ─── Decision Summary ───────────────────────────────────────────────────────────
@@ -631,8 +692,6 @@ export interface DecisionSummaryFilters {
   propertyId?: string;
   rangeStart: Date;
   rangeEnd: Date;
-  /** Year for the annual cash series. Defaults to current year. */
-  annualYear?: number;
 }
 
 /**
@@ -650,7 +709,7 @@ export async function getDecisionSummary(
   const session = await getSession();
   if (!session) return null;
 
-  const { propertyId, rangeStart, rangeEnd, annualYear } = filters;
+  const { propertyId, rangeStart, rangeEnd } = filters;
 
   // Fetch all properties the user owns (optionally filtered by propertyId).
   // propertyId is always combined with userId (ownerId) for security.
@@ -746,6 +805,5 @@ export async function getDecisionSummary(
     properties: decisionProperties,
     rangeStart,
     rangeEnd,
-    annualYear,
   });
 }

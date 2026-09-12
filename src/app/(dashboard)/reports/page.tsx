@@ -1,6 +1,5 @@
 import { startOfMonth, endOfMonth } from "date-fns";
-import { getCollectionReport, getDecisionSummary } from "@/lib/actions/reports";
-import type { CollectionReportRow } from "@/lib/reports/collection";
+import { getDecisionSummary, getOutstandingSnapshot, type OutstandingSnapshot } from "@/lib/actions/reports";
 import type { ReportDecisionSummary } from "@/lib/reports/decision-summary";
 import { getProperties } from "@/lib/actions/properties";
 import { getSession } from "@/lib/auth/session";
@@ -18,38 +17,16 @@ export default async function ReportsPage() {
   const defaultEndDate = endOfMonth(now);
 
   const [
-    initialCollection,
+    initialSnapshot,
     initialProperties,
     initialSession,
     initialDecisionSummary,
   ] = await Promise.all([
-    getCollectionReport({
-      billingType: "GENERAL",
-      clientId: undefined,
-      debtStatus: "ACTIVE",
-      dueDateFrom: undefined,
-      dueDateTo: undefined,
-      page: 1,
-      limit: 10,
-    }),
+    getOutstandingSnapshot(),
     getProperties(),
     getSession(),
-    getDecisionSummary({ rangeStart: defaultStartDate, rangeEnd: defaultEndDate, propertyId: undefined, annualYear: now.getFullYear() }),
+    getDecisionSummary({ rangeStart: defaultStartDate, rangeEnd: defaultEndDate, propertyId: undefined }),
   ]);
-
-  // Extract collection pagination info and totals
-  let initialCollectionRows: CollectionReportRow[] = [];
-  let initialCollectionTotal = 0;
-  let initialCollectionTotalPages = 0;
-  let initialCollectionTotals = { totalToCollect: 0, totalOverdue: 0, pendingInvoices: 0 };
-  if (initialCollection && "data" in initialCollection) {
-    initialCollectionRows = initialCollection.data;
-    initialCollectionTotal = initialCollection.total;
-    initialCollectionTotalPages = initialCollection.totalPages;
-    if ("totals" in initialCollection) {
-      initialCollectionTotals = initialCollection.totals;
-    }
-  }
 
   const initialSessionInfo: SessionInfo = {
     plan: initialSession?.plan ?? null,
@@ -57,10 +34,7 @@ export default async function ReportsPage() {
 
   return (
     <ReportsClient
-      initialCollectionRows={initialCollectionRows}
-      initialCollectionTotal={initialCollectionTotal}
-      initialCollectionTotalPages={initialCollectionTotalPages}
-      initialCollectionTotals={initialCollectionTotals}
+      initialSnapshot={initialSnapshot as OutstandingSnapshot | null}
       initialProperties={initialProperties as Property[]}
       initialSession={initialSessionInfo}
       initialDecisionSummary={initialDecisionSummary as ReportDecisionSummary | null}
