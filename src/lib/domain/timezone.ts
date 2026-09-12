@@ -111,6 +111,24 @@ export function dateKeyToDayIndex(dateKey: string): number {
 }
 
 /**
+ * Suma (o resta, con `days` negativo) días calendario a una clave
+ * `YYYY-MM-DD`, devolviendo otra clave `YYYY-MM-DD`.
+ *
+ * Aritmética date-only pura sobre componentes Y/M/D vía `Date.UTC` — el mismo
+ * enfoque que `dateKeyToDayIndex`, inmune a DST porque nunca pasa por horas de
+ * wall-time. `Date.UTC` normaliza el overflow/underflow de `day` (mes o año
+ * distinto) automáticamente.
+ *
+ * Preferir esto sobre `addDays` de date-fns cuando el desplazamiento es sobre
+ * un `dateKey` de negocio: `addDays` opera en wall-time del runtime, no en
+ * días calendario puros (ver `src/lib/payments/expiration.ts`).
+ */
+export function addDaysToDateKey(dateKey: string, days: number): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
+/**
  * Clave de dia calendario (YYYY-MM-DD) de un `Date` producido por un
  * date-picker del navegador (`react-day-picker` entrega `new Date(a, m, d)`,
  * medianoche LOCAL del navegador).

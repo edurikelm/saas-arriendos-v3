@@ -1,28 +1,21 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import type { ReservationDetail, PropertySummary } from "./excel";
+import { PAYMENT_METHOD_LABELS, type ReservationDetail, type PropertySummary } from "./excel";
 
-/** Error thrown when export details exceed the safe limit for PDF rendering. */
-export class ExportDetailsLimitError extends Error {
-  readonly total: number;
-  constructor(total: number) {
-    super(`El reporte contiene ${total} reservas, superando el límite de 100 filas para PDF.`);
-    this.name = "ExportDetailsLimitError";
-    this.total = total;
-  }
-}
-
+/**
+ * No hay límite de filas: `jspdf-autotable` pagina el cuerpo de la tabla
+ * automáticamente (una tabla de 250 filas produce ~8 páginas), así que no
+ * hay truncamiento silencioso que proteger. Un límite anterior de 100 filas
+ * lanzaba `ExportDetailsLimitError` antes de intentar renderizar — medido:
+ * innecesario, ver `src/lib/export-utils/__tests__/pdf.test.ts` (250 filas,
+ * multi-página, sin excepción). Se retiró junto con esa clase.
+ */
 export function exportToPDF(
   details: ReservationDetail[],
   summaries: PropertySummary[],
-  dateRange: { from: Date; to: Date } | null
+  dateRange: { from: Date; to: Date } | null,
+  cashByMethod?: Record<string, number>
 ) {
-  // P4: detect silent truncation and throw friendly error
-  if (details.length > 100) {
-    console.warn(`[exportToPDF] ${details.length} details exceeds limit of 100 — refusing to render partial PDF.`);
-    throw new ExportDetailsLimitError(details.length);
-  }
-
   const doc = new jsPDF();
 
   const title = dateRange
@@ -61,8 +54,32 @@ export function exportToPDF(
     footStyles: { fillColor: [229, 231, 235], textColor: [0, 0, 0], fontStyle: "bold" },
   });
 
-  const lastAutoTable = (doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable;
-  const finalY = lastAutoTable?.finalY ?? 40;
+  const getFinalY = (fallback: number) =>
+    (doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? fallback;
+
+  let finalY = getFinalY(40);
+
+  if (cashByMethod) {
+    const methodEntries = Object.entries(cashByMethod);
+    const totalByMethod = methodEntries.reduce((acc, [, amount]) => acc + amount, 0);
+
+    doc.text("Por método de pago", 14, finalY + 15);
+
+    autoTable(doc, {
+      startY: finalY + 20,
+      head: [["Método", "Cobrado"]],
+      body: methodEntries.map(([method, amount]) => [
+        PAYMENT_METHOD_LABELS[method] ?? method,
+        amount.toLocaleString("CLP"),
+      ]),
+      foot: [["TOTAL", totalByMethod.toLocaleString("CLP")]],
+      theme: "striped",
+      headStyles: { fillColor: [59, 130, 246] },
+      footStyles: { fillColor: [229, 231, 235], textColor: [0, 0, 0], fontStyle: "bold" },
+    });
+
+    finalY = getFinalY(finalY);
+  }
 
   doc.text("Detalle de Reservaciones", 14, finalY + 15);
 

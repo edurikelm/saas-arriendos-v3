@@ -41,6 +41,7 @@ function makePayment(overrides: {
   amount: number;
   status: "PENDING" | "COMPLETED" | "FAILED";
   paymentType: "RESERVATION" | "EXTRA";
+  method?: "MERCADO_PAGO" | "CASH" | "TRANSFER";
   paidAt?: Date | null;
   deletedAt?: Date | null;
   dueDate?: Date | null;
@@ -50,6 +51,7 @@ function makePayment(overrides: {
     amount: overrides.amount,
     status: overrides.status,
     paymentType: overrides.paymentType,
+    method: overrides.method ?? "CASH",
     paidAt: overrides.paidAt ?? null,
     deletedAt: overrides.deletedAt ?? null,
     dueDate: overrides.dueDate ?? null,
@@ -1268,5 +1270,310 @@ describe("buildDecisionSummary — integration with byBillingType DAILY/MONTHLY"
     expect(result.byBillingType.DAILY.reservationCount).toBe(2);
     expect(result.byBillingType.MONTHLY.reservationCount).toBe(1);
     expect(result.reservationCount).toBe(3);
+  });
+});
+
+// ─── accruedRevenue ──────────────────────────────────────────────────────────
+//
+// Fixtures use 15:00/16:00 UTC for startDate/endDate — how Reservation dates
+// actually arrive from Prisma (see CONTEXT.md, "Dos formas de fecha en el
+// cliente"), NOT midnight. Midnight fixtures would still pass because the
+// epoch-day arithmetic underneath is hour-agnostic, but they'd hide a real
+// off-by-one if that arithmetic ever changed to be timezone-sensitive.
+
+const SEP_2026_START = new Date("2026-09-01T00:00:00.000Z");
+const SEP_2026_END = new Date("2026-09-30T23:59:59.999Z");
+const AUG_2026_START = new Date("2026-08-01T00:00:00.000Z");
+const AUG_2026_END = new Date("2026-08-31T23:59:59.999Z");
+
+describe("buildDecisionSummary — accruedRevenue", () => {
+  it("DAILY: reserva que cruza el borde del rango se prorratea por noches (parcial)", () => {
+    // 28-ago a 5-sep: 9 noches totales (28,29,30,31,1,2,3,4,5), 90000 total
+    // → 10000/noche. Dentro de septiembre (1-30): 5 noches (1,2,3,4,5) → 50000.
+    const reservations: DecisionSummaryInput["reservations"] = [
+      makeReservation({
+        id: "res-daily-edge",
+        propertyId: "prop-1",
+        billingType: "DAILY",
+        status: "CONFIRMED",
+        startDate: new Date("2026-08-28T15:00:00.000Z"),
+        endDate: new Date("2026-09-05T16:00:00.000Z"),
+        totalPrice: 90000,
+        payments: [],
+      }),
+    ];
+
+    const result = buildDecisionSummary({
+      reservations,
+      properties: [makeProperty("prop-1", "Edificio Centro", 5)],
+      rangeStart: SEP_2026_START,
+      rangeEnd: SEP_2026_END,
+    });
+
+    expect(result.accruedRevenue).toBeCloseTo(50000, 6);
+    expect(result.byBillingType.DAILY.accruedRevenue).toBeCloseTo(50000, 6);
+    expect(result.byProperty[0].accruedRevenue).toBeCloseTo(50000, 6);
+  });
+
+  it("MONTHLY: cuota fuera del rango aunque la barra lo toque → 0 (caso límite de prorateMonthlyRevenueToRange)", () => {
+    // 20-ago a 5-sep: getInclusiveMonths = 1 (día 5 < día 20), la única cuota
+    // vive en agosto. Vista desde septiembre, aunque la barra cruce esos 5
+    // días, el share es 0 — la cuota ya se facturó en agosto.
+    const reservations: DecisionSummaryInput["reservations"] = [
+      makeReservation({
+        id: "res-monthly-edge",
+        propertyId: "prop-1",
+        billingType: "MONTHLY",
+        status: "CONFIRMED",
+        startDate: new Date("2026-08-20T15:00:00.000Z"),
+        endDate: new Date("2026-09-05T16:00:00.000Z"),
+        totalPrice: 100000,
+        payments: [],
+      }),
+    ];
+
+    const resultSep = buildDecisionSummary({
+      reservations,
+      properties: [makeProperty("prop-1", "Edificio Centro", 5)],
+      rangeStart: SEP_2026_START,
+      rangeEnd: SEP_2026_END,
+    });
+    expect(resultSep.accruedRevenue).toBe(0);
+    expect(resultSep.byBillingType.MONTHLY.accruedRevenue).toBe(0);
+
+    // Vista desde agosto (el mes de la cuota), el share es el total completo.
+    const resultAug = buildDecisionSummary({
+      reservations,
+      properties: [makeProperty("prop-1", "Edificio Centro", 5)],
+      rangeStart: AUG_2026_START,
+      rangeEnd: AUG_2026_END,
+    });
+    expect(resultAug.accruedRevenue).toBe(100000);
+  });
+
+  it("excluye reservas CANCELLED", () => {
+    const reservations: DecisionSummaryInput["reservations"] = [
+      makeReservation({
+        id: "res-cancelled",
+        propertyId: "prop-1",
+        billingType: "DAILY",
+        status: "CANCELLED",
+        startDate: new Date("2026-09-10T15:00:00.000Z"),
+        endDate: new Date("2026-09-15T16:00:00.000Z"),
+        totalPrice: 200000,
+        payments: [],
+      }),
+    ];
+
+    const result = buildDecisionSummary({
+      reservations,
+      properties: [makeProperty("prop-1", "Edificio Centro", 5)],
+      rangeStart: SEP_2026_START,
+      rangeEnd: SEP_2026_END,
+    });
+
+    expect(result.accruedRevenue).toBe(0);
+    expect(result.byProperty[0].accruedRevenue).toBe(0);
+  });
+});
+
+describe("buildDecisionSummary — accruedRevenue reconciliation (invariant)", () => {
+  it("sum(byProperty.accruedRevenue) === accruedRevenue, y byBillingType.DAILY + MONTHLY === accruedRevenue", () => {
+    // Escenario mixto: 4 propiedades.
+    //  - prop-1: DAILY íntegramente dentro del rango → se devenga completo.
+    //  - prop-2: MONTHLY íntegramente dentro del rango → cuota completa.
+    //  - prop-3: DAILY que cruza el borde del rango (prorrateo parcial) +
+    //    una reserva CANCELLED que debe quedar fuera por completo.
+    //  - prop-4: sin actividad (queda en 0, pero cuenta en byProperty).
+    const reservations: DecisionSummaryInput["reservations"] = [
+      makeReservation({
+        id: "res-daily-full",
+        propertyId: "prop-1",
+        billingType: "DAILY",
+        status: "CONFIRMED",
+        startDate: new Date("2026-09-05T15:00:00.000Z"),
+        endDate: new Date("2026-09-10T16:00:00.000Z"), // 6 noches, íntegras en sept
+        totalPrice: 60000,
+        payments: [],
+      }),
+      makeReservation({
+        id: "res-monthly-full",
+        propertyId: "prop-2",
+        billingType: "MONTHLY",
+        status: "CONFIRMED",
+        startDate: new Date("2026-09-01T15:00:00.000Z"),
+        endDate: new Date("2026-09-30T16:00:00.000Z"), // 1 mes, íntegro en sept
+        totalPrice: 400000,
+        payments: [],
+      }),
+      makeReservation({
+        id: "res-daily-edge",
+        propertyId: "prop-3",
+        billingType: "DAILY",
+        status: "CONFIRMED",
+        // 28-ago a 5-sep: 9 noches totales, 90000 → 10000/noche.
+        // Dentro de septiembre: 5 noches (1..5) → 50000.
+        startDate: new Date("2026-08-28T15:00:00.000Z"),
+        endDate: new Date("2026-09-05T16:00:00.000Z"),
+        totalPrice: 90000,
+        payments: [],
+      }),
+      makeReservation({
+        id: "res-cancelled",
+        propertyId: "prop-3",
+        billingType: "DAILY",
+        status: "CANCELLED",
+        startDate: new Date("2026-09-10T15:00:00.000Z"),
+        endDate: new Date("2026-09-15T16:00:00.000Z"),
+        totalPrice: 200000, // debe quedar completamente fuera
+        payments: [],
+      }),
+    ];
+
+    const result = buildDecisionSummary({
+      reservations,
+      properties: [
+        makeProperty("prop-1", "Edificio Centro", 5),
+        makeProperty("prop-2", "Casa Playa", 3),
+        makeProperty("prop-3", "Depto Norte", 2),
+        makeProperty("prop-4", "Local Sur", 4), // sin actividad
+      ],
+      rangeStart: SEP_2026_START,
+      rangeEnd: SEP_2026_END,
+    });
+
+    // Valores esperados por propiedad, para no solo validar la invariante
+    // contra sí misma.
+    const byId = (id: string) => result.byProperty.find((p) => p.propertyId === id)!;
+    expect(byId("prop-1").accruedRevenue).toBeCloseTo(60000, 6);
+    expect(byId("prop-2").accruedRevenue).toBeCloseTo(400000, 6);
+    expect(byId("prop-3").accruedRevenue).toBeCloseTo(50000, 6); // solo la DAILY, la CANCELLED no aporta
+    expect(byId("prop-4").accruedRevenue).toBeCloseTo(0, 6);
+
+    expect(result.accruedRevenue).toBeCloseTo(510000, 6);
+
+    // Invariante 1: la suma por propiedad reconstruye el total.
+    const sumByProperty = result.byProperty.reduce((sum, p) => sum + p.accruedRevenue, 0);
+    expect(sumByProperty).toBeCloseTo(result.accruedRevenue, 6);
+
+    // Invariante 2: la suma por billing type reconstruye el total.
+    const sumByBillingType =
+      result.byBillingType.DAILY.accruedRevenue + result.byBillingType.MONTHLY.accruedRevenue;
+    expect(sumByBillingType).toBeCloseTo(result.accruedRevenue, 6);
+  });
+});
+
+// ─── cash.byMethod ────────────────────────────────────────────────────────────
+
+describe("buildDecisionSummary — cash.byMethod", () => {
+  it(
+    "invariante: sum(Object.values(cash.byMethod)) === collectedCash, con los tres " +
+      "métodos y un pago de reserva CANCELLED (que SÍ cuenta en collectedCash, ADR-0029)",
+    () => {
+      const reservations: DecisionSummaryInput["reservations"] = [
+        makeReservation({
+          id: "res-cash",
+          propertyId: "prop-1",
+          billingType: "DAILY",
+          status: "CONFIRMED",
+          startDate: new Date("2026-01-05"),
+          endDate: new Date("2026-01-10"),
+          totalPrice: 100000,
+          payments: [
+            makePayment({
+              amount: 100000,
+              status: "COMPLETED",
+              paymentType: "RESERVATION",
+              method: "CASH",
+              paidAt: new Date("2026-01-05"),
+            }),
+          ],
+        }),
+        makeReservation({
+          id: "res-transfer",
+          propertyId: "prop-1",
+          billingType: "DAILY",
+          status: "CONFIRMED",
+          startDate: new Date("2026-01-06"),
+          endDate: new Date("2026-01-11"),
+          totalPrice: 200000,
+          payments: [
+            makePayment({
+              amount: 200000,
+              status: "COMPLETED",
+              paymentType: "RESERVATION",
+              method: "TRANSFER",
+              paidAt: new Date("2026-01-06"),
+            }),
+          ],
+        }),
+        makeReservation({
+          id: "res-mp",
+          propertyId: "prop-1",
+          billingType: "DAILY",
+          status: "CONFIRMED",
+          startDate: new Date("2026-01-07"),
+          endDate: new Date("2026-01-12"),
+          totalPrice: 300000,
+          payments: [
+            makePayment({
+              amount: 300000,
+              status: "COMPLETED",
+              paymentType: "RESERVATION",
+              method: "MERCADO_PAGO",
+              paidAt: new Date("2026-01-07"),
+            }),
+          ],
+        }),
+        makeReservation({
+          id: "res-cancelled",
+          propertyId: "prop-1",
+          billingType: "DAILY",
+          status: "CANCELLED",
+          startDate: new Date("2026-01-08"),
+          endDate: new Date("2026-01-13"),
+          totalPrice: 50000,
+          payments: [
+            makePayment({
+              amount: 50000,
+              status: "COMPLETED",
+              paymentType: "RESERVATION",
+              method: "CASH",
+              paidAt: new Date("2026-01-08"),
+            }),
+          ],
+        }),
+      ];
+
+      const result = buildDecisionSummary({
+        reservations,
+        properties: [makeProperty("prop-1", "Edificio Centro", 5)],
+        rangeStart: JAN_2026_START,
+        rangeEnd: JAN_2026_END,
+      });
+
+      expect(result.collectedCash).toBe(650000); // 100k + 200k + 300k + 50k cancelada
+      expect(result.cash.byMethod).toEqual({
+        CASH: 150000, // 100k activa + 50k cancelada
+        TRANSFER: 200000,
+        MERCADO_PAGO: 300000,
+      });
+
+      const sumByMethod = Object.values(result.cash.byMethod).reduce((a, b) => a + b, 0);
+      expect(sumByMethod).toBe(result.collectedCash);
+    },
+  );
+
+  it("no tiene campo `annual` — la card de resumen anual se eliminó (ADR-0035)", () => {
+    const result = buildDecisionSummary({
+      reservations: [],
+      properties: [makeProperty("prop-1", "Edificio Centro", 5)],
+      rangeStart: JAN_2026_START,
+      rangeEnd: JAN_2026_END,
+    });
+
+    expect(result.cash).not.toHaveProperty("annual");
+    expect(result.cash).toHaveProperty("byMonth");
+    expect(result.cash).toHaveProperty("byMethod");
   });
 });

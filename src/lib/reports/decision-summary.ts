@@ -18,10 +18,14 @@
  * - Date-only arithmetic (timezone-agnostic epoch-day).
  */
 
-import { clipNightsToRange as clipNightsToRangeUtil } from "@/lib/reports/kpis";
+import {
+  clipNightsToRange as clipNightsToRangeUtil,
+  prorateRevenueToRange,
+  prorateMonthlyRevenueToRange,
+} from "@/lib/reports/kpis";
 import {
   buildMonthlyCollectedCash,
-  buildAnnualCollectedCash,
+  buildCashByMethod,
   type CashPaymentInput as RevenueCashPaymentInput,
 } from "@/lib/reports/revenue-series";
 import { BUSINESS_TIME_ZONE } from "@/lib/domain/timezone";
@@ -64,6 +68,7 @@ export interface DecisionByBillingTypeEntry {
   collectedCash: number;
   collectedCashFromCancelledReservations: number;
   outstandingBalance: number;
+  accruedRevenue: number;
   occupiedNightUnits: number;
   capacityNightUnits: number;
   occupancyRate: number;
@@ -77,6 +82,7 @@ export interface DecisionByPropertyEntry {
   collectedCash: number;
   collectedCashFromCancelledReservations: number;
   outstandingBalance: number;
+  accruedRevenue: number;
   occupiedNightUnits: number;
   capacityNightUnits: number;
   occupancyRate: number;
@@ -87,6 +93,7 @@ export interface ReportDecisionSummary {
   collectedCash: number;
   collectedCashFromCancelledReservations: number;
   outstandingBalance: number;
+  accruedRevenue: number;
   occupiedNightUnits: number;
   capacityNightUnits: number;
   occupancyRate: number;
@@ -98,10 +105,15 @@ export interface ReportDecisionSummary {
   /** Array for cross-boundary serialization (Server→Client). */
   byProperty: DecisionByPropertyEntry[];
   activity: DecisionActivity;
-  /** Cash-basis revenue series — MonthlyCollectedCash[] + AnnualCollectedCash */
+  /**
+   * Cash-basis revenue series del rango seleccionado — `byMonth` (una entrada
+   * por mes, zero-filled) y `byMethod` (desglose por método de pago sobre el
+   * mismo predicado y el mismo conjunto de pagos que `collectedCash`).
+   * Invariante: `sum(Object.values(cash.byMethod)) === collectedCash`.
+   */
   cash: {
     byMonth: import("@/lib/reports/revenue-series").MonthlyCollectedCash[];
-    annual: import("@/lib/reports/revenue-series").AnnualCollectedCash;
+    byMethod: Record<string, number>;
   };
 }
 
@@ -110,8 +122,6 @@ export interface DecisionSummaryInput {
   properties: DecisionPropertyInput[];
   rangeStart: Date;
   rangeEnd: Date;
-  /** Year for annual cash series (defaults to current year). */
-  annualYear?: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -150,11 +160,40 @@ function emptyBillingEntry(): DecisionByBillingTypeEntry {
     collectedCash: 0,
     collectedCashFromCancelledReservations: 0,
     outstandingBalance: 0,
+    accruedRevenue: 0,
     occupiedNightUnits: 0,
     capacityNightUnits: 0,
     occupancyRate: 0,
     reservationCount: 0,
   };
+}
+
+/**
+ * Devengado del período: prorrateo de `totalPrice` de una reserva no
+ * CANCELLED que intersecta el rango, según su `billingType`. `totalPrice`
+ * ya incluye `unitsBooked` — no se multiplica de nuevo.
+ */
+function computeAccruedRevenue(
+  reservation: DecisionReservationInput,
+  rangeStart: Date,
+  rangeEnd: Date,
+): number {
+  if (reservation.billingType === "DAILY") {
+    return prorateRevenueToRange(
+      Number(reservation.totalPrice),
+      reservation.startDate,
+      reservation.endDate,
+      rangeStart,
+      rangeEnd,
+    );
+  }
+  return prorateMonthlyRevenueToRange(
+    Number(reservation.totalPrice),
+    reservation.startDate,
+    reservation.endDate,
+    rangeStart,
+    rangeEnd,
+  );
 }
 
 function deriveActivity(
@@ -251,14 +290,16 @@ export function buildDecisionSummary(input: DecisionSummaryInput): ReportDecisio
     outstandingBalance += Math.max(Number(res.totalPrice) - totalPaidToDate, 0);
   }
 
-  // ── Occupancy ────────────────────────────────────────────────────────────────
+  // ── Occupancy + accrued revenue ─────────────────────────────────────────────
   let occupiedNightUnits = 0;
+  let accruedRevenue = 0;
   const reservationCount = intersectingActive.length;
   let hasDaily = false;
   let hasMonthly = false;
 
   for (const res of intersectingActive) {
     occupiedNightUnits += computeOccupiedNightUnits(res, rangeStart, rangeEnd);
+    accruedRevenue += computeAccruedRevenue(res, rangeStart, rangeEnd);
     if (res.billingType === "DAILY") hasDaily = true;
     else hasMonthly = true;
   }
@@ -279,13 +320,15 @@ export function buildDecisionSummary(input: DecisionSummaryInput): ReportDecisio
   const dailyRes = intersectingActive.filter((r) => r.billingType === "DAILY");
   const monthlyRes = intersectingActive.filter((r) => r.billingType === "MONTHLY");
 
-  // Occupancy per billing type
+  // Occupancy + accrued revenue per billing type
   for (const res of dailyRes) {
     byBillingType.DAILY.occupiedNightUnits += computeOccupiedNightUnits(res, rangeStart, rangeEnd);
+    byBillingType.DAILY.accruedRevenue += computeAccruedRevenue(res, rangeStart, rangeEnd);
     byBillingType.DAILY.reservationCount += 1;
   }
   for (const res of monthlyRes) {
     byBillingType.MONTHLY.occupiedNightUnits += computeOccupiedNightUnits(res, rangeStart, rangeEnd);
+    byBillingType.MONTHLY.accruedRevenue += computeAccruedRevenue(res, rangeStart, rangeEnd);
     byBillingType.MONTHLY.reservationCount += 1;
   }
 
@@ -366,6 +409,12 @@ export function buildDecisionSummary(input: DecisionSummaryInput): ReportDecisio
       0,
     );
 
+    // Accrued revenue (devengado): prorated totalPrice of intersecting non-CANCELLED reservations.
+    const propAccrued = propIntersectingActive.reduce(
+      (acc, r) => acc + computeAccruedRevenue(r, rangeStart, rangeEnd),
+      0,
+    );
+
     // Outstanding (all completed RESERVATION payments, paid-to-date)
     let propOutstanding = 0;
     for (const res of propIntersectingActive) {
@@ -401,6 +450,7 @@ export function buildDecisionSummary(input: DecisionSummaryInput): ReportDecisio
       collectedCash: propCash,
       collectedCashFromCancelledReservations: propCashCancelled,
       outstandingBalance: propOutstanding,
+      accruedRevenue: propAccrued,
       occupiedNightUnits: propOcc,
       capacityNightUnits: propCapacity,
       occupancyRate: propCapacity > 0 ? Math.round((propOcc / propCapacity) * 100) : 0,
@@ -432,8 +482,6 @@ export function buildDecisionSummary(input: DecisionSummaryInput): ReportDecisio
     }
   }
 
-  const annualYear = input.annualYear ?? new Date().getFullYear();
-
   const cashByMonth = buildMonthlyCollectedCash(
     allPayments,
     rangeStart,
@@ -442,17 +490,13 @@ export function buildDecisionSummary(input: DecisionSummaryInput): ReportDecisio
     cancelledPaymentIds,
   );
 
-  const cashAnnual = buildAnnualCollectedCash(
-    allPayments,
-    annualYear,
-    BUSINESS_TIME_ZONE,
-    cancelledPaymentIds,
-  );
+  const cashByMethod = buildCashByMethod(allPayments, rangeStart, rangeEnd);
 
   return {
     collectedCash,
     collectedCashFromCancelledReservations,
     outstandingBalance,
+    accruedRevenue,
     occupiedNightUnits,
     capacityNightUnits: totalCapacity,
     occupancyRate,
@@ -462,7 +506,7 @@ export function buildDecisionSummary(input: DecisionSummaryInput): ReportDecisio
     activity: deriveActivity(hasDaily, hasMonthly),
     cash: {
       byMonth: cashByMonth,
-      annual: cashAnnual,
+      byMethod: cashByMethod,
     },
   };
 }

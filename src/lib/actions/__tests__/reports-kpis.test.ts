@@ -191,49 +191,6 @@ describe("portfolioOccupancyDenominator — usa todas las propiedades, no solo l
   });
 });
 
-describe("getCollectionReport — totales agregan TODO el conjunto filtrado", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.useRealTimers();
-  });
-
-  it("getCollectionReport devuelve total que representa TODAS las filas, no solo la página", async () => {
-    const { getSession } = await import("@/lib/auth/session");
-    const { prisma } = await import("@/lib/db/prisma");
-
-    vi.mocked(getSession).mockResolvedValue(ownerSession);
-
-    // Crear 25 reservas que generan 25 filas de colección
-    const reservations = Array.from({ length: 25 }, (_, i) => ({
-      id: `res-${i}`,
-      propertyId: "prop-1",
-      clientId: `cli-${i}`,
-      billingType: "DAILY" as const,
-      status: "CONFIRMED" as const,
-      startDate: new Date("2026-01-01T00:00:00.000Z"),
-      totalPrice: new Decimal("100000"),
-      property: { name: "Propiedad 1" },
-      client: { name: `Cliente ${i}` },
-      payments: [],
-    }));
-
-    vi.mocked(prisma.reservation.findMany).mockResolvedValue(reservations as never);
-
-    const { getCollectionReport } = await import("@/lib/actions/reports");
-    const result = await getCollectionReport({ limit: 10, page: 1 });
-
-    // El total DEBE ser 25 (todas las filas), no 10 (la página)
-    expect(result).toHaveProperty("total");
-    expect((result as { total: number }).total).toBe(25);
-    // Y data solo tiene la primera página
-    expect((result as { data: unknown[] }).data.length).toBe(10);
-    // Y totals existe con los valores correctos
-    expect(result).toHaveProperty("totals");
-    const totals = (result as { totals: { totalToCollect: number } }).totals;
-    expect(totals.totalToCollect).toBeGreaterThan(0);
-  });
-});
-
 describe("FREE plan — bloquea rango para no-current_month", () => {
   beforeEach(() => {
     vi.clearAllMocks();

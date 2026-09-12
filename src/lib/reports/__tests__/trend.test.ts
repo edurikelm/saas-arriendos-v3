@@ -97,6 +97,7 @@ describe("selectTopDebtors", () => {
     collectedCash: 0,
     collectedCashFromCancelledReservations: 0,
     outstandingBalance,
+    accruedRevenue: 0,
     occupiedNightUnits: 0,
     capacityNightUnits: 0,
     occupancyRate: 0,
@@ -208,6 +209,7 @@ describe("computeGroupedByPropertyFromSummary — ADR-0029 export semantics", ()
       collectedCash,
       collectedCashFromCancelledReservations: 0,
       outstandingBalance,
+      accruedRevenue: 0,
       occupiedNightUnits,
       capacityNightUnits: 0,
       occupancyRate: 0,
@@ -220,6 +222,7 @@ describe("computeGroupedByPropertyFromSummary — ADR-0029 export semantics", ()
       collectedCash: entries.reduce((s, e) => s + e.collectedCash, 0),
       collectedCashFromCancelledReservations: 0,
       outstandingBalance: entries.reduce((s, e) => s + e.outstandingBalance, 0),
+      accruedRevenue: 0,
       occupiedNightUnits: entries.reduce((s, e) => s + e.occupiedNightUnits, 0),
       capacityNightUnits: 0,
       occupancyRate: 0,
@@ -227,7 +230,7 @@ describe("computeGroupedByPropertyFromSummary — ADR-0029 export semantics", ()
       byBillingType: { DAILY: {} as any, MONTHLY: {} as any },
       byProperty: entries,
       activity: "DAILY",
-      cash: { byMonth: [], annual: {} as any },
+      cash: { byMonth: [], byMethod: {} },
     };
   }
 

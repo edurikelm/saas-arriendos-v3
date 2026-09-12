@@ -17,6 +17,7 @@ import {
   formatDateOnly,
   formatInstant,
   nightsBetweenDateOnly,
+  addDaysToDateKey,
 } from "@/lib/domain/timezone";
 
 describe("BUSINESS_TIME_ZONE", () => {
@@ -488,5 +489,32 @@ describe("startOfDayInTz / endOfDayInTz", () => {
     expect(getDateKeyInTz(pago, TZ)).toBe("2026-12-31");
     const end = endOfDayInTz("2026-12-31", TZ);
     expect(pago.getTime()).toBeLessThanOrEqual(end.getTime());
+  });
+});
+
+describe("addDaysToDateKey", () => {
+  it("resta 1 dia a mitad de mes", () => {
+    expect(addDaysToDateKey("2026-05-15", -1)).toBe("2026-05-14");
+  });
+
+  it("cruce de mes hacia atras: 1-mar menos 1 dia cae en el ultimo dia de febrero", () => {
+    expect(addDaysToDateKey("2026-03-01", -1)).toBe("2026-02-28");
+  });
+
+  it("ano bisiesto: 1-mar-2028 menos 1 dia cae en 29-feb (2028 es bisiesto)", () => {
+    expect(addDaysToDateKey("2028-03-01", -1)).toBe("2028-02-29");
+  });
+
+  it("cruce de ano hacia atras: 1-ene menos 1 dia cae en el 31-dic del ano anterior", () => {
+    expect(addDaysToDateKey("2026-01-01", -1)).toBe("2025-12-31");
+  });
+
+  it("suma dias hacia adelante, incluyendo cruce de mes", () => {
+    expect(addDaysToDateKey("2026-05-15", 1)).toBe("2026-05-16");
+    expect(addDaysToDateKey("2026-01-30", 3)).toBe("2026-02-02");
+  });
+
+  it("days = 0 devuelve la misma clave", () => {
+    expect(addDaysToDateKey("2026-05-15", 0)).toBe("2026-05-15");
   });
 });

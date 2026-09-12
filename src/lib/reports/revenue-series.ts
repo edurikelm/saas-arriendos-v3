@@ -208,3 +208,43 @@ export function buildAnnualCollectedCash(
     cancelledCash,
   };
 }
+
+// ─── By method (range) ──────────────────────────────────────────────────────
+
+/**
+ * Desglosa la caja del rango seleccionado por método de pago (CASH | TRANSFER
+ * | MERCADO_PAGO), sobre EXACTAMENTE el mismo conjunto de pagos elegibles y el
+ * mismo predicado que `collectedCash` y `buildMonthlyCollectedCash`:
+ * `isEligibleCashPayment` + `paidAt` dentro de `[rangeStart, rangeEnd]`
+ * (inclusive, comparado por día-época en UTC — mismo criterio que
+ * `isPaidAtInRange` en `decision-summary.ts`).
+ *
+ * Invariante: `sum(Object.values(buildCashByMethod(...))) === collectedCash`
+ * para el mismo `payments`/`rangeStart`/`rangeEnd` (incluye pagos de reservas
+ * CANCELLED, igual que `collectedCash` — ADR-0029).
+ *
+ * No depende de la zona horaria: a diferencia de `buildMonthlyCollectedCash`,
+ * este desglose no necesita agrupar por `monthKey`, así que no requiere
+ * `ownerTz`.
+ */
+export function buildCashByMethod(
+  payments: CashPaymentInput[],
+  rangeStart: Date,
+  rangeEnd: Date,
+): Record<string, number> {
+  const rangeStartDay = Math.floor(rangeStart.getTime() / 86_400_000);
+  const rangeEndDay = Math.floor(rangeEnd.getTime() / 86_400_000);
+
+  const byMethod: Record<string, number> = {};
+  for (const p of payments) {
+    if (!isEligibleCashPayment(p)) continue;
+    if (p.paidAt === null) continue; // safety — already excluded by predicate
+
+    const paidDay = Math.floor(p.paidAt.getTime() / 86_400_000);
+    if (paidDay < rangeStartDay || paidDay > rangeEndDay) continue;
+
+    byMethod[p.method] = (byMethod[p.method] ?? 0) + Number(p.amount);
+  }
+
+  return byMethod;
+}

@@ -66,6 +66,7 @@ export function computeTrend(current: number, previous: number): TrendResult {
 // ─── P2: Top debtors selection ────────────────────────────────────────────────
 
 import type { DecisionByPropertyEntry, ReportDecisionSummary } from "@/lib/reports/decision-summary";
+import { daysOverdueForRow, type CollectionReportRow } from "@/lib/reports/collection";
 
 /**
  * Returns the top N properties by outstandingBalance (descending).
@@ -125,4 +126,85 @@ export function computeGroupedByPropertyFromSummary(
     }))
     .filter((p) => p.reservedRevenueInRange > 0 || p.pendingRevenue > 0)
     .sort((a, b) => b.pendingRevenue - a.pendingRevenue);
+}
+
+// ─── Top debtors by client (aging drill-down) ────────────────────────────────
+
+export interface ClientDebtor {
+  clientId: string;
+  clientName: string;
+  /** Propiedad de la deuda más grande de ese cliente, para dar contexto en la fila. */
+  propertyName: string;
+  billingType: "DAILY" | "MONTHLY";
+  amount: number;
+  /** Atraso MÁXIMO entre sus filas; 0 si ninguna está vencida. */
+  daysOverdue: number;
+}
+
+/**
+ * Agrupa `CollectionReportRow[]` por cliente y devuelve los N con mayor deuda.
+ *
+ * A diferencia de `selectTopDebtors` (que opera sobre `byProperty` de
+ * `ReportDecisionSummary`), esta función agrupa por `clientId` sobre filas
+ * de cobranza — dos reservas del mismo cliente en propiedades distintas se
+ * consolidan en una sola entrada.
+ *
+ * - `amount` = suma de `totalToCollect` de todas las filas del cliente.
+ * - `propertyName` / `billingType` provienen de la fila con mayor
+ *   `totalToCollect` de ese cliente (contexto de la deuda más grande).
+ * - `daysOverdue` = máximo entre `daysOverdueForRow` de sus filas (mismo
+ *   cálculo que usa `buildAgingBuckets`).
+ * - Descarta clientes cuya suma sea `<= 0`.
+ */
+export function selectTopClientDebtors(
+  rows: CollectionReportRow[],
+  limit: number = 5,
+  now: Date = new Date(),
+): ClientDebtor[] {
+  interface Accumulator {
+    clientId: string;
+    clientName: string;
+    amount: number;
+    daysOverdue: number;
+    largestRow: CollectionReportRow;
+  }
+
+  const byClient = new Map<string, Accumulator>();
+
+  for (const row of rows) {
+    if (row.totalToCollect <= 0) continue;
+
+    const rowDaysOverdue = daysOverdueForRow(row, now);
+    const existing = byClient.get(row.clientId);
+
+    if (!existing) {
+      byClient.set(row.clientId, {
+        clientId: row.clientId,
+        clientName: row.clientName,
+        amount: row.totalToCollect,
+        daysOverdue: rowDaysOverdue,
+        largestRow: row,
+      });
+      continue;
+    }
+
+    existing.amount += row.totalToCollect;
+    existing.daysOverdue = Math.max(existing.daysOverdue, rowDaysOverdue);
+    if (row.totalToCollect > existing.largestRow.totalToCollect) {
+      existing.largestRow = row;
+    }
+  }
+
+  return Array.from(byClient.values())
+    .filter((entry) => entry.amount > 0)
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, limit)
+    .map((entry) => ({
+      clientId: entry.clientId,
+      clientName: entry.clientName,
+      propertyName: entry.largestRow.propertyName,
+      billingType: entry.largestRow.billingType,
+      amount: entry.amount,
+      daysOverdue: entry.daysOverdue,
+    }));
 }

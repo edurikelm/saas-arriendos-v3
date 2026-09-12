@@ -1,6 +1,13 @@
 import * as XLSX from "xlsx";
 import { nightsBetweenDateOnly } from "@/lib/domain/timezone";
 
+/** Etiquetas en español de `Payment.method` para exportación (Excel/PDF). */
+export const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  CASH: "Efectivo",
+  TRANSFER: "Transferencia",
+  MERCADO_PAGO: "Mercado Pago",
+};
+
 export interface ReservationDetail {
   id: string;
   propertyName: string;
@@ -30,7 +37,8 @@ export interface PropertySummary {
 export function exportToExcel(
   details: ReservationDetail[],
   summaries: PropertySummary[],
-  dateRange: { from: Date; to: Date } | null
+  dateRange: { from: Date; to: Date } | null,
+  cashByMethod?: Record<string, number>
 ) {
   const workbook = XLSX.utils.book_new();
 
@@ -69,6 +77,20 @@ export function exportToExcel(
 
   XLSX.utils.book_append_sheet(workbook, detailSheet, "Detalle");
   XLSX.utils.book_append_sheet(workbook, summarySheet, "Resumen por Propiedad");
+
+  if (cashByMethod) {
+    const methodEntries = Object.entries(cashByMethod);
+    const totalByMethod = methodEntries.reduce((acc, [, amount]) => acc + amount, 0);
+    const methodSheet = XLSX.utils.json_to_sheet([
+      ...methodEntries.map(([method, amount]) => ({
+        "Método": PAYMENT_METHOD_LABELS[method] ?? method,
+        "Cobrado": amount,
+      })),
+      { "Método": "TOTAL", "Cobrado": totalByMethod },
+    ]);
+    methodSheet["!cols"] = [{ wch: 20 }, { wch: 15 }];
+    XLSX.utils.book_append_sheet(workbook, methodSheet, "Por método de pago");
+  }
 
   const rangeLabel = dateRange
     ? `_${dateRange.from.toLocaleDateString("es-CL").replace(/\//g, "-")}_a_${dateRange.to.toLocaleDateString("es-CL").replace(/\//g, "-")}`
