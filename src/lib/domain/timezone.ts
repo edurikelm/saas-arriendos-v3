@@ -145,6 +145,29 @@ export function localDateKey(date: Date): string {
 }
 
 /**
+ * Inverso exacto de `localDateKey`: de clave `YYYY-MM-DD` al `Date` de
+ * medianoche LOCAL de ese día, que es la forma en que los date-pickers del
+ * navegador representan un día calendario.
+ *
+ * Existe porque `new Date("2026-09-01")` NO sirve para esto: la forma
+ * date-only del estándar se interpreta en UTC, y al renderizarla en la zona
+ * del navegador vuelve un día atrás. En Chile (UTC−3/−4) esa clave se dibuja
+ * como el 31 de agosto.
+ *
+ * El daño real no es visual sino acumulativo: si el valor mostrado se vuelve a
+ * guardar con `localDateKey`, el día retrocede en CADA vuelta. Medido en
+ * `America/Santiago`, el 1 de septiembre se convierte en 28 de agosto después
+ * de cuatro aperturas del picker.
+ *
+ * Usar siempre este par —`localDateKey` para guardar, `localDateFromKey` para
+ * leer— cuando un rango de fechas viva fuera de React, en la URL por ejemplo.
+ */
+export function localDateFromKey(dateKey: string): Date {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+/**
  * Clave de dia calendario (YYYY-MM-DD) de un campo DATE-ONLY del dominio
  * (Reservation.startDate/endDate, Payment.dueDate).
  *
