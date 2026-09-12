@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PaymentsFilters } from "../payments-filters";
@@ -315,5 +315,43 @@ describe("PaymentsFilters - cambiar el campo de fecha", () => {
     await user.click(screen.getByRole("button", { name: "Pago" }));
 
     expect(lastPushedParams().get("page")).toBeNull();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// El chip muestra el día elegido, no el anterior
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("PaymentsFilters - el rango no se corre un día", () => {
+  const tzOriginal = process.env.TZ;
+
+  afterEach(() => {
+    if (tzOriginal === undefined) delete process.env.TZ;
+    else process.env.TZ = tzOriginal;
+  });
+
+  it("en Chile muestra el día que dice la URL, no el anterior", () => {
+    // El bug que reportó el usuario. `new Date("2026-09-01")` se interpreta en
+    // UTC y el calendario lo dibuja en la zona del navegador, así que en Chile
+    // (UTC−3/−4) marcaba el 31 de agosto.
+    process.env.TZ = "America/Santiago";
+
+    renderFilters({ dateFrom: "2026-09-01", dateTo: "2026-09-30" });
+
+    const chip = screen.getByText(/^Emisión:/).textContent ?? "";
+    expect(chip).toContain("1 sep 2026");
+    expect(chip).toContain("30 sep 2026");
+    expect(chip).not.toContain("31 ago");
+    expect(chip).not.toContain("29 sep");
+  });
+
+  it("en una zona de offset positivo muestra lo mismo", () => {
+    process.env.TZ = "Asia/Tokyo";
+
+    renderFilters({ dateFrom: "2026-09-01", dateTo: "2026-09-30" });
+
+    const chip = screen.getByText(/^Emisión:/).textContent ?? "";
+    expect(chip).toContain("1 sep 2026");
+    expect(chip).toContain("30 sep 2026");
   });
 });

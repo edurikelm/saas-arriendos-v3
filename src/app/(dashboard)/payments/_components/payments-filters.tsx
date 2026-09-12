@@ -7,7 +7,7 @@ import { DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-
 import { FilterChip } from "@/components/ui/filter-chip";
 import { FilterPill } from "@/components/ui/filter-pill";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
-import { localDateKey } from "@/lib/domain/timezone";
+import { localDateKey, localDateFromKey } from "@/lib/domain/timezone";
 import { Search, X } from "lucide-react";
 
 interface Property {
@@ -329,9 +329,14 @@ export function PaymentsFilters({
               ? "bg-primary/10 border-primary/20 text-primary"
               : "bg-card border-border text-foreground hover:border-primary"
           }`}
+          // `localDateFromKey` y no `new Date(clave)`: la forma date-only del
+          // estándar se interpreta en UTC, y el calendario la dibuja en la zona
+          // del navegador, así que en Chile mostraba el día ANTERIOR al
+          // elegido. Y como al reaplicar se vuelve a guardar con
+          // `localDateKey`, el rango retrocedía un día en cada vuelta.
           date={{
-            from: dateFrom ? new Date(dateFrom) : undefined,
-            to: dateTo ? new Date(dateTo) : undefined,
+            from: dateFrom ? localDateFromKey(dateFrom) : undefined,
+            to: dateTo ? localDateFromKey(dateTo) : undefined,
           }}
           onDateChange={handleDateChange}
         />
