@@ -237,7 +237,12 @@ export function NewTicketForm() {
               }}
             >
               <SelectTrigger id="category">
-                <SelectValue placeholder="Selecciona una categoría" />
+                <SelectValue>
+                  {(value: string | null) =>
+                    categoryOptions.find((opt) => opt.value === value)?.label ??
+                    "Selecciona una categoría"
+                  }
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {categoryOptions.map((opt) => (
@@ -274,13 +279,12 @@ export function NewTicketForm() {
                 disabled={isLoadingEntities}
               >
                 <SelectTrigger id="affectedEntityId">
-                  <SelectValue
-                    placeholder={
-                      isLoadingEntities
-                        ? "Cargando..."
-                        : `Selecciona una ${affectedEntityLabel}`
+                  <SelectValue>
+                    {(value: string | null) =>
+                      entityOptions.find((opt) => opt.id === value)?.label ??
+                      (isLoadingEntities ? "Cargando..." : `Selecciona una ${affectedEntityLabel}`)
                     }
-                  />
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {entityOptions.map((opt) => (
@@ -303,7 +307,12 @@ export function NewTicketForm() {
           render={({ field }) => (
             <Select value={field.value} onValueChange={field.onChange}>
               <SelectTrigger id="priority">
-                <SelectValue placeholder="Selecciona una prioridad" />
+                <SelectValue>
+                  {(value: string | null) =>
+                    priorityOptions.find((opt) => opt.value === value)?.label ??
+                    "Selecciona una prioridad"
+                  }
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {priorityOptions.map((opt) => (

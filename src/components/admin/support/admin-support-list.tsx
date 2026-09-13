@@ -118,7 +118,11 @@ export function AdminSupportList({ tickets, total }: AdminSupportListProps) {
             onValueChange={(value) => updateParam("priority", value ?? "all")}
           >
             <SelectTrigger id="filter-priority" className="h-8 w-[140px]">
-              <SelectValue placeholder="Todas" />
+              <SelectValue>
+                {(value: string | null) =>
+                  priorityOptions.find((opt) => opt.value === value)?.label ?? "Todas"
+                }
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {priorityOptions.map((opt) => (
@@ -137,7 +141,11 @@ export function AdminSupportList({ tickets, total }: AdminSupportListProps) {
             onValueChange={(value) => updateParam("category", value ?? "all")}
           >
             <SelectTrigger id="filter-category" className="h-8 w-[160px]">
-              <SelectValue placeholder="Todas" />
+              <SelectValue>
+                {(value: string | null) =>
+                  categoryOptions.find((opt) => opt.value === value)?.label ?? "Todas"
+                }
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {categoryOptions.map((opt) => (

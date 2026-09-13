@@ -356,7 +356,12 @@ export function ReportsClient({
 
             <Select value={selectedProperty} onValueChange={(value) => setSelectedProperty(value || "all")}>
               <SelectTrigger aria-label="Propiedad" className="w-full sm:w-56">
-                <SelectValue placeholder="Todas" />
+                <SelectValue placeholder="Todas las propiedades">
+                  {(value: string | null) => {
+                    if (!value || value === "all") return "Todas las propiedades";
+                    return properties.find((p) => p.id === value)?.name ?? "Todas las propiedades";
+                  }}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas las propiedades</SelectItem>

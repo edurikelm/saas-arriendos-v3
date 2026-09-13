@@ -95,10 +95,20 @@ interface AdminUsersClientProps {
   kpis?: AdminUsersKpis;
 }
 
-const planFilterLabels: Record<string, string> = {
-  all: "Todos",
+const planLabels: Record<string, string> = {
   FREE: "Free",
   PRO: "Pro",
+};
+
+const planFilterLabels: Record<string, string> = {
+  all: "Todos",
+  ...planLabels,
+};
+
+const statusLabels: Record<string, string> = {
+  ACTIVE: "Activo",
+  SUSPENDED: "Suspendido",
+  CANCELLED: "Cancelado",
 };
 
 function getInitials(name: string | null, email: string): string {
@@ -590,12 +600,14 @@ export function AdminUsersClient({ initialUsers, initialTotal, kpis }: AdminUser
                   onValueChange={(v) => handleUpdateStatus(selectedUser.id, v || "ACTIVE")}
                 >
                   <SelectTrigger className="w-full sm:w-32">
-                    <SelectValue />
+                    <SelectValue>
+                      {(value: string | null) => (value ? statusLabels[value] ?? value : "")}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ACTIVE">Activo</SelectItem>
-                    <SelectItem value="SUSPENDED">Suspendido</SelectItem>
-                    <SelectItem value="CANCELLED">Cancelado</SelectItem>
+                    {Object.entries(statusLabels).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>{label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -607,11 +619,14 @@ export function AdminUsersClient({ initialUsers, initialTotal, kpis }: AdminUser
                   onValueChange={(v) => handleUpdatePlan(selectedUser.id, v || "FREE")}
                 >
                   <SelectTrigger className="w-full sm:w-32">
-                    <SelectValue />
+                    <SelectValue>
+                      {(value: string | null) => (value ? planLabels[value] ?? value : "")}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="FREE">Free</SelectItem>
-                    <SelectItem value="PRO">Pro</SelectItem>
+                    {Object.entries(planLabels).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>{label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -761,12 +776,15 @@ export function AdminUsersClient({ initialUsers, initialTotal, kpis }: AdminUser
             <div className="space-y-2">
               <Label htmlFor="plan">Plan</Label>
               <Select value={createForm.plan} onValueChange={(v) => setCreateForm({ ...createForm, plan: v as "FREE" | "PRO" })}>
-                <SelectTrigger>
-                  <SelectValue />
+                <SelectTrigger id="plan">
+                  <SelectValue>
+                    {(value: string | null) => (value ? planLabels[value] ?? value : "")}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="FREE">Free</SelectItem>
-                  <SelectItem value="PRO">Pro</SelectItem>
+                  {Object.entries(planLabels).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

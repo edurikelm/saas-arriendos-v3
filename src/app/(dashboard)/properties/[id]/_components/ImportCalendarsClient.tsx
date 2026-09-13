@@ -162,7 +162,11 @@ function AddCalendarDialog({ propertyId, onCreated }: { propertyId: string; onCr
               onValueChange={(v) => setValue("channel", v as Channel)}
             >
               <SelectTrigger id="channel">
-                <SelectValue />
+                <SelectValue>
+                  {(value: string | null) =>
+                    CHANNELS.find((c) => c.value === value)?.label ?? value ?? ""
+                  }
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {CHANNELS.map((c) => (
