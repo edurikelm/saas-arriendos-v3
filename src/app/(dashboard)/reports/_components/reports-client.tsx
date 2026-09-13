@@ -69,7 +69,23 @@ export function ReportsClient({
   const [collectionLoading, setCollectionLoading] = useState(false);
 
   const [quickRange, setQuickRange] = useState<QuickRange>("current_month");
+  /**
+   * Rango personalizado APLICADO — el que gobierna `effectiveDateRange` (y por
+   * lo tanto los fetch) cuando `quickRange === "custom"`. Solo se actualiza
+   * cuando el usuario termina de elegir las dos fechas: una selección a medias
+   * no debe mover cifras ya mostradas.
+   */
   const [customRange, setCustomRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
+    from: undefined,
+    to: undefined,
+  });
+  /**
+   * Lo que el calendario muestra/edita en vivo — puede estar incompleto
+   * (solo `from`) mientras el usuario elige. Se vacía al elegir un rango
+   * rápido, para que el calendario no siga mostrando fechas de un
+   * "Personalizado" que ya no está activo.
+   */
+  const [customRangeDraft, setCustomRangeDraft] = useState<{ from: Date | undefined; to: Date | undefined }>({
     from: undefined,
     to: undefined,
   });
@@ -243,33 +259,28 @@ export function ReportsClient({
     if (!isReportsRangeAllowed(initialSession.plan, value)) return;
     setQuickRange(value);
     if (value === "custom") return;
-    const now = new Date();
-    if (value === "current_month") {
-      setCustomRange({ from: startOfMonth(now), to: endOfMonth(now) });
-    } else if (value === "prev_month") {
-      const prev = subMonths(now, 1);
-      setCustomRange({ from: startOfMonth(prev), to: endOfMonth(prev) });
-    } else if (value === "last_3") {
-      setCustomRange({ from: startOfMonth(subMonths(now, 2)), to: endOfMonth(now) });
-    } else if (value === "last_6") {
-      setCustomRange({ from: startOfMonth(subMonths(now, 5)), to: endOfMonth(now) });
-    } else if (value === "year_to_date") {
-      setCustomRange({ from: startOfYear(now), to: now });
-    } else {
-      setCustomRange({ from: undefined, to: undefined });
-    }
+    // El rango rápido elegido gobierna `effectiveDateRange` por su propia
+    // aritmética (ver arriba) — el calendario deja de ser el control activo,
+    // así que se vacía para no seguir mostrando un "Personalizado" que ya
+    // no está aplicado.
+    setCustomRangeDraft({ from: undefined, to: undefined });
   };
 
   /**
-   * Fix del control muerto: antes, elegir fechas en el calendario no hacía
-   * nada salvo que `quickRange` ya fuera "custom" (imposible de alcanzar
-   * desde el propio calendario, que es el único lugar que activa "custom").
-   * Ahora elegir fechas activa "Personalizado" en el mismo gesto.
+   * Se dispara con CADA cambio de selección en el calendario, incluida una
+   * selección a medias (solo `from`). El draft (lo que se ve/edita en el
+   * calendario) se actualiza siempre; el rango APLICADO —el que mueve
+   * `effectiveDateRange` y por lo tanto los fetch— solo se actualiza cuando
+   * las dos fechas están presentes. Así, empezar una nueva selección sobre
+   * un "Personalizado" ya aplicado no cambia ninguna cifra hasta completarla.
    */
   const handleCustomRangeChange = (d: { from: Date | undefined; to: Date | undefined }) => {
     if (!isReportsRangeAllowed(initialSession.plan, "custom")) return;
-    setCustomRange(d);
-    setQuickRange("custom");
+    setCustomRangeDraft(d);
+    if (d.from && d.to) {
+      setCustomRange(d);
+      setQuickRange("custom");
+    }
   };
 
   const runExport = async (kind: "excel" | "pdf") => {
@@ -317,18 +328,55 @@ export function ReportsClient({
 
   return (
     <div className="space-y-8">
-      {/* ─── Encabezado: título, alcance factual, y los controles que gobiernan todo lo visible ─── */}
+      {/* ─── Encabezado: título, alcance factual, export y los controles que gobiernan todo lo visible ─── */}
       <div className="space-y-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold leading-tight">Cierre de período</h1>
-          <p className="text-sm text-muted-foreground tabular-nums">
-            {periodLabel} · {propertyCount} {propertyCount === 1 ? "propiedad" : "propiedades"}
-          </p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold leading-tight">Cierre de período</h1>
+            <p className="text-sm text-muted-foreground tabular-nums">
+              {periodLabel} · {propertyCount} {propertyCount === 1 ? "propiedad" : "propiedades"}
+            </p>
+          </div>
+
+          {/*
+            Exportar es una acción de TODA la página, no algo que dependa de
+            haber leído el resto del contenido — por eso vive en el encabezado
+            y no al final. `disabled`/`title` explican por qué cuando el
+            conteo es 0, ya que un botón deshabilitado sin razón visible
+            confunde más que ayuda.
+          */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => runExport("excel")}
+              disabled={exportLoading || exportRowCount === 0}
+              title={exportRowCount === 0 ? "Sin reservas en el período" : undefined}
+            >
+              <FileSpreadsheet className="size-4 mr-1" aria-hidden="true" />
+              Excel{exportRowCount !== null ? ` (${exportRowCount})` : ""}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => runExport("pdf")}
+              disabled={exportLoading || exportRowCount === 0}
+              title={exportRowCount === 0 ? "Sin reservas en el período" : undefined}
+            >
+              <Download className="size-4 mr-1" aria-hidden="true" />
+              PDF{exportRowCount !== null ? ` (${exportRowCount})` : ""}
+            </Button>
+          </div>
         </div>
 
         <div className="flex flex-col gap-3">
           <div role="group" aria-label="Rango rápido" className="flex flex-wrap gap-2">
             {QUICK_RANGES.map((range) => {
+              // PRO: el calendario de abajo ES el control de "Personalizado" —
+              // un botón aparte que no hace nada por sí solo (sin fechas
+              // elegidas) es un segundo control que contradice al primero.
+              // FREE: se mantiene, deshabilitado con candado, para no perder
+              // el upsell — el calendario tampoco se renderiza en FREE.
+              if (range.value === "custom" && !isFreePlan) return null;
               const isAllowed = isReportsRangeAllowed(initialSession.plan, range.value);
               const isActive = quickRange === range.value;
               return (
@@ -351,7 +399,12 @@ export function ReportsClient({
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
             {!isFreePlan && (
-              <DateRangePicker date={customRange} onDateChange={handleCustomRangeChange} label="Personalizado" />
+              <DateRangePicker
+                date={customRangeDraft}
+                onDateChange={handleCustomRangeChange}
+                label="Personalizado"
+                className="w-full sm:w-64"
+              />
             )}
 
             <Select value={selectedProperty} onValueChange={(value) => setSelectedProperty(value || "all")}>
@@ -473,30 +526,6 @@ export function ReportsClient({
           ) : (
             <p className="text-xs text-muted-foreground">Sin cobros vencidos.</p>
           )}
-        </div>
-      </section>
-
-      {/* ─── Sección 3: Llevarse el período ─── */}
-      <section aria-labelledby="reports-export-heading" className="space-y-3">
-        <h2 id="reports-export-heading" className="text-xs font-bold text-foreground uppercase tracking-wider">
-          Llevarse el período
-        </h2>
-        <div className="rounded-lg border border-border bg-card p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-          <p className="text-xs text-muted-foreground flex-1">
-            {exportRowCount === null
-              ? "Calculando cuántas reservas incluye el período…"
-              : `${exportRowCount} ${exportRowCount === 1 ? "reserva" : "reservas"} del período seleccionado.`}
-          </p>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => runExport("excel")} disabled={exportLoading || exportRowCount === 0}>
-              <FileSpreadsheet className="size-4 mr-1" aria-hidden="true" />
-              Excel{exportRowCount !== null ? ` (${exportRowCount})` : ""}
-            </Button>
-            <Button size="sm" onClick={() => runExport("pdf")} disabled={exportLoading || exportRowCount === 0}>
-              <Download className="size-4 mr-1" aria-hidden="true" />
-              PDF{exportRowCount !== null ? ` (${exportRowCount})` : ""}
-            </Button>
-          </div>
         </div>
       </section>
     </div>
