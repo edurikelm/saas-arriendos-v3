@@ -128,6 +128,20 @@ describe("AdminUsersClient", () => {
     });
   });
 
+  describe("Crear propietario", () => {
+    it("el selector de plan muestra la etiqueta, no el enum", async () => {
+      // Select real de Base UI: `<SelectValue />` desnudo pintaba "FREE".
+      const user = userEvent.setup();
+      render(<AdminUsersClient initialUsers={[mockUser]} initialTotal={1} />);
+
+      await user.click(screen.getByRole("button", { name: /crear propietario/i }));
+
+      const plan = await screen.findByRole("combobox", { name: "Plan" });
+      expect(plan.textContent).toContain("Free");
+      expect(plan.textContent).not.toContain("FREE");
+    });
+  });
+
   describe("Health indicators", () => {
     it("shows health badges for a risky owner", async () => {
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue({

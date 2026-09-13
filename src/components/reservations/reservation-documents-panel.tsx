@@ -303,13 +303,16 @@ export function ReservationDocumentsPanel({ reservationId }: { reservationId: st
                 }
               >
                 <SelectTrigger id="doc-category" className="h-9">
-                  <SelectValue />
+                  <SelectValue>
+                    {(value: ReservationDocument["category"] | null) =>
+                      value ? categoryLabels[value] : ""
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="CONTRATO">Contrato</SelectItem>
-                  <SelectItem value="ANEXO">Anexo</SelectItem>
-                  <SelectItem value="INVENTARIO">Inventario</SelectItem>
-                  <SelectItem value="OTRO">Otro</SelectItem>
+                  {Object.entries(categoryLabels).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

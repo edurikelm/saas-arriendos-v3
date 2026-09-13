@@ -23,6 +23,21 @@ type ProfileFormProps = {
   initialData: ProfileData;
 };
 
+const languageLabels: Record<string, string> = {
+  es: "Español",
+  en: "English",
+};
+
+const currencyLabels: Record<string, string> = {
+  CLP: "CLP",
+  USD: "USD",
+};
+
+const timezoneLabels: Record<string, string> = {
+  "America/Santiago": "Santiago",
+  "America/Lima": "Lima",
+};
+
 export function ProfileForm({ initialData }: ProfileFormProps) {
   const [avatarUrl, setAvatarUrl] = useState(initialData.avatarUrl);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -221,11 +236,16 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
                 }
               >
                 <SelectTrigger id="language">
-                  <SelectValue placeholder="Selecciona un idioma" />
+                  <SelectValue>
+                    {(value: string | null) =>
+                      (value && languageLabels[value]) || "Selecciona un idioma"
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="es">Español</SelectItem>
-                  <SelectItem value="en">English</SelectItem>
+                  {Object.entries(languageLabels).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               {errors.language && (
@@ -242,11 +262,16 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
                 }
               >
                 <SelectTrigger id="currency">
-                  <SelectValue placeholder="Selecciona una moneda" />
+                  <SelectValue>
+                    {(value: string | null) =>
+                      (value && currencyLabels[value]) || "Selecciona una moneda"
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="CLP">CLP</SelectItem>
-                  <SelectItem value="USD">USD</SelectItem>
+                  {Object.entries(currencyLabels).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               {errors.currency && (
@@ -267,11 +292,16 @@ export function ProfileForm({ initialData }: ProfileFormProps) {
                 }
               >
                 <SelectTrigger id="timezone">
-                  <SelectValue placeholder="Selecciona una zona" />
+                  <SelectValue>
+                    {(value: string | null) =>
+                      (value && timezoneLabels[value]) || "Selecciona una zona"
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="America/Santiago">Santiago</SelectItem>
-                  <SelectItem value="America/Lima">Lima</SelectItem>
+                  {Object.entries(timezoneLabels).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               {errors.timezone && (
