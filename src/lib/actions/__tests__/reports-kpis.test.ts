@@ -28,59 +28,6 @@ const ownerSession: SessionUser = {
   email: "owner@test.com",
 };
 
-describe("KPI: Ingresos cobrados — propertyId filter", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.useRealTimers();
-  });
-
-  it("getRevenueReport filtra por propertyId cuando se pasa la opción", async () => {
-    const { getSession } = await import("@/lib/auth/session");
-    const { prisma } = await import("@/lib/db/prisma");
-
-    vi.mocked(getSession).mockResolvedValue(ownerSession);
-    vi.mocked(prisma.payment.findMany).mockResolvedValue([]);
-
-    const { getRevenueReport } = await import("@/lib/actions/reports");
-    await getRevenueReport({ year: 2026, propertyId: "prop-1" });
-
-    // Verificar que propertyId se filtra vía reservation.propertyId
-    const call = vi.mocked(prisma.payment.findMany).mock.calls[0][0];
-    const where = call?.where as { reservation: { userId: string; propertyId?: string } };
-    expect(where.reservation).toEqual(expect.objectContaining({ userId: "owner-1", propertyId: "prop-1" }));
-  });
-
-  it("getRevenueReport aplica todos los filtros juntos: status COMPLETED, paymentType RESERVATION, deletedAt null, paidAt en rango, propertyId", async () => {
-    const { getSession } = await import("@/lib/auth/session");
-    const { prisma } = await import("@/lib/db/prisma");
-
-    vi.mocked(getSession).mockResolvedValue(ownerSession);
-    vi.mocked(prisma.payment.findMany).mockResolvedValue([]);
-
-    const { getRevenueReport } = await import("@/lib/actions/reports");
-    await getRevenueReport({
-      startDate: new Date("2026-01-01"),
-      endDate: new Date("2026-01-31"),
-      propertyId: "prop-1",
-    });
-
-    const call = vi.mocked(prisma.payment.findMany).mock.calls[0][0];
-    const where = call?.where as Record<string, unknown>;
-
-    // Filtro de sesión
-    expect((where.reservation as Record<string, unknown>).userId).toBe("owner-1");
-    expect((where.reservation as Record<string, unknown>).propertyId).toBe("prop-1");
-
-    // Filtros financieros
-    expect(where.status).toBe("COMPLETED");
-    expect(where.paymentType).toBe("RESERVATION");
-    expect(where.deletedAt).toBeNull();
-
-    // Filtro de rango por paidAt (cash basis)
-    expect(where.paidAt).toEqual({ gte: new Date("2026-01-01"), lte: new Date("2026-01-31") });
-  });
-});
-
 describe("KPI: Ocupación del portafolio — clipping + unitsBooked", () => {
   beforeEach(() => {
     vi.clearAllMocks();

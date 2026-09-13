@@ -101,8 +101,9 @@ existe para responder).
 - **`cash.annual` en `ReportDecisionSummary`** (y el parámetro `annualYear`) — nadie la consumía
   tras quitar la card anual, pero `buildDecisionSummary` la calculaba en cada llamada, y la página
   llama dos veces por cambio de filtro (período actual y anterior). Se reemplaza por
-  `cash.byMethod` del rango (ver abajo). `buildAnnualCollectedCash` y `getYearlySummary` siguen
-  existiendo; hoy solo los usan sus tests.
+  `cash.byMethod` del rango (ver abajo). `buildAnnualCollectedCash`, `getYearlySummary` y
+  `getRevenueReport` (deprecado desde ADR-0030) se eliminaron en un pase posterior por no tener
+  consumidores fuera de sus propios tests.
 
 **Nuevo:**
 

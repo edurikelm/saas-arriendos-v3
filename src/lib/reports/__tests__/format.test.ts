@@ -8,10 +8,36 @@ describe("monthKeyLabel", () => {
     expect(result).toMatch(/ene/i);
   });
 
+  it("formats 2026-07 correctly", () => {
+    const result = monthKeyLabel("2026-07");
+    expect(result).toContain("2026");
+    expect(result).toMatch(/jul/i);
+  });
+
+  it("formats 2025-12 correctly", () => {
+    const result = monthKeyLabel("2025-12");
+    expect(result).toContain("2025");
+    expect(result).toMatch(/dic/i);
+  });
+
   it("formats 2026-12 correctly", () => {
     const result = monthKeyLabel("2026-12");
     expect(result).toContain("2026");
     expect(result).toMatch(/dic/i);
+  });
+
+  it("matches Intl.DateTimeFormat es-CL UTC exactly", () => {
+    for (const monthKey of ["2026-03", "2026-07", "2026-12"]) {
+      const [year, month] = monthKey.split("-").map(Number);
+      const date = new Date(Date.UTC(year, month - 1, 1, 12, 0, 0));
+      const expected = new Intl.DateTimeFormat("es-CL", {
+        month: "short",
+        year: "numeric",
+        timeZone: "UTC",
+      }).format(date);
+
+      expect(monthKeyLabel(monthKey)).toBe(expected);
+    }
   });
 });
 
