@@ -4,7 +4,7 @@
  * Behaviors tested (all pure, no DB):
  * 1. isEligibleCashPayment — predicate per payment
  * 2. buildMonthlyCollectedCash — groups by monthKey (America/Santiago), zero-fill, cancelledCash subtotal
- * 3. buildAnnualCollectedCash — 12 months, byMethod, reconciliation invariants
+ * 3. buildCashByMethod — byMethod breakdown for a range, same predicate as collectedCash
  *
  * Key design decisions:
  * - monthKey = YYYY-MM in America/Santiago (getDateKeyInTz + slice to month)
@@ -17,7 +17,6 @@ import { describe, expect, it } from "vitest";
 import {
   isEligibleCashPayment,
   buildMonthlyCollectedCash,
-  buildAnnualCollectedCash,
   buildCashByMethod,
   type CashPaymentInput,
 } from "@/lib/reports/revenue-series";
@@ -267,158 +266,6 @@ describe("buildMonthlyCollectedCash", () => {
     expect(result[0].monthKey).toBe("2026-01");
     expect(result[1].monthKey).toBe("2026-02");
     expect(result[2].monthKey).toBe("2026-03");
-  });
-});
-
-// ─── buildAnnualCollectedCash ─────────────────────────────────────────────────
-
-describe("buildAnnualCollectedCash", () => {
-  const year = 2026;
-
-  // Helper: create a Date that represents noon in Santiago timezone
-  // Santiago noon (12:00) = UTC + 3h = 15:00 UTC
-  const noonSantiago = (y: number, m: number, d: number) =>
-    new Date(Date.UTC(y, m - 1, d, 15, 0, 0));
-
-  it("builds 12-month byMonth array with zero-fill", () => {
-    const payments: CashPaymentInput[] = [
-      makePayment({ id: "p1", amount: 100000, status: "COMPLETED", paymentType: "RESERVATION", method: "MERCADO_PAGO", paidAt: noonSantiago(2026, 3, 15) }),
-    ];
-
-    const result = buildAnnualCollectedCash(payments, year, BUSINESS_TIME_ZONE);
-
-    expect(result.byMonth).toHaveLength(12);
-    expect(result.byMonth[0].monthKey).toBe("2026-01");
-    expect(result.byMonth[0].collectedCash).toBe(0);
-    expect(result.byMonth[2].monthKey).toBe("2026-03");
-    expect(result.byMonth[2].collectedCash).toBe(100000);
-  });
-
-  it("groups byMethod correctly", () => {
-    const payments: CashPaymentInput[] = [
-      makePayment({ id: "p1", amount: 100000, status: "COMPLETED", paymentType: "RESERVATION", method: "MERCADO_PAGO", paidAt: noonSantiago(2026, 1, 15) }),
-      makePayment({ id: "p2", amount: 200000, status: "COMPLETED", paymentType: "RESERVATION", method: "CASH", paidAt: noonSantiago(2026, 1, 20) }),
-      makePayment({ id: "p3", amount: 300000, status: "COMPLETED", paymentType: "RESERVATION", method: "TRANSFER", paidAt: noonSantiago(2026, 1, 25) }),
-    ];
-
-    const result = buildAnnualCollectedCash(payments, year, BUSINESS_TIME_ZONE);
-
-    expect(result.byMethod["MERCADO_PAGO"]).toBe(100000);
-    expect(result.byMethod["CASH"]).toBe(200000);
-    expect(result.byMethod["TRANSFER"]).toBe(300000);
-  });
-
-  it("totalCash === sum of all byMonth.collectedCash", () => {
-    const payments: CashPaymentInput[] = [
-      makePayment({ id: "p1", amount: 100000, status: "COMPLETED", paymentType: "RESERVATION", method: "MERCADO_PAGO", paidAt: noonSantiago(2026, 1, 15) }),
-      makePayment({ id: "p2", amount: 200000, status: "COMPLETED", paymentType: "RESERVATION", method: "CASH", paidAt: noonSantiago(2026, 2, 15) }),
-      makePayment({ id: "p3", amount: 300000, status: "COMPLETED", paymentType: "RESERVATION", method: "MERCADO_PAGO", paidAt: noonSantiago(2026, 3, 15) }),
-    ];
-
-    const result = buildAnnualCollectedCash(payments, year, BUSINESS_TIME_ZONE);
-
-    const sumByMonth = result.byMonth.reduce((acc, m) => acc + m.collectedCash, 0);
-    expect(result.totalCash).toBe(sumByMonth);
-    expect(result.totalCash).toBe(600000);
-  });
-
-  it("totalCash === sum of all byMethod values", () => {
-    const payments: CashPaymentInput[] = [
-      makePayment({ id: "p1", amount: 100000, status: "COMPLETED", paymentType: "RESERVATION", method: "MERCADO_PAGO", paidAt: noonSantiago(2026, 1, 15) }),
-      makePayment({ id: "p2", amount: 200000, status: "COMPLETED", paymentType: "RESERVATION", method: "CASH", paidAt: noonSantiago(2026, 2, 15) }),
-    ];
-
-    const result = buildAnnualCollectedCash(payments, year, BUSINESS_TIME_ZONE);
-
-    const sumByMethod = Object.values(result.byMethod).reduce((acc, v) => acc + v, 0);
-    expect(result.totalCash).toBe(sumByMethod);
-  });
-
-  it("reconciles: totalCash === sum(byMonth) === sum(byMethod)", () => {
-    const payments: CashPaymentInput[] = [
-      makePayment({ id: "p1", amount: 50000, status: "COMPLETED", paymentType: "RESERVATION", method: "MERCADO_PAGO", paidAt: noonSantiago(2026, 6, 1) }),
-      makePayment({ id: "p2", amount: 75000, status: "COMPLETED", paymentType: "RESERVATION", method: "CASH", paidAt: noonSantiago(2026, 6, 15) }),
-      makePayment({ id: "p3", amount: 125000, status: "COMPLETED", paymentType: "RESERVATION", method: "TRANSFER", paidAt: noonSantiago(2026, 12, 1) }),
-    ];
-
-    const result = buildAnnualCollectedCash(payments, year, BUSINESS_TIME_ZONE);
-
-    const sumByMonth = result.byMonth.reduce((acc, m) => acc + m.collectedCash, 0);
-    const sumByMethod = Object.values(result.byMethod).reduce((acc, v) => acc + v, 0);
-
-    expect(result.totalCash).toBe(sumByMonth);
-    expect(result.totalCash).toBe(sumByMethod);
-    expect(result.totalCash).toBe(250000);
-    expect(result.paymentCount).toBe(3);
-  });
-
-  it("tracks cancelledCash as subtotal of totalCash", () => {
-    const payments: CashPaymentInput[] = [
-      makePayment({ id: "p1", amount: 100000, status: "COMPLETED", paymentType: "RESERVATION", method: "MERCADO_PAGO", paidAt: noonSantiago(2026, 1, 15) }),
-      makePayment({ id: "p2", amount: 50000, status: "COMPLETED", paymentType: "RESERVATION", method: "CASH", paidAt: noonSantiago(2026, 1, 20) }),
-    ];
-
-    const result = buildAnnualCollectedCash(
-      payments,
-      year,
-      BUSINESS_TIME_ZONE,
-      new Set(["p2"]), // p2 is from a cancelled reservation
-    );
-
-    expect(result.totalCash).toBe(150000);
-    expect(result.cancelledCash).toBe(50000);
-    expect(result.cancelledCash).toBeLessThan(result.totalCash);
-  });
-
-  it("returns zero totals when no eligible payments in year", () => {
-    const payments: CashPaymentInput[] = [
-      // Dec 31 2025 noon Santiago = Dec 31 15:00 UTC → year 2025, not 2026
-      makePayment({ id: "p1", amount: 100000, status: "COMPLETED", paymentType: "RESERVATION", method: "MERCADO_PAGO", paidAt: noonSantiago(2025, 12, 31) }),
-    ];
-
-    const result = buildAnnualCollectedCash(payments, year, BUSINESS_TIME_ZONE);
-
-    expect(result.totalCash).toBe(0);
-    expect(result.paymentCount).toBe(0);
-    expect(result.cancelledCash).toBe(0);
-    for (const m of result.byMonth) {
-      expect(m.collectedCash).toBe(0);
-    }
-  });
-
-  it("uses America/Santiago for month boundaries", () => {
-    // Santiago is UTC-3: to get Feb 1 00:00 Santiago, need Jan 31 21:00 UTC
-    // (because 21:00 UTC - 3h = 18:00... wait, that math is wrong too.
-    //  Let me recalculate: to get Feb 1 00:00 Santiago, the UTC time is Feb 1 03:00 UTC
-    //  because 03:00 UTC - 3h = 00:00 Santiago.
-    // Jan 31 21:00 UTC = Jan 31 18:00 Santiago — still Jan 31.
-    // To get Feb 1 00:00 Santiago: Feb 1 03:00 UTC.
-    const payments: CashPaymentInput[] = [
-      // Jan 1 noon Santiago = Jan 1 15:00 UTC → "2026-01"
-      makePayment({ id: "p1", amount: 100000, status: "COMPLETED", paymentType: "RESERVATION", method: "MERCADO_PAGO", paidAt: new Date(Date.UTC(2026, 0, 1, 15, 0, 0)) }),
-      // Jan 31 18:00 UTC = Jan 31 15:00 Santiago → "2026-01" (still January)
-      makePayment({ id: "p2", amount: 200000, status: "COMPLETED", paymentType: "RESERVATION", method: "CASH", paidAt: new Date(Date.UTC(2026, 0, 31, 18, 0, 0)) }),
-      // Feb 1 03:00 UTC = Feb 1 00:00 Santiago → "2026-02"
-      makePayment({ id: "p3", amount: 300000, status: "COMPLETED", paymentType: "RESERVATION", method: "TRANSFER", paidAt: new Date(Date.UTC(2026, 1, 1, 3, 0, 0)) }),
-    ];
-
-    const result = buildAnnualCollectedCash(payments, year, BUSINESS_TIME_ZONE);
-
-    // p1 + p2 in January, p3 in February
-    expect(result.byMonth[0].collectedCash).toBe(300000); // Jan: p1 + p2
-    expect(result.byMonth[1].collectedCash).toBe(300000); // Feb: p3
-  });
-
-  it("byMonth entries ordered ascending", () => {
-    const payments: CashPaymentInput[] = [
-      makePayment({ id: "p1", amount: 100000, status: "COMPLETED", paymentType: "RESERVATION", method: "MERCADO_PAGO", paidAt: noonSantiago(2026, 12, 1) }),
-      makePayment({ id: "p2", amount: 50000, status: "COMPLETED", paymentType: "RESERVATION", method: "CASH", paidAt: noonSantiago(2026, 1, 15) }),
-    ];
-
-    const result = buildAnnualCollectedCash(payments, year, BUSINESS_TIME_ZONE);
-
-    expect(result.byMonth[0].monthKey).toBe("2026-01");
-    expect(result.byMonth[11].monthKey).toBe("2026-12");
   });
 });
 

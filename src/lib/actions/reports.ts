@@ -3,8 +3,8 @@
 import { prisma } from "@/lib/db/prisma";
 import type { Prisma } from "@prisma/client";
 import { getSession } from "@/lib/auth/session";
-import { startOfMonth, endOfMonth, format, startOfYear, endOfYear } from "date-fns";
-import { BUSINESS_TIME_ZONE, nightsBetweenDateOnly } from "@/lib/domain/timezone";
+import { startOfMonth, endOfMonth } from "date-fns";
+import { nightsBetweenDateOnly } from "@/lib/domain/timezone";
 import {
   buildCollectionReportRows,
   buildAgingBuckets,
@@ -13,19 +13,12 @@ import {
 } from "@/lib/reports/collection";
 import { selectTopClientDebtors, type ClientDebtor } from "@/lib/reports/trend";
 import { type ReportDecisionSummary } from "@/lib/reports/decision-summary";
-import { buildAnnualCollectedCash, type CashPaymentInput } from "@/lib/reports/revenue-series";
 import { sumCollectionTotals } from "@/lib/reports/kpis";
 import type { PaginatedResponse } from "@/types/pagination";
 import {
   sumCompletedPaymentsForOwner,
   sumPendingPaymentsForOwner,
 } from "@/lib/payments/queries";
-
-export interface RevenueReport {
-  month: string;
-  totalRevenue: number;
-  reservationCount: number;
-}
 
 export interface OccupancyReport {
   propertyId: string;
@@ -91,103 +84,6 @@ export async function getDashboardStats(options?: { propertyId?: string }) {
     monthlyRevenue,
     pendingPayments,
   };
-}
-
-/**
- * @deprecated Use getDecisionSummary + decisionSummary.cash.byMonth instead (ADR-0030).
- *             This adapter exists for backward compat only. Not called from UI.
- */
-export async function getRevenueReport(options?: {
-  months?: number;
-  year?: number;
-  startDate?: Date;
-  endDate?: Date;
-  propertyId?: string;
-}) {
-  const session = await getSession();
-  if (!session) return [];
-
-  const { startDate, endDate, propertyId } = options || {};
-
-  if (startDate && endDate) {
-    const payments = await prisma.payment.findMany({
-      where: {
-        reservation: { userId: session.userId, ...(propertyId ? { propertyId } : {}) },
-        status: "COMPLETED",
-        paymentType: "RESERVATION",
-        deletedAt: null,
-        paidAt: { gte: startDate, lte: endDate },
-      },
-      select: {
-        paidAt: true,
-        amount: true,
-        reservation: {
-          select: { id: true },
-        },
-      },
-      orderBy: { paidAt: "asc" },
-    });
-
-    const byMonth: Record<string, { totalRevenue: number; count: number }> = {};
-    payments.forEach((p) => {
-      const key = format(p.paidAt!, "MMM yyyy");
-      if (!byMonth[key]) byMonth[key] = { totalRevenue: 0, count: 0 };
-      byMonth[key].totalRevenue += Number(p.amount);
-      byMonth[key].count += 1;
-    });
-
-    return Object.entries(byMonth).map(([month, data]) => ({
-      month,
-      totalRevenue: data.totalRevenue,
-      reservationCount: data.count,
-    }));
-  }
-
-  const months = options?.months || 12;
-  const year = options?.year || new Date().getFullYear();
-  const yearStart = startOfYear(new Date(year, 0, 1));
-  const yearEnd = endOfYear(new Date(year, 0, 1));
-
-  // H1 perf fix: single query, aggregated by month in JS.
-  // Uses paidAt (cash basis) + paymentType: RESERVATION + deletedAt: null.
-  const payments = await prisma.payment.findMany({
-    where: {
-      reservation: { userId: session.userId, ...(propertyId ? { propertyId } : {}) },
-      status: "COMPLETED",
-      paymentType: "RESERVATION",
-      deletedAt: null,
-      paidAt: { gte: yearStart, lte: yearEnd },
-    },
-    select: {
-      paidAt: true,
-      amount: true,
-    },
-    orderBy: { paidAt: "asc" },
-  });
-
-  const byMonth: Record<string, { totalRevenue: number; count: number }> = {};
-  payments.forEach((p) => {
-    const key = format(p.paidAt!, "MMM yyyy");
-    if (!byMonth[key]) byMonth[key] = { totalRevenue: 0, count: 0 };
-    byMonth[key].totalRevenue += Number(p.amount);
-    byMonth[key].count += 1;
-  });
-
-  // Emit one entry per month (Jan → Dec), filling 0 for months with no payments.
-  // Loop bound is `months` to preserve the original behavior of partial-year windows.
-  const reports: RevenueReport[] = [];
-  for (let i = 0; i < months; i++) {
-    const targetDate = new Date(year, i, 1);
-    const key = format(targetDate, "MMM yyyy");
-    const data = byMonth[key];
-    reports.push({
-      month: key,
-      totalRevenue: data?.totalRevenue ?? 0,
-      reservationCount: data?.count ?? 0,
-    });
-  }
-
-  return reports.reverse();
 }
 
 export async function getOccupancyReport(options?: {
@@ -279,88 +175,6 @@ export async function getOccupancyReport(options?: {
     totalRevenue: entry.totalRevenue,
     unitsAvailable: entry.unitsAvailable,
   }));
-}
-
-export interface YearlySummaryFilters {
-  year?: number;
-  /** Filter payments to a specific property (via reservation.propertyId). */
-  propertyId?: string;
-}
-
-/**
- * Returns annual cash-basis revenue using the buildAnnualCollectedCash seam.
- *
- * Supports two call styles for backward compat:
- *   getYearlySummary(2026)          — legacy (year as positional arg)
- *   getYearlySummary({ year: 2026, propertyId: "prop-1" }) — new filters
- *
- * Predicate: COMPLETED, paymentType RESERVATION, deletedAt null,
- * paidAt in [year-01-01, year-12-31], reservation.userId = session.userId,
- * optionally filtered by reservation.propertyId.
- *
- * Reconciliation: totalCash === sum(byMonth.collectedCash) === sum(byMethod)
- *
- * @see ADR-0030
- */
-export async function getYearlySummary(yearOrFilters?: number | YearlySummaryFilters) {
-  const session = await getSession();
-  if (!session) return null;
-
-  // Support legacy positional year: getYearlySummary(2026)
-  const filters: YearlySummaryFilters =
-    typeof yearOrFilters === "number" ? { year: yearOrFilters } : (yearOrFilters ?? {});
-
-  const year = filters.year ?? new Date().getFullYear();
-  const yearStart = startOfYear(new Date(year, 0, 1));
-  const yearEnd = endOfYear(new Date(year, 11, 31, 23, 59, 59, 999));
-
-  // Single read: all COMPLETED RESERVATION payments with paidAt in year.
-  // Join to reservation to filter by userId (+ optional propertyId)
-  // and to get reservation.status for cancelledPaymentIds.
-  const reservationFilter: Prisma.ReservationWhereInput = {
-    userId: session.userId,
-    ...(filters.propertyId ? { id: filters.propertyId } : {}),
-  };
-
-  const payments = await prisma.payment.findMany({
-    where: {
-      status: "COMPLETED",
-      paymentType: "RESERVATION",
-      deletedAt: null,
-      paidAt: { gte: yearStart, lte: yearEnd },
-      reservation: reservationFilter,
-    },
-    select: {
-      id: true,
-      amount: true,
-      method: true,
-      paidAt: true,
-      reservation: {
-        select: { id: true, status: true, propertyId: true },
-      },
-    },
-  });
-
-  // Build cancelledPaymentIds set — payments whose reservation is CANCELLED
-  const cancelledPaymentIds = new Set<string>();
-  for (const p of payments) {
-    if (p.reservation.status === "CANCELLED") {
-      cancelledPaymentIds.add(p.id);
-    }
-  }
-
-  // Map to CashPaymentInput for the seam
-  const cashPayments: CashPaymentInput[] = payments.map((p) => ({
-    id: p.id,
-    amount: Number(p.amount),
-    status: "COMPLETED" as const,
-    paymentType: "RESERVATION" as const,
-    method: (p.method ?? "CASH") as CashPaymentInput["method"],
-    paidAt: p.paidAt,
-    deletedAt: null,
-  }));
-
-  return buildAnnualCollectedCash(cashPayments, year, BUSINESS_TIME_ZONE, cancelledPaymentIds);
 }
 
 export async function getReservationsReportForExport(options?: {

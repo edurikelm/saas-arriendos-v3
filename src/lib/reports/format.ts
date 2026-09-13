@@ -3,11 +3,6 @@ import { es } from "date-fns/locale/es";
 
 /**
  * Converts "2026-01" → "ene 2026" using Intl.DateTimeFormat (no date-fns/tz dependency).
- *
- * Mirrored (intentionally, for now) by the standalone test in
- * `src/lib/reports/__tests__/month-key-label.test.ts`, which predates this
- * module and asserts the same Intl call directly. Keep both in sync if the
- * format ever changes.
  */
 export function monthKeyLabel(monthKey: string): string {
   // Parse YYYY-MM using UTC to avoid timezone shifts

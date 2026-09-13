@@ -110,3 +110,10 @@ The `/reports` page UI was simplified:
 - `src/lib/reports/__tests__/revenue-series.test.ts`: TDD tests
 - `src/lib/reports/decision-summary.ts`: Seam integration
 - `src/lib/actions/reports.ts`: `getYearlySummary`, `getRevenueReport`
+
+## Status update (post ADR-0035)
+
+`getYearlySummary`, `getRevenueReport`, and `buildAnnualCollectedCash` (with its `AnnualCollectedCash`
+type) were removed after ADR-0035 dropped `cash.annual` from `ReportDecisionSummary` — none of the
+three had a consumer left outside their own tests. `buildMonthlyCollectedCash`, `buildCashByMethod`,
+and `isEligibleCashPayment` remain the live seam for `/reports`.

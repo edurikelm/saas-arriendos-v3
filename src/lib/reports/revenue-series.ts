@@ -11,12 +11,7 @@
  * Source of truth: ADR-0030
  */
 
-import {
-  getDateKeyInTz,
-  startOfDayInTz,
-  endOfDayInTz,
-  BUSINESS_TIME_ZONE,
-} from "@/lib/domain/timezone";
+import { getDateKeyInTz, BUSINESS_TIME_ZONE } from "@/lib/domain/timezone";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,18 +32,6 @@ export interface MonthlyCollectedCash {
   collectedCash: number;
   paymentCount: number;
   /** Subtotal within collectedCash — cash from cancelled reservation payments */
-  cancelledCash: number;
-}
-
-/** Annual aggregation: full year with 12 months, byMethod breakdown, reconciliation. */
-export interface AnnualCollectedCash {
-  year: number;
-  totalCash: number;
-  byMonth: MonthlyCollectedCash[];
-  /** Method → total amount. Keys: MERCADO_PAGO | CASH | TRANSFER */
-  byMethod: Record<string, number>;
-  paymentCount: number;
-  /** Subtotal within totalCash */
   cancelledCash: number;
 }
 
@@ -145,68 +128,6 @@ export function buildMonthlyCollectedCash(
       cancelledCash: b.cancelled,
     };
   });
-}
-
-// ─── Annual ─────────────────────────────────────────────────────────────────
-
-/**
- * Builds annual collected-cash report with full reconciliation:
- * totalCash === sum(byMonth) === sum(byMethod)
- *
- * @param payments — flat array of eligible + cancelled payments for the year
- * @param year — the calendar year to report
- * @param ownerTz — timezone (default: America/Santiago)
- * @param cancelledPaymentIds — optional Set of payment IDs from CANCELLED reservations
- */
-export function buildAnnualCollectedCash(
-  payments: CashPaymentInput[],
-  year: number,
-  ownerTz: string = BUSINESS_TIME_ZONE,
-  cancelledPaymentIds?: Set<string>,
-): AnnualCollectedCash {
-  // El rango se construye en la zona de negocio, no en la del proceso.
-  // `new Date(year, 0, 1)` usa la hora local del servidor: en Chile da el
-  // instante correcto por casualidad, pero en UTC —donde corre el deploy—
-  // equivale al 31 de diciembre anterior a las 21:00 de Santiago, así que
-  // `buildMonthlyCollectedCash` derivaba `startKey` "YYYY-1-12" y la serie
-  // salía con 13 meses arrancando en diciembre del año anterior.
-  const yearStart = startOfDayInTz(`${year}-01-01`, ownerTz);
-  const yearEnd = endOfDayInTz(`${year}-12-31`, ownerTz);
-
-  const byMonth = buildMonthlyCollectedCash(
-    payments,
-    yearStart,
-    yearEnd,
-    ownerTz,
-    cancelledPaymentIds,
-  );
-
-  // byMethod aggregation
-  const byMethod: Record<string, number> = {};
-  for (const p of payments) {
-    if (!isEligibleCashPayment(p)) continue;
-    if (p.paidAt === null) continue;
-    // El año del pago se lee en la zona de negocio, igual que el `monthKey` de
-    // `buildMonthlyCollectedCash`. Con `getFullYear()` —hora local del proceso—
-    // un pago del 31-dic 22:00 en Santiago cae en el año siguiente al correr en
-    // UTC, así que `byMethod` dejaba de cuadrar con `byMonth` y con `totalCash`.
-    const paidYear = Number(getDateKeyInTz(p.paidAt, ownerTz).slice(0, 4));
-    if (paidYear !== year) continue;
-    byMethod[p.method] = (byMethod[p.method] ?? 0) + Number(p.amount);
-  }
-
-  const totalCash = byMonth.reduce((acc, m) => acc + m.collectedCash, 0);
-  const paymentCount = byMonth.reduce((acc, m) => acc + m.paymentCount, 0);
-  const cancelledCash = byMonth.reduce((acc, m) => acc + m.cancelledCash, 0);
-
-  return {
-    year,
-    totalCash,
-    byMonth,
-    byMethod,
-    paymentCount,
-    cancelledCash,
-  };
 }
 
 // ─── By method (range) ──────────────────────────────────────────────────────
