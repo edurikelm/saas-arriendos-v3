@@ -33,16 +33,37 @@ vi.mock("@/lib/export-utils", () => ({
  * rango. Igual que `reservation-form.test.tsx`, `reservations-list-client.test.tsx`
  * y `date-range-picker.test.tsx` (indirectamente, mockeando el consumidor en
  * los dos primeros) — mockeamos el primitivo y probamos el contrato de
- * `onDateChange` directamente, con un botón que expone la fecha fija elegida.
+ * `onDateChange` directamente, con botones que exponen fechas fijas elegidas
+ * (rango completo y selección a medias, solo `from`), y exponemos el `date`
+ * recibido para verificar que el calendario se vacía al elegir un rango rápido.
  */
 const CUSTOM_FROM = new Date(2026, 0, 5);
 const CUSTOM_TO = new Date(2026, 0, 20);
 
 vi.mock("@/components/ui/date-range-picker", () => ({
-  DateRangePicker: ({ onDateChange }: { onDateChange: (d: { from: Date; to: Date }) => void }) => (
-    <button type="button" data-testid="custom-range-trigger" onClick={() => onDateChange({ from: CUSTOM_FROM, to: CUSTOM_TO })}>
-      Elegir rango personalizado
-    </button>
+  DateRangePicker: ({
+    date,
+    onDateChange,
+  }: {
+    date: { from: Date | undefined; to: Date | undefined };
+    onDateChange: (d: { from: Date | undefined; to: Date | undefined }) => void;
+  }) => (
+    <div>
+      <span data-testid="custom-range-value">
+        {date?.from ? date.from.toISOString() : "empty"}
+        {date?.to ? `:${date.to.toISOString()}` : ""}
+      </span>
+      <button type="button" data-testid="custom-range-trigger" onClick={() => onDateChange({ from: CUSTOM_FROM, to: CUSTOM_TO })}>
+        Elegir rango personalizado
+      </button>
+      <button
+        type="button"
+        data-testid="custom-range-partial-trigger"
+        onClick={() => onDateChange({ from: CUSTOM_FROM, to: undefined })}
+      >
+        Elegir solo el inicio
+      </button>
+    </div>
   ),
 }));
 
@@ -170,7 +191,7 @@ beforeEach(() => {
 // ────────────────────────────────────────────────────────────────────────────
 
 describe("ReportsClient - plan FREE", () => {
-  it("solo 'Mes actual' queda habilitado y el picker personalizado no se renderiza", async () => {
+  it("solo 'Mes actual' queda habilitado, 'Personalizado' queda deshabilitado con candado, y el calendario no se renderiza", async () => {
     renderClient({ initialSession: { plan: "FREE" } });
     await waitFor(() => expect(getDecisionSummary).toHaveBeenCalled());
 
@@ -179,20 +200,26 @@ describe("ReportsClient - plan FREE", () => {
     expect((screen.getByRole("button", { name: /últimos 3 meses/i }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: /últimos 6 meses/i }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: /año actual/i }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: /personalizado/i }) as HTMLButtonElement).disabled).toBe(true);
 
+    const customButton = screen.getByRole("button", { name: /personalizado/i }) as HTMLButtonElement;
+    expect(customButton.disabled).toBe(true);
+    expect(customButton.getAttribute("aria-label")).toMatch(/disponible solo en plan pro/i);
+
+    // El calendario ("Personalizado" es el botón, no el control) no se renderiza en FREE.
     expect(screen.queryByTestId("custom-range-trigger")).toBeNull();
     expect(screen.getByText(/plan free: solo mes actual/i)).toBeTruthy();
   });
 });
 
 describe("ReportsClient - plan PRO", () => {
-  it("todos los rangos rápidos están habilitados y el picker personalizado se renderiza", async () => {
+  it("todos los rangos rápidos están habilitados, no hay botón 'Personalizado' (el calendario ES el control)", async () => {
     renderClient({ initialSession: { plan: "PRO" } });
     await waitFor(() => expect(getDecisionSummary).toHaveBeenCalled());
 
     expect((screen.getByRole("button", { name: /mes anterior/i }) as HTMLButtonElement).disabled).toBe(false);
-    expect((screen.getByRole("button", { name: /^personalizado/i }) as HTMLButtonElement).disabled).toBe(false);
+    // En PRO, un botón "Personalizado" aparte del calendario sería un segundo
+    // control que no hace nada por sí solo sin fechas elegidas.
+    expect(screen.queryByRole("button", { name: /^personalizado/i })).toBeNull();
     expect(screen.getByTestId("custom-range-trigger")).toBeTruthy();
   });
 });
@@ -202,23 +229,79 @@ describe("ReportsClient - plan PRO", () => {
 // ────────────────────────────────────────────────────────────────────────────
 
 describe("ReportsClient - rango personalizado", () => {
-  it("elegir fechas en el picker activa 'Personalizado' y llama a getDecisionSummary con ese rango", async () => {
+  it("elegir fechas completas en el calendario desactiva el rango rápido previo y llama a getDecisionSummary con ese rango", async () => {
     renderClient();
     await waitFor(() => expect(getDecisionSummary).toHaveBeenCalled());
     vi.mocked(getDecisionSummary).mockClear();
 
+    // "Mes actual" es el rango rápido activo por defecto.
+    expect(screen.getByRole("button", { name: /^mes actual/i, pressed: true })).toBeTruthy();
+
     const user = userEvent.setup();
     await user.click(screen.getByTestId("custom-range-trigger"));
 
-    // El botón "Personalizado" del rango rápido pasa a activo (aria-pressed).
+    // Al completarse la selección, ningún rango rápido queda activo.
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /^personalizado/i, pressed: true })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /^mes actual/i, pressed: false })).toBeTruthy();
     });
 
     await waitFor(() => {
       expect(getDecisionSummary).toHaveBeenCalledWith(
         expect.objectContaining({ rangeStart: CUSTOM_FROM, rangeEnd: CUSTOM_TO }),
       );
+    });
+  });
+
+  it("elegir solo la fecha de inicio no dispara fetch ni cambia las cifras (selección a medias)", async () => {
+    renderClient();
+    await waitFor(() => expect(getDecisionSummary).toHaveBeenCalled());
+    vi.mocked(getDecisionSummary).mockClear();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("custom-range-partial-trigger"));
+
+    // El calendario refleja la selección a medias (solo `from`)...
+    await waitFor(() => {
+      expect(screen.getByTestId("custom-range-value").textContent).toContain(CUSTOM_FROM.toISOString());
+    });
+    // ...pero "Mes actual" sigue siendo el rango activo y no se dispara ningún fetch nuevo.
+    expect(screen.getByRole("button", { name: /^mes actual/i, pressed: true })).toBeTruthy();
+    expect(getDecisionSummary).not.toHaveBeenCalled();
+  });
+
+  it("empezar una nueva selección sobre un personalizado ya aplicado mantiene las cifras anteriores hasta completarla", async () => {
+    renderClient();
+    await waitFor(() => expect(getDecisionSummary).toHaveBeenCalled());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("custom-range-trigger"));
+    await waitFor(() => {
+      expect(getDecisionSummary).toHaveBeenCalledWith(
+        expect.objectContaining({ rangeStart: CUSTOM_FROM, rangeEnd: CUSTOM_TO }),
+      );
+    });
+    vi.mocked(getDecisionSummary).mockClear();
+
+    // Empieza una nueva selección (solo `from`) sobre el personalizado ya aplicado.
+    await user.click(screen.getByTestId("custom-range-partial-trigger"));
+
+    expect(getDecisionSummary).not.toHaveBeenCalled();
+  });
+
+  it("elegir un rango rápido deja el calendario sin fechas, aunque hubiera un personalizado aplicado", async () => {
+    renderClient();
+    await waitFor(() => expect(getDecisionSummary).toHaveBeenCalled());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("custom-range-trigger"));
+    await waitFor(() => {
+      expect(screen.getByTestId("custom-range-value").textContent).toContain(CUSTOM_FROM.toISOString());
+    });
+
+    await user.click(screen.getByRole("button", { name: /mes anterior/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("custom-range-value").textContent).toBe("empty");
     });
   });
 });
@@ -391,5 +474,54 @@ describe("ReportsClient - tasa de cobranza", () => {
     await waitFor(() => {
       expect(screen.getByRole("group", { name: "Tasa de cobranza" }).textContent).toContain("150%");
     });
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Exportar vive en el encabezado, no al final de la página
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("ReportsClient - export en el encabezado", () => {
+  it("Excel y PDF se deshabilitan y explican por qué cuando no hay reservas en el período", async () => {
+    renderClient();
+    await waitFor(() => expect(getDecisionSummary).toHaveBeenCalled());
+
+    const excelBtn = await screen.findByRole("button", { name: /excel/i });
+    const pdfBtn = screen.getByRole("button", { name: /pdf/i });
+
+    await waitFor(() => expect((excelBtn as HTMLButtonElement).disabled).toBe(true));
+    expect((pdfBtn as HTMLButtonElement).disabled).toBe(true);
+    expect(excelBtn.getAttribute("title")).toMatch(/sin reservas en el período/i);
+    expect(pdfBtn.getAttribute("title")).toMatch(/sin reservas en el período/i);
+  });
+
+  it("muestra el conteo de reservas y habilita los botones cuando hay reservas", async () => {
+    vi.mocked(getReservationsReportCount).mockResolvedValue(7);
+
+    renderClient();
+
+    const excelBtn = await screen.findByRole("button", { name: /excel \(7\)/i });
+    const pdfBtn = await screen.findByRole("button", { name: /pdf \(7\)/i });
+    expect((excelBtn as HTMLButtonElement).disabled).toBe(false);
+    expect((pdfBtn as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("hacer click en Excel dispara la exportación con los filtros efectivos del momento", async () => {
+    vi.mocked(getReservationsReportCount).mockResolvedValue(3);
+
+    renderClient();
+    const excelBtn = await screen.findByRole("button", { name: /excel \(3\)/i });
+
+    const user = userEvent.setup();
+    await user.click(excelBtn);
+
+    await waitFor(() => expect(getReservationsReportForExport).toHaveBeenCalled());
+  });
+
+  it("ya no existe una sección 'Llevarse el período' al final de la página", async () => {
+    renderClient();
+    await waitFor(() => expect(getDecisionSummary).toHaveBeenCalled());
+
+    expect(screen.queryByText(/llevarse el período/i)).toBeNull();
   });
 });
