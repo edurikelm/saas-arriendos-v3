@@ -37,7 +37,7 @@ el número que tenía enfrente.
 rótulo que es una foto del presente. No hay tercera opción.** Un bloque que no pueda cumplir
 ninguna de las dos no va en esta página.
 
-### Estructura resultante: tres secciones
+### Estructura resultante: encabezado y dos secciones
 
 1. **Resultado del período** — todo obedece al rango + propiedad del encabezado: Cobrado
    (`collectedCash`), Facturado del período (`accruedRevenue`), Tasa de cobranza, cobrado por mes,
@@ -46,7 +46,24 @@ ninguna de las dos no va en esta página.
    subtítulo ("Foto del presente — no cambia con el rango de fechas de arriba"): antigüedad de la
    deuda activa hoy y top deudores. No hay ambigüedad posible porque el rótulo está al lado del
    número.
-3. **Llevarse el período** — export Excel/PDF de las reservas del rango.
+El **encabezado** lleva el título, el alcance factual ("Septiembre 2026 · 7 propiedades"), los
+controles de rango y propiedad, y los botones Excel y PDF con el conteo de reservas del rango.
+
+**Corrección posterior (2026-09-13).** La primera versión ponía el export en una tercera sección al
+final de la página, titulada "Llevarse el período", con el argumento de que la página se lee como un
+cierre de arriba abajo y el export es lo que uno se lleva al terminar. Fue un error: exportar es una
+acción de toda la página, y ubicarla al final obligaba a recorrer todo el contenido para
+encontrarla; el título, además, no era un rótulo que un usuario reconozca. Los dos problemas reales
+del export —el PDF que fallaba después del clic sobre 100 filas y la falta de conteo— no pedían
+moverlo. Volvió al encabezado conservando el conteo y el `disabled` con motivo cuando el período no
+tiene reservas.
+
+En la misma corrección se ordenaron los controles de rango: el calendario es el único control
+personalizado (se quitó el botón "Personalizado" duplicado en plan PRO; en FREE queda deshabilitado
+con candado), el calendario ya no muestra como "Personalizado" las fechas de un rango rápido, y una
+selección con una sola fecha no cambia las cifras hasta completarse. El selector de propiedad
+mostraba el valor crudo (`all` o el id) porque `SelectValue` de Base UI renderiza el valor y no la
+etiqueta; ahora usa la función hija, como `/calendar`.
 
 Cualquier bloque que no encajara en ninguna de las dos reglas se eliminó (ver más abajo), en vez de
 forzarlo a una tercera categoría.
