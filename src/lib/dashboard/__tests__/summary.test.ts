@@ -591,6 +591,45 @@ describe("buildDashboardSummary — agenda", () => {
       today?.events.some((e) => e.reservationId === reservation.id && e.kind === "ARRIVAL"),
     ).toBe(true);
   });
+
+  // Los dos cambios de hora de Chile en 2026, medidos con Intl: en septiembre
+  // el reloj salta de sáb 5 23:59 (GMT-4) a dom 6 01:00 (GMT-3) a las 04:00
+  // UTC; en abril, a las 03:00 UTC, vuelve de sáb 4 23:59 (GMT-3) a sáb 4
+  // 23:00 (GMT-4). Abril es el caso traicionero: un offset fijo de -3 cambiaría
+  // de día una hora antes, con la agenda de mañana mostrada como hoy.
+  it("en los dos cambios de hora del año, hoy cambia a la medianoche de Santiago", () => {
+    const septArrival = makeReservation({
+      billingType: "DAILY",
+      status: "CONFIRMED",
+      startDate: new Date("2026-09-06T15:00:00.000Z"),
+      endDate: new Date("2026-09-08T15:00:00.000Z"),
+    });
+    const beforeJump = buildDashboardSummary(
+      buildInput([septArrival], { now: new Date("2026-09-06T03:59:00.000Z") }),
+    );
+    const afterJump = buildDashboardSummary(
+      buildInput([septArrival], { now: new Date("2026-09-06T04:01:00.000Z") }),
+    );
+    expect(beforeJump.todayKey).toBe("2026-09-05");
+    expect(beforeJump.agenda.days.find((d) => d.dateKey === "2026-09-06")?.offset).toBe(1);
+    expect(afterJump.todayKey).toBe("2026-09-06");
+    expect(afterJump.agenda.days[0].dateKey).toBe("2026-09-06");
+    expect(afterJump.agenda.days[0].events.map((e) => e.kind)).toEqual(["ARRIVAL"]);
+
+    const aprilArrival = makeReservation({
+      billingType: "DAILY",
+      status: "CONFIRMED",
+      startDate: new Date("2026-04-05T15:00:00.000Z"),
+      endDate: new Date("2026-04-07T15:00:00.000Z"),
+    });
+    // 03:30 UTC ya es "5 de abril" con offset -3, pero en Santiago son las
+    // 23:30 del 4: el reloj acaba de retroceder una hora.
+    const repeatedHour = buildDashboardSummary(
+      buildInput([aprilArrival], { now: new Date("2026-04-05T03:30:00.000Z") }),
+    );
+    expect(repeatedHour.todayKey).toBe("2026-04-04");
+    expect(repeatedHour.agenda.days.find((d) => d.dateKey === "2026-04-05")?.offset).toBe(1);
+  });
 });
 
 // ─── Tests: tablero de propiedades ──────────────────────────────────────────────
