@@ -2,21 +2,35 @@
  * DashboardSummary — pure domain seam para `/dashboard`.
  *
  * Compone (no reimplementa) los módulos de dominio ya probados:
- * - `buildDecisionSummary` (`@/lib/reports/decision-summary`) — ADR-0028/0029/0030.
+ * - `buildDecisionSummary` (`@/lib/reports/decision-summary`) — ADR-0028/0029/0030,
+ *   fuente de `month.collected`, `month.collectedPreviousSamePeriod` y la
+ *   ocupación del mes en curso.
  * - `buildCollectionReportRows` + `getCollectionStatus` + `sumCollectionTotals`
  *   (`@/lib/reports/collection`, `@/lib/reports/kpis`) — fuente de verdad de
- *   cobranza (única población que ve deuda DAILY, vía `startDate` como proxy).
+ *   cobranza (única población que ve deuda DAILY, vía `startDate` como proxy)
+ *   y también de `agenda[].amountDue`, vía la MISMA ventana completa.
  * - `classifyCollectionAlerts` (`@/lib/alerts/collection-alerts`) — SOLO como
  *   enriquecimiento (paymentId/initPoint/expiresAt) de items MONTHLY.
+ *
+ * Produce cuatro piezas para la página:
+ * - `collection`/`collectionItems` — cobros pendientes (sin cambios en esta
+ *   iteración; ver CONTEXT.md "/dashboard — sección Cobros pendientes").
+ * - `agenda` — llegadas/salidas por día en un horizonte de `AGENDA_HORIZON_DAYS`.
+ * - `propertyBoard` — estado de cada propiedad HOY (ocupada/parcial/libre),
+ *   incluyendo Bloqueos de Canal Externo.
+ * - `month` — cobrado del mes en curso vs mismo período del mes anterior, y
+ *   ocupación del mes en curso.
  *
  * Este módulo es PURO: sin `"use server"`, sin Prisma, sin `new Date()`
  * implícito — todo cómputo temporal recibe `now` como parámetro.
  *
  * ⚠️ Gotcha de timezone (ADR-0020): `buildDecisionSummary` compara rangos con
- * epoch-day UTC (`Math.floor(t / 86_400_000)`). Los rangos de "hoy" y de mes
+ * epoch-day UTC (`Math.floor(t / 86_400_000)`). Los rangos de mes
  * actual/anterior se derivan del `dateKey` (`YYYY-MM-DD`) en
  * `America/Santiago`, nunca directamente de `now`, para no cruzar el día
- * equivocado cerca de medianoche UTC.
+ * equivocado cerca de medianoche UTC. `agenda` y `propertyBoard`, en cambio,
+ * operan enteramente sobre `dateKey`s (`dateOnlyKey`/`addDaysToDateKey`/
+ * `dateKeyToDayIndex`), sin pasar por epoch-day de `Date`.
  */
 
 import {
@@ -36,22 +50,18 @@ import {
   type CollectionAlertPayment,
 } from "@/lib/alerts/collection-alerts";
 import {
+  addDaysToDateKey,
   BUSINESS_TIME_ZONE,
-  daysFromNowInBusinessTz,
+  dateKeyToDayIndex,
+  dateOnlyKey,
   daysFromTodayDateOnly,
   getDateKeyInTz,
 } from "@/lib/domain/timezone";
-import {
-  daysUntilEnd,
-  daysUntilStart,
-  getNights,
-} from "@/components/reservations/reservation-status";
+import { getNights } from "@/components/reservations/reservation-status";
 import { getInclusiveMonths } from "@/lib/reservation-dates";
 
 // ─── Constantes ─────────────────────────────────────────────────────────────
 
-const DEFAULT_UPCOMING_WINDOW_DAYS = 14;
-const DEFAULT_UPCOMING_LIMIT = 6;
 const DEFAULT_COLLECTION_LIMIT = 4;
 
 // ─── Tipos de input ─────────────────────────────────────────────────────────
@@ -71,10 +81,9 @@ export interface DashboardPaymentInput {
 
 /**
  * Superset de `DecisionReservationInput` (decision-summary.ts) +
- * `CollectionReservationInput` (collection.ts), más `client.phone` y
- * `createdAt` — ninguna de las dos exige estos dos, pero el dashboard los
- * necesita: `client.phone` para acciones de contacto (movimientos/cobranza)
- * y `createdAt` para "reserva PENDING más antigua" (`DashboardToday`).
+ * `CollectionReservationInput` (collection.ts), más `client.phone` — ninguna
+ * de las dos lo exige, pero `collectionItems` lo necesita para acciones de
+ * contacto.
  */
 export interface DashboardReservationInput {
   id: string;
@@ -85,37 +94,38 @@ export interface DashboardReservationInput {
   endDate: Date;
   totalPrice: number;
   unitsBooked: number;
-  createdAt: Date;
   property: { id: string; name: string; color: string };
   client: { id: string; name: string; phone: string | null };
   payments: DashboardPaymentInput[];
 }
 
+export type DashboardExternalChannel = "AIRBNB" | "BOOKING_COM" | "VRBO" | "OTHER";
+
+/**
+ * Bloqueo de Canal Externo ACTIVE. Solo alimenta el tablero de propiedades:
+ * consume 1 unidad por cada noche que cubre, igual que en la disponibilidad
+ * (CONTEXT.md, "Calendarios Externos"). Nunca es un evento de agenda ni una
+ * cifra financiera (ADR-0018: iCal no es fuente financiera).
+ */
+export interface DashboardExternalBlockInput {
+  propertyId: string;
+  /** Date-only del dominio, misma convención de Última Noche que una reserva. */
+  startDate: Date;
+  endDate: Date;
+  channel: DashboardExternalChannel;
+}
+
 export interface DashboardSummaryInput {
   properties: Array<{ id: string; name: string; unitsAvailable: number }>;
   reservations: DashboardReservationInput[];
+  /** Bloqueos ACTIVE. Opcional: sin iCal (plan FREE) no hay ninguno. */
+  externalBlocks?: DashboardExternalBlockInput[];
   now: Date;
-  /** Ventana de días para `upcomingReservations` (tabla). Default 14. */
-  upcomingWindowDays?: number;
-  /** Tope de filas de `upcomingReservations`. Default 6. */
-  upcomingLimit?: number;
   /** Tope de items de `collectionItems`. Default 4. */
   collectionLimit?: number;
 }
 
 // ─── Tipos de output ────────────────────────────────────────────────────────
-
-export interface DashboardKpiDelta {
-  pct: number;
-  variant: "positive" | "warning" | "neutral";
-  text: string;
-}
-
-export interface DashboardIncomeKpi {
-  currentMonth: number;
-  previousMonth: number;
-  delta: DashboardKpiDelta;
-}
 
 /**
  * Reparto de los cobros de una fila entre los dos grupos del card.
@@ -217,66 +227,6 @@ export interface DashboardCollectionKpi {
   windowGroups: Record<DashboardCollectionGroup, DashboardCollectionGroupTotal>;
 }
 
-export interface DashboardUpcomingKpi {
-  total: number;
-  next7Days: number;
-}
-
-export interface DashboardOccupancyKpi {
-  rate: number;
-  occupiedNightUnits: number;
-  capacityNightUnits: number;
-}
-
-export type DashboardMovementKind = "ARRIVAL" | "DEPARTURE";
-
-export interface DashboardMovement {
-  reservationId: string;
-  kind: DashboardMovementKind;
-  clientName: string;
-  clientPhone: string | null;
-  propertyName: string;
-  startDate: string;
-  endDate: string;
-  unitsBooked: number;
-}
-
-export interface DashboardToday {
-  arrivals: DashboardMovement[];
-  departures: DashboardMovement[];
-  inStayCount: number;
-  pendingConfirmationCount: number;
-  oldestPendingConfirmationDays: number | null;
-  activeMonthlyContracts: number;
-}
-
-export interface DashboardUpcomingReservation {
-  id: string;
-  propertyId: string;
-  propertyName: string;
-  propertyColor: string;
-  clientName: string;
-  clientPhone: string | null;
-  startDate: string;
-  endDate: string;
-  billingType: "DAILY" | "MONTHLY";
-  status: string;
-  totalPrice: number;
-  unitsBooked: number;
-  nights: number;
-  /** Meses inclusivos (`getInclusiveMonths`). `0` para `DAILY`. */
-  months: number;
-  /**
-   * Monto de UNA cuota mensual (no el contrato completo). `null` para
-   * `DAILY`. Ver `computeInstallmentAmount` para la derivación.
-   */
-  installmentAmount: number | null;
-  daysToStart: number;
-  daysToEnd: number;
-  isActive: boolean;
-  isArrivingToday: boolean;
-}
-
 export type DashboardCollectionBucket = "OVERDUE" | "DUE_TODAY" | "UPCOMING_7D";
 
 export interface DashboardCollectionItem {
@@ -314,38 +264,159 @@ export interface DashboardCollectionItem {
   billingType: "DAILY" | "MONTHLY";
 }
 
-export interface DashboardOccupancyStripReservation {
-  id: string;
+// ─── Agenda: movimientos de los próximos días ───────────────────────────────
+
+/** Horizonte de la agenda: hoy + los 6 días siguientes. */
+export const AGENDA_HORIZON_DAYS = 7;
+
+/**
+ * Las dos cosas que pasan físicamente en una propiedad. Se aplican igual a
+ * DAILY y a MONTHLY: el inicio de un contrato es una llegada (entrega de
+ * llaves) y su término es una salida (entrega de la propiedad).
+ */
+export type DashboardAgendaEventKind = "ARRIVAL" | "DEPARTURE";
+
+export interface DashboardAgendaEvent {
+  kind: DashboardAgendaEventKind;
+  reservationId: string;
   propertyId: string;
-  startDate: string;
-  endDate: string;
-  billingType: string;
-  status: string;
-  client: { id: string; name: string };
-  property: { id: string; name: string; unitsAvailable: number };
+  propertyName: string;
+  clientName: string;
+  billingType: "DAILY" | "MONTHLY";
+  /** Noches de la estadía completa (convención Última Noche). */
+  nights: number;
+  /** Meses inclusivos (`getInclusiveMonths`). `0` para DAILY. */
+  months: number;
+  unitsBooked: number;
+  /**
+   * Plata exigible de la reserva: el MISMO monto que su fila en "Por cobrar"
+   * (`amountForRow`) cuando la reserva está en la ventana de cobranza
+   * (vencido / vence hoy / próximos 7 días), y `0` si no lo está. Sale de la
+   * ventana completa, no de `collectionItems` (que viene truncado): una
+   * reserva que no alcanzó a entrar en las filas visibles igual debe su plata.
+   */
+  amountDue: number;
+  /**
+   * `true` si la reserva no tiene ningún pago `RESERVATION` `COMPLETED`.
+   * Distingue "sin pagos" de "saldo" en la fila.
+   */
+  hasNoPayments: boolean;
+}
+
+export interface DashboardAgendaDay {
+  /** `YYYY-MM-DD`, wall-time America/Santiago. */
+  dateKey: string;
+  /** Días desde hoy: 0 = hoy, 1 = mañana. */
+  offset: number;
+  /**
+   * Salidas primero y después llegadas —el orden real del día: la unidad se
+   * libera antes de volver a ocuparse—; dentro de cada tipo, por propiedad y
+   * luego por cliente.
+   */
+  events: DashboardAgendaEvent[];
+}
+
+export interface DashboardAgenda {
+  horizonDays: number;
+  /**
+   * Hoy SIEMPRE, aunque no tenga eventos, más cada día del horizonte que tenga
+   * al menos uno, en orden. Los días sin movimiento no aparecen.
+   */
+  days: DashboardAgendaDay[];
+  /**
+   * Primer día con eventos después del horizonte, para que una semana quieta
+   * diga cuándo vuelve a pasar algo. `null` si no hay ninguno.
+   */
+  nextEventAfterHorizon: { dateKey: string; offset: number } | null;
+}
+
+// ─── Tablero de propiedades: quién ocupa cada una hoy ───────────────────────
+
+export type DashboardPropertyState = "OCCUPIED" | "PARTIAL" | "FREE";
+
+export interface DashboardPropertyOccupant {
+  source: "RESERVATION" | "EXTERNAL_BLOCK";
+  /** `null` para bloqueos externos. */
+  reservationId: string | null;
+  /** `null` para bloqueos externos. */
+  billingType: "DAILY" | "MONTHLY" | null;
+  /** Canal del bloqueo; `null` para reservas. */
+  channel: DashboardExternalChannel | null;
+  /** Última noche (`endDate`), `YYYY-MM-DD`. */
+  lastNightKey: string;
+  /** Día en que se libera la unidad: última noche + 1 (salida o entrega). */
+  releaseDateKey: string;
+}
+
+export interface DashboardPropertyStatus {
+  propertyId: string;
+  propertyName: string;
+  unitsAvailable: number;
+  /**
+   * Unidades consumidas la noche de HOY: Σ `unitsBooked` de las reservas no
+   * canceladas con `startDate <= hoy <= endDate`, más 1 por cada bloqueo
+   * externo que cubra hoy. Misma regla que la disponibilidad. Sin tope: con
+   * sobreventa puede superar `unitsAvailable`.
+   */
+  unitsOccupied: number;
+  /** `unitsOccupied >= unitsAvailable` → OCCUPIED; `> 0` → PARTIAL; `0` → FREE. */
+  state: DashboardPropertyState;
+  /**
+   * Ocupante de hoy que se libera primero (menor `releaseDateKey`). `null`
+   * cuando `state === "FREE"`.
+   */
+  nextRelease: DashboardPropertyOccupant | null;
+  /** Próxima llegada estrictamente futura (`startDate > hoy`) de una reserva no cancelada. */
+  nextArrival: { reservationId: string; dateKey: string } | null;
+}
+
+export interface DashboardPropertyBoard {
+  /**
+   * TODAS las propiedades, también las libres y sin reservas. Orden:
+   * ocupadas/parciales por `nextRelease.releaseDateKey` ascendente; después
+   * libres con `nextArrival` ascendente; al final libres sin llegada, por
+   * nombre. Empates, por nombre.
+   */
+  properties: DashboardPropertyStatus[];
+  /** Σ min(unitsOccupied, unitsAvailable): la sobreventa no infla el conteo. */
+  occupiedUnits: number;
+  totalUnits: number;
+  /** Todas las propiedades tienen 1 unidad: la UI puede contar "propiedades". */
+  allSingleUnit: boolean;
+}
+
+// ─── El mes en curso ────────────────────────────────────────────────────────
+
+export interface DashboardMonthPulse {
+  /** `YYYY-MM` del mes en curso (America/Santiago). */
+  monthKey: string;
+  /** Día del mes de hoy, 1-31. */
+  dayOfMonth: number;
+  /** Cobrado en el mes en curso: `collectedCash` de `buildDecisionSummary` (ADR-0028). */
+  collected: number;
+  /** `YYYY-MM` del mes anterior. */
+  previousMonthKey: string;
+  /** Día de corte del mes anterior: `min(dayOfMonth, último día de ese mes)`. */
+  previousCutoffDay: number;
+  /**
+   * Cobrado entre el día 1 y `previousCutoffDay` del mes anterior. Comparar
+   * contra el mes anterior COMPLETO hacía que cada comienzo de mes marcara
+   * caída aunque el negocio fuera igual.
+   */
+  collectedPreviousSamePeriod: number;
+  /** Ocupación del mes calendario completo, noches ya reservadas incluidas. */
+  occupancyRate: number;
+  occupiedNightUnits: number;
+  capacityNightUnits: number;
 }
 
 export interface DashboardSummary {
   todayKey: string;
-  income: DashboardIncomeKpi;
   collection: DashboardCollectionKpi;
-  upcoming: DashboardUpcomingKpi;
-  occupancy: DashboardOccupancyKpi;
-  today: DashboardToday;
-  upcomingReservations: DashboardUpcomingReservation[];
-  /**
-   * Reservas EN CURSO hoy (`isActive`), ambos billing types, sin ventana —
-   * una reserva en curso lo está sin importar cuán lejos esté su fin. Vista
-   * "Activas" de la tabla de agenda: coincide 1:1 con el pill de estado
-   * "Activa" (`getTemporalStatus`), igual que `upcomingReservations` coincide
-   * con el pill "Próxima".
-   */
-  activeReservations: DashboardUpcomingReservation[];
   collectionItems: DashboardCollectionItem[];
-  occupancyStrip: {
-    properties: Array<{ id: string; name: string; unitsAvailable: number }>;
-    reservations: DashboardOccupancyStripReservation[];
-  };
+  agenda: DashboardAgenda;
+  propertyBoard: DashboardPropertyBoard;
+  month: DashboardMonthPulse;
   isEmpty: { properties: boolean; reservations: boolean };
 }
 
@@ -378,8 +449,6 @@ function previousMonth(year: number, month1: number): { year: number; month1: nu
 
 export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSummary {
   const now = input.now;
-  const upcomingWindowDays = input.upcomingWindowDays ?? DEFAULT_UPCOMING_WINDOW_DAYS;
-  const upcomingLimit = input.upcomingLimit ?? DEFAULT_UPCOMING_LIMIT;
   const collectionLimit = input.collectionLimit ?? DEFAULT_COLLECTION_LIMIT;
 
   // ── Rangos de fecha derivados de `todayKey` (America/Santiago), NUNCA de
@@ -391,11 +460,11 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
 
   const monthRangeStart = toUtcDay(monthStartKey(todayYear, todayMonth1));
   const monthRangeEnd = toUtcDay(monthEndKey(todayYear, todayMonth1));
-  const prevMonthRangeStart = toUtcDay(monthStartKey(prev.year, prev.month1));
-  const prevMonthRangeEnd = toUtcDay(monthEndKey(prev.year, prev.month1));
-  const todayUtc = toUtcDay(todayKey);
 
-  // ── Decision summary — llamado 3 veces sobre el MISMO dataset en memoria.
+  // ── Decision summary del mes en curso — alimenta `month.collected` y la
+  // ocupación del mes (`month.occupancyRate`/`occupiedNightUnits`/
+  // `capacityNightUnits`). La comparación "mismo período" del mes anterior
+  // se resuelve más abajo, junto al resto de `month`, con un segundo rango.
   const decisionReservations: DecisionReservationInput[] = input.reservations;
 
   const currentMonthDecision = buildDecisionSummary({
@@ -404,51 +473,6 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     rangeStart: monthRangeStart,
     rangeEnd: monthRangeEnd,
   });
-
-  const previousMonthDecision = buildDecisionSummary({
-    reservations: decisionReservations,
-    properties: input.properties,
-    rangeStart: prevMonthRangeStart,
-    rangeEnd: prevMonthRangeEnd,
-  });
-
-  const todayDecision = buildDecisionSummary({
-    reservations: decisionReservations,
-    properties: input.properties,
-    rangeStart: todayUtc,
-    rangeEnd: todayUtc,
-  });
-
-  // ── Income KPI ──────────────────────────────────────────────────────────
-  const currentMonthIncome = currentMonthDecision.collectedCash;
-  const previousMonthIncome = previousMonthDecision.collectedCash;
-  const incomePct =
-    previousMonthIncome > 0
-      ? Math.round(((currentMonthIncome - previousMonthIncome) / previousMonthIncome) * 100)
-      : currentMonthIncome > 0
-        ? 100
-        : 0;
-  const incomeVariant: DashboardKpiDelta["variant"] =
-    incomePct > 0 ? "positive" : incomePct < 0 ? "warning" : "neutral";
-  const incomeText =
-    incomePct > 0
-      ? `+${incomePct}% vs mes anterior`
-      : incomePct < 0
-        ? `${incomePct}% vs mes anterior`
-        : "Sin cambio vs mes anterior";
-
-  const income: DashboardIncomeKpi = {
-    currentMonth: currentMonthIncome,
-    previousMonth: previousMonthIncome,
-    delta: { pct: incomePct, variant: incomeVariant, text: incomeText },
-  };
-
-  // ── Occupancy KPI (hoy) ─────────────────────────────────────────────────
-  const occupancy: DashboardOccupancyKpi = {
-    rate: todayDecision.occupancyRate,
-    occupiedNightUnits: todayDecision.occupiedNightUnits,
-    capacityNightUnits: todayDecision.capacityNightUnits,
-  };
 
   // ── Collection: fuente de verdad = buildCollectionReportRows (ve DAILY). ──
   const collectionReservations: CollectionReservationInput[] = input.reservations.map((r) => ({
@@ -507,7 +531,8 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
   // El orden de esta lista ES el orden de render del card, y `collectionItems`
   // sale de cortarla en `collectionLimit`: por eso vive acá y no junto a los
   // items — el desglose por grupo necesita saber qué filas quedaron fuera
-  // para poder reportar la porción sin representación visible.
+  // para poder reportar la porción sin representación visible. La agenda
+  // (más abajo) reusa esta MISMA lista completa para `amountDue`.
   const orderedWindowRows: Array<{
     row: CollectionReportRow;
     bucket: DashboardCollectionBucket;
@@ -524,7 +549,7 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
   // estado. La versión anterior sumaba `overdue + dueSoon + extrasPending`
   // de cada fila OVERDUE al encabezado "Vencidos", así que ese encabezado
   // contaba plata que no estaba vencida (issue #238): una fila con 2 cuotas
-  // vencidas + 1 por vencer aportaba 3 a "Vencidos · N". Ahora aporta 2 a
+  // vencidas + 1 por vencer aportaba 3 a "Vencidos" . Ahora aporta 2 a
   // OVERDUE y 1 a DUE_SOON, y la palabra del encabezado dice la verdad sin
   // que se rompa la suma con el footer.
   const windowTotals = sumWindowSplit(orderedWindowRows);
@@ -705,251 +730,270 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     buildCollectionItem(row, bucket),
   );
 
-  // ── "Hoy": movimientos, estadías en curso, pendientes de confirmación. ───
-  const arrivals: DashboardMovement[] = [];
-  const departures: DashboardMovement[] = [];
-  let inStayCount = 0;
-  let pendingConfirmationCount = 0;
-  let oldestPendingConfirmationDays: number | null = null;
-  let activeMonthlyContracts = 0;
-
-  for (const r of input.reservations) {
-    if (r.status === "CANCELLED") continue;
-
-    const startIso = r.startDate.toISOString();
-    const endIso = r.endDate.toISOString();
-    const daysToStart = daysUntilStart(startIso, now);
-    const daysToEnd = daysUntilEnd(endIso, now);
-    const isActive = daysToStart <= 0 && daysToEnd >= 0;
-
-    if (daysToStart === 0) {
-      arrivals.push({
-        reservationId: r.id,
-        kind: "ARRIVAL",
-        clientName: r.client.name,
-        clientPhone: r.client.phone,
-        propertyName: r.property.name,
-        startDate: startIso,
-        endDate: endIso,
-        unitsBooked: r.unitsBooked,
-      });
-    }
-    if (daysToEnd === 0) {
-      departures.push({
-        reservationId: r.id,
-        kind: "DEPARTURE",
-        clientName: r.client.name,
-        clientPhone: r.client.phone,
-        propertyName: r.property.name,
-        startDate: startIso,
-        endDate: endIso,
-        unitsBooked: r.unitsBooked,
-      });
-    }
-    if (isActive) inStayCount += 1;
-    if (r.billingType === "MONTHLY" && isActive) activeMonthlyContracts += 1;
-
-    if (r.status === "PENDING") {
-      pendingConfirmationCount += 1;
-      const daysAgo = -daysFromNowInBusinessTz(r.createdAt, now);
-      if (oldestPendingConfirmationDays === null || daysAgo > oldestPendingConfirmationDays) {
-        oldestPendingConfirmationDays = daysAgo;
-      }
-    }
-  }
-
-  const today: DashboardToday = {
-    arrivals,
-    departures,
-    inStayCount,
-    pendingConfirmationCount,
-    oldestPendingConfirmationDays,
-    activeMonthlyContracts,
-  };
-
-  // ── Upcoming KPI ─────────────────────────────────────────────────────────
-  // Alineado con la misma regla de población y la misma ventana
-  // (`upcomingWindowDays`) que `upcomingReservations` (tabla, más abajo):
-  // cuenta reservas que AÚN NO llegan (`daysToStart > 0`) dentro de la
-  // ventana, sin distinguir billing type. Para MONTHLY esto es exactamente
-  // el "evento de inicio en la ventana" — un contrato mensual solo tiene
-  // `daysToStart > 0` mientras no ha arrancado, así que no hace falta un
-  // chequeo de billing type aparte: la misma condición de ventana YA es el
-  // filtro de población.
+  // ── Agenda: llegadas y salidas por día, en el horizonte. ─────────────────
   //
-  // Relación con la vista homónima de la tabla: este KPI es el conteo SIN
-  // TOPE (`upcomingLimit`) de exactamente la misma población que la vista
-  // "Próximas" — misma condición (`daysToStart > 0 && <= upcomingWindowDays`),
-  // ambos billing types. Ya no hace falta la salvedad de "más las activas":
-  // desde que la tabla separó "Próximas" (pill "Próxima") de "Activas" (pill
-  // "Activa") en dos vistas distintas, el KPI y la vista "Próximas" cuentan
-  // exactamente lo mismo, solo que una topada y la otra no.
-  let upcomingTotal = 0;
-  let upcomingNext7Days = 0;
-  for (const r of input.reservations) {
-    if (r.status === "CANCELLED") continue;
-    const daysToStart = daysUntilStart(r.startDate.toISOString(), now);
-    if (daysToStart > 0 && daysToStart <= upcomingWindowDays) {
-      upcomingTotal += 1;
-      if (daysToStart <= 7) upcomingNext7Days += 1;
-    }
-  }
-  const upcoming: DashboardUpcomingKpi = { total: upcomingTotal, next7Days: upcomingNext7Days };
-
-  // ── upcomingReservations / activeReservations (tabla "Agenda de reservas"):
-  // dos poblaciones disjuntas que coinciden 1:1 con el pill de estado
-  // temporal que ve el dueño en cada fila (`getTemporalStatus`,
-  // `@/components/reservations/reservation-status`):
-  //   - "Próxima" (`daysToStart > 0`) → vista `upcomingReservations`.
-  //   - "Activa"  (`daysToStart <= 0 && daysToEnd >= 0`) → vista `activeReservations`.
-  // Nunca al revés — si una fila con pill "Activa" apareciera en la vista
-  // "Próximas", la tabla se contradice sola. Por eso ambas poblaciones se
-  // derivan del MISMO cómputo de `daysToStart`/`daysToEnd`/`isActive` sobre
-  // el mismo dataset, en vez de reglas independientes que podrían divergir.
-  interface ReservationCandidate {
-    reservation: DashboardReservationInput;
-    daysToStart: number;
-    daysToEnd: number;
-    isActive: boolean;
-    isArrivingToday: boolean;
-  }
-
-  const candidates: ReservationCandidate[] = [];
-  for (const r of input.reservations) {
-    if (r.status === "CANCELLED") continue;
-    const startIso = r.startDate.toISOString();
-    const endIso = r.endDate.toISOString();
-    const daysToStart = daysUntilStart(startIso, now);
-    const daysToEnd = daysUntilEnd(endIso, now);
-    const isActive = daysToStart <= 0 && daysToEnd >= 0;
-
-    candidates.push({
-      reservation: r,
-      daysToStart,
-      daysToEnd,
-      isActive,
-      isArrivingToday: daysToStart === 0,
-    });
-  }
-
-  // "Próximas": estrictamente futuras, ambos billing types, dentro de la
-  // ventana. Para MONTHLY el inicio de contrato es una llegada (mudanza,
-  // evento de agenda) — misma condición que DAILY, sin chequeo de billing
-  // type aparte. Un contrato MONTHLY en curso sin evento cercano NO entra
-  // aquí (no tiene `daysToStart > 0`); un término de contrato tampoco es un
-  // evento de agenda (no pasa nada ese día) y queda fuera de la tabla.
-  const upcomingCandidates = candidates.filter(
-    (c) => c.daysToStart > 0 && c.daysToStart <= upcomingWindowDays,
+  // El monto exigible de cada evento es el MISMO que su fila en "Por cobrar"
+  // (`amountForRow`), tomado de `orderedWindowRows` (la ventana COMPLETA,
+  // vencido/vence hoy/próximos 7 días) y no de `collectionItems` (que viene
+  // truncado a `collectionLimit`): una reserva fuera de las filas visibles
+  // igual debe aparecer con su monto real en la agenda.
+  const amountDueByReservationId = new Map<string, number>(
+    orderedWindowRows.map(({ row }) => [row.reservationId, amountForRow(row)] as const),
   );
-  upcomingCandidates.sort((a, b) => a.daysToStart - b.daysToStart);
 
-  // "Activas": en curso hoy (incluye las que llegan hoy — `daysToStart === 0`
-  // cae dentro de `[start, end]`, así que su pill es "Activa"), ambos billing
-  // types, SIN ventana — una reserva en curso lo está sin importar cuán lejos
-  // esté su fin.
-  const activeCandidates = candidates.filter((c) => c.isActive);
-  activeCandidates.sort((a, b) => {
-    if (a.isArrivingToday !== b.isArrivingToday) return a.isArrivingToday ? -1 : 1;
-    return a.daysToEnd - b.daysToEnd;
-  });
-
-  /**
-   * Monto de UNA cuota mensual (no el contrato completo). `generateMonthlyPayments`
-   * (`@/lib/payments/monthly`) genera cuotas de monto idéntico
-   * (`monthlyPrice × unitsBooked`), así que basta tomar el `amount` de la
-   * cuota `RESERVATION` (no `EXTRA`, no soft-deleted) con el `dueDate` más
-   * temprano. Fallback defensivo cuando la reserva MONTHLY no tiene filas de
-   * `Payment` (no debería pasar en producción, pero el tipo lo permite):
-   * `totalPrice / months`, redondeado.
-   */
-  function computeInstallmentAmount(
-    r: DashboardReservationInput,
-    months: number,
-  ): number | null {
-    if (r.billingType !== "MONTHLY") return null;
-    const installments = r.payments.filter(
-      (p) => p.paymentType === "RESERVATION" && p.deletedAt == null && p.dueDate !== null,
-    );
-    if (installments.length > 0) {
-      const earliest = installments.reduce((min, p) =>
-        (p.dueDate as Date) < (min.dueDate as Date) ? p : min,
-      );
-      return earliest.amount;
-    }
-    return months > 0 ? Math.round(r.totalPrice / months) : null;
+  interface AgendaEventCandidate {
+    offset: number;
+    dateKey: string;
+    event: DashboardAgendaEvent;
   }
 
-  function mapCandidateToRow(c: ReservationCandidate): DashboardUpcomingReservation {
-    const r = c.reservation;
+  const agendaCandidates: AgendaEventCandidate[] = [];
+
+  for (const r of input.reservations) {
+    if (r.status === "CANCELLED") continue;
+
+    const startKey = dateOnlyKey(r.startDate);
+    const endKey = dateOnlyKey(r.endDate);
+    // Convención Última Noche: la salida ocurre el día SIGUIENTE a la última
+    // noche, tanto para DAILY como para MONTHLY.
+    const departureKey = addDaysToDateKey(endKey, 1);
     const startIso = r.startDate.toISOString();
     const endIso = r.endDate.toISOString();
     const months = r.billingType === "MONTHLY" ? getInclusiveMonths(startIso, endIso) : 0;
-    return {
-      id: r.id,
+    const hasNoPayments = !r.payments.some(
+      (p) => p.paymentType === "RESERVATION" && p.status === "COMPLETED" && p.deletedAt == null,
+    );
+
+    const sharedEventFields = {
+      reservationId: r.id,
       propertyId: r.propertyId,
       propertyName: r.property.name,
-      propertyColor: r.property.color,
       clientName: r.client.name,
-      clientPhone: r.client.phone,
-      startDate: startIso,
-      endDate: endIso,
       billingType: r.billingType,
-      status: r.status,
-      totalPrice: r.totalPrice,
-      unitsBooked: r.unitsBooked,
       nights: getNights(startIso, endIso),
       months,
-      installmentAmount: computeInstallmentAmount(r, months),
-      daysToStart: c.daysToStart,
-      daysToEnd: c.daysToEnd,
-      isActive: c.isActive,
-      isArrivingToday: c.isArrivingToday,
+      unitsBooked: r.unitsBooked,
+      amountDue: amountDueByReservationId.get(r.id) ?? 0,
+      hasNoPayments,
     };
+
+    agendaCandidates.push({
+      offset: dateKeyToDayIndex(startKey) - dateKeyToDayIndex(todayKey),
+      dateKey: startKey,
+      event: { ...sharedEventFields, kind: "ARRIVAL" },
+    });
+    agendaCandidates.push({
+      offset: dateKeyToDayIndex(departureKey) - dateKeyToDayIndex(todayKey),
+      dateKey: departureKey,
+      event: { ...sharedEventFields, kind: "DEPARTURE" },
+    });
   }
 
-  const upcomingReservations: DashboardUpcomingReservation[] = upcomingCandidates
-    .slice(0, upcomingLimit)
-    .map(mapCandidateToRow);
+  const withinHorizon = agendaCandidates.filter(
+    (c) => c.offset >= 0 && c.offset < AGENDA_HORIZON_DAYS,
+  );
 
-  const activeReservations: DashboardUpcomingReservation[] = activeCandidates
-    .slice(0, upcomingLimit)
-    .map(mapCandidateToRow);
+  // Salidas antes que llegadas —el orden real del día: la unidad se libera
+  // antes de volver a ocuparse—; dentro de cada tipo, por propiedad y luego
+  // por cliente.
+  function compareAgendaEvents(a: DashboardAgendaEvent, b: DashboardAgendaEvent): number {
+    if (a.kind !== b.kind) return a.kind === "DEPARTURE" ? -1 : 1;
+    const byProperty = a.propertyName.localeCompare(b.propertyName, "es");
+    if (byProperty !== 0) return byProperty;
+    return a.clientName.localeCompare(b.clientName, "es");
+  }
 
-  // ── OccupancyStrip: dataset completo (el componente filtra DAILY + rango). ─
-  const propertiesById = new Map(input.properties.map((p) => [p.id, p] as const));
-  const occupancyStrip = {
-    properties: input.properties.map((p) => ({
-      id: p.id,
-      name: p.name,
-      unitsAvailable: p.unitsAvailable,
-    })),
-    reservations: input.reservations.map((r) => ({
-      id: r.id,
-      propertyId: r.propertyId,
-      startDate: r.startDate.toISOString(),
-      endDate: r.endDate.toISOString(),
-      billingType: r.billingType,
-      status: r.status,
-      client: { id: r.client.id, name: r.client.name },
-      property: {
-        id: r.property.id,
-        name: r.property.name,
-        unitsAvailable: propertiesById.get(r.propertyId)?.unitsAvailable ?? 0,
+  const eventsByDateKey = new Map<string, DashboardAgendaEvent[]>();
+  for (const c of withinHorizon) {
+    const list = eventsByDateKey.get(c.dateKey);
+    if (list) {
+      list.push(c.event);
+    } else {
+      eventsByDateKey.set(c.dateKey, [c.event]);
+    }
+  }
+
+  // Hoy siempre aparece, incluso sin eventos — los demás días solo si tienen
+  // alguno.
+  const agendaDateKeys = new Set<string>([todayKey, ...eventsByDateKey.keys()]);
+  const agendaDays: DashboardAgendaDay[] = Array.from(agendaDateKeys, (dateKey) => ({
+    dateKey,
+    offset: dateKeyToDayIndex(dateKey) - dateKeyToDayIndex(todayKey),
+    events: (eventsByDateKey.get(dateKey) ?? []).slice().sort(compareAgendaEvents),
+  })).sort((a, b) => a.offset - b.offset);
+
+  // Primer evento después del horizonte, sin límite superior — para que una
+  // semana quieta diga cuándo vuelve a pasar algo. Los eventos pasados
+  // (offset negativo, de reservas ya en curso) no compiten acá: no son
+  // "próximos".
+  const nextEventAfterHorizon = agendaCandidates
+    .filter((c) => c.offset >= AGENDA_HORIZON_DAYS)
+    .reduce<{ dateKey: string; offset: number } | null>(
+      (min, c) => (min === null || c.offset < min.offset ? { dateKey: c.dateKey, offset: c.offset } : min),
+      null,
+    );
+
+  const agenda: DashboardAgenda = {
+    horizonDays: AGENDA_HORIZON_DAYS,
+    days: agendaDays,
+    nextEventAfterHorizon,
+  };
+
+  // ── Tablero de propiedades: quién ocupa cada una HOY. ────────────────────
+  //
+  // Ocupantes de hoy: reservas no canceladas y bloqueos externos ACTIVE que
+  // cubren la noche de hoy (`startKey <= todayKey <= endKey`) — la MISMA
+  // regla que usa la disponibilidad (CONTEXT.md, "Calendarios Externos").
+  interface OccupantCandidate {
+    unitsContributed: number;
+    occupant: DashboardPropertyOccupant;
+  }
+
+  const occupantsByPropertyId = new Map<string, OccupantCandidate[]>();
+  function addOccupant(propertyId: string, candidate: OccupantCandidate): void {
+    const list = occupantsByPropertyId.get(propertyId);
+    if (list) {
+      list.push(candidate);
+    } else {
+      occupantsByPropertyId.set(propertyId, [candidate]);
+    }
+  }
+
+  for (const r of input.reservations) {
+    if (r.status === "CANCELLED") continue;
+    const startKey = dateOnlyKey(r.startDate);
+    const endKey = dateOnlyKey(r.endDate);
+    if (startKey > todayKey || todayKey > endKey) continue;
+    addOccupant(r.propertyId, {
+      unitsContributed: r.unitsBooked,
+      occupant: {
+        source: "RESERVATION",
+        reservationId: r.id,
+        billingType: r.billingType,
+        channel: null,
+        lastNightKey: endKey,
+        releaseDateKey: addDaysToDateKey(endKey, 1),
       },
-    })),
+    });
+  }
+
+  for (const b of input.externalBlocks ?? []) {
+    const startKey = dateOnlyKey(b.startDate);
+    const endKey = dateOnlyKey(b.endDate);
+    if (startKey > todayKey || todayKey > endKey) continue;
+    addOccupant(b.propertyId, {
+      unitsContributed: 1,
+      occupant: {
+        source: "EXTERNAL_BLOCK",
+        reservationId: null,
+        billingType: null,
+        channel: b.channel,
+        lastNightKey: endKey,
+        releaseDateKey: addDaysToDateKey(endKey, 1),
+      },
+    });
+  }
+
+  // Próxima llegada estrictamente futura por propiedad (reservas no
+  // canceladas), independiente de si la propiedad está ocupada hoy.
+  const nextArrivalByPropertyId = new Map<string, { reservationId: string; dateKey: string }>();
+  for (const r of input.reservations) {
+    if (r.status === "CANCELLED") continue;
+    const startKey = dateOnlyKey(r.startDate);
+    if (startKey <= todayKey) continue;
+    const current = nextArrivalByPropertyId.get(r.propertyId);
+    if (!current || startKey < current.dateKey) {
+      nextArrivalByPropertyId.set(r.propertyId, { reservationId: r.id, dateKey: startKey });
+    }
+  }
+
+  const propertyStatuses: DashboardPropertyStatus[] = input.properties.map((p) => {
+    const occupants = occupantsByPropertyId.get(p.id) ?? [];
+    const unitsOccupied = occupants.reduce((sum, o) => sum + o.unitsContributed, 0);
+    const state: DashboardPropertyState =
+      unitsOccupied >= p.unitsAvailable ? "OCCUPIED" : unitsOccupied > 0 ? "PARTIAL" : "FREE";
+    const nextRelease = occupants.reduce<DashboardPropertyOccupant | null>((min, o) => {
+      if (!min || o.occupant.releaseDateKey < min.releaseDateKey) return o.occupant;
+      return min;
+    }, null);
+
+    return {
+      propertyId: p.id,
+      propertyName: p.name,
+      unitsAvailable: p.unitsAvailable,
+      unitsOccupied,
+      state,
+      nextRelease,
+      nextArrival: nextArrivalByPropertyId.get(p.id) ?? null,
+    };
+  });
+
+  // Orden: ocupadas/parciales por liberación más próxima; libres con llegada
+  // por esa llegada; libres sin llegada al final. Empates y último grupo,
+  // por nombre.
+  function propertyBoardRank(p: DashboardPropertyStatus): { group: number; sortKey: string } {
+    if (p.state !== "FREE" && p.nextRelease) {
+      return { group: 0, sortKey: p.nextRelease.releaseDateKey };
+    }
+    if (p.nextArrival) {
+      return { group: 1, sortKey: p.nextArrival.dateKey };
+    }
+    return { group: 2, sortKey: "" };
+  }
+
+  propertyStatuses.sort((a, b) => {
+    const rankA = propertyBoardRank(a);
+    const rankB = propertyBoardRank(b);
+    if (rankA.group !== rankB.group) return rankA.group - rankB.group;
+    if (rankA.sortKey !== rankB.sortKey) return rankA.sortKey < rankB.sortKey ? -1 : 1;
+    return a.propertyName.localeCompare(b.propertyName, "es");
+  });
+
+  const occupiedUnits = propertyStatuses.reduce(
+    (sum, p) => sum + Math.min(p.unitsOccupied, p.unitsAvailable),
+    0,
+  );
+  const totalUnits = propertyStatuses.reduce((sum, p) => sum + p.unitsAvailable, 0);
+  const allSingleUnit = propertyStatuses.every((p) => p.unitsAvailable === 1);
+
+  const propertyBoard: DashboardPropertyBoard = {
+    properties: propertyStatuses,
+    occupiedUnits,
+    totalUnits,
+    allSingleUnit,
+  };
+
+  // ── Pulso del mes: cobrado vs mismo período del mes anterior + ocupación. ─
+  const dayOfMonth = Number(todayKey.slice(8, 10));
+  const prevMonthLastDay = Number(monthEndKey(prev.year, prev.month1).slice(8, 10));
+  const previousCutoffDay = Math.min(dayOfMonth, prevMonthLastDay);
+
+  const previousSamePeriodDecision = buildDecisionSummary({
+    reservations: decisionReservations,
+    properties: input.properties,
+    rangeStart: toUtcDay(monthStartKey(prev.year, prev.month1)),
+    rangeEnd: toUtcDay(`${prev.year}-${pad2(prev.month1)}-${pad2(previousCutoffDay)}`),
+  });
+
+  const month: DashboardMonthPulse = {
+    monthKey: `${todayYear}-${pad2(todayMonth1)}`,
+    dayOfMonth,
+    collected: currentMonthDecision.collectedCash,
+    previousMonthKey: `${prev.year}-${pad2(prev.month1)}`,
+    previousCutoffDay,
+    collectedPreviousSamePeriod: previousSamePeriodDecision.collectedCash,
+    occupancyRate: currentMonthDecision.occupancyRate,
+    occupiedNightUnits: currentMonthDecision.occupiedNightUnits,
+    capacityNightUnits: currentMonthDecision.capacityNightUnits,
   };
 
   return {
     todayKey,
-    income,
     collection,
-    upcoming,
-    occupancy,
-    today,
-    upcomingReservations,
-    activeReservations,
     collectionItems,
-    occupancyStrip,
+    agenda,
+    propertyBoard,
+    month,
     isEmpty: {
       properties: input.properties.length === 0,
       reservations: input.reservations.length === 0,

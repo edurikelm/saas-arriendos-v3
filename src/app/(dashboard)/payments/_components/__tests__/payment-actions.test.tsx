@@ -32,7 +32,7 @@ vi.mock("@/lib/actions/payments", () => ({
  * `configurable: true` no es opcional: sin eso la propiedad queda
  * no-configurable y el teardown de jsdom en modo estricto tira "Cannot delete
  * property 'matchMedia'", que vitest reporta como Unhandled Error y hace salir
- * la suite en 1 aunque todo pase. Mismo patrón que `occupancy-strip.test.tsx`.
+ * la suite en 1 aunque todo pase. Mismo patrón que `dashboard-navbar.test.tsx`.
  */
 function setViewport(isMobile: boolean) {
   Object.defineProperty(window, "matchMedia", {
