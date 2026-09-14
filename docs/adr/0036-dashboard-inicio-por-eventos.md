@@ -68,10 +68,18 @@ Reemplaza la franja de ocupación con una línea por propiedad, todas incluidas:
   cada Bloqueo de Canal Externo `ACTIVE` que cubre hoy — la misma regla que la disponibilidad. Por
   eso la consulta de bloqueos se agregó a `src/lib/actions/dashboard.ts`, con tenencia vía
   `property.userId`.
-- Estados `OCCUPIED` / `PARTIAL` / `FREE`, mostrados como frase: "Ocupada · sale vie 18", "Mensual ·
-  hasta 30 sept", "Airbnb · hasta 20 sept", "Libre · llega sáb 26".
-- Con varias unidades, cuenta unidades ("2 de 3 ocupadas · próxima salida…") en vez de nombrar a un
-  solo ocupante.
+- Estados `OCCUPIED` / `PARTIAL` / `FREE`, mostrados como frase: "Ocupada · libre desde vie 18",
+  "Mensual · libre desde jue 1 oct", "Airbnb · libre desde lun 21", "Libre · llega sáb 26".
+- **Toda fecha de una propiedad ocupada es el día en que se puede volver a arrendar** (última noche
+  + 1), nunca la última noche. La primera versión mezclaba dos referencias en la misma columna:
+  "sale vie 18" nombraba el día de salida de una diaria, y "hasta 30 sept" la última noche de una
+  mensual. Además, el dueño leyó "sale vie 18" como "el 18 sigue ocupada", cuando ese día ya puede
+  llegar otro huésped (la disponibilidad se cuenta por noches). La salida como evento sigue en la
+  agenda, con la misma fecha.
+- Con varias unidades, cuenta unidades en vez de nombrar a un ocupante. Una propiedad parcial dice
+  cuántas quedan libres ("1 libre · 2 de 3 ocupadas"): ya se puede arrendar. Una completa dice desde
+  cuándo hay lugar ("Completa · libre desde mié 30"), sin prometer cuántas unidades se liberan ese
+  día, porque de sus ocupantes solo se conoce el que sale primero.
 - Sobreventa (consumidas > disponibles) se marca en ámbar (`text-warning-text`), no en rojo: el
   mismo tono que ya usa la alarma de sobreventa de `/calendar`, reservado para lo accionable. La
   frase nombra la cantidad exacta: "Sobreventa · 2 ocupaciones para 1 unidad".

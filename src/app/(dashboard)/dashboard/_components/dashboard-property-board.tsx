@@ -4,7 +4,7 @@ import type {
   DashboardPropertyBoard as DashboardPropertyBoardData,
   DashboardPropertyStatus,
 } from "@/lib/dashboard/summary";
-import { relativeDayInline, shortDate } from "./day-labels";
+import { relativeDayInline } from "./day-labels";
 
 const CHANNEL_LABEL: Record<DashboardExternalChannel, string> = {
   AIRBNB: "Airbnb",
@@ -14,17 +14,29 @@ const CHANNEL_LABEL: Record<DashboardExternalChannel, string> = {
 };
 
 interface StatusParts {
-  /** Palabra de estado. Solo "Libre" y "Sobreventa" van destacadas. */
+  /**
+   * Palabra de estado. Solo van destacados lo que se puede arrendar hoy
+   * ("Libre", "1 libre") y la sobreventa.
+   */
   lead: string;
   detail: string | null;
   tone: "free" | "busy" | "overbooked";
 }
 
 /**
- * Traduce el estado de una propiedad a la frase de su fila. Con una sola
- * unidad —el caso de casi todas— la frase nombra al ocupante ("Mensual ·
- * hasta 30 sept"); con varias, cuenta unidades, porque "sale vie 18" en una
- * propiedad con tres huéspedes no dice cuál.
+ * Traduce el estado de una propiedad a la frase de su fila.
+ *
+ * Toda fecha de una propiedad ocupada es el día en que se puede volver a
+ * arrendar ("libre desde vie 18"), nunca la última noche. Antes convivían dos
+ * referencias en la misma columna: "sale vie 18" nombraba el día de salida y
+ * "hasta 30 sept", la última noche. Además, "sale vie 18" se leía como "el 18
+ * todavía está ocupada", cuando ese día ya puede llegar otro huésped: la
+ * disponibilidad se cuenta por noches. La salida sigue en la agenda, que es
+ * donde se atiende.
+ *
+ * Con una sola unidad —el caso de casi todas— la frase nombra al ocupante.
+ * Con varias cuenta unidades: "libre desde" no puede decir cuántas se liberan
+ * ese día, porque de los ocupantes solo se conoce el que sale primero.
  */
 function statusParts(property: DashboardPropertyStatus, todayKey: string): StatusParts {
   const { state, unitsOccupied, unitsAvailable, nextRelease, nextArrival } = property;
@@ -47,33 +59,36 @@ function statusParts(property: DashboardPropertyStatus, todayKey: string): Statu
     };
   }
 
-  const releaseDay = relativeDayInline(nextRelease.releaseDateKey, todayKey);
+  // `releaseDateKey` ya es la última noche + 1: el día que se puede arrendar.
+  const freeFrom = `libre desde ${relativeDayInline(nextRelease.releaseDateKey, todayKey)}`;
 
   if (unitsAvailable > 1) {
-    return {
-      lead: state === "OCCUPIED" ? "Completa" : `${unitsOccupied} de ${unitsAvailable} ocupadas`,
-      detail: `próxima salida ${releaseDay}`,
-      tone: "busy",
-    };
+    // Con unidades libres hoy, la propiedad ya se puede arrendar: lo que
+    // importa es cuántas, no cuándo sale el próximo.
+    if (state === "PARTIAL") {
+      const free = unitsAvailable - unitsOccupied;
+      return {
+        lead: `${free} ${free === 1 ? "libre" : "libres"}`,
+        detail: `${unitsOccupied} de ${unitsAvailable} ocupadas`,
+        tone: "free",
+      };
+    }
+    return { lead: "Completa", detail: freeFrom, tone: "busy" };
   }
 
   if (nextRelease.source === "EXTERNAL_BLOCK") {
     return {
       lead: nextRelease.channel ? CHANNEL_LABEL[nextRelease.channel] : "Bloqueo externo",
-      detail: `hasta ${shortDate(nextRelease.lastNightKey, todayKey)}`,
+      detail: freeFrom,
       tone: "busy",
     };
   }
 
   if (nextRelease.billingType === "MONTHLY") {
-    return {
-      lead: "Mensual",
-      detail: `hasta ${shortDate(nextRelease.lastNightKey, todayKey)}`,
-      tone: "busy",
-    };
+    return { lead: "Mensual", detail: freeFrom, tone: "busy" };
   }
 
-  return { lead: "Ocupada", detail: `sale ${releaseDay}`, tone: "busy" };
+  return { lead: "Ocupada", detail: freeFrom, tone: "busy" };
 }
 
 // La sobreventa va en ámbar y no en rojo: es el mismo tono que usa la alarma de
@@ -92,7 +107,8 @@ interface DashboardPropertyBoardProps {
 
 /**
  * Tablero de propiedades: una línea por propiedad con quién la ocupa hoy y
- * hasta cuándo, o desde cuándo vuelve a estar ocupada.
+ * desde qué día se puede volver a arrendar, o, si está libre, cuándo llega el
+ * próximo huésped.
  *
  * Es el trabajo que prometía la franja de ocupación y no cumplía: esa franja
  * mostraba solo las propiedades con reservas diarias en el rango, así que

@@ -74,7 +74,11 @@ describe("DashboardPropertyBoard", () => {
     expect(screen.getByText(/de 9 unidades ocupadas hoy/)).toBeTruthy();
   });
 
-  it("describe cada ocupante con su propia frase", () => {
+  // Una sola referencia para toda la columna: el día en que se puede volver a
+  // arrendar. Cada fixture tiene la última noche distinta de ese día, así que
+  // una frase que mostrara la última noche ("hasta 30 sept") o que usara otra
+  // palabra ("sale vie 18", que se leía como "el 18 sigue ocupada") falla acá.
+  it("toda propiedad ocupada dice desde qué día se puede arrendar, nunca su última noche", () => {
     const board = makeBoard([
       makeStatus({
         propertyId: "p-daily",
@@ -113,9 +117,9 @@ describe("DashboardPropertyBoard", () => {
 
     render(<DashboardPropertyBoard board={board} todayKey={TODAY} />);
 
-    expect(rowText("Cabaña Los Robles")).toContain("Ocupada · sale vie 18");
-    expect(rowText("Cabaña 3")).toContain("Mensual · hasta 30 sept");
-    expect(rowText("Casa Playa")).toContain("Airbnb · hasta 20 sept");
+    expect(rowText("Cabaña Los Robles")).toContain("Ocupada · libre desde vie 18");
+    expect(rowText("Cabaña 3")).toContain("Mensual · libre desde jue 1 oct");
+    expect(rowText("Casa Playa")).toContain("Airbnb · libre desde lun 21");
   });
 
   it("una propiedad libre dice cuándo llega el próximo huésped, si hay", () => {
@@ -134,7 +138,9 @@ describe("DashboardPropertyBoard", () => {
     expect(rowText("Cabaña 4")).toBe("Cabaña 4Libre");
   });
 
-  it("con varias unidades cuenta unidades en vez de nombrar al ocupante", () => {
+  // Parcial: ya se puede arrendar, así que la fila dice cuántas quedan libres.
+  // Completa: dice desde cuándo, sin prometer cuántas se liberan ese día.
+  it("con varias unidades cuenta las libres, o desde cuándo hay una si está completa", () => {
     const release = makeOccupant({ lastNightKey: "2026-09-14", releaseDateKey: "2026-09-15" });
     const board = makeBoard(
       [
@@ -160,8 +166,8 @@ describe("DashboardPropertyBoard", () => {
 
     render(<DashboardPropertyBoard board={board} todayKey={TODAY} />);
 
-    expect(rowText("Depto Centro")).toContain("2 de 3 ocupadas · próxima salida mañana");
-    expect(rowText("Hostal Norte")).toContain("Completa · próxima salida mañana");
+    expect(rowText("Depto Centro")).toContain("1 libre · 2 de 3 ocupadas");
+    expect(rowText("Hostal Norte")).toContain("Completa · libre desde mañana");
   });
 
   it("marca la sobreventa cuando se consumen más unidades de las que hay", () => {
