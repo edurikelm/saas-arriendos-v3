@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { updateUserPlan, updateUserStatus, deleteUser, createOwner, getAllUsers, getUserStats } from "@/lib/actions/super-admin";
+import { updateUserPlan, updateUserStatus, createOwner, getAllUsers, getUserStats } from "@/lib/actions/super-admin";
 import { logAdminAction } from "@/lib/actions/admin-actions";
 import { getSuperAdminSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
@@ -135,33 +135,5 @@ export async function PATCH(request: Request) {
   } catch (error) {
     console.error("Error updating user:", error);
     return NextResponse.json({ error: "Error al actualizar usuario" }, { status: 500 });
-  }
-}
-
-export async function DELETE(request: Request) {
-  try {
-    if (!(await getSuperAdminSession())) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-    }
-
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
-    const confirmEmail = searchParams.get("confirmEmail") || undefined;
-
-    if (!userId) {
-      return NextResponse.json({ error: "userId es requerido" }, { status: 400 });
-    }
-
-    const result = await deleteUser(userId, confirmEmail);
-
-    if (result?.error) {
-      return NextResponse.json({ error: result.error }, { status: 403 });
-    }
-
-    // `deleteUser` ya registra OWNER_DELETED dentro de su transacción.
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error("Error deleting user:", error);
-    return NextResponse.json({ error: "Error al eliminar usuario" }, { status: 500 });
   }
 }

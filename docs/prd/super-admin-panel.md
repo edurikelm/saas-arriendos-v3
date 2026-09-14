@@ -47,7 +47,7 @@ Un centro de control unificado para el Super Admin que combina:
 - `GET /api/admin/users` — lista paginada con filtros (page, limit, search, plan)
 - `POST /api/admin/users` — crear propietario
 - `PATCH /api/admin/users` — editar propietario + logging de acción
-- `DELETE /api/admin/users?userId=X` — eliminar propietario
+- ~~`DELETE /api/admin/users?userId=X` — eliminar propietario~~ — eliminada (2026-09-14): no tenía consumidores y recibía el email de confirmación en la query string. La eliminación se hace desde `/admin/users/[id]` con la server action `deleteUser`.
 - `GET /api/admin/users?userId=X` — detalle de un propietario (con propiedades, clientes, reservas, notes)
 - `GET /api/admin/notes?ownerId=X` — obtener notas de un propietario
 - `POST /api/admin/notes` — crear nota
