@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { Users, Trash2, Search, Plus, ChevronDown, ChevronUp, X, Download, Ban, CheckCircle, XCircle, UserPlus, Sparkles, UserRound } from "lucide-react";
+import { Users, Search, Plus, ChevronDown, ChevronUp, X, Download, UserPlus, Sparkles, UserRound } from "lucide-react";
 import { DataTable } from "@/components/ui/data-table";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { Pagination } from "@/components/ui/pagination";
@@ -29,7 +29,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { updateUserPlan, updateUserStatus, deleteUser, createOwner } from "@/lib/actions/super-admin";
+import { createOwner } from "@/lib/actions/super-admin";
 import type { AdminUsersKpis } from "@/lib/actions/super-admin";
 
 interface User {
@@ -47,13 +47,6 @@ interface User {
   };
   isMpConnected?: boolean;
   hasOverduePayments?: boolean;
-}
-
-interface UserStats {
-  properties: number;
-  clients: number;
-  reservations: number;
-  totalRevenue: number;
 }
 
 type HealthSeverity = "critical" | "warning" | "limit" | "healthy";
@@ -105,12 +98,6 @@ const planFilterLabels: Record<string, string> = {
   ...planLabels,
 };
 
-const statusLabels: Record<string, string> = {
-  ACTIVE: "Activo",
-  SUSPENDED: "Suspendido",
-  CANCELLED: "Cancelado",
-};
-
 function getInitials(name: string | null, email: string): string {
   const base = name?.trim() || email.split("@")[0] || email;
   const parts = base.split(/[\s._-]/).filter(Boolean);
@@ -138,13 +125,9 @@ export function AdminUsersClient({ initialUsers, initialTotal, kpis }: AdminUser
   const [overduePayments, setOverduePayments] = useState(searchParams.get("overduePayments") === "true");
   const [createdFrom, setCreatedFrom] = useState(searchParams.get("createdFrom") || "");
   const [createdTo, setCreatedTo] = useState(searchParams.get("createdTo") || "");
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [userStats] = useState<UserStats | null>(null);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [createForm, setCreateForm] = useState({ email: "", password: "", name: "", plan: "FREE" as "FREE" | "PRO" });
   const [creating, setCreating] = useState(false);
-  const [confirmEmail, setConfirmEmail] = useState("");
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -197,63 +180,6 @@ export function AdminUsersClient({ initialUsers, initialTotal, kpis }: AdminUser
   };
 
   const hasActiveFilters = search || planFilter !== "all" || noProperties || noReservations || mpDisconnected || pendingPayments || overduePayments || createdFrom || createdTo;
-
-  const handleUpdatePlan = async (userId: string, plan: string) => {
-    try {
-      const result = await updateUserPlan({ userId, plan: plan as "FREE" | "PRO" });
-
-      if (result.error) {
-        toast.error(result.error);
-        return;
-      }
-
-      toast.success("Plan actualizado correctamente");
-      fetchUsers();
-      if (selectedUser?.id === userId) {
-        setSelectedUser({ ...selectedUser, plan });
-      }
-    } catch {
-      toast.error("Error de conexión");
-    }
-  };
-
-  const handleUpdateStatus = async (userId: string, status: string) => {
-    try {
-      const result = await updateUserStatus({ userId, status: status as "ACTIVE" | "SUSPENDED" | "CANCELLED" });
-
-      if (result.error) {
-        toast.error(result.error);
-        return;
-      }
-
-      toast.success("Estado actualizado correctamente");
-      fetchUsers();
-      if (selectedUser?.id === userId) {
-        setSelectedUser({ ...selectedUser, status });
-      }
-    } catch {
-      toast.error("Error de conexión");
-    }
-  };
-
-  const handleDeleteUser = async (userId: string) => {
-    try {
-      const result = await deleteUser(userId, confirmEmail);
-
-      if (result.error) {
-        toast.error(result.error);
-        return;
-      }
-
-      toast.success("Usuario eliminado");
-      setShowDeleteDialog(false);
-      setConfirmEmail("");
-      setSelectedUser(null);
-      fetchUsers();
-    } catch {
-      toast.error("Error de conexión");
-    }
-  };
 
   const handleCreateOwner = async () => {
     if (!createForm.email || !createForm.password || !createForm.name) {
@@ -583,157 +509,6 @@ export function AdminUsersClient({ initialUsers, initialTotal, kpis }: AdminUser
             </>
           )}
         </div>
-
-      {selectedUser && (
-        <Dialog open={!!selectedUser} onOpenChange={() => setSelectedUser(null)}>
-          <DialogContent className="w-[95vw] max-w-lg">
-            <DialogHeader>
-              <DialogTitle>{selectedUser.name}</DialogTitle>
-              <DialogDescription>{selectedUser.email}</DialogDescription>
-            </DialogHeader>
-
-<div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Estado</span>
-                <Select
-                  value={selectedUser.status}
-                  onValueChange={(v) => handleUpdateStatus(selectedUser.id, v || "ACTIVE")}
-                >
-                  <SelectTrigger className="w-full sm:w-32">
-                    <SelectValue>
-                      {(value: string | null) => (value ? statusLabels[value] ?? value : "")}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(statusLabels).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>{label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Plan actual</span>
-                <Select
-                  value={selectedUser.plan}
-                  onValueChange={(v) => handleUpdatePlan(selectedUser.id, v || "FREE")}
-                >
-                  <SelectTrigger className="w-full sm:w-32">
-                    <SelectValue>
-                      {(value: string | null) => (value ? planLabels[value] ?? value : "")}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(planLabels).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>{label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {selectedUser.status !== "ACTIVE" && (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() => handleUpdateStatus(selectedUser.id, "ACTIVE")}
-                  >
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Reactivar
-                  </Button>
-                )}
-                {selectedUser.status !== "SUSPENDED" && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => handleUpdateStatus(selectedUser.id, "SUSPENDED")}
-                  >
-                    <Ban className="h-4 w-4 mr-2" />
-                    Suspender
-                  </Button>
-                )}
-                {selectedUser.status !== "CANCELLED" && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleUpdateStatus(selectedUser.id, "CANCELLED")}
-                  >
-                    <XCircle className="h-4 w-4 mr-2" />
-                    Cancelar cuenta
-                  </Button>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Propiedades</p>
-                  <p className="text-lg font-semibold">{selectedUser._count.properties}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Clientes</p>
-                  <p className="text-lg font-semibold">{userStats?.clients ?? selectedUser._count.clients ?? 0}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Reservas</p>
-                  <p className="text-lg font-semibold">{selectedUser._count.reservations}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Ingresos</p>
-                  <p className="text-lg font-semibold">
-                    {userStats?.totalRevenue.toLocaleString("CLP") || "0"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t">
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setShowDeleteDialog(true)}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Eliminar usuario
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent className="w-[95vw] max-w-md">
-          <DialogHeader>
-            <DialogTitle>¿Eliminar usuario?</DialogTitle>
-            <DialogDescription>
-              Esta acción eliminará al usuario y todos sus datos. No se puede deshacer.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="confirmEmail">Escribe el email del usuario para confirmar: {selectedUser?.email}</Label>
-              <Input
-                id="confirmEmail"
-                type="email"
-                value={confirmEmail}
-                onChange={(e) => setConfirmEmail(e.target.value)}
-                placeholder={selectedUser?.email}
-              />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => { setShowDeleteDialog(false); setConfirmEmail(""); }}>
-              Cancelar
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => selectedUser && handleDeleteUser(selectedUser.id)}
-              disabled={confirmEmail !== selectedUser?.email}
-            >
-              Eliminar
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent className="w-[95vw] max-w-md">

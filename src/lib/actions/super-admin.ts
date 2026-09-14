@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/db/prisma";
 import type { Prisma } from "@prisma/client";
-import { getSession, getSuperAdminSession } from "@/lib/auth/session";
+import { getSuperAdminSession } from "@/lib/auth/session";
 import { updateUserPlanSchema, createOwnerSchema } from "@/lib/validations/super-admin";
 import { hash } from "bcryptjs";
 import { revalidatePath } from "next/cache";
@@ -222,45 +222,115 @@ export async function updateUserStatus(data: { userId: string; status: "ACTIVE" 
   return { success: true, user };
 }
 
+/**
+ * Elimina un propietario y todo lo que cuelga de él.
+ *
+ * Casi todas las FK hacia el owner son RESTRICT en la base: verificado en
+ * producción y no solo en el schema, porque las tablas originales se crearon
+ * antes de la primera migración. Por eso el borrado va de las hojas a la raíz,
+ * y una tabla nueva que apunte al owner tiene que sumarse acá. Antes solo se
+ * borraban cinco tablas y la base rechazaba el borrado de cualquier owner con
+ * notificaciones o tickets. Lo vigila `__tests__/delete-owner.test.ts`, que lee
+ * el schema.
+ *
+ * Un owner que tuvo suscripción PRO, vigente o no, NO se elimina: esas filas
+ * son el registro de cobro de RentalPro con Mercado Pago. Para darlo de baja
+ * existe cancelar la cuenta.
+ */
 export async function deleteUser(userId: string, confirmEmail?: string) {
-  if (!(await getSuperAdminSession())) return { error: "No autorizado" };
+  const session = await getSuperAdminSession();
+  if (!session) return { error: "No autorizado" };
 
-  if (userId === (await getSession())?.userId) {
+  if (userId === session.userId) {
     return { error: "No puedes eliminarte a ti mismo" };
   }
 
-  if (confirmEmail) {
-    const userToDelete = await prisma.userProfile.findUnique({
-      where: { id: userId },
-      select: { email: true },
-    });
-    if (userToDelete?.email !== confirmEmail) {
-      return { error: "Email de confirmación incorrecto" };
-    }
-  } else {
+  if (!confirmEmail) {
     return { error: "Se requiere confirmación por email para eliminar" };
   }
 
-  await prisma.$transaction([
-    prisma.payment.deleteMany({
+  const owner = await prisma.userProfile.findUnique({
+    where: { id: userId },
+    select: { email: true, role: true, subscription: { select: { id: true } } },
+  });
+  if (!owner || owner.email !== confirmEmail) {
+    return { error: "Email de confirmación incorrecto" };
+  }
+  if (owner.role !== "OWNER") {
+    return { error: "Solo se pueden eliminar propietarios" };
+  }
+  if (owner.subscription) {
+    return {
+      error: "Tuvo una suscripción PRO y ese es el registro de cobro: no se elimina. Usa «Cancelar cuenta».",
+    };
+  }
+
+  // Los archivos no se borran de Supabase Storage ni de Cloudinary. Sin las
+  // filas nadie podría encontrarlos después, así que sus rutas quedan en el
+  // registro OWNER_DELETED para limpiarlos a mano.
+  const [documents, attachments, properties] = await Promise.all([
+    prisma.reservationDocument.findMany({
       where: { reservation: { userId } },
+      select: { filePath: true },
     }),
-    prisma.reservationChange.deleteMany({
-      where: { reservation: { userId } },
+    prisma.supportMessageAttachment.findMany({
+      where: { message: { supportTicket: { userId } } },
+      select: { url: true },
     }),
-    prisma.reservation.deleteMany({
-      where: { userId },
-    }),
-    prisma.reservationClient.deleteMany({
-      where: { userId },
-    }),
-    prisma.property.deleteMany({
-      where: { userId },
-    }),
-    prisma.userProfile.delete({
-      where: { id: userId },
-    }),
+    prisma.property.findMany({ where: { userId }, select: { mainImage: true, images: true } }),
   ]);
+  const files = {
+    documents: documents.map((d) => d.filePath),
+    supportAttachments: attachments.map((a) => a.url),
+    propertyImages: properties.flatMap((p) => [p.mainImage, ...p.images]).filter(Boolean),
+  };
+
+  try {
+    await prisma.$transaction([
+      prisma.supportTicketRead.deleteMany({
+        where: { OR: [{ userId }, { ticket: { userId } }] },
+      }),
+      prisma.supportMessageAttachment.deleteMany({
+        where: { message: { OR: [{ authorId: userId }, { supportTicket: { userId } }] } },
+      }),
+      prisma.supportMessage.deleteMany({
+        where: { OR: [{ authorId: userId }, { supportTicket: { userId } }] },
+      }),
+      prisma.supportTicket.deleteMany({ where: { userId } }),
+      prisma.notificationRead.deleteMany({
+        where: { OR: [{ userId }, { notification: { userId } }] },
+      }),
+      prisma.notification.deleteMany({ where: { userId } }),
+      prisma.adminNote.deleteMany({ where: { ownerId: userId } }),
+      prisma.externalChannelBlock.deleteMany({
+        where: { OR: [{ property: { userId } }, { externalCalendar: { userId } }] },
+      }),
+      prisma.externalCalendar.deleteMany({
+        where: { OR: [{ userId }, { property: { userId } }] },
+      }),
+      prisma.reservationDocument.deleteMany({ where: { reservation: { userId } } }),
+      prisma.payment.deleteMany({ where: { reservation: { userId } } }),
+      prisma.reservationChange.deleteMany({ where: { reservation: { userId } } }),
+      prisma.reservation.deleteMany({ where: { userId } }),
+      prisma.reservationClient.deleteMany({ where: { userId } }),
+      prisma.property.deleteMany({ where: { userId } }),
+      // Sin FK, pero guarda los tokens OAuth de Mercado Pago: no pueden quedar huérfanos.
+      prisma.userIntegration.deleteMany({ where: { userId } }),
+      prisma.userProfile.delete({ where: { id: userId } }),
+      // `targetId` no es FK: el registro sobrevive al owner, que es el punto.
+      prisma.adminActionLog.create({
+        data: {
+          adminId: session.userId,
+          targetId: userId,
+          action: "OWNER_DELETED",
+          details: JSON.stringify({ email: owner.email, files }),
+        },
+      }),
+    ]);
+  } catch (error) {
+    console.error("Error al eliminar propietario:", error);
+    return { error: "No se pudo eliminar el propietario" };
+  }
 
   revalidatePath("/admin/users");
 

@@ -25,6 +25,7 @@ import {
   Sparkles,
   Home,
   UserCog,
+  Trash2,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +41,9 @@ import { ActionHistory } from "@/components/admin/action-history";
 import { updateUserStatus } from "@/lib/actions/super-admin";
 import { getActiveSubscription } from "@/lib/subscriptions/queries";
 import { AdminCancelSubscriptionButton } from "@/components/admin/admin-cancel-subscription-button";
+import { AdminOwnerPlanControl } from "@/components/admin/admin-owner-plan-control";
+import { AdminDeleteOwnerButton } from "@/components/admin/admin-delete-owner-button";
+import { derivePlanFromSubscription, resolveEffectivePlan } from "@/lib/subscriptions/effective-plan";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -130,9 +134,13 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
     });
   };
 
-  const isAtLimit = owner.plan === "FREE" && stats.properties >= stats.propertiesLimit;
+  // Los badges muestran la columna `plan` (el registro), pero el uso y el límite
+  // siguen al plan EFECTIVO, igual que `stats.propertiesLimit`: con una concesión
+  // manual la columna sigue en FREE y la página avisaría un límite que no existe.
+  const effectivePlan = resolveEffectivePlan(owner.planOverride, owner.subscription);
+  const isAtLimit = effectivePlan === "FREE" && stats.properties >= stats.propertiesLimit;
   const propertyUsagePercent =
-    owner.plan === "FREE" && stats.propertiesLimit > 0
+    effectivePlan === "FREE" && stats.propertiesLimit > 0
       ? Math.min(100, Math.round((stats.properties / stats.propertiesLimit) * 100))
       : 0;
 
@@ -141,7 +149,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
       key: "properties",
       label: "Propiedades",
       value: stats.properties.toString(),
-      detail: owner.plan === "FREE" ? `${stats.properties}/${stats.propertiesLimit} del plan FREE` : "Sin límite",
+      detail: effectivePlan === "FREE" ? `${stats.properties}/${stats.propertiesLimit} del plan FREE` : "Sin límite",
       icon: Building2,
       tone: "info" as const,
     },
@@ -308,7 +316,13 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
             </div>
           </CardHeader>
           <CardContent className="space-y-5">
-            {owner.plan === "FREE" && (
+            <AdminOwnerPlanControl
+              userId={owner.id}
+              planOverride={owner.planOverride}
+              subscriptionPlan={derivePlanFromSubscription(owner.subscription)}
+            />
+
+            {effectivePlan === "FREE" && (
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between text-sm">
                   <span className="font-medium">Uso de propiedades</span>
@@ -932,6 +946,25 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
           <AdminOwnerNotes ownerId={id} />
         </TabsContent>
       </Tabs>
+
+      <Card className="border-destructive/30">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Trash2 className="size-4 text-destructive-text" />
+            Eliminar propietario
+          </CardTitle>
+          <CardDescription>
+            Borra la cuenta y todos sus datos. Para una baja normal alcanza con «Cancelar cuenta».
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AdminDeleteOwnerButton
+            ownerId={owner.id}
+            email={owner.email}
+            hasSubscriptionHistory={owner.subscription !== null}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }

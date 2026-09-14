@@ -12,6 +12,14 @@ export interface OwnerProfile {
   name: string | null;
   email: string;
   plan: Plan | null;
+  /** Concesión manual de PRO. La página la necesita para ofrecer conceder o revocar. */
+  planOverride: Plan | null;
+  /** Cualquier fila, vigente o no: su existencia bloquea la eliminación del owner. */
+  subscription: {
+    status: string;
+    currentPeriodEnd: Date | null;
+    mpPreapprovalId: string | null;
+  } | null;
   status: UserStatus;
   role: string;
   createdAt: Date;
