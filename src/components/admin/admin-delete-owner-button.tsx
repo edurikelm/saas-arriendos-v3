@@ -83,7 +83,7 @@ export function AdminDeleteOwnerButton({
         open={open}
         onOpenChange={handleOpenChange}
         title="¿Eliminar propietario?"
-        description="Se borran su cuenta, propiedades, reservas, pagos, clientes, calendarios externos, documentos, notificaciones, tickets de soporte y notas internas. No se puede deshacer."
+        description="Se borran su cuenta, propiedades, reservas, pagos, clientes, calendarios externos, documentos, notificaciones, tickets de soporte y notas internas. Los archivos subidos quedan en el almacenamiento. No se puede deshacer."
         confirmLabel={deleting ? "Eliminando..." : "Eliminar"}
         confirmDisabled={deleting || confirmEmail.trim() !== email}
         onConfirm={handleDelete}

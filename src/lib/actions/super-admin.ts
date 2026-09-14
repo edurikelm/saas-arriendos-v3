@@ -265,6 +265,26 @@ export async function deleteUser(userId: string, confirmEmail?: string) {
     };
   }
 
+  // Los archivos no se borran de Supabase Storage ni de Cloudinary. Sin las
+  // filas nadie podría encontrarlos después, así que sus rutas quedan en el
+  // registro OWNER_DELETED para limpiarlos a mano.
+  const [documents, attachments, properties] = await Promise.all([
+    prisma.reservationDocument.findMany({
+      where: { reservation: { userId } },
+      select: { filePath: true },
+    }),
+    prisma.supportMessageAttachment.findMany({
+      where: { message: { supportTicket: { userId } } },
+      select: { url: true },
+    }),
+    prisma.property.findMany({ where: { userId }, select: { mainImage: true, images: true } }),
+  ]);
+  const files = {
+    documents: documents.map((d) => d.filePath),
+    supportAttachments: attachments.map((a) => a.url),
+    propertyImages: properties.flatMap((p) => [p.mainImage, ...p.images]).filter(Boolean),
+  };
+
   try {
     await prisma.$transaction([
       prisma.supportTicketRead.deleteMany({
@@ -303,7 +323,7 @@ export async function deleteUser(userId: string, confirmEmail?: string) {
           adminId: session.userId,
           targetId: userId,
           action: "OWNER_DELETED",
-          details: JSON.stringify({ email: owner.email }),
+          details: JSON.stringify({ email: owner.email, files }),
         },
       }),
     ]);

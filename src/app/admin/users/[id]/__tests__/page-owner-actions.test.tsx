@@ -3,7 +3,7 @@
  * Los componentes se prueban aparte; acá importa qué datos les llegan.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
   planControl: vi.fn((_props: Record<string, unknown>) => null),
@@ -31,7 +31,10 @@ vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
 
 import { getOwnerDetail, type OwnerDetailResult } from "@/lib/actions/admin-users";
 
-function detail(owner: Partial<OwnerDetailResult["owner"]>): OwnerDetailResult {
+function detail(
+  owner: Partial<OwnerDetailResult["owner"]>,
+  stats: Partial<OwnerDetailResult["stats"]> = {},
+): OwnerDetailResult {
   return {
     owner: {
       id: "owner-1",
@@ -57,6 +60,7 @@ function detail(owner: Partial<OwnerDetailResult["owner"]>): OwnerDetailResult {
       propertiesLimit: 3,
       hasMpIntegration: false,
       isMpConnected: false,
+      ...stats,
     },
     properties: [],
     reservations: [],
@@ -125,5 +129,27 @@ describe("AdminUserDetailPage: plan y eliminación", () => {
       planOverride: "PRO",
       subscriptionPlan: "PRO",
     });
+  });
+
+  it("con PRO concedido y la columna en FREE, no avisa un límite de FREE que no existe", async () => {
+    // `updateUserPlan` escribe `planOverride`, no la columna: tras conceder PRO
+    // la fila sigue en FREE. El límite viene del plan efectivo (-1 = sin límite).
+    vi.mocked(getOwnerDetail).mockResolvedValue(
+      detail({ plan: "FREE", planOverride: "PRO" }, { properties: 5, propertiesLimit: -1 }),
+    );
+
+    await renderPage();
+
+    expect(screen.queryByText(/al límite del plan free/i)).toBeNull();
+    expect(screen.queryByText("Uso de propiedades")).toBeNull();
+    expect(screen.getByText("Sin límite")).toBeTruthy();
+  });
+
+  it("sin concesión y en FREE, sigue avisando el límite", async () => {
+    vi.mocked(getOwnerDetail).mockResolvedValue(detail({}, { properties: 3, propertiesLimit: 3 }));
+
+    await renderPage();
+
+    expect(screen.getByText(/al límite del plan free/i)).toBeTruthy();
   });
 });

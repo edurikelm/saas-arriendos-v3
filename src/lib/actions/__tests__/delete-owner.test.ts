@@ -22,6 +22,8 @@ type Call = { model: string; op: string; args: unknown };
 const mocks = vi.hoisted(() => {
   const calls: Call[] = [];
   const findUnique = vi.fn();
+  // Lecturas previas a la transacción (rutas de archivos): no se registran como borrados.
+  const findManyResults: Record<string, unknown[]> = {};
   const transaction = vi.fn(async (ops: unknown[]) => ops);
   const delegates = new Map<string, unknown>();
 
@@ -38,6 +40,7 @@ const mocks = vi.hoisted(() => {
             get(_d, op) {
               if (typeof op !== "string") return undefined;
               if (model === "userProfile" && op === "findUnique") return findUnique;
+              if (op === "findMany") return async () => findManyResults[model] ?? [];
               return (args: unknown) => {
                 const call = { model, op, args };
                 calls.push(call);
@@ -51,7 +54,7 @@ const mocks = vi.hoisted(() => {
     },
   });
 
-  return { calls, findUnique, transaction, prisma, getSuperAdminSession: vi.fn() };
+  return { calls, findUnique, findManyResults, transaction, prisma, getSuperAdminSession: vi.fn() };
 });
 
 vi.mock("@/lib/db/prisma", () => ({ prisma: mocks.prisma }));
@@ -116,7 +119,11 @@ function blocksParentDelete(relation: Relation): boolean {
 /**
  * Modelos que no se tocan al borrar un owner, con el motivo:
  * - Subscription / SubscriptionEvent: su existencia bloquea el borrado.
- * - AdminActionLog: solo apunta al ADMIN que actuó, y un owner nunca lo es.
+ * - AdminActionLog: su FK apunta a quien actuó. OJO: no siempre es un admin:
+ *   `lib/actions/subscriptions.ts` escribe SUBSCRIPTION_REPLACED con el owner
+ *   como `adminId`. Hoy no rompe porque eso solo le pasa a owners con
+ *   suscripción, que no se borran. Si se relaja ese bloqueo, esta exclusión
+ *   deja de ser válida y la transacción fallaría por la FK.
  *   AdminNote también apunta al admin, pero entra por su FK al owner.
  */
 const NOT_DELETED = new Set(["Subscription", "SubscriptionEvent", "AdminActionLog"]);
@@ -139,10 +146,24 @@ function modelsBlockingOwnerDelete(relations: Map<string, Relation[]>): Set<stri
 
 const delegateOf = (model: string) => model[0].toLowerCase() + model.slice(1);
 
+/**
+ * Relaciones Cascade del schema verificadas contra `pg_constraint` de producción
+ * (2026-09-14). El cálculo de arriba confía en el `onDelete` del schema, y el
+ * schema no siempre coincide con producción (NotificationRead es RESTRICT allá
+ * aunque su migración diga CASCADE). Un Cascade nuevo tiene que verificarse en
+ * la base antes de sumarse acá; si no, el test lo excluiría y daría un verde falso.
+ */
+const CASCADES_VERIFIED_IN_PRODUCTION = new Set([
+  "ExternalChannelBlock → ExternalCalendar",
+  "PropertyExportFeed → Property",
+  "PasswordResetToken → UserProfile",
+]);
+
 // ── Tests ───────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
   mocks.calls.length = 0;
+  for (const model of Object.keys(mocks.findManyResults)) delete mocks.findManyResults[model];
   vi.clearAllMocks();
   mocks.getSuperAdminSession.mockResolvedValue(adminSession);
   mocks.findUnique.mockResolvedValue(owner);
@@ -161,6 +182,14 @@ describe("deleteUser: cobertura del schema", () => {
     // Cascade desde el padre: no hace falta borrarlos a mano.
     expect(blocking).not.toContain("PasswordResetToken");
     expect(blocking).not.toContain("PropertyExportFeed");
+  });
+
+  it("cada Cascade del schema está verificado en producción", () => {
+    const cascades = [...parseRelations()].flatMap(([model, rels]) =>
+      rels.filter((r) => r.onDelete === "Cascade").map((r) => `${model} → ${r.parent}`),
+    );
+
+    expect(cascades.filter((c) => !CASCADES_VERIFIED_IN_PRODUCTION.has(c))).toEqual([]);
   });
 
   it("borra cada modelo que bloquea el borrado del owner", async () => {
@@ -206,6 +235,41 @@ describe("deleteUser: cobertura del schema", () => {
     expect(outOfOrder).toEqual([]);
   });
 
+  it("lee la suscripción en el select: sin eso el bloqueo no vería nada", async () => {
+    await deleteUser("owner-1", "owner@test.com");
+
+    expect(mocks.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "owner-1" },
+        select: expect.objectContaining({ subscription: expect.anything() }),
+      }),
+    );
+  });
+
+  it("cubre las filas que el owner no creó: mensajes y lecturas del admin, bloqueos de sus propiedades", async () => {
+    await deleteUser("owner-1", "owner@test.com");
+
+    const whereOf = (model: string) =>
+      (mocks.calls.find((c) => c.model === model && c.op === "deleteMany")?.args as { where: unknown })?.where;
+
+    expect(whereOf("supportTicketRead")).toEqual({ OR: [{ userId: "owner-1" }, { ticket: { userId: "owner-1" } }] });
+    expect(whereOf("supportMessageAttachment")).toEqual({
+      message: { OR: [{ authorId: "owner-1" }, { supportTicket: { userId: "owner-1" } }] },
+    });
+    expect(whereOf("supportMessage")).toEqual({
+      OR: [{ authorId: "owner-1" }, { supportTicket: { userId: "owner-1" } }],
+    });
+    expect(whereOf("notificationRead")).toEqual({
+      OR: [{ userId: "owner-1" }, { notification: { userId: "owner-1" } }],
+    });
+    expect(whereOf("externalChannelBlock")).toEqual({
+      OR: [{ property: { userId: "owner-1" } }, { externalCalendar: { userId: "owner-1" } }],
+    });
+    expect(whereOf("externalCalendar")).toEqual({
+      OR: [{ userId: "owner-1" }, { property: { userId: "owner-1" } }],
+    });
+  });
+
   it("borra la integración de Mercado Pago aunque no tenga FK", async () => {
     await deleteUser("owner-1", "owner@test.com");
 
@@ -214,7 +278,13 @@ describe("deleteUser: cobertura del schema", () => {
     );
   });
 
-  it("deja registro OWNER_DELETED dentro de la misma transacción", async () => {
+  it("deja registro OWNER_DELETED dentro de la misma transacción, con las rutas de archivos", async () => {
+    // Los archivos no se borran del almacenamiento; sin las filas, el registro
+    // es el único lugar donde quedan sus rutas.
+    mocks.findManyResults.reservationDocument = [{ filePath: "owner-1/res-1/contrato.pdf" }];
+    mocks.findManyResults.supportMessageAttachment = [{ url: "https://cdn/adjunto.png" }];
+    mocks.findManyResults.property = [{ mainImage: "https://cdn/a.jpg", images: ["https://cdn/b.jpg"] }, { mainImage: null, images: [] }];
+
     await deleteUser("owner-1", "owner@test.com");
 
     const ops = mocks.transaction.mock.calls[0][0] as Call[];
@@ -226,7 +296,14 @@ describe("deleteUser: cobertura del schema", () => {
           adminId: "admin-1",
           targetId: "owner-1",
           action: "OWNER_DELETED",
-          details: JSON.stringify({ email: "owner@test.com" }),
+          details: JSON.stringify({
+            email: "owner@test.com",
+            files: {
+              documents: ["owner-1/res-1/contrato.pdf"],
+              supportAttachments: ["https://cdn/adjunto.png"],
+              propertyImages: ["https://cdn/a.jpg", "https://cdn/b.jpg"],
+            },
+          }),
         },
       },
     });
