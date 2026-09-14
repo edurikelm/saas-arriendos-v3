@@ -83,7 +83,7 @@ Written for an operator who manages the business daily, not a tourist booking a 
 
 ## Surface map
 
-- `/dashboard` — owner home (KPIs + upcoming reservations + recent activity)
+- `/dashboard` — owner home (agenda de llegadas y salidas, cobros por cobrar, estado de cada propiedad, el mes en curso)
 - `/calendar` — timeline/grid of reservations across properties
 - `/reservations` — list of all reservations
 - `/reservations/[id]` — detail (info, payments, documents for monthly, history)

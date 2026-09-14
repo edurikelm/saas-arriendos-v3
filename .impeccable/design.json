@@ -284,7 +284,7 @@
       },
       "micro-label": {
         "displayName": "Micro-label (9px)",
-        "purpose": "Un paso bajo el whisper de 10px, para metadata densa donde el 10px ya compite con el dato principal de la fila: ReservationPill, badge de duracion del dashboard, sublabel del OccupancyStrip, toggles Diario/Mensual, label de canal en property-card. Forma habitual font-bold uppercase tracking-tight, pero el escalon se define por TAMANO: dos usos (\"/mes\" y un sublabel de estado) van planos a proposito, porque ahi el uppercase leeria mal."
+        "purpose": "Un paso bajo el whisper de 10px, para metadata densa donde el 10px ya compite con el dato principal de la fila: ReservationPill, chip Llega/Sale de la agenda del dashboard, toggles Diario/Mensual, labels de stats en property-card. Forma font-bold uppercase tracking-tight; el escalon se define por TAMANO, no por forma."
       },
       "mono": {
         "displayName": "Mono",

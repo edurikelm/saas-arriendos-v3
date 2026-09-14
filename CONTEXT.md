@@ -392,10 +392,40 @@ const session = await requireSuperAdmin();
 Patrón canónico:
 - Página de lista → `PageHeader` + barra de filtros + `<DataTable>` directo (sin Card)
 - Sección de página (ej: `/admin/users/[id]` tab "Reservas") → título/descripción como bloque standalone + `<DataTable>` directo
-- `/dashboard` sección "Agenda de reservas" → título + link "Ver todas" como bloque standalone + `<DataTable>` directo
+- `/dashboard` (agenda, tablero de propiedades) → título + link ("Ver reservas" / "Ver calendario") como bloque standalone + lista dentro de un contenedor `rounded-md border border-border bg-card`, sin `<DataTable>` (ADR-0036)
 - `/reports` sección "Dónde está la plata que falta" → título + subtítulo (foto del presente) + panel de antigüedad + lista de top deudores, sin `<DataTable>` (ADR-0035)
 
 `<Card>` se reserva para: KPIs (no tablas), settings, forms, secciones de detalle sin tabla, integración de Mercado Pago. **NO** usar Card para envolver tablas.
+
+### `/dashboard` — agenda, propiedades y el mes
+
+`DashboardAgenda` (`summary.agenda`) organiza por EVENTO, no por reserva: una llegada el día de
+`startDate`, una salida el día `endDate + 1` (convención Última Noche). `DAILY` y `MONTHLY` entran
+igual — el inicio y el fin de un contrato mensual son una llegada y una salida — pero solo aparecen
+la semana en que ocurren. `CANCELLED` queda fuera; hoy siempre aparece, tenga o no eventos.
+
+El monto de cada evento (`amountDue`) es el mismo que esa reserva tiene en "Por cobrar" (sección
+siguiente): mismo cálculo (`amountForRow`), sobre la ventana de cobranza completa, no sobre los
+items visibles del card (que vienen truncados a `collectionLimit`). Es la única cifra de dinero
+fuera de "Por cobrar", y por eso no lleva color propio.
+
+`DashboardPropertyBoard` (`summary.propertyBoard`) lista TODAS las propiedades. La ocupación de la
+noche de hoy suma `unitsBooked` de reservas no canceladas que cubren hoy más 1 por cada Bloqueo de
+Canal Externo `ACTIVE` que cubre hoy — la misma regla que la disponibilidad (ver "Calendarios
+Externos"); nunca una cifra financiera (ADR-0018).
+
+`DashboardMonthPulse` (`summary.month`) compara lo cobrado contra el MISMO tramo del mes anterior
+(día 1 a `min(día de hoy, último día de ese mes)`), en monto: comparar contra el mes anterior
+completo marcaba una caída falsa en cada comienzo de mes.
+
+Una cuenta sin reservas ve "Primeros pasos" en vez de las cuatro secciones: son 2 pasos, no 3,
+porque el formulario de reserva crea al cliente en el mismo flujo.
+
+Una reserva `PENDING` no tiene señal propia en `/dashboard`: pasa a `CONFIRMED` sola al completarse
+el pago (`confirmReservationIfPaid`, ADR-0025), así que `PENDING` ya equivale a "tiene saldo" — la
+misma señal que "Por cobrar".
+
+Ver ADR-0036.
 
 ### `/dashboard` — sección "Cobros pendientes"
 
@@ -463,6 +493,7 @@ Grid de 7 columnas en todas las resoluciones. Celdas: `min-h-12 sm:min-h-20 lg:m
   - ADR-0030: `docs/adr/0030-reports-financial-series-source-of-truth.md` — serie de ingresos cash-basis source of truth: `revenue-series.ts` como seam puro, `buildDecisionSummary` como adapter, UI simplificada, exportación on-demand. `getYearlySummary` (reescrito en este ADR) se eliminó después, junto con `getRevenueReport` y `buildAnnualCollectedCash`, en ADR-0035 por falta de consumidores
   - ADR-0033: `docs/adr/0033-cobranza-status-grouping.md` — cobranza del dashboard agrupada por urgencia: el estado se expresa en el encabezado del grupo, no por fila; subtotales de ventana completa; tipo de reserva como label
   - ADR-0035: `docs/adr/0035-reports-alcance-unico.md` — `/reports` rediseñado a encabezado con export y dos secciones, con un solo alcance por cifra (rango del encabezado o foto del presente, rotulada); tasa de cobranza con dos bases contables sin clampear; eliminación de la tabla de cobranza paginada, la card anual y las cards de modelo de negocio
+  - ADR-0036: `docs/adr/0036-dashboard-inicio-por-eventos.md` — `/dashboard` rediseñado a cuatro zonas sin cifras repetidas: agenda por EVENTO (llegada/salida, no por reserva), tablero con todas las propiedades (incluye Bloqueos de Canal Externo), el mes (cobrado vs. mismo tramo del mes anterior), y "Primeros pasos" para cuentas sin reservas
 
 ## Seams de dominio en `src/lib/`
 

@@ -4,6 +4,22 @@
 **Alcance**: `src/app/(dashboard)/dashboard/page.tsx` (601 líneas) + sus `_components` + los datos que consume.
 **Estado**: propuesta (input para issues; no implementado).
 
+> **Estado (2026-09-14): superado por ADR-0036.** Este plan fue el diagnóstico; la decisión y su
+> implementación viven en `docs/adr/0036-dashboard-inicio-por-eventos.md`. Estado de cada hallazgo:
+>
+> - **C1–C4** (KPIs sobre 10 reservas, vencidos de dos poblaciones, cobros de hoy invisibles,
+>   ingresos fuera de ADR-0028) — resueltos antes de este ADR, con `getDashboardSummary`.
+> - **E1** (bloque "Hoy") — resuelto: la agenda de 7 días reemplaza tabla + franja de ocupación + KPI.
+> - **E2** (acciones desde el dashboard) — pendiente, diferido a un cambio de Nivel 3 (ADR-0017).
+> - **E3** (onboarding) — resuelto: "Primeros pasos", 2 pasos en vez de los 3 propuestos aquí.
+> - **E4** (reservas por confirmar) — descartado como señal propia: `PENDING` ya equivale a "tiene
+>   saldo", cubierto por "Por cobrar".
+> - **Q1** (`loading.tsx`) — sigue sin existir.
+> - **Q2** (reservas MONTHLY sin señal) — resuelto: la agenda y el tablero de propiedades tratan
+>   `DAILY`/`MONTHLY` por igual.
+> - **Q3** (deuda menor) — parcial: `urgent-collection-card.tsx` y `pending-balances-card.tsx`
+>   (código muerto) siguen sin borrarse.
+
 ## Objetivo
 
 Responder: *¿qué necesita ver un OWNER al abrir `/dashboard` para operar su día, y qué falla hoy?*
