@@ -18,6 +18,9 @@ interface ConfirmDialogProps {
   confirmLabel?: string;
   cancelLabel?: string;
   onConfirm: () => void | Promise<void>;
+  /** Contenido entre la descripción y los botones, p. ej. un campo de confirmación. */
+  children?: React.ReactNode;
+  confirmDisabled?: boolean;
 }
 
 export function ConfirmDialog({
@@ -28,6 +31,8 @@ export function ConfirmDialog({
   confirmLabel = "Eliminar",
   cancelLabel = "Cancelar",
   onConfirm,
+  children,
+  confirmDisabled = false,
 }: ConfirmDialogProps) {
   const handleConfirm = async () => {
     await onConfirm();
@@ -48,11 +53,12 @@ export function ConfirmDialog({
             </div>
           </div>
         </DialogHeader>
+        {children && <div className="px-5 pt-4">{children}</div>}
         <div className="flex flex-col-reverse gap-2 px-5 py-4 sm:flex-row sm:justify-end">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {cancelLabel}
           </Button>
-          <Button variant="destructive" onClick={handleConfirm}>
+          <Button variant="destructive" onClick={handleConfirm} disabled={confirmDisabled}>
             {confirmLabel}
           </Button>
         </div>

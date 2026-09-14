@@ -25,6 +25,7 @@ import {
   Sparkles,
   Home,
   UserCog,
+  Trash2,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +41,9 @@ import { ActionHistory } from "@/components/admin/action-history";
 import { updateUserStatus } from "@/lib/actions/super-admin";
 import { getActiveSubscription } from "@/lib/subscriptions/queries";
 import { AdminCancelSubscriptionButton } from "@/components/admin/admin-cancel-subscription-button";
+import { AdminOwnerPlanControl } from "@/components/admin/admin-owner-plan-control";
+import { AdminDeleteOwnerButton } from "@/components/admin/admin-delete-owner-button";
+import { derivePlanFromSubscription } from "@/lib/subscriptions/effective-plan";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -308,6 +312,12 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
             </div>
           </CardHeader>
           <CardContent className="space-y-5">
+            <AdminOwnerPlanControl
+              userId={owner.id}
+              planOverride={owner.planOverride}
+              subscriptionPlan={derivePlanFromSubscription(owner.subscription)}
+            />
+
             {owner.plan === "FREE" && (
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between text-sm">
@@ -932,6 +942,25 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
           <AdminOwnerNotes ownerId={id} />
         </TabsContent>
       </Tabs>
+
+      <Card className="border-destructive/30">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Trash2 className="size-4 text-destructive-text" />
+            Eliminar propietario
+          </CardTitle>
+          <CardDescription>
+            Borra la cuenta y todos sus datos. Para una baja normal alcanza con «Cancelar cuenta».
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AdminDeleteOwnerButton
+            ownerId={owner.id}
+            email={owner.email}
+            hasSubscriptionHistory={owner.subscription !== null}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }

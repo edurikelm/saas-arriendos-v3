@@ -19,8 +19,6 @@ vi.mock("lucide-react", async (importOriginal) => {
 });
 
 vi.mock("@/lib/actions/super-admin", () => ({
-  updateUserPlan: vi.fn(),
-  deleteUser: vi.fn(),
   createOwner: vi.fn(),
 }));
 

@@ -158,12 +158,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: result.error }, { status: 403 });
     }
 
-    await logAdminAction({
-      targetId: userId,
-      action: "OWNER_DELETED",
-      details: {},
-    });
-
+    // `deleteUser` ya registra OWNER_DELETED dentro de su transacción.
     return NextResponse.json(result);
   } catch (error) {
     console.error("Error deleting user:", error);

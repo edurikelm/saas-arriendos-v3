@@ -106,6 +106,8 @@ El webhook intenta matchear el pago en este orden:
 - Acceso total a todos los propietarios
 - Métricas globales: total propietarios, total propiedades, total ingresos
 - Puede crear/editar/desactivar propietarios
+- **Plan de un owner** (`/admin/users/[id]`): concede o revoca PRO manual vía `planOverride` (`updateUserPlan`). Revocar **no fuerza FREE**: vuelve a derivar de la suscripción, así que no le quita el plan a quien paga. Por eso no es un selector FREE/PRO: el control nombra el plan efectivo y su origen, mientras los badges de la página siguen mostrando la columna `plan` como registro.
+- **Eliminar un owner** (`deleteUser`, desde `/admin/users/[id]`): borra la cuenta y todo lo que cuelga de ella (propiedades, reservas, pagos, clientes, calendarios externos, documentos, notificaciones, tickets de soporte, notas internas, integración de Mercado Pago) y deja `OWNER_DELETED` en `AdminActionLog`. **Se bloquea si el owner tuvo cualquier suscripción, vigente o no**: esas filas son el registro de cobro de RentalPro; la baja se hace con «Cancelar cuenta». Casi todas las FK hacia el owner son RESTRICT en producción (las tablas originales son anteriores a la primera migración), así que el borrado va de hojas a raíz; `src/lib/actions/__tests__/delete-owner.test.ts` lee `schema.prisma` y falla si un modelo nuevo con FK al owner no está en la transacción. Los archivos en Supabase Storage y Cloudinary no se borran. Hasta este cambio la acción solo existía en un diálogo de `/admin/users` que nada abría, y la base rechazaba el borrado de cualquier owner con notificaciones o tickets.
 
 ### OWNER
 - Solo ve sus propios datos (filtrado por `user_id`)

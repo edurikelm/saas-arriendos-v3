@@ -31,6 +31,14 @@ vi.mock("@/components/admin/admin-cancel-subscription-button", () => ({
   AdminCancelSubscriptionButton: () => null,
 }));
 
+vi.mock("@/components/admin/admin-owner-plan-control", () => ({
+  AdminOwnerPlanControl: () => null,
+}));
+
+vi.mock("@/components/admin/admin-delete-owner-button", () => ({
+  AdminDeleteOwnerButton: () => null,
+}));
+
 vi.mock("next/link", () => ({
   default: ({ children, href, ...rest }: { children: React.ReactNode; href: string }) => (
     <a href={href} {...rest}>
@@ -51,6 +59,8 @@ const mockData = {
     name: "Test Owner",
     email: "test@example.com",
     plan: "PRO" as const,
+    planOverride: null,
+    subscription: null,
     role: "OWNER",
     status: "ACTIVE" as const,
     createdAt: new Date(),
