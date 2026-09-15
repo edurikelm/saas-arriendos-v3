@@ -123,7 +123,7 @@ Dos columnas solo desde `xl`: a `lg` (1024px, con sidebar) la columna de cobros 
 
 ### Fuera de alcance (pendiente)
 
-- **Acciones en "Por cobrar"** (marcar pagado, enviar link) quedan para un cambio aparte de Nivel 3
+- **Acciones en "Por cobrar"** (resuelto en ADR-0037) (marcar pagado, enviar link) quedan para un cambio aparte de Nivel 3
   (ADR-0017), porque tocan pagos. Medido: de los 4 cobros del día, solo 1 tenía un `Payment`
   `PENDING` sobre el cual `MarkPaidDialog` pudiera actuar; las 2 reservas `DAILY` con deuda no
   tenían ninguna fila de `Payment`, así que ahí la acción real es "registrar pago" (crear), no
