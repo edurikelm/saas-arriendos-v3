@@ -117,6 +117,9 @@ export function endOfDayInTz(dateKey: string, tz: string = BUSINESS_TIME_ZONE): 
  *
  * Se construye desde `startOfDayInTz` y no sumando horas a mano, porque ese
  * helper ya resuelve el día del cambio de hora, en que la medianoche no existe.
+ * Por lo mismo, ese día es "inicio + 12 h" y no el mediodía de reloj: 13:00 al
+ * empezar el horario de verano (día de 23 h) y 11:00 al terminar (25 h). Sigue
+ * lejos de los dos bordes.
  */
 export function businessNoonOfDateKey(dateKey: string, tz: string = BUSINESS_TIME_ZONE): Date {
   return new Date(startOfDayInTz(dateKey, tz).getTime() + 12 * 60 * 60 * 1000);

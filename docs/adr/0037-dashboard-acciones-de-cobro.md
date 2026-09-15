@@ -159,9 +159,10 @@ aceptan un `onError` opcional.
   Mercado Pago vivo no anula la preferencia.
 - **La deduplicación de links es solo del cliente.** Otra pestaña, u otra pantalla, puede crear un
   segundo link para el mismo saldo.
-- **Los datos viejos no se tocan.** Las 6 cuotas guardadas a medianoche UTC siguen mostrándose un día
-  antes. Ninguna cruza un borde de mes, así que no mueven cifras; corregirlas es una migración de datos
-  que queda para decidir aparte.
+- **Los datos viejos no los corrige este cambio.** Las 6 cuotas guardadas a medianoche UTC se
+  corrigieron después, con la migración de datos `20260915000000_fix_manual_paid_at_midnight_utc`, que
+  las lleva al valor que escribe `businessNoonOfDateKey`. Ninguna cruzaba un borde de mes ni de día
+  UTC, así que no movió cifras de `/reports`.
 - **Queda pendiente el día de negocio en `/reports`.** `decision-summary.ts` y `revenue-series.ts`
   comparan `paidAt` por día UTC para el rango, pero `revenue-series` lo agrupa por mes de Santiago. Un
   pago real entre las 20:00 y las 23:59 de Santiago (por ejemplo, un webhook de Mercado Pago de noche)

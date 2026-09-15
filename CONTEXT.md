@@ -87,7 +87,7 @@ El webhook intenta matchear el pago en este orden:
 - Mercado Pago: webhook actualiza estado de pago
 - Pagos manuales: el propietario registra efectivo/transferencia con `paid_at` y `method`; puede adjuntar comprobante (imagen) al crear el pago, al marcarlo como pagado, o después en un pago ya completado. Esto también aplica a pagos de Mercado Pago ya completados.
 - **`paid_at` de un pago manual es el mediodía de Santiago del día elegido**: `businessNoonOfDateKey(dateKey)` (`src/lib/domain/timezone.ts`), en `AddPaymentDialog`, `MarkPaidDialog` y `RegisterPaymentDialog`. Cae en ese día leído en Santiago y también por día UTC, desde cualquier zona horaria. Hay dos formas que parecen correctas y no lo son:
-  - `new Date("YYYY-MM-DD")` es medianoche UTC y en Santiago cae el día anterior. `MarkPaidDialog` lo usaba hasta ADR-0037, y hay cuotas guardadas a las 00:00 UTC que el detalle muestra pagadas un día antes.
+  - `new Date("YYYY-MM-DD")` es medianoche UTC y en Santiago cae el día anterior. `MarkPaidDialog` lo usaba hasta ADR-0037. Las 6 cuotas que quedaron guardadas así se corrigieron con la migración `20260915000000_fix_manual_paid_at_midnight_utc`.
   - `new Date(y, m - 1, d, 12)` es el mediodía del navegador. Desde Sídney o Auckland ya es el día anterior en Santiago, medido con `TZ` real.
 
   Un test de esto tiene que leer el día de negocio del instante (`getDateKeyInTz`) con el proceso en otra zona, no getters locales, que coinciden siempre.
