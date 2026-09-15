@@ -9,8 +9,9 @@
  *   (`@/lib/reports/collection`, `@/lib/reports/kpis`) — fuente de verdad de
  *   cobranza (única población que ve deuda DAILY, vía `startDate` como proxy)
  *   y también de `agenda[].amountDue`, vía la MISMA ventana completa.
- * - `classifyCollectionAlerts` (`@/lib/alerts/collection-alerts`) — SOLO como
- *   enriquecimiento (paymentId/initPoint/expiresAt) de items MONTHLY.
+ * - `getReservationPendingAmount` (`@/lib/payments/calculations`) — saldo del
+ *   arriendo, usado por `computeNextCharge` cuando la reserva no tiene ningún
+ *   `Payment` RESERVATION impago (caso DAILY sin cuotas, ADR-0017 Nivel 3).
  *
  * Produce cuatro piezas para la página:
  * - `collection`/`collectionItems` — cobros pendientes (sin cambios en esta
@@ -44,11 +45,7 @@ import {
   type CollectionReservationInput,
 } from "@/lib/reports/collection";
 import { sumCollectionTotals } from "@/lib/reports/kpis";
-import {
-  classifyCollectionAlerts,
-  type CollectionAlertItem,
-  type CollectionAlertPayment,
-} from "@/lib/alerts/collection-alerts";
+import { getReservationPendingAmount } from "@/lib/payments/calculations";
 import {
   addDaysToDateKey,
   BUSINESS_TIME_ZONE,
@@ -77,13 +74,19 @@ export interface DashboardPaymentInput {
   dueDate: Date | null;
   initPoint: string | null;
   expiresAt: Date | null;
+  /** Cuándo se creó el `Payment`. Desempata `computeNextCharge` cuando dos cobros no tienen `dueDate`. */
+  createdAt: Date;
+  /** Ordinal de cuota (arriendos MONTHLY). `null` fuera de esos casos. */
+  installmentIndex: number | null;
+  /** Título del pago. Obligatorio solo para `paymentType: EXTRA` (CONTEXT.md). */
+  title: string | null;
 }
 
 /**
  * Superset de `DecisionReservationInput` (decision-summary.ts) +
- * `CollectionReservationInput` (collection.ts), más `client.phone` — ninguna
- * de las dos lo exige, pero `collectionItems` lo necesita para acciones de
- * contacto.
+ * `CollectionReservationInput` (collection.ts), más `client.phone`/`client.email`
+ * — ninguna de las dos lo exige, pero `collectionItems` los necesita para
+ * acciones de contacto (WhatsApp/email vía `SendPaymentLinkDialog`).
  */
 export interface DashboardReservationInput {
   id: string;
@@ -95,7 +98,7 @@ export interface DashboardReservationInput {
   totalPrice: number;
   unitsBooked: number;
   property: { id: string; name: string; color: string };
-  client: { id: string; name: string; phone: string | null };
+  client: { id: string; name: string; phone: string | null; email: string };
   payments: DashboardPaymentInput[];
 }
 
@@ -229,17 +232,45 @@ export interface DashboardCollectionKpi {
 
 export type DashboardCollectionBucket = "OVERDUE" | "DUE_TODAY" | "UPCOMING_7D";
 
+/**
+ * El próximo cobro accionable de una reserva — la base de las acciones
+ * "Registrar pago" / "Enviar link" de "Por cobrar" (Nivel 3, ADR-0017).
+ *
+ * `EXISTING`: ya hay un `Payment` PENDING o FAILED sobre el que actuar
+ * (marcar pagado, generar/reenviar su link). `NEW`: el arriendo tiene saldo
+ * pero ningún `Payment` — el caso medido en producción de reservas DAILY con
+ * deuda, que no generan cuotas automáticamente (CONTEXT.md, ADR-0036 "Fuera
+ * de alcance"). Ahí la acción real es CREAR el cobro, no marcarlo.
+ */
+export type DashboardNextCharge =
+  | {
+      kind: "EXISTING";
+      paymentId: string;
+      paymentType: "RESERVATION" | "EXTRA";
+      status: "PENDING" | "FAILED";
+      amount: number;
+      method: "MERCADO_PAGO" | "CASH" | "TRANSFER";
+      installmentIndex: number | null;
+      /** Mayor installmentIndex entre los pagos RESERVATION no borrados de la reserva; null si no hay cuotas. */
+      installmentCount: number | null;
+      dueDate: string | null;
+      title: string | null;
+      initPoint: string | null;
+      expiresAt: string | null;
+    }
+  | { kind: "NEW"; /** Saldo del arriendo sin cobro creado. */ amount: number };
+
 export interface DashboardCollectionItem {
   bucket: DashboardCollectionBucket;
   reservationId: string;
-  paymentId: string | null;
   clientName: string;
+  clientEmail: string;
   clientPhone: string | null;
   propertyName: string;
   amount: number;
   dueDate: string | null;
-  initPoint: string | null;
-  expiresAt: string | null;
+  /** `null` cuando la reserva quedó saldada entre el cálculo de la fila y este mapeo (defensivo; no debería ocurrir). */
+  nextCharge: DashboardNextCharge | null;
   daysFromToday: number | null;
   /** Cantidad de cuotas vencidas detrás de esta fila (`row.overdueCount`). */
   overdueCount: number;
@@ -592,46 +623,122 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     windowGroups,
   };
 
-  // ── Enriquecimiento (solo MONTHLY): paymentId/initPoint/expiresAt vía
-  // classifyCollectionAlerts, indexado por reservationId.
-  const alertPayments: CollectionAlertPayment[] = input.reservations.flatMap((r) =>
-    r.payments
-      .filter((p) => p.deletedAt == null)
-      .map((p) => ({
-        id: p.id,
-        status: p.status,
-        paymentType: p.paymentType,
-        method: p.method,
-        amount: p.amount,
-        dueDate: p.dueDate ? p.dueDate.toISOString() : null,
-        initPoint: p.initPoint,
-        expiresAt: p.expiresAt ? p.expiresAt.toISOString() : null,
-        reservation: {
-          id: r.id,
-          status: r.status,
-          client: { name: r.client.name },
-          property: { name: r.property.name },
-        },
-      })),
-  );
-
-  const alertsResult = classifyCollectionAlerts(alertPayments, now);
-  const alertsByReservationId = new Map<string, CollectionAlertItem>();
-  for (const item of [
-    ...alertsResult.vencidos,
-    ...alertsResult.vencenHoy,
-    ...alertsResult.proximos7Dias,
-  ]) {
-    if (!alertsByReservationId.has(item.reservationId)) {
-      alertsByReservationId.set(item.reservationId, item);
-    }
-  }
-
   const clientPhoneByReservationId = new Map(
     input.reservations.map((r) => [r.id, r.client.phone] as const),
   );
+  const clientEmailByReservationId = new Map(
+    input.reservations.map((r) => [r.id, r.client.email] as const),
+  );
   const billingTypeByReservationId = new Map(
     input.reservations.map((r) => [r.id, r.billingType] as const),
+  );
+
+  // ── Próximo cobro accionable (Nivel 3, ADR-0017): qué `Payment` marcar
+  // pagado o reenviar, o si hay que CREAR uno porque la reserva no tiene
+  // ninguno (DAILY con deuda, ADR-0036 "Fuera de alcance"). Indexado por
+  // reservationId, igual que los mapas de arriba.
+
+  /** `true` cuando el pago sigue sin cobrarse: PENDING o FAILED, nunca COMPLETED. */
+  function isUnpaidPayment(
+    p: DashboardPaymentInput,
+  ): p is DashboardPaymentInput & { status: "PENDING" | "FAILED" } {
+    return p.status !== "COMPLETED";
+  }
+
+  function compareByCreatedThenId(a: DashboardPaymentInput, b: DashboardPaymentInput): number {
+    const createdDiff = a.createdAt.getTime() - b.createdAt.getTime();
+    if (createdDiff !== 0) return createdDiff;
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  }
+
+  /** `dueDate` ascendente, `null` al final — el cobro sin fecha no es "el más antiguo". */
+  function compareByDueDateThenCreatedThenId(
+    a: DashboardPaymentInput,
+    b: DashboardPaymentInput,
+  ): number {
+    const aDue = a.dueDate ? a.dueDate.getTime() : null;
+    const bDue = b.dueDate ? b.dueDate.getTime() : null;
+    if (aDue !== bDue) {
+      if (aDue === null) return 1;
+      if (bDue === null) return -1;
+      return aDue - bDue;
+    }
+    return compareByCreatedThenId(a, b);
+  }
+
+  /**
+   * Mayor `installmentIndex` entre los pagos RESERVATION no borrados de la
+   * reserva — pagados o no, porque el número de cuotas del contrato no
+   * cambia cuando una ya se pagó. `null` si la reserva no tiene cuotas
+   * (DAILY, o MONTHLY sin pagos generados).
+   */
+  function installmentCountFor(reservation: DashboardReservationInput): number | null {
+    const indexes = reservation.payments
+      .filter(
+        (p) => p.deletedAt == null && p.paymentType === "RESERVATION" && p.installmentIndex != null,
+      )
+      .map((p) => p.installmentIndex as number);
+    return indexes.length === 0 ? null : Math.max(...indexes);
+  }
+
+  function toExistingCharge(
+    payment: DashboardPaymentInput & { status: "PENDING" | "FAILED" },
+    reservation: DashboardReservationInput,
+  ): DashboardNextCharge {
+    return {
+      kind: "EXISTING",
+      paymentId: payment.id,
+      paymentType: payment.paymentType,
+      status: payment.status,
+      amount: payment.amount,
+      method: payment.method,
+      installmentIndex: payment.installmentIndex,
+      installmentCount: installmentCountFor(reservation),
+      dueDate: payment.dueDate ? payment.dueDate.toISOString() : null,
+      title: payment.title,
+      initPoint: payment.initPoint,
+      expiresAt: payment.expiresAt ? payment.expiresAt.toISOString() : null,
+    };
+  }
+
+  /**
+   * El próximo cobro de una reserva, en orden de prioridad:
+   * 1. El `Payment` RESERVATION impago más antiguo (por `dueDate`, luego
+   *    `createdAt`, luego `id`) — es lo que el cliente debe primero.
+   * 2. Si no hay ninguno pero el arriendo tiene saldo (`totalPrice - pagado`,
+   *    sobre los pagos no borrados): `NEW` — la reserva DAILY con deuda no
+   *    genera `Payment` automáticamente (CONTEXT.md), así que la acción real
+   *    es CREAR el cobro, no marcarlo.
+   * 3. Si el arriendo está saldado, el primer cobro EXTRA impago (por
+   *    `createdAt`) — nunca antes que el arriendo, que es prioritario.
+   * 4. `null`: nada que cobrar.
+   */
+  function computeNextCharge(reservation: DashboardReservationInput): DashboardNextCharge | null {
+    const activePayments = reservation.payments.filter((p) => p.deletedAt == null);
+    const unpaid = activePayments.filter(isUnpaidPayment);
+    const unpaidReservation = unpaid.filter((p) => p.paymentType === "RESERVATION");
+
+    if (unpaidReservation.length > 0) {
+      const [first] = [...unpaidReservation].sort(compareByDueDateThenCreatedThenId);
+      return toExistingCharge(first, reservation);
+    }
+
+    const pendingAmount = getReservationPendingAmount(activePayments, reservation.totalPrice);
+    if (pendingAmount > 0) {
+      return { kind: "NEW", amount: pendingAmount };
+    }
+
+    const unpaidExtra = unpaid.filter((p) => p.paymentType === "EXTRA");
+    if (unpaidExtra.length > 0) {
+      const [first] = [...unpaidExtra].sort(compareByCreatedThenId);
+      return toExistingCharge(first, reservation);
+    }
+
+    return null;
+  }
+
+  const nextChargeByReservationId = new Map<string, DashboardNextCharge | null>(
+    input.reservations.map((r) => [r.id, computeNextCharge(r)] as const),
   );
 
   /**
@@ -700,20 +807,17 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     bucket: DashboardCollectionBucket,
   ): DashboardCollectionItem {
     const billingType = billingTypeByReservationId.get(row.reservationId) ?? row.billingType;
-    const isMonthly = billingType === "MONTHLY";
-    const alert = isMonthly ? alertsByReservationId.get(row.reservationId) : undefined;
     return {
       bucket,
       billingType,
       reservationId: row.reservationId,
-      paymentId: alert?.paymentId ?? null,
       clientName: row.clientName,
+      clientEmail: clientEmailByReservationId.get(row.reservationId) ?? "",
       clientPhone: clientPhoneByReservationId.get(row.reservationId) ?? null,
       propertyName: row.propertyName,
       amount: amountForRow(row),
       dueDate: row.nextDueDate ? row.nextDueDate.toISOString() : null,
-      initPoint: alert?.initPoint ?? null,
-      expiresAt: alert?.expiresAt ?? null,
+      nextCharge: nextChargeByReservationId.get(row.reservationId) ?? null,
       daysFromToday: row.nextDueDate ? daysFromTodayDateOnly(row.nextDueDate, now) : null,
       overdueCount: row.overdueCount,
       dueSoonCount: row.dueSoonCount,

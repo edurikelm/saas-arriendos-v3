@@ -1,10 +1,31 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type {
   DashboardAgendaEvent,
   DashboardCollectionKpi,
   DashboardSummary,
 } from "@/lib/dashboard/summary";
+
+// `DashboardHome` renderiza `DashboardCobranzaList`, que ahora importa
+// `CobranzaRowActions` (useRouter + server actions de pagos). Ninguna fila de
+// este archivo trae `collectionItems`, así que esas acciones nunca montan en
+// runtime — pero el import ES es estático: sin este mock, cargar el módulo
+// construiría un `PrismaClient` apuntando a la base de producción
+// (@/lib/db/prisma), algo que ningún test debe hacer.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
+vi.mock("@/lib/actions/payments", () => ({
+  generateMercadoPagoLink: vi.fn(),
+  generatePaymentLink: vi.fn(),
+  regeneratePaymentLink: vi.fn(),
+  markPaymentAsPaid: vi.fn(),
+  createPayment: vi.fn(),
+}));
+
 import { DashboardHome } from "../dashboard-home";
 
 const TODAY = "2026-09-14";

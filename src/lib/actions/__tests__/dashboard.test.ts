@@ -66,6 +66,21 @@ describe("getDashboardSummary", () => {
     expect(mocks.reservationFindMany.mock.calls[0][0].where).toEqual({ userId: "owner-1" });
   });
 
+  // `computeNextCharge` (@/lib/dashboard/summary) necesita estos cuatro campos:
+  // email del cliente para `SendPaymentLinkDialog`, y createdAt/installmentIndex/
+  // title de cada pago para el desempate y la etiqueta del cobro ("Cuota 2 de 3",
+  // título de un EXTRA). Fijar el select entero sería frágil ante campos nuevos
+  // sin relación con este cambio, así que solo se fija lo que este cambio agrega.
+  it("pide email del cliente y createdAt/installmentIndex/title de cada pago", async () => {
+    await getDashboardSummary({ now: NOW });
+
+    const args = mocks.reservationFindMany.mock.calls[0][0];
+    expect(args.select.client.select.email).toBe(true);
+    expect(args.select.payments.select.createdAt).toBe(true);
+    expect(args.select.payments.select.installmentIndex).toBe(true);
+    expect(args.select.payments.select.title).toBe(true);
+  });
+
   // `ExternalChannelBlock` no tiene `userId`: la tenencia tiene que ir por la
   // propiedad. Sin ese filtro, el tablero de un owner contaría como ocupadas
   // propiedades por bloqueos de Airbnb de otro. El margen de 2 días sobre

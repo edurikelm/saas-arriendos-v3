@@ -51,7 +51,7 @@ export async function getDashboardSummary(options?: {
         totalPrice: true,
         unitsBooked: true,
         property: { select: { id: true, name: true, color: true } },
-        client: { select: { id: true, name: true, phone: true } },
+        client: { select: { id: true, name: true, phone: true, email: true } },
         payments: {
           where: { deletedAt: null },
           select: {
@@ -64,6 +64,12 @@ export async function getDashboardSummary(options?: {
             dueDate: true,
             initPoint: true,
             expiresAt: true,
+            // createdAt/installmentIndex/title alimentan `computeNextCharge`
+            // (@/lib/dashboard/summary): orden de prioridad, etiqueta de
+            // cuota ("Cuota 2 de 3") y título de cobros EXTRA.
+            createdAt: true,
+            installmentIndex: true,
+            title: true,
           },
         },
       },
@@ -106,6 +112,7 @@ export async function getDashboardSummary(options?: {
       id: r.client.id,
       name: r.client.name,
       phone: r.client.phone,
+      email: r.client.email,
     },
     payments: r.payments.map((p) => ({
       id: p.id,
@@ -121,6 +128,9 @@ export async function getDashboardSummary(options?: {
       dueDate: p.dueDate,
       initPoint: p.initPoint,
       expiresAt: p.expiresAt,
+      createdAt: p.createdAt,
+      installmentIndex: p.installmentIndex,
+      title: p.title,
     })),
   }));
 
