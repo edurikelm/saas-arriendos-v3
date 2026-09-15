@@ -102,6 +102,27 @@ export function endOfDayInTz(dateKey: string, tz: string = BUSINESS_TIME_ZONE): 
 }
 
 /**
+ * Mediodía de pared del día `dateKey` en `tz`, como instante. Es la forma de
+ * guardar el `paidAt` de un pago manual: el owner elige un DÍA, pero `paidAt`
+ * es un instante, y ese instante tiene que caer en el día elegido tanto leído
+ * en Santiago (`formatInstant`, meses de `revenue-series`) como por día UTC
+ * (rangos de `decision-summary`). El mediodía de Santiago son las 15:00 o 16:00
+ * UTC: lejos de los dos bordes.
+ *
+ * Reemplaza a `new Date(y, m - 1, d, 12)`, que es el mediodía del NAVEGADOR:
+ * medido el 2026-09-15 con `TZ` real, desde Sídney, Auckland o Fiji ese
+ * instante ya es el día anterior en Santiago, y desde Tokio también en el
+ * invierno chileno. Y a `new Date("YYYY-MM-DD")`, que es medianoche UTC y cae
+ * el día anterior en Santiago desde cualquier zona.
+ *
+ * Se construye desde `startOfDayInTz` y no sumando horas a mano, porque ese
+ * helper ya resuelve el día del cambio de hora, en que la medianoche no existe.
+ */
+export function businessNoonOfDateKey(dateKey: string, tz: string = BUSINESS_TIME_ZONE): Date {
+  return new Date(startOfDayInTz(dateKey, tz).getTime() + 12 * 60 * 60 * 1000);
+}
+
+/**
  * Converts a dateKey (YYYY-MM-DD) to a day index (days since Unix epoch).
  * Uses UTC to avoid timezone offsets.
  */
