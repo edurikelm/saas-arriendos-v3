@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { getDateKeyInTz } from '@/lib/domain/timezone';
 import { AddPaymentDialog } from '../add-payment-dialog';
 
 const mockFetch = vi.fn();
@@ -147,6 +148,38 @@ describe('AddPaymentDialog - paymentType selector', () => {
     expect(formData.get('title')).toBe('Limpieza extra');
     expect(formData.get('description')).toBe('Limpieza de alfombras');
   });
+
+  // `paidAt` se construía con el mediodía del NAVEGADOR: desde Sídney o
+  // Kiritimati ese instante ya es el día anterior en Santiago (medido con TZ
+  // real). El test lee el día de negocio del instante enviado, en Santiago y
+  // por día UTC, que son las dos formas en que el producto lee `paidAt`.
+  it.each(['America/Santiago', 'Australia/Sydney', 'Pacific/Kiritimati'])(
+    'con el navegador en %s, el paidAt del pago manual cae en el día elegido',
+    async (tz) => {
+      const original = process.env.TZ;
+      process.env.TZ = tz;
+      try {
+        const user = userEvent.setup();
+        render(<AddPaymentDialog {...defaultProps} />);
+
+        await selectCash(user);
+        await user.type(screen.getByPlaceholderText('0'), '50000');
+        const dateInput = screen.getByLabelText('Fecha de Pago') as HTMLInputElement;
+        await user.clear(dateInput);
+        await user.type(dateInput, '2026-10-01');
+
+        await user.click(screen.getByText('Registrar Pago'));
+
+        expect(mockFetch).toHaveBeenCalled();
+        const paidAt = new Date(mockFetch.mock.calls[0][1].body.get('paidAt'));
+        expect(getDateKeyInTz(paidAt, 'America/Santiago')).toBe('2026-10-01');
+        expect(paidAt.toISOString().slice(0, 10)).toBe('2026-10-01');
+      } finally {
+        if (original === undefined) delete process.env.TZ;
+        else process.env.TZ = original;
+      }
+    },
+  );
 
   it('sends paymentType=RESERVATION for default mode with CASH', async () => {
     const user = userEvent.setup();

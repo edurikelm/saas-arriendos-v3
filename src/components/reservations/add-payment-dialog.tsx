@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { format } from "date-fns";
 import { useForm, useWatch, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -26,6 +25,7 @@ import { Controller } from "react-hook-form";
 import { toast } from "sonner";
 import { Plus, CreditCard, Loader2 } from "lucide-react";
 import { ReceiptUpload } from "@/components/ui/receipt-upload";
+import { businessNoonOfDateKey, nowKeyInBusinessTz } from "@/lib/domain/timezone";
 
 interface AddPaymentDialogProps {
   reservationId: string;
@@ -142,7 +142,8 @@ export function AddPaymentDialog({
       amount: "",
       title: "",
       description: "",
-      paidAt: format(new Date(), "yyyy-MM-dd"),
+      // "Hoy" de Santiago, el mismo día de negocio con que se guarda `paidAt`.
+      paidAt: nowKeyInBusinessTz(),
     },
     mode: "onSubmit",
     reValidateMode: "onBlur",
@@ -197,10 +198,10 @@ export function AddPaymentDialog({
         if (values.description)
           formData.append("description", values.description);
         formData.append("status", "COMPLETED");
-        formData.append("paidAt", (() => {
-          const [y, m, d] = values.paidAt.split("-").map(Number);
-          return new Date(y, m - 1, d, 12, 0, 0).toISOString();
-        })());
+        // Mediodía de Santiago, no del navegador: el mediodía local desde
+        // Sídney, Auckland o Fiji ya es el día anterior en Santiago (medido con
+        // TZ real). Ver `businessNoonOfDateKey`.
+        formData.append("paidAt", businessNoonOfDateKey(values.paidAt).toISOString());
         if (receiptFile) {
           formData.append("receipt", receiptFile);
         }

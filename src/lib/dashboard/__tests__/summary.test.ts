@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildDashboardSummary,
   type DashboardExternalBlockInput,
+  type DashboardNextCharge,
   type DashboardPaymentInput,
   type DashboardReservationInput,
   type DashboardSummaryInput,
@@ -45,6 +46,12 @@ function makePayment(overrides: Partial<DashboardPaymentInput> = {}): DashboardP
     dueDate: null,
     initPoint: null,
     expiresAt: null,
+    // Fecha fija y creciente por fixture: sin esto, dos pagos creados en el
+    // mismo test comparten `Date.now()` y el desempate por `createdAt` de
+    // `computeNextCharge` deja de ser determinístico.
+    createdAt: new Date(2026, 0, paymentCounter),
+    installmentIndex: null,
+    title: null,
     ...overrides,
   };
 }
@@ -64,7 +71,12 @@ function makeReservation(
     totalPrice: 100_000,
     unitsBooked: 1,
     property: { id: PROPERTY.id, name: PROPERTY.name, color: "#3B82F6" },
-    client: { id: `client-${reservationCounter}`, name: `Cliente ${reservationCounter}`, phone: null },
+    client: {
+      id: `client-${reservationCounter}`,
+      name: `Cliente ${reservationCounter}`,
+      phone: null,
+      email: `cliente${reservationCounter}@test.com`,
+    },
     payments: [],
     ...overrides,
   };
@@ -349,6 +361,370 @@ describe("buildDashboardSummary", () => {
     expect(item.dueSoonCount).toBe(0);
     expect(item.dueSoonDaysFromToday).toBeNull();
   });
+});
+
+// ─── Tests: próximo cobro accionable (Nivel 3, ADR-0017) ───────────────────────
+//
+// `computeNextCharge` es interna a `summary.ts`; se prueba a través de
+// `collectionItems[].nextCharge`. Nota: una reserva solo produce un
+// `DashboardCollectionItem` cuando `getCollectionStatus` la clasifica como
+// OVERDUE/DUE_TODAY/UPCOMING (@/lib/reports/collection) — eso ya excluye
+// deuda con vencimiento a más de 7 días, sin tocar `nextCharge`. Todos los
+// fixtures de abajo usan un `startDate`/`dueDate` vencido para entrar en esa
+// ventana; no es un requisito de `computeNextCharge`, es requisito de la
+// función (preexistente, sin cambios en este trabajo) que decide qué filas
+// llegan a "Por cobrar".
+describe("buildDashboardSummary — nextCharge", () => {
+  const OVERDUE_DAILY = {
+    startDate: new Date("2026-08-19T00:00:00.000Z"), // 5 días antes de NOW (24 ago)
+    endDate: new Date("2026-08-21T00:00:00.000Z"),
+  };
+
+  it("DAILY sin pagos: NEW con el totalPrice completo", () => {
+    const reservation = makeReservation({
+      billingType: "DAILY",
+      totalPrice: 90_000,
+      ...OVERDUE_DAILY,
+      payments: [],
+    });
+
+    const summary = buildDashboardSummary(buildInput([reservation]));
+    const item = summary.collectionItems.find((i) => i.reservationId === reservation.id);
+
+    expect(item?.nextCharge).toEqual({ kind: "NEW", amount: 90_000 });
+  });
+
+  it("DAILY con un pago COMPLETED parcial: NEW con el saldo restante, no el total", () => {
+    const reservation = makeReservation({
+      billingType: "DAILY",
+      totalPrice: 90_000,
+      ...OVERDUE_DAILY,
+      payments: [makePayment({ amount: 30_000, status: "COMPLETED", paymentType: "RESERVATION" })],
+    });
+
+    const summary = buildDashboardSummary(buildInput([reservation]));
+    const item = summary.collectionItems.find((i) => i.reservationId === reservation.id);
+
+    expect(item?.nextCharge).toEqual({ kind: "NEW", amount: 60_000 });
+  });
+
+  it("DAILY con un pago PENDING de Mercado Pago: EXISTING con method e initPoint, sin cuotas", () => {
+    const reservation = makeReservation({
+      billingType: "DAILY",
+      totalPrice: 90_000,
+      ...OVERDUE_DAILY,
+      payments: [
+        makePayment({
+          amount: 90_000,
+          status: "PENDING",
+          paymentType: "RESERVATION",
+          method: "MERCADO_PAGO",
+          initPoint: "https://mp.com/checkout/abc",
+        }),
+      ],
+    });
+
+    const summary = buildDashboardSummary(buildInput([reservation]));
+    const item = summary.collectionItems.find((i) => i.reservationId === reservation.id);
+    const charge = item?.nextCharge as Extract<DashboardNextCharge, { kind: "EXISTING" }>;
+
+    expect(charge.kind).toBe("EXISTING");
+    expect(charge.method).toBe("MERCADO_PAGO");
+    expect(charge.initPoint).toBe("https://mp.com/checkout/abc");
+    expect(charge.installmentIndex).toBeNull();
+    expect(charge.installmentCount).toBeNull();
+  });
+
+  it("MONTHLY con 2 cuotas vencidas y 1 por vencer: EXISTING de la de dueDate más antiguo, con installmentIndex e installmentCount", () => {
+    const now = new Date("2026-08-28T18:00:00.000Z");
+    const reservation = makeReservation({
+      billingType: "MONTHLY",
+      startDate: new Date("2026-07-01T00:00:00.000Z"),
+      endDate: new Date("2026-09-30T00:00:00.000Z"),
+      totalPrice: 750_000,
+      payments: [
+        // Orden de creación deliberadamente invertido: el resultado debe
+        // depender de `dueDate`, no del orden del array ni de `createdAt`.
+        makePayment({
+          amount: 250_000,
+          status: "PENDING",
+          paymentType: "RESERVATION",
+          dueDate: new Date("2026-09-01T00:00:00.000Z"),
+          installmentIndex: 3,
+        }),
+        makePayment({
+          amount: 250_000,
+          status: "PENDING",
+          paymentType: "RESERVATION",
+          dueDate: new Date("2026-07-01T00:00:00.000Z"),
+          installmentIndex: 1,
+        }),
+        makePayment({
+          amount: 250_000,
+          status: "PENDING",
+          paymentType: "RESERVATION",
+          dueDate: new Date("2026-08-01T00:00:00.000Z"),
+          installmentIndex: 2,
+        }),
+      ],
+    });
+
+    const summary = buildDashboardSummary(buildInput([reservation], { now }));
+    const item = summary.collectionItems[0];
+    const charge = item.nextCharge as Extract<DashboardNextCharge, { kind: "EXISTING" }>;
+
+    expect(charge.kind).toBe("EXISTING");
+    expect(charge.installmentIndex).toBe(1);
+    expect(charge.installmentCount).toBe(3);
+    expect(charge.dueDate).toBe(new Date("2026-07-01T00:00:00.000Z").toISOString());
+  });
+
+  it("una cuota FAILED cuenta como impaga y puede ser el nextCharge", () => {
+    const reservation = makeReservation({
+      billingType: "MONTHLY",
+      startDate: new Date("2026-07-01T00:00:00.000Z"),
+      endDate: new Date("2026-07-31T00:00:00.000Z"),
+      totalPrice: 250_000,
+      payments: [
+        makePayment({
+          amount: 250_000,
+          status: "FAILED",
+          paymentType: "RESERVATION",
+          dueDate: new Date("2026-07-01T00:00:00.000Z"),
+          installmentIndex: 1,
+        }),
+      ],
+    });
+
+    const summary = buildDashboardSummary(buildInput([reservation]));
+    const item = summary.collectionItems.find((i) => i.reservationId === reservation.id);
+    const charge = item?.nextCharge as Extract<DashboardNextCharge, { kind: "EXISTING" }>;
+
+    expect(charge.kind).toBe("EXISTING");
+    expect(charge.status).toBe("FAILED");
+  });
+
+  it("un pago PENDING borrado (deletedAt) se ignora: el saldo completo queda sin Payment (NEW)", () => {
+    const reservation = makeReservation({
+      billingType: "DAILY",
+      totalPrice: 90_000,
+      ...OVERDUE_DAILY,
+      payments: [
+        makePayment({
+          amount: 90_000,
+          status: "PENDING",
+          paymentType: "RESERVATION",
+          method: "MERCADO_PAGO",
+          initPoint: "https://mp.com/checkout/borrado",
+          deletedAt: new Date("2026-08-20T00:00:00.000Z"),
+        }),
+      ],
+    });
+
+    const summary = buildDashboardSummary(buildInput([reservation]));
+    const item = summary.collectionItems.find((i) => i.reservationId === reservation.id);
+
+    expect(item?.nextCharge).toEqual({ kind: "NEW", amount: 90_000 });
+  });
+
+  it("clientEmail llega al item", () => {
+    const reservation = makeReservation({
+      billingType: "DAILY",
+      totalPrice: 90_000,
+      ...OVERDUE_DAILY,
+      client: { id: "client-x", name: "Cliente X", phone: null, email: "cliente.x@test.com" },
+    });
+
+    const summary = buildDashboardSummary(buildInput([reservation]));
+    const item = summary.collectionItems.find((i) => i.reservationId === reservation.id);
+
+    expect(item?.clientEmail).toBe("cliente.x@test.com");
+  });
+
+  // Escenarios validados por el tester con mezclas reales (2026-09-15) y
+  // vueltos permanentes: son los que un cambio de orden en `computeNextCharge`
+  // rompería sin que ningún otro test lo note.
+
+  it("cuotas pagadas fuera de orden: apunta a la impaga, y installmentCount cuenta también las pagadas", () => {
+    const now = new Date("2026-08-28T18:00:00.000Z");
+    const reservation = makeReservation({
+      billingType: "MONTHLY",
+      startDate: new Date("2026-07-01T00:00:00.000Z"),
+      endDate: new Date("2026-09-30T00:00:00.000Z"),
+      totalPrice: 750_000,
+      payments: [
+        makePayment({
+          amount: 250_000,
+          status: "COMPLETED",
+          dueDate: new Date("2026-07-01T00:00:00.000Z"),
+          installmentIndex: 1,
+          paidAt: new Date("2026-07-02T15:00:00.000Z"),
+        }),
+        makePayment({
+          amount: 250_000,
+          status: "PENDING",
+          dueDate: new Date("2026-08-01T00:00:00.000Z"),
+          installmentIndex: 2,
+        }),
+        // La 3 se pagó adelantada mientras la 2 sigue impaga.
+        makePayment({
+          amount: 250_000,
+          status: "COMPLETED",
+          dueDate: new Date("2026-09-01T00:00:00.000Z"),
+          installmentIndex: 3,
+          paidAt: new Date("2026-08-05T15:00:00.000Z"),
+        }),
+      ],
+    });
+
+    const summary = buildDashboardSummary(buildInput([reservation], { now }));
+    const charge = summary.collectionItems[0].nextCharge as Extract<
+      DashboardNextCharge,
+      { kind: "EXISTING" }
+    >;
+
+    expect(charge.kind).toBe("EXISTING");
+    expect(charge.installmentIndex).toBe(2);
+    expect(charge.installmentCount).toBe(3);
+  });
+
+  it("DAILY con un pago parcial y un PENDING de MP por el resto: actúa sobre el PENDING, no crea otro por el saldo", () => {
+    const reservation = makeReservation({
+      billingType: "DAILY",
+      totalPrice: 90_000,
+      ...OVERDUE_DAILY,
+      payments: [
+        makePayment({ amount: 30_000, status: "COMPLETED", paidAt: NOW }),
+        makePayment({ amount: 60_000, status: "PENDING", method: "MERCADO_PAGO" }),
+      ],
+    });
+
+    const summary = buildDashboardSummary(buildInput([reservation]));
+    const charge = summary.collectionItems[0].nextCharge as Extract<
+      DashboardNextCharge,
+      { kind: "EXISTING" }
+    >;
+
+    expect(charge.kind).toBe("EXISTING");
+    expect(charge.amount).toBe(60_000);
+    expect(charge.method).toBe("MERCADO_PAGO");
+  });
+
+  it("una FAILED con dueDate más antiguo gana sobre una PENDING: manda la fecha, no el estado", () => {
+    const now = new Date("2026-08-28T18:00:00.000Z");
+    const reservation = makeReservation({
+      billingType: "MONTHLY",
+      startDate: new Date("2026-07-01T00:00:00.000Z"),
+      endDate: new Date("2026-08-31T00:00:00.000Z"),
+      totalPrice: 500_000,
+      payments: [
+        makePayment({
+          amount: 250_000,
+          status: "PENDING",
+          dueDate: new Date("2026-08-01T00:00:00.000Z"),
+          installmentIndex: 2,
+        }),
+        makePayment({
+          amount: 250_000,
+          status: "FAILED",
+          dueDate: new Date("2026-07-01T00:00:00.000Z"),
+          installmentIndex: 1,
+        }),
+      ],
+    });
+
+    const summary = buildDashboardSummary(buildInput([reservation], { now }));
+    const charge = summary.collectionItems[0].nextCharge as Extract<
+      DashboardNextCharge,
+      { kind: "EXISTING" }
+    >;
+
+    expect(charge.installmentIndex).toBe(1);
+    expect(charge.status).toBe("FAILED");
+  });
+
+  it("dos PENDING sin dueDate: gana el creado primero", () => {
+    const primero = makePayment({
+      amount: 40_000,
+      status: "PENDING",
+      method: "MERCADO_PAGO",
+      createdAt: new Date("2026-08-20T15:00:00.000Z"),
+    });
+    const segundo = makePayment({
+      amount: 50_000,
+      status: "PENDING",
+      method: "MERCADO_PAGO",
+      createdAt: new Date("2026-08-22T15:00:00.000Z"),
+    });
+    const reservation = makeReservation({
+      billingType: "DAILY",
+      totalPrice: 90_000,
+      ...OVERDUE_DAILY,
+      // El array trae primero al más nuevo: el orden no puede venir del array.
+      payments: [segundo, primero],
+    });
+
+    const summary = buildDashboardSummary(buildInput([reservation]));
+    const charge = summary.collectionItems[0].nextCharge as Extract<
+      DashboardNextCharge,
+      { kind: "EXISTING" }
+    >;
+
+    expect(charge.paymentId).toBe(primero.id);
+  });
+
+  // Toda fila de "Por cobrar" tiene plata en la ventana, así que siempre hay un
+  // cobro sobre el que actuar: una fila sin `nextCharge` quedaría sin botones.
+  it("toda fila de collectionItems tiene nextCharge, con una mezcla de casos", () => {
+    const now = new Date("2026-08-28T18:00:00.000Z");
+    const reservations = [
+      makeReservation({ billingType: "DAILY", totalPrice: 80_000, ...OVERDUE_DAILY }),
+      makeReservation({
+        billingType: "DAILY",
+        totalPrice: 80_000,
+        ...OVERDUE_DAILY,
+        payments: [makePayment({ amount: 20_000, status: "COMPLETED", paidAt: NOW })],
+      }),
+      makeReservation({
+        billingType: "DAILY",
+        totalPrice: 80_000,
+        startDate: new Date("2026-08-30T15:00:00.000Z"),
+        endDate: new Date("2026-09-01T15:00:00.000Z"),
+        payments: [makePayment({ amount: 80_000, status: "PENDING", method: "MERCADO_PAGO" })],
+      }),
+      makeReservation({
+        billingType: "MONTHLY",
+        startDate: new Date("2026-07-01T00:00:00.000Z"),
+        endDate: new Date("2026-09-30T00:00:00.000Z"),
+        totalPrice: 300_000,
+        payments: [
+          makePayment({ amount: 100_000, status: "FAILED", dueDate: new Date("2026-07-01T00:00:00.000Z"), installmentIndex: 1 }),
+          makePayment({ amount: 100_000, status: "PENDING", dueDate: new Date("2026-08-01T00:00:00.000Z"), installmentIndex: 2 }),
+          makePayment({ amount: 100_000, status: "PENDING", dueDate: new Date("2026-09-01T00:00:00.000Z"), installmentIndex: 3 }),
+        ],
+      }),
+    ];
+
+    const summary = buildDashboardSummary(
+      buildInput(reservations, { now, collectionLimit: reservations.length }),
+    );
+
+    expect(summary.collectionItems.length).toBe(reservations.length);
+    for (const item of summary.collectionItems) {
+      expect(item.nextCharge).not.toBeNull();
+    }
+  });
+
+  // No probado vía `collectionItems`: el fallback a EXTRA (regla 3) solo se
+  // alcanza cuando el arriendo está 100% pagado (`pendingAmount === 0`), y en
+  // ese caso `buildCollectionReportRows` deja `nextDueDate: null` — la fila
+  // queda clasificada "PENDING" genérico por `getCollectionStatus`, fuera de
+  // los tres buckets (OVERDUE/DUE_TODAY/UPCOMING) que alimentan
+  // `collectionItems`. Es una fila real en `collection.totalToCollect`, pero
+  // invisible en "Por cobrar" hoy — brecha preexistente de `collection.ts`,
+  // no introducida por este cambio, y fuera de su alcance (afecta /reports).
+  // La regla 3 de `computeNextCharge` queda implementada para cuando esa
+  // brecha se cierre, pero hoy es inalcanzable por esta vía.
 });
 
 // ─── Tests: agenda (llegadas/salidas por día) ──────────────────────────────────

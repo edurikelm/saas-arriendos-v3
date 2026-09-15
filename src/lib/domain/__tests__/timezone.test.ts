@@ -18,6 +18,7 @@ import {
   formatInstant,
   nightsBetweenDateOnly,
   addDaysToDateKey,
+  businessNoonOfDateKey,
 } from "@/lib/domain/timezone";
 
 describe("BUSINESS_TIME_ZONE", () => {
@@ -516,5 +517,51 @@ describe("addDaysToDateKey", () => {
 
   it("days = 0 devuelve la misma clave", () => {
     expect(addDaysToDateKey("2026-05-15", 0)).toBe("2026-05-15");
+  });
+});
+
+describe("businessNoonOfDateKey", () => {
+  function todosLosDiasDe(year: number): string[] {
+    const dias: string[] = [];
+    const d = new Date(Date.UTC(year, 0, 1));
+    while (d.getUTCFullYear() === year) {
+      dias.push(d.toISOString().slice(0, 10));
+      d.setUTCDate(d.getUTCDate() + 1);
+    }
+    return dias;
+  }
+
+  // `paidAt` se lee de dos formas en el producto: por día de Santiago
+  // (`formatInstant`, meses de `revenue-series`) y por día UTC (rangos de
+  // `decision-summary`). El instante tiene que dar el día elegido en ambas,
+  // también los dos días de cambio de hora.
+  it("cae en el día pedido leído en Santiago y en UTC, todos los días del año", () => {
+    for (const key of todosLosDiasDe(2026)) {
+      const noon = businessNoonOfDateKey(key);
+      expect(getDateKeyInTz(noon, BUSINESS_TIME_ZONE)).toBe(key);
+      expect(noon.toISOString().slice(0, 10)).toBe(key);
+    }
+  });
+
+  it("es el mediodía de Santiago: 15:00 UTC en verano, 16:00 UTC en invierno", () => {
+    expect(businessNoonOfDateKey("2026-01-15").toISOString()).toBe("2026-01-15T15:00:00.000Z");
+    expect(businessNoonOfDateKey("2026-07-15").toISOString()).toBe("2026-07-15T16:00:00.000Z");
+  });
+
+  // El reemplazado `new Date(y, m - 1, d, 12)` dependía de la zona del
+  // navegador: desde Sídney o Kiritimati ya era el día anterior en Santiago.
+  // Medido con TZ real el 2026-09-15.
+  it("no depende de la zona del proceso", () => {
+    const original = process.env.TZ;
+    const esperado = businessNoonOfDateKey("2026-10-01").toISOString();
+    try {
+      for (const tz of ["Pacific/Kiritimati", "Australia/Sydney", "Asia/Tokyo", "America/Los_Angeles"]) {
+        process.env.TZ = tz;
+        expect(businessNoonOfDateKey("2026-10-01").toISOString()).toBe(esperado);
+      }
+    } finally {
+      if (original === undefined) delete process.env.TZ;
+      else process.env.TZ = original;
+    }
   });
 });

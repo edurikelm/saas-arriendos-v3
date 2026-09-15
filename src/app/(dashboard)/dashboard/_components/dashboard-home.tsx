@@ -48,6 +48,11 @@ interface DashboardHomeProps {
   summary: DashboardSummary;
   /** Banner de plan: lo resuelve la página, que es la que carga la suscripción. */
   banner?: ReactNode;
+  /**
+   * MP conectado (`getMercadoPagoIntegration`, resuelto en `page.tsx`). Sin
+   * esto, "Por cobrar" no ofrece "Enviar link" en ninguna fila.
+   */
+  canSendPaymentLinks?: boolean;
 }
 
 /**
@@ -59,12 +64,14 @@ interface DashboardHomeProps {
  * abajo (propiedades y el mes). Una cuenta sin reservas ve solo los primeros
  * pasos: cada sección sería una caja vacía.
  */
-export function DashboardHome({ summary, banner }: DashboardHomeProps) {
+export function DashboardHome({ summary, banner, canSendPaymentLinks = false }: DashboardHomeProps) {
   const { todayKey, agenda, collection, collectionItems, propertyBoard, month, isEmpty } = summary;
 
   const cobranzaItems: CobranzaItem[] = collectionItems.map((item) => ({
     reservationId: item.reservationId,
     clientName: item.clientName,
+    clientEmail: item.clientEmail,
+    clientPhone: item.clientPhone,
     billingType: item.billingType,
     amount: item.amount,
     dueDate: item.dueDate ? new Date(item.dueDate) : null,
@@ -74,6 +81,7 @@ export function DashboardHome({ summary, banner }: DashboardHomeProps) {
     overdueCount: item.overdueCount,
     dueSoonCount: item.dueSoonCount,
     dueSoonDaysFromToday: item.dueSoonDaysFromToday,
+    nextCharge: item.nextCharge,
   }));
 
   // Hoy siempre viene en `days`, aunque no tenga eventos.
@@ -123,6 +131,7 @@ export function DashboardHome({ summary, banner }: DashboardHomeProps) {
               totalAmount={collection.windowAmount}
               totalCount={collection.windowCount}
               groupTotals={collection.windowGroups}
+              canSendPaymentLinks={canSendPaymentLinks}
             />
           </div>
 

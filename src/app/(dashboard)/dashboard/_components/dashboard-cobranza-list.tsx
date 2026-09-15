@@ -2,6 +2,8 @@ import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateOnly } from "@/lib/domain/timezone";
+import type { DashboardNextCharge } from "@/lib/dashboard/summary";
+import { CobranzaRowActions } from "./cobranza-row-actions";
 
 /**
  * Bucket de cobranza — alineado 1:1 con `DashboardCollectionBucket`
@@ -19,6 +21,8 @@ export type CobranzaBucket = "OVERDUE" | "DUE_TODAY" | "UPCOMING_7D";
 export interface CobranzaItem {
   reservationId: string;
   clientName: string;
+  clientEmail: string;
+  clientPhone: string | null;
   propertyName: string;
   /**
    * Tipo de arriendo de la reserva. Se muestra como label junto a la
@@ -51,6 +55,13 @@ export interface CobranzaItem {
    * (degrada el sufijo a "+N por vencer" sin plazo).
    */
   dueSoonDaysFromToday: number | null;
+  /**
+   * El próximo cobro accionable de la reserva (Nivel 3, ADR-0017). `null`
+   * significa que no hay acción posible sobre esta fila — no debería ocurrir
+   * en la práctica (toda fila de "Por cobrar" tiene deuda), pero
+   * `CobranzaRowActions` lo trata como "sin botones" en vez de asumir.
+   */
+  nextCharge: DashboardNextCharge | null;
 }
 
 /** Grupo visual del card. Dos, no tres: ver `CobranzaBucket`. */
@@ -273,6 +284,12 @@ interface DashboardCobranzaListProps {
    * back-compat: cuenta filas, no cobros).
    */
   groupTotals?: Partial<Record<CobranzaGroupKey, CobranzaGroupTotal>>;
+  /**
+   * MP conectado y con la sección de acciones habilitada (`page.tsx`, vía
+   * `getMercadoPagoIntegration`). Sin esto, ninguna fila ofrece "Enviar
+   * link" — "Registrar pago" no depende de MP y siempre puede aparecer.
+   */
+  canSendPaymentLinks?: boolean;
 }
 
 /**
@@ -295,6 +312,7 @@ export function DashboardCobranzaList({
   totalAmount,
   totalCount,
   groupTotals,
+  canSendPaymentLinks = false,
 }: DashboardCobranzaListProps) {
   const resolvedCount = totalCount ?? items.length;
   const resolvedTotal = totalAmount ?? items.reduce((sum, item) => sum + item.amount, 0);
@@ -406,10 +424,10 @@ export function DashboardCobranzaList({
                     {group.items.map((item, idx) => {
                       const { primary, chip } = dueLabelParts(item);
                       return (
-                        <li key={`${item.reservationId}-${idx}`}>
+                        <li key={`${item.reservationId}-${idx}`} className="flex items-start">
                           <Link
                             href={`/reservations/${item.reservationId}`}
-                            className="block px-4 py-2 transition-colors hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[color:var(--foreground)]!"
+                            className="block min-w-0 flex-1 px-4 py-2 transition-colors hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[color:var(--foreground)]!"
                           >
                             {/*
                               El estado del grupo viaja acá para que el nombre
@@ -465,6 +483,33 @@ export function DashboardCobranzaList({
                               )}
                             </p>
                           </Link>
+                          {/*
+                            Ancho FIJO, botones alineados a la izquierda: así
+                            el ícono de "Registrar pago" cae siempre en la
+                            misma columna, tenga o no la fila un botón
+                            "Enviar link" al lado. No puede vivir DENTRO del
+                            Link — un <button> anidado en un <a> es HTML
+                            inválido y Base UI además captura el click.
+
+                            El ancho cuenta el `pr-4`: 76px = 16 de padding +
+                            dos botones de 28px + 2px de gap. Con `w-15` el
+                            padding quedaba DENTRO de los 60px, el segundo
+                            botón no cabía y, como `Button` no se comprime,
+                            se salía 14px sobre el padding hasta quedar a 3px
+                            del borde de la card (medido a 1440px).
+                          */}
+                          <div className="flex w-19 shrink-0 gap-0.5 py-2 pr-4">
+                            <CobranzaRowActions
+                              reservationId={item.reservationId}
+                              clientName={item.clientName}
+                              clientEmail={item.clientEmail}
+                              clientPhone={item.clientPhone}
+                              propertyName={item.propertyName}
+                              billingType={item.billingType}
+                              nextCharge={item.nextCharge}
+                              canSendPaymentLinks={canSendPaymentLinks}
+                            />
+                          </div>
                         </li>
                       );
                     })}

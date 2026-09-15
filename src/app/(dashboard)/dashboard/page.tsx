@@ -8,6 +8,7 @@ import {
   getCurrentSubscriptionAction,
   countOwnerUsage,
 } from "@/lib/actions/subscriptions";
+import { getMercadoPagoIntegration } from "@/lib/actions/mercado-pago";
 import { requireOwner } from "@/lib/auth/guards";
 import { PlanAlertBanner } from "@/components/billing/plan-alert-banner";
 import { DashboardHome } from "./_components/dashboard-home";
@@ -29,6 +30,10 @@ export default async function DashboardPage() {
     propertiesLimit: 3,
     clientsLimit: 5,
   };
+  // Tolerante a fallos, igual que subscription/usage: sin esto, "Por cobrar"
+  // simplemente no ofrece "Enviar link" (`canSendPaymentLinks ?? false`), no
+  // rompe el resto del dashboard.
+  let mpIntegration: Awaited<ReturnType<typeof getMercadoPagoIntegration>> = null;
 
   const session = await requireOwner();
 
@@ -43,15 +48,18 @@ export default async function DashboardPage() {
   }
 
   try {
-    const [sub, usageResult] = await Promise.all([
+    const [sub, usageResult, integration] = await Promise.all([
       getCurrentSubscriptionAction(),
       countOwnerUsage(session.userId),
+      getMercadoPagoIntegration(),
     ]);
     subscription = sub;
     usage = usageResult;
+    mpIntegration = integration;
   } catch (err) {
     console.error("[dashboard] failed to load plan/usage data", err);
-    // No-op: seguimos con defaults; el banner no se renderiza (variante null).
+    // No-op: seguimos con defaults; el banner no se renderiza (variante null)
+    // y "Por cobrar" no ofrece "Enviar link" (canSendPaymentLinks = false).
   }
 
   // Fallback de error: el dashboard es el home diario — un white-screen destruye
@@ -102,6 +110,7 @@ export default async function DashboardPage() {
       // Solo aparece si FREE cerca del límite o CANCELLED con período vigente;
       // en estado estable se anula solo.
       banner={<PlanAlertBanner subscription={subscription} usage={usage} plan={session.plan} />}
+      canSendPaymentLinks={mpIntegration?.isConnected ?? false}
     />
   );
 }

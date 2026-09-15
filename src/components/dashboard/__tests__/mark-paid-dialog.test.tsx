@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { getDateKeyInTz } from "@/lib/domain/timezone";
 import { MarkPaidDialog } from "../mark-paid-dialog";
 
 vi.mock("sonner", () => ({
@@ -153,6 +154,88 @@ describe("MarkPaidDialog", () => {
     await waitFor(() => {
       expect(markPaymentAsPaid).toHaveBeenCalled();
     });
+  });
+
+  // Regresion en dos tiempos. `new Date("yyyy-MM-dd")` era medianoche UTC, el
+  // dia ANTERIOR en Santiago: hay 6 cuotas en produccion guardadas asi. Y el
+  // primer arreglo, mediodia del NAVEGADOR, tampoco alcanzaba: desde Sidney o
+  // Kiritimati ese instante ya es el dia anterior en Santiago (medido con TZ
+  // real). Por eso el test lee el dia de NEGOCIO del instante enviado y no
+  // getters locales: construir y leer en hora local coincide en cualquier zona
+  // y no prueba nada.
+  it.each(["America/Santiago", "Asia/Tokyo", "Europe/Madrid", "Australia/Sydney", "Pacific/Kiritimati"])(
+    "con el navegador en %s, paidAt cae en el dia elegido en Santiago y en UTC",
+    async (tz) => {
+      const original = process.env.TZ;
+      process.env.TZ = tz;
+      try {
+        markPaymentAsPaid.mockResolvedValue({ success: true });
+
+        render(<MarkPaidDialog paymentId="p-1" open={true} onOpenChange={() => undefined} />);
+
+        fireEvent.change(screen.getByLabelText(/fecha de pago/i), { target: { value: "2026-10-01" } });
+        fireEvent.click(screen.getByRole("button", { name: /confirmar/i }));
+
+        await waitFor(() => expect(markPaymentAsPaid).toHaveBeenCalledTimes(1));
+
+        const paidAt = markPaymentAsPaid.mock.calls[0][1] as Date;
+        expect(getDateKeyInTz(paidAt, "America/Santiago")).toBe("2026-10-01");
+        expect(paidAt.toISOString().slice(0, 10)).toBe("2026-10-01");
+      } finally {
+        if (original === undefined) delete process.env.TZ;
+        else process.env.TZ = original;
+      }
+    },
+  );
+
+  // Un rechazo casi siempre significa datos viejos (el pago se completo o se
+  // borro en otra pestana): el caller necesita saberlo para refrescar.
+  it("llama onError y no onSuccess cuando el servidor rechaza", async () => {
+    markPaymentAsPaid.mockResolvedValue({ error: "El pago ya está completado" });
+    const onError = vi.fn();
+    const onSuccess = vi.fn();
+
+    render(
+      <MarkPaidDialog
+        paymentId="p-1"
+        open={true}
+        onOpenChange={() => undefined}
+        onError={onError}
+        onSuccess={onSuccess}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /confirmar/i }));
+
+    await waitFor(() => expect(onError).toHaveBeenCalledTimes(1));
+    expect(onSuccess).not.toHaveBeenCalled();
+  });
+
+  it("el campo de comprobante tiene nombre accesible", () => {
+    render(<MarkPaidDialog paymentId="p-1" open={true} onOpenChange={() => undefined} />);
+
+    const input = screen.getByLabelText(/comprobante/i) as HTMLInputElement;
+    expect(input.type).toBe("file");
+  });
+
+  it("muestra el notice solo cuando se pasa", () => {
+    const NOTICE =
+      "Este cobro tiene un link de Mercado Pago vigente. Si el cliente también lo paga, se cobra dos veces.";
+
+    const { rerender } = render(
+      <MarkPaidDialog paymentId="p-1" open={true} onOpenChange={() => undefined} />
+    );
+    expect(screen.queryByText(NOTICE)).toBeNull();
+
+    rerender(
+      <MarkPaidDialog
+        paymentId="p-1"
+        open={true}
+        onOpenChange={() => undefined}
+        notice={NOTICE}
+      />
+    );
+    expect(screen.getByText(NOTICE)).toBeTruthy();
   });
 
   it("abre/cerrar dispara onOpenChange al cancelar", () => {

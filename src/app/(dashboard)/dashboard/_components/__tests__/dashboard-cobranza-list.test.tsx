@@ -1,18 +1,42 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import {
   DashboardCobranzaList,
   type CobranzaItem,
 } from "../dashboard-cobranza-list";
 
+// `CobranzaRowActions` (renderizado por cada fila) usa `useRouter` y las
+// server actions de pagos — sin estos mocks, importar el árbol real de
+// `@/lib/actions/payments` construiría un `PrismaClient` apuntando a la base
+// de producción (ver `@/lib/db/prisma`), algo que ningún test debe hacer.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
+vi.mock("@/lib/actions/payments", () => ({
+  generateMercadoPagoLink: vi.fn(),
+  generatePaymentLink: vi.fn(),
+  regeneratePaymentLink: vi.fn(),
+  markPaymentAsPaid: vi.fn(),
+  createPayment: vi.fn(),
+}));
+
 function expectInDoc(node: Element | null): asserts node is Element {
   expect(node).not.toBeNull();
 }
 
+// `nextCharge: null` en el fixture compartido: estos tests verifican texto y
+// agrupamiento, no acciones — `CobranzaRowActions` no renderiza nada sin
+// `nextCharge`, así que estas filas se comportan igual que antes de agregar
+// las acciones. Los tests de acciones (abajo) fijan su propio `nextCharge`.
 const items: CobranzaItem[] = [
   {
     reservationId: "res-1",
     clientName: "Camila Rojas",
+    clientEmail: "camila@test.com",
+    clientPhone: null,
     propertyName: "Cabaña del Lago",
     billingType: "MONTHLY",
     amount: 400000,
@@ -22,10 +46,13 @@ const items: CobranzaItem[] = [
     overdueCount: 1,
     dueSoonCount: 0,
     dueSoonDaysFromToday: null,
+    nextCharge: null,
   },
   {
     reservationId: "res-2",
     clientName: "Juan Pérez",
+    clientEmail: "juan@test.com",
+    clientPhone: null,
     propertyName: "Depto Centro 802",
     billingType: "DAILY",
     amount: 185000,
@@ -35,10 +62,13 @@ const items: CobranzaItem[] = [
     overdueCount: 0,
     dueSoonCount: 0,
     dueSoonDaysFromToday: null,
+    nextCharge: null,
   },
   {
     reservationId: "res-3",
     clientName: "Marta Silva",
+    clientEmail: "marta@test.com",
+    clientPhone: null,
     propertyName: "Casa Playa Norte",
     billingType: "MONTHLY",
     amount: 1250000,
@@ -48,6 +78,7 @@ const items: CobranzaItem[] = [
     overdueCount: 0,
     dueSoonCount: 0,
     dueSoonDaysFromToday: null,
+    nextCharge: null,
   },
 ];
 
@@ -236,6 +267,8 @@ describe("DashboardCobranzaList", () => {
           {
             reservationId: "res-4",
             clientName: "Pedro Soto",
+            clientEmail: "pedro@test.com",
+            clientPhone: null,
             propertyName: "Loft Sur",
             billingType: "MONTHLY",
             amount: 90000,
@@ -245,6 +278,7 @@ describe("DashboardCobranzaList", () => {
             overdueCount: 0,
             dueSoonCount: 0,
             dueSoonDaysFromToday: null,
+            nextCharge: null,
           },
         ]}
         viewAllHref="/payments"
@@ -265,6 +299,8 @@ describe("DashboardCobranzaList", () => {
           {
             reservationId: "res-5",
             clientName: "Alejandra Mayorga",
+            clientEmail: "alejandra@test.com",
+            clientPhone: null,
             propertyName: "Teja 2",
             billingType: "MONTHLY",
             amount: 750000,
@@ -274,6 +310,7 @@ describe("DashboardCobranzaList", () => {
             overdueCount: 2,
             dueSoonCount: 1,
             dueSoonDaysFromToday: 4,
+            nextCharge: null,
           },
         ]}
         viewAllHref="/payments"
@@ -299,6 +336,8 @@ describe("DashboardCobranzaList", () => {
             {
               reservationId: "res-6",
               clientName: "Alejandra Mayorga",
+              clientEmail: "alejandra@test.com",
+              clientPhone: null,
               propertyName: "Teja 2",
               billingType: "MONTHLY",
               amount: 750000,
@@ -308,6 +347,7 @@ describe("DashboardCobranzaList", () => {
               overdueCount: 2,
               dueSoonCount: 1,
               dueSoonDaysFromToday,
+              nextCharge: null,
             },
           ]}
           viewAllHref="/payments"
@@ -325,6 +365,8 @@ describe("DashboardCobranzaList", () => {
           {
             reservationId: "res-7",
             clientName: "Alejandra Mayorga",
+            clientEmail: "alejandra@test.com",
+            clientPhone: null,
             propertyName: "Teja 2",
             billingType: "MONTHLY",
             amount: 1000000,
@@ -334,6 +376,7 @@ describe("DashboardCobranzaList", () => {
             overdueCount: 2,
             dueSoonCount: 2,
             dueSoonDaysFromToday: 0,
+            nextCharge: null,
           },
         ]}
         viewAllHref="/payments"
@@ -350,6 +393,8 @@ describe("DashboardCobranzaList", () => {
           {
             reservationId: "res-8",
             clientName: "Alejandra Mayorga",
+            clientEmail: "alejandra@test.com",
+            clientPhone: null,
             propertyName: "Teja 2",
             billingType: "MONTHLY",
             amount: 500000,
@@ -359,6 +404,7 @@ describe("DashboardCobranzaList", () => {
             overdueCount: 2,
             dueSoonCount: 0,
             dueSoonDaysFromToday: null,
+            nextCharge: null,
           },
         ]}
         viewAllHref="/payments"
@@ -367,5 +413,53 @@ describe("DashboardCobranzaList", () => {
 
     expectInDoc(screen.queryByText(/desde 1 jul/i));
     expect(screen.queryByText(/vence/i)).toBeNull();
+  });
+
+  // La fila pasó de ser un único <Link> a un <li> con el Link y las acciones
+  // como hermanos — precisamente para no anidar <button> dentro de <a> (HTML
+  // inválido, y Base UI intercepta el click igual). Este test fija esa forma.
+  it("ningún botón queda anidado dentro de un link", () => {
+    const conAcciones: CobranzaItem[] = [
+      {
+        ...items[0],
+        nextCharge: { kind: "NEW", amount: 400000 },
+      },
+    ];
+
+    const { container } = render(
+      <DashboardCobranzaList items={conAcciones} viewAllHref="/payments" canSendPaymentLinks />,
+    );
+
+    expect(container.querySelectorAll("a button").length).toBe(0);
+    // Sanity: el botón sí está en el documento, solo que no dentro del link.
+    expectInDoc(screen.queryByRole("button", { name: /registrar pago/i }));
+  });
+
+  it("sin canSendPaymentLinks no aparece ningún botón 'Enviar link'", () => {
+    const conAcciones: CobranzaItem[] = [
+      {
+        ...items[0],
+        nextCharge: {
+          kind: "EXISTING",
+          paymentId: "pay-1",
+          paymentType: "RESERVATION",
+          status: "PENDING",
+          amount: 400000,
+          method: "MERCADO_PAGO",
+          installmentIndex: null,
+          installmentCount: null,
+          dueDate: null,
+          title: null,
+          initPoint: "https://mp.com/x",
+          expiresAt: null,
+        },
+      },
+    ];
+
+    render(<DashboardCobranzaList items={conAcciones} viewAllHref="/payments" />);
+
+    expect(screen.queryByRole("button", { name: /enviar link/i })).toBeNull();
+    // "Registrar pago" no depende de `canSendPaymentLinks`.
+    expectInDoc(screen.queryByRole("button", { name: /registrar pago/i }));
   });
 });

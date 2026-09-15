@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { format } from "date-fns";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -22,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { ReceiptUpload } from "@/components/ui/receipt-upload";
 import { markPaymentAsPaid } from "@/lib/actions/payments";
+import { businessNoonOfDateKey, nowKeyInBusinessTz } from "@/lib/domain/timezone";
 
 type PaidMethod = "CASH" | "TRANSFER";
 
@@ -60,6 +60,18 @@ interface MarkPaidDialogProps {
    * confirmar sobre una fila de Transferencia reescribia el metodo en silencio.
    */
   defaultMethod?: string | null;
+  /**
+   * Aviso opcional bajo el monto — hoy solo lo usa `CobranzaRowActions` para
+   * advertir que el cobro tiene un link de Mercado Pago vigente: si el
+   * cliente tambien paga por ese link, se cobra dos veces.
+   */
+  notice?: string;
+  /**
+   * Se llama cuando el servidor rechaza la acción (el pago ya estaba completado,
+   * se borró en otra pestaña...). El diálogo ya muestra el error; esto le permite
+   * al caller refrescar sus datos, que quedaron viejos.
+   */
+  onError?: () => void;
 }
 
 /**
@@ -78,6 +90,8 @@ export function MarkPaidDialog({
   contextLabel,
   amount,
   defaultMethod,
+  notice,
+  onError,
 }: MarkPaidDialogProps) {
   // Fecha y metodo se DERIVAN en render y el estado guarda solo lo que el owner
   // toco. Sembrarlos con un efecto era la otra opcion, pero setState dentro de un
@@ -94,7 +108,9 @@ export function MarkPaidDialog({
   // transferencia), asi que cae a CASH.
   const method: PaidMethod =
     methodOverride ?? (defaultMethod === "TRANSFER" ? "TRANSFER" : "CASH");
-  const date = dateOverride ?? format(new Date(), "yyyy-MM-dd");
+  // "Hoy" es el de Santiago, igual que la fecha que se guarda: desde otra zona
+  // el hoy del navegador puede ser otro día.
+  const date = dateOverride ?? nowKeyInBusinessTz();
 
   function setMethod(next: PaidMethod) {
     setMethodOverride(next);
@@ -140,15 +156,24 @@ export function MarkPaidDialog({
       }
     }
 
+    // Mediodía de Santiago del día elegido (ver `businessNoonOfDateKey`). Antes
+    // era `new Date(date)`, medianoche UTC, que en Santiago cae el día ANTERIOR:
+    // hay 6 cuotas en producción guardadas así (`paidAt` a las 00:00 UTC exacto)
+    // que el detalle de reserva muestra pagadas un día antes. Las cuotas vencen
+    // el día 1, así que el borde es frecuente: un pago marcado el 1 quedaba en el
+    // mes anterior en la serie mensual de /reports.
+    const paidAt = businessNoonOfDateKey(date);
+
     const result = await markPaymentAsPaid(
       paymentId,
-      new Date(date),
+      paidAt,
       method,
       receiptUrl
     );
 
     if (result?.error) {
       toast.error(result.error);
+      onError?.();
       return;
     }
 
@@ -188,6 +213,12 @@ export function MarkPaidDialog({
           </div>
         )}
 
+        {notice && (
+          <p className="rounded-lg border border-warning/20 bg-warning/10 px-3 py-2 text-xs text-warning-text">
+            {notice}
+          </p>
+        )}
+
         <div className="space-y-4 py-2">
           <div className="space-y-2">
             <Label htmlFor="mark-paid-date" className="text-xs">
@@ -221,8 +252,10 @@ export function MarkPaidDialog({
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs">Comprobante (opcional)</Label>
-            <ReceiptUpload onFileSelect={setReceiptFile} />
+            <Label htmlFor="mark-paid-receipt" className="text-xs">
+              Comprobante (opcional)
+            </Label>
+            <ReceiptUpload id="mark-paid-receipt" onFileSelect={setReceiptFile} />
           </div>
         </div>
 

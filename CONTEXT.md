@@ -86,6 +86,11 @@ El webhook intenta matchear el pago en este orden:
 - Diferido: la reserva se crea sin pago obligatorio
 - Mercado Pago: webhook actualiza estado de pago
 - Pagos manuales: el propietario registra efectivo/transferencia con `paid_at` y `method`; puede adjuntar comprobante (imagen) al crear el pago, al marcarlo como pagado, o después en un pago ya completado. Esto también aplica a pagos de Mercado Pago ya completados.
+- **`paid_at` de un pago manual es el mediodía de Santiago del día elegido**: `businessNoonOfDateKey(dateKey)` (`src/lib/domain/timezone.ts`), en `AddPaymentDialog`, `MarkPaidDialog` y `RegisterPaymentDialog`. Cae en ese día leído en Santiago y también por día UTC, desde cualquier zona horaria. Hay dos formas que parecen correctas y no lo son:
+  - `new Date("YYYY-MM-DD")` es medianoche UTC y en Santiago cae el día anterior. `MarkPaidDialog` lo usaba hasta ADR-0037, y hay cuotas guardadas a las 00:00 UTC que el detalle muestra pagadas un día antes.
+  - `new Date(y, m - 1, d, 12)` es el mediodía del navegador. Desde Sídney o Auckland ya es el día anterior en Santiago, medido con `TZ` real.
+
+  Un test de esto tiene que leer el día de negocio del instante (`getDateKeyInTz`) con el proceso en otra zona, no getters locales, que coinciden siempre.
 - Reservas pueden estar CONFIRMED con saldo pendiente
 - **Arriendos mensuales (MONTHLY):** se generan N pagos pendientes al crear la reserva, uno por cada mes
 - **Generación de pagos:** `amount = monthly_price × units_booked`, `due_date` = día 1 de cada mes cubierto, empezando por el mes de `start_date`
@@ -452,6 +457,23 @@ agrupar varias cuotas, así que "Vencidos · 4" sobre 2 filas visibles es correc
 **Tipo de reserva:** se muestra como label junto a la propiedad (`Teja 1 · Mensual`), nunca como
 color — per `DESIGN.md`, "Diferencia DAILY vs MONTHLY por label, no por color".
 
+**Acciones (ADR-0037):** cada fila actúa sobre `nextCharge` (`computeNextCharge` en
+`summary.ts`), elegido en este orden:
+
+1. El `Payment` RESERVATION impago más antiguo (PENDING o FAILED, por `dueDate` y después
+   `createdAt`) → `EXISTING`.
+2. Si no hay ninguno y queda saldo del arriendo → `NEW` por el saldo.
+3. Si el arriendo está saldado, un EXTRA impago.
+
+"Registrar pago" usa `MarkPaidDialog` sobre un `EXISTING` y `RegisterPaymentDialog` (que crea el pago
+con `createPayment`) sobre un `NEW`: una reserva DAILY con deuda no tiene ningún `Payment` que marcar.
+"Enviar link" solo aparece con Mercado Pago conectado y sigue la matriz de `PaymentRowActions`.
+
+Ninguna server action de pagos cambió. Como no revalidan `/dashboard`, la fila llama
+`router.refresh()` después de cada acción, también cuando el servidor la rechaza: casi siempre
+significa que la fila quedó vieja. La fila no es un `<Link>` que envuelve todo: los botones van
+en un hermano de ancho fijo, porque un botón dentro de un `<a>` es inválido.
+
 ### Diseño Responsive
 
 Estrategia mobile-first con breakpoints estándar de Tailwind v4. Ver ADR-0015.
@@ -494,6 +516,7 @@ Grid de 7 columnas en todas las resoluciones. Celdas: `min-h-12 sm:min-h-20 lg:m
   - ADR-0033: `docs/adr/0033-cobranza-status-grouping.md` — cobranza del dashboard agrupada por urgencia: el estado se expresa en el encabezado del grupo, no por fila; subtotales de ventana completa; tipo de reserva como label
   - ADR-0035: `docs/adr/0035-reports-alcance-unico.md` — `/reports` rediseñado a encabezado con export y dos secciones, con un solo alcance por cifra (rango del encabezado o foto del presente, rotulada); tasa de cobranza con dos bases contables sin clampear; eliminación de la tabla de cobranza paginada, la card anual y las cards de modelo de negocio
   - ADR-0036: `docs/adr/0036-dashboard-inicio-por-eventos.md` — `/dashboard` rediseñado a cuatro zonas sin cifras repetidas: agenda por EVENTO (llegada/salida, no por reserva), tablero con todas las propiedades (incluye Bloqueos de Canal Externo), el mes (cobrado vs. mismo tramo del mes anterior), y "Primeros pasos" para cuentas sin reservas
+  - ADR-0037: `docs/adr/0037-dashboard-acciones-de-cobro.md` — acciones de "Por cobrar" sobre `nextCharge` (el cobro impago más antiguo, o crear el pago del saldo cuando no existe ninguno), sin cambiar server actions de pagos; `paidAt` manual al mediodía de Santiago (`businessNoonOfDateKey`)
 
 ## Seams de dominio en `src/lib/`
 
