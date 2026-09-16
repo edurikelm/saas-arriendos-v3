@@ -195,7 +195,8 @@ describe("DashboardAgenda", () => {
     render(<DashboardAgenda agenda={agenda} todayKey={TODAY} />);
 
     expect(screen.getByRole("heading", { name: "Hoy" })).toBeTruthy();
-    expect(screen.getByText("Sin llegadas ni salidas hoy.")).toBeTruthy();
+    expect(screen.getByText("Sin llegadas ni salidas")).toBeTruthy();
+    expect(screen.queryByRole("list", { name: "Hoy" })).toBeNull();
     expect(screen.getByRole("list", { name: "Miércoles 16" })).toBeTruthy();
   });
 

@@ -83,20 +83,21 @@ export function DashboardAgenda({ agenda, todayKey }: DashboardAgendaProps) {
                   >
                     {agendaDayHeading(day.dateKey, todayKey)}
                   </h3>
-                  {day.events.length > 0 && (
+                  {/* Hoy sin movimientos se dice en la misma banda: una fila
+                      entera para un "nada" empujaba los días con eventos hacia
+                      abajo, y el subtítulo de la página ya lo anuncia. */}
+                  {day.events.length > 0 ? (
                     <span
                       className="text-[10px] tabular-nums text-muted-foreground"
                       aria-hidden="true"
                     >
                       {day.events.length}
                     </span>
+                  ) : (
+                    <span className="text-[10px] text-muted-foreground">Sin llegadas ni salidas</span>
                   )}
                 </div>
-                {day.events.length === 0 ? (
-                  <p className="px-4 py-3 text-[10px] text-muted-foreground">
-                    Sin llegadas ni salidas hoy.
-                  </p>
-                ) : (
+                {day.events.length > 0 && (
                   <ul aria-labelledby={headingId} className="divide-y divide-border/60">
                     {day.events.map((event) => (
                       <AgendaEventRow
