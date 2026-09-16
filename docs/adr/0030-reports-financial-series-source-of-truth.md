@@ -117,3 +117,10 @@ The `/reports` page UI was simplified:
 type) were removed after ADR-0035 dropped `cash.annual` from `ReportDecisionSummary` — none of the
 three had a consumer left outside their own tests. `buildMonthlyCollectedCash`, `buildCashByMethod`,
 and `isEligibleCashPayment` remain the live seam for `/reports`.
+
+## Status update (ADR-0038)
+
+El rango de las tres funciones dejó de compararse por día UTC. `paidAt` entra por su día en Santiago
+(`isPaidAtInRange`), el mismo día que decide su `monthKey`, y los bordes del rango se leen como días
+(`dateOnlyKey`). Antes, un pago entre las 20:00 y las 23:59 de Santiago rompía la reconciliación
+`totalCash === sum(byMonth) === sum(byMethod)`. `buildCashByMethod` suma un parámetro `ownerTz` opcional.

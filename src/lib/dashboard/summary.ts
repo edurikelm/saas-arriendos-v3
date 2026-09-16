@@ -25,11 +25,11 @@
  * Este módulo es PURO: sin `"use server"`, sin Prisma, sin `new Date()`
  * implícito — todo cómputo temporal recibe `now` como parámetro.
  *
- * ⚠️ Gotcha de timezone (ADR-0020): `buildDecisionSummary` compara rangos con
- * epoch-day UTC (`Math.floor(t / 86_400_000)`). Los rangos de mes
- * actual/anterior se derivan del `dateKey` (`YYYY-MM-DD`) en
- * `America/Santiago`, nunca directamente de `now`, para no cruzar el día
- * equivocado cerca de medianoche UTC. `agenda` y `propertyBoard`, en cambio,
+ * ⚠️ Gotcha de timezone (ADR-0020): `buildDecisionSummary` recibe el rango como
+ * DÍAS (`dateOnlyFromKey`, leídos por día UTC) y ubica cada `paidAt` por su día
+ * en Santiago (ADR-0038). Los rangos de mes actual/anterior se derivan del
+ * `dateKey` (`YYYY-MM-DD`) en `America/Santiago`, nunca directamente de `now`,
+ * para no cruzar el día equivocado cerca de medianoche UTC. `agenda` y `propertyBoard`, en cambio,
  * operan enteramente sobre `dateKey`s (`dateOnlyKey`/`addDaysToDateKey`/
  * `dateKeyToDayIndex`), sin pasar por epoch-day de `Date`.
  */
@@ -50,6 +50,7 @@ import {
   addDaysToDateKey,
   BUSINESS_TIME_ZONE,
   dateKeyToDayIndex,
+  dateOnlyFromKey,
   dateOnlyKey,
   daysFromTodayDateOnly,
   getDateKeyInTz,
@@ -451,15 +452,10 @@ export interface DashboardSummary {
   isEmpty: { properties: boolean; reservations: boolean };
 }
 
-// ─── Helpers internos de fecha (wall-time SCL → UTC day para decision-summary) ─
+// ─── Helpers internos de fecha (wall-time SCL → días para decision-summary) ─
 
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
-}
-
-/** `YYYY-MM-DD` → `Date` a medianoche UTC (para comparaciones epoch-day). */
-function toUtcDay(key: string): Date {
-  return new Date(`${key}T00:00:00.000Z`);
 }
 
 function monthStartKey(year: number, month1: number): string {
@@ -489,8 +485,8 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
   const todayMonth1 = Number(todayKey.slice(5, 7));
   const prev = previousMonth(todayYear, todayMonth1);
 
-  const monthRangeStart = toUtcDay(monthStartKey(todayYear, todayMonth1));
-  const monthRangeEnd = toUtcDay(monthEndKey(todayYear, todayMonth1));
+  const monthRangeStart = dateOnlyFromKey(monthStartKey(todayYear, todayMonth1));
+  const monthRangeEnd = dateOnlyFromKey(monthEndKey(todayYear, todayMonth1));
 
   // ── Decision summary del mes en curso — alimenta `month.collected` y la
   // ocupación del mes (`month.occupancyRate`/`occupiedNightUnits`/
@@ -1075,8 +1071,8 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
   const previousSamePeriodDecision = buildDecisionSummary({
     reservations: decisionReservations,
     properties: input.properties,
-    rangeStart: toUtcDay(monthStartKey(prev.year, prev.month1)),
-    rangeEnd: toUtcDay(`${prev.year}-${pad2(prev.month1)}-${pad2(previousCutoffDay)}`),
+    rangeStart: dateOnlyFromKey(monthStartKey(prev.year, prev.month1)),
+    rangeEnd: dateOnlyFromKey(`${prev.year}-${pad2(prev.month1)}-${pad2(previousCutoffDay)}`),
   });
 
   const month: DashboardMonthPulse = {

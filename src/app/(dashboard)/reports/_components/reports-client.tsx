@@ -26,7 +26,7 @@ import { TopClientDebtorsList } from "@/components/reports/top-client-debtors-li
 import { PropertySummaryTable } from "@/components/reports/property-summary-table";
 import { startOfMonth, endOfMonth, subMonths, startOfYear } from "date-fns";
 import { isReportsRangeAllowed } from "@/lib/reports/kpis";
-import { addDaysToDateKey, nightsBetweenDateOnly, nowKeyInBusinessTz } from "@/lib/domain/timezone";
+import { addDaysToDateKey, localDateKey, nightsBetweenDateOnly, nowKeyInBusinessTz } from "@/lib/domain/timezone";
 import { computeTrend, computeGroupedByPropertyFromSummary } from "@/lib/reports/trend";
 import { formatPeriodRangeLabel } from "@/lib/reports/format";
 
@@ -152,13 +152,19 @@ export function ReportsClient({
     try {
       const propertyId = selectedProperty !== "all" ? selectedProperty : undefined;
       const [decision, decisionPrev, rowCount] = await Promise.all([
+        // El rango viaja como días (`localDateKey`: el día que muestra el
+        // navegador), no como instantes — ver ADR-0038.
         getDecisionSummary({
-          rangeStart: effectiveDateRange.from || undefined,
-          rangeEnd: effectiveDateRange.to || undefined,
+          rangeStartKey: localDateKey(effectiveDateRange.from),
+          rangeEndKey: localDateKey(effectiveDateRange.to),
           propertyId,
         }),
         previousDateRange
-          ? getDecisionSummary({ rangeStart: previousDateRange.from, rangeEnd: previousDateRange.to, propertyId })
+          ? getDecisionSummary({
+              rangeStartKey: localDateKey(previousDateRange.from),
+              rangeEndKey: localDateKey(previousDateRange.to),
+              propertyId,
+            })
           : Promise.resolve(null),
         getReservationsReportCount({
           propertyId,

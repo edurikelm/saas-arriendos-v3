@@ -3,6 +3,9 @@
  *
  * Key design decisions:
  * - `monthKey` = "YYYY-MM" in `America/Santiago` (getDateKeyInTz + slice to month)
+ * - Rango: `rangeStart`/`rangeEnd` son DÍAS (se leen con `dateOnlyKey`, igual que
+ *   la ocupación de `decision-summary`). `paidAt` es un instante y entra al rango
+ *   por su día en Santiago (`isPaidAtInRange`), el mismo día que decide su mes.
  * - Predicate: COMPLETED, paymentType RESERVATION, deletedAt null, paidAt not null
  * - `cancelledCash` is a SUBTOTAL within `collectedCash` (cancelled reservation payments are INCLUDED in total)
  * - `byMethod` keys: MERCADO_PAGO | CASH | TRANSFER
@@ -11,7 +14,7 @@
  * Source of truth: ADR-0030
  */
 
-import { getDateKeyInTz, BUSINESS_TIME_ZONE } from "@/lib/domain/timezone";
+import { getDateKeyInTz, dateOnlyKey, BUSINESS_TIME_ZONE } from "@/lib/domain/timezone";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,14 +55,39 @@ export function isEligibleCashPayment(p: CashPaymentInput): boolean {
   );
 }
 
+// ─── Rango ──────────────────────────────────────────────────────────────────
+
+/**
+ * `paidAt` cae dentro de `[startKey, endKey]` (claves `YYYY-MM-DD`, inclusive)
+ * según su DÍA DE NEGOCIO: el día de pared del instante en `tz` (ADR-0020).
+ *
+ * Es el único criterio de rango para caja. `collectedCash` (`decision-summary`),
+ * la serie mensual y el desglose por método lo comparten, y la serie agrupa por
+ * el mes de ese mismo día: por eso `total === sum(byMonth) === sum(byMethod)`.
+ *
+ * Antes se comparaba por día UTC (`Math.floor(t / 86_400_000)`). Un pago de las
+ * 20:00 a las 23:59 de Santiago ya es el día siguiente en UTC: un webhook de
+ * Mercado Pago aprobado a las 22:30 del 31 de agosto (`2026-09-01T01:30Z`)
+ * contaba en "cobrado" de septiembre y en la serie mensual de agosto.
+ */
+export function isPaidAtInRange(
+  paidAt: Date,
+  startKey: string,
+  endKey: string,
+  tz: string = BUSINESS_TIME_ZONE,
+): boolean {
+  const paidKey = getDateKeyInTz(paidAt, tz);
+  return paidKey >= startKey && paidKey <= endKey;
+}
+
 // ─── Monthly ────────────────────────────────────────────────────────────────
 
 /**
  * Builds monthly collected-cash series from a flat list of payments.
  *
  * @param payments — flat array of payments (caller filters to owner's scope)
- * @param rangeStart — inclusive start of the reporting range
- * @param rangeEnd — inclusive end of the reporting range
+ * @param rangeStart — primer día del rango, inclusive (se lee con `dateOnlyKey`)
+ * @param rangeEnd — último día del rango, inclusive (se lee con `dateOnlyKey`)
  * @param ownerTz — timezone for month boundary (default: BUSINESS_TIME_ZONE)
  * @param cancelledPaymentIds — optional Set of payment IDs that came from CANCELLED reservations
  *                             (used to compute cancelledCash subtotal)
@@ -71,14 +99,15 @@ export function buildMonthlyCollectedCash(
   ownerTz: string = BUSINESS_TIME_ZONE,
   cancelledPaymentIds?: Set<string>,
 ): MonthlyCollectedCash[] {
-  // Compute range in months (YYYY-MM) for zero-fill
-  const startKey = getDateKeyInTz(rangeStart, ownerTz).slice(0, 7); // "YYYY-MM"
-  const endKey = getDateKeyInTz(rangeEnd, ownerTz).slice(0, 7);
+  // Los bordes son días, no instantes: leerlos en `ownerTz` corría un rango
+  // anclado a medianoche UTC al día anterior y sumaba el mes previo a la serie.
+  const rangeStartKey = dateOnlyKey(rangeStart);
+  const rangeEndKey = dateOnlyKey(rangeEnd);
 
   // Build sorted list of all month keys in range
   const monthKeys: string[] = [];
-  const [startYear, startMonth] = startKey.split("-").map(Number);
-  const [endYear, endMonth] = endKey.split("-").map(Number);
+  const [startYear, startMonth] = rangeStartKey.slice(0, 7).split("-").map(Number);
+  const [endYear, endMonth] = rangeEndKey.slice(0, 7).split("-").map(Number);
 
   let y = startYear;
   let m = startMonth;
@@ -101,15 +130,11 @@ export function buildMonthlyCollectedCash(
     if (!isEligibleCashPayment(p)) continue;
     if (p.paidAt === null) continue; // safety — already excluded by predicate
 
-    const paidDay = Math.floor(p.paidAt.getTime() / 86_400_000);
-    const rangeStartDay = Math.floor(rangeStart.getTime() / 86_400_000);
-    const rangeEndDay = Math.floor(rangeEnd.getTime() / 86_400_000);
+    if (!isPaidAtInRange(p.paidAt, rangeStartKey, rangeEndKey, ownerTz)) continue;
 
-    // Check paidAt in range (inclusive)
-    if (paidDay < rangeStartDay || paidDay > rangeEndDay) continue;
-
+    // Un día dentro del rango siempre tiene su mes entre los buckets.
     const monthKey = getDateKeyInTz(p.paidAt, ownerTz).slice(0, 7);
-    if (!bucket.has(monthKey)) continue; // outside range
+    if (!bucket.has(monthKey)) continue; // safety — unreachable
 
     const entry = bucket.get(monthKey)!;
     entry.cash += Number(p.amount);
@@ -136,33 +161,31 @@ export function buildMonthlyCollectedCash(
  * Desglosa la caja del rango seleccionado por método de pago (CASH | TRANSFER
  * | MERCADO_PAGO), sobre EXACTAMENTE el mismo conjunto de pagos elegibles y el
  * mismo predicado que `collectedCash` y `buildMonthlyCollectedCash`:
- * `isEligibleCashPayment` + `paidAt` dentro de `[rangeStart, rangeEnd]`
- * (inclusive, comparado por día-época en UTC — mismo criterio que
- * `isPaidAtInRange` en `decision-summary.ts`).
+ * `isEligibleCashPayment` + `isPaidAtInRange` (día de negocio de `paidAt`
+ * dentro de los días `[rangeStart, rangeEnd]`, inclusive).
  *
  * Invariante: `sum(Object.values(buildCashByMethod(...))) === collectedCash`
  * para el mismo `payments`/`rangeStart`/`rangeEnd` (incluye pagos de reservas
  * CANCELLED, igual que `collectedCash` — ADR-0029).
  *
- * No depende de la zona horaria: a diferencia de `buildMonthlyCollectedCash`,
- * este desglose no necesita agrupar por `monthKey`, así que no requiere
- * `ownerTz`.
+ * Sí depende de la zona, aunque no agrupe por mes: el rango se decide por el
+ * día de negocio de `paidAt`, igual que en la serie mensual.
  */
 export function buildCashByMethod(
   payments: CashPaymentInput[],
   rangeStart: Date,
   rangeEnd: Date,
+  ownerTz: string = BUSINESS_TIME_ZONE,
 ): Record<string, number> {
-  const rangeStartDay = Math.floor(rangeStart.getTime() / 86_400_000);
-  const rangeEndDay = Math.floor(rangeEnd.getTime() / 86_400_000);
+  const rangeStartKey = dateOnlyKey(rangeStart);
+  const rangeEndKey = dateOnlyKey(rangeEnd);
 
   const byMethod: Record<string, number> = {};
   for (const p of payments) {
     if (!isEligibleCashPayment(p)) continue;
     if (p.paidAt === null) continue; // safety — already excluded by predicate
 
-    const paidDay = Math.floor(p.paidAt.getTime() / 86_400_000);
-    if (paidDay < rangeStartDay || paidDay > rangeEndDay) continue;
+    if (!isPaidAtInRange(p.paidAt, rangeStartKey, rangeEndKey, ownerTz)) continue;
 
     byMethod[p.method] = (byMethod[p.method] ?? 0) + Number(p.amount);
   }

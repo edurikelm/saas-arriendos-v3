@@ -5,7 +5,7 @@
  * not through the server action. The seam accepts serializable inputs and is fully unit-testable.
  *
  * Key behaviors tested:
- * 1. collectedCash — ALL COMPLETED RESERVATION payments with paidAt in semi-open range [rangeStart, rangeEnd).
+ * 1. collectedCash — ALL COMPLETED RESERVATION payments with business day (Santiago) in the inclusive range of days [rangeStart, rangeEnd] (ADR-0038).
  *    CANCELLED reservations INCLUDED (collectedCashFromCancelledReservations is subtotal within collectedCash).
  * 2. outstandingBalance — max(totalPrice - ALL completed RESERVATION payments, 0) for non-CANCELLED
  *    reservations intersecting the range. Uses paid-to-date, NOT limited to range.
@@ -16,7 +16,7 @@
  * 7. activity NONE/DAILY/MONTHLY/MIXED per property (NONE for no-activity properties).
  * 8. Payment EXTRA never enters any metric.
  * 9. Date-only clipNightsToRange: timezone-agnostic, Jan 1-31 = 31 days, Feb1 does NOT intersect Jan.
- * 10. Semi-open cash range: paidAt >= rangeStart && paidAt < rangeEnd.
+ * 10. Inclusive cash range by day: getDateKeyInTz(paidAt) between dateOnlyKey(rangeStart) and dateOnlyKey(rangeEnd).
  */
 
 import { describe, expect, it } from "vitest";
@@ -123,7 +123,7 @@ describe("buildDecisionSummary — collectedCash", () => {
         endDate: new Date("2026-01-15"),
         totalPrice: 300000,
         payments: [
-          makePayment({ amount: 300000, status: "COMPLETED", paymentType: "RESERVATION", paidAt: new Date("2026-02-01") }), // day after rangeEnd — excluded
+          makePayment({ amount: 300000, status: "COMPLETED", paymentType: "RESERVATION", paidAt: new Date("2026-02-01T15:00:00.000Z") }), // 1 feb 12:00 Santiago, day after rangeEnd — excluded
         ],
       }),
     ];
@@ -858,7 +858,7 @@ describe("buildDecisionSummary — byBillingType", () => {
         totalPrice: 500000,
         unitsBooked: 1,
         payments: [
-          makePayment({ amount: 500000, status: "COMPLETED", paymentType: "RESERVATION", paidAt: new Date("2026-01-01") }),
+          makePayment({ amount: 500000, status: "COMPLETED", paymentType: "RESERVATION", paidAt: new Date("2026-01-01T15:00:00.000Z") }), // 1 ene 12:00 Santiago (medianoche UTC sería 31 dic allá)
         ],
       }),
     ];

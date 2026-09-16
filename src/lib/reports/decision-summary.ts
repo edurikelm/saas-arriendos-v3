@@ -15,7 +15,12 @@
  * - `byBillingType` DAILY/MONTHLY; `byProperty` includes ALL properties in scope even at zero.
  * - `activity`: NONE/DAILY/MONTHLY/MIXED per property.
  * - Payment EXTRA never enters any metric.
- * - Date-only arithmetic (timezone-agnostic epoch-day).
+ * - Rango: `rangeStart`/`rangeEnd` son DÍAS de negocio, inclusive, leídos por día UTC
+ *   (`dateOnlyKey`). Los callers los construyen con `dateOnlyFromKey(key)`.
+ *   - Estadías (`startDate`/`endDate`, date-only): aritmética de epoch-day.
+ *   - Caja (`paidAt`, instante): día de Santiago del instante (`isPaidAtInRange` de
+ *     `revenue-series`), el mismo criterio para `collectedCash`, `byBillingType`,
+ *     `byProperty`, `cash.byMonth` y `cash.byMethod`.
  */
 
 import {
@@ -26,9 +31,10 @@ import {
 import {
   buildMonthlyCollectedCash,
   buildCashByMethod,
+  isPaidAtInRange,
   type CashPaymentInput as RevenueCashPaymentInput,
 } from "@/lib/reports/revenue-series";
-import { BUSINESS_TIME_ZONE } from "@/lib/domain/timezone";
+import { BUSINESS_TIME_ZONE, dateOnlyKey } from "@/lib/domain/timezone";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -213,18 +219,6 @@ function daysInRange(rangeStart: Date, rangeEnd: Date): number {
   return endDay - startDay + 1;
 }
 
-/**
- * Inclusive range check for paidAt: [rangeStart, rangeEnd].
- * Payments on the last day of the range DO count.
- * Uses date-only epoch-day arithmetic (timezone-agnostic).
- */
-function isPaidAtInRange(paidAt: Date, rangeStart: Date, rangeEnd: Date): boolean {
-  const paidDay = Math.floor(paidAt.getTime() / 86_400_000);
-  const rangeStartDay = Math.floor(rangeStart.getTime() / 86_400_000);
-  const rangeEndDay = Math.floor(rangeEnd.getTime() / 86_400_000);
-  return paidDay >= rangeStartDay && paidDay <= rangeEndDay;
-}
-
 // ─── Main computation ────────────────────────────────────────────────────────
 
 /**
@@ -236,6 +230,8 @@ function isPaidAtInRange(paidAt: Date, rangeStart: Date, rangeEnd: Date): boolea
  */
 export function buildDecisionSummary(input: DecisionSummaryInput): ReportDecisionSummary {
   const { reservations, properties, rangeStart, rangeEnd } = input;
+  const rangeStartKey = dateOnlyKey(rangeStart);
+  const rangeEndKey = dateOnlyKey(rangeEnd);
 
   // Separate intersecting active vs cancelled
   const intersectingActive: DecisionReservationInput[] = [];
@@ -265,7 +261,7 @@ export function buildDecisionSummary(input: DecisionSummaryInput): ReportDecisio
         p.paymentType === "RESERVATION" &&
         !p.deletedAt &&
         p.paidAt !== null &&
-        isPaidAtInRange(p.paidAt, rangeStart, rangeEnd)
+        isPaidAtInRange(p.paidAt, rangeStartKey, rangeEndKey)
       ) {
         collectedCash += Number(p.amount);
         if (isCancelled) {
@@ -341,7 +337,7 @@ export function buildDecisionSummary(input: DecisionSummaryInput): ReportDecisio
         p.paymentType === "RESERVATION" &&
         !p.deletedAt &&
         p.paidAt !== null &&
-        isPaidAtInRange(p.paidAt, rangeStart, rangeEnd)
+        isPaidAtInRange(p.paidAt, rangeStartKey, rangeEndKey)
       ) {
         const btEntry = byBillingType[res.billingType];
         btEntry.collectedCash += Number(p.amount);
@@ -435,7 +431,7 @@ export function buildDecisionSummary(input: DecisionSummaryInput): ReportDecisio
           p.paymentType === "RESERVATION" &&
           !p.deletedAt &&
           p.paidAt !== null &&
-          isPaidAtInRange(p.paidAt, rangeStart, rangeEnd)
+          isPaidAtInRange(p.paidAt, rangeStartKey, rangeEndKey)
         ) {
           propCash += Number(p.amount);
           if (isCancelled) propCashCancelled += Number(p.amount);
@@ -490,7 +486,7 @@ export function buildDecisionSummary(input: DecisionSummaryInput): ReportDecisio
     cancelledPaymentIds,
   );
 
-  const cashByMethod = buildCashByMethod(allPayments, rangeStart, rangeEnd);
+  const cashByMethod = buildCashByMethod(allPayments, rangeStart, rangeEnd, BUSINESS_TIME_ZONE);
 
   return {
     collectedCash,
