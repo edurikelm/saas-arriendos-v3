@@ -60,7 +60,10 @@ import { getInclusiveMonths } from "@/lib/reservation-dates";
 
 // ─── Constantes ─────────────────────────────────────────────────────────────
 
-const DEFAULT_COLLECTION_LIMIT = 4;
+// 6 y no 4: el 4 salió de igualar la altura de la tabla de reservas que tenía
+// el inicio antes de ADR-0036. Con el inicio en columnas esa tabla ya no existe
+// y Cobros es la columna más corta de las tres.
+const DEFAULT_COLLECTION_LIMIT = 6;
 
 // ─── Tipos de input ─────────────────────────────────────────────────────────
 
@@ -126,7 +129,7 @@ export interface DashboardSummaryInput {
   /** Bloqueos ACTIVE. Opcional: sin iCal (plan FREE) no hay ninguno. */
   externalBlocks?: DashboardExternalBlockInput[];
   now: Date;
-  /** Tope de items de `collectionItems`. Default 4. */
+  /** Tope de items de `collectionItems`. Default 6. */
   collectionLimit?: number;
 }
 

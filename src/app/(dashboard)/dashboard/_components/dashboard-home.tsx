@@ -61,8 +61,9 @@ interface DashboardHomeProps {
  * datos armados a mano (tests, revisión visual) sin sesión ni base.
  *
  * Estructura: lo que pide acción primero (agenda y cobros), lo que se consulta
- * después (propiedades y el mes) — en columnas en desktop, apilado en móvil. Una cuenta sin reservas ve solo los primeros
- * pasos: cada sección sería una caja vacía.
+ * después (propiedades y el mes) — en columnas en desktop, apilado en móvil.
+ * Una cuenta sin reservas ve solo los primeros pasos: cada sección sería una
+ * caja vacía.
  */
 export function DashboardHome({ summary, banner, canSendPaymentLinks = false }: DashboardHomeProps) {
   const { todayKey, agenda, collection, collectionItems, propertyBoard, month, isEmpty } = summary;
@@ -120,26 +121,39 @@ export function DashboardHome({ summary, banner, canSendPaymentLinks = false }: 
         <>
           {/* Tres columnas desde xl: cada sección es una lista de filas cortas
               (nombre + cifra), y a 2/3 del ancho esas filas quedaban con un
-              hueco en el medio y la card de agenda estirada a la altura de
-              cobros. Cada card termina donde termina su contenido
-              (`items-start`), así una agenda corta no deja caja vacía.
+              hueco en el medio. Cada card termina donde termina su contenido
+              (`items-start`).
+
+              El mes va bajo la agenda y no bajo propiedades: apilado con
+              propiedades, la tercera columna medía casi el doble que las
+              otras dos y el hueco se mudaba abajo de agenda y cobros. La
+              posición es solo visual (`xl:col-start`/`row-start`); el DOM
+              conserva el orden de lectura —agenda, cobros, propiedades,
+              mes—, que es el que ven el móvil, el teclado y los lectores de
+              pantalla. `grid-rows-[auto_1fr]`: la fila 1 la mide solo la
+              agenda y las columnas que abarcan dos filas cargan su alto
+              sobrante en la segunda, así el mes queda pegado a la agenda.
 
               En lg, dos columnas: a 1/3 la columna de cobros quedaría en
-              ~224px, sin espacio para monto y acciones en la misma fila. El
-              orden del DOM es el de lectura en móvil: lo que pide acción
-              (agenda, cobros) antes de lo que se consulta (propiedades, mes). */}
-          <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2 xl:grid-cols-3">
-            <DashboardAgenda agenda={agenda} todayKey={todayKey} />
-            <DashboardCobranzaList
-              items={cobranzaItems}
-              viewAllHref="/payments"
-              totalAmount={collection.windowAmount}
-              totalCount={collection.windowCount}
-              groupTotals={collection.windowGroups}
-              canSendPaymentLinks={canSendPaymentLinks}
-            />
-            <div className="grid grid-cols-1 items-start gap-6 lg:col-span-2 lg:grid-cols-2 xl:col-span-1 xl:grid-cols-1">
+              ~224px, sin espacio para monto y acciones en la misma fila. */}
+          <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2 xl:grid-cols-3 xl:grid-rows-[auto_1fr]">
+            <div className="xl:col-start-1 xl:row-start-1">
+              <DashboardAgenda agenda={agenda} todayKey={todayKey} />
+            </div>
+            <div className="xl:col-start-2 xl:row-span-2 xl:row-start-1">
+              <DashboardCobranzaList
+                items={cobranzaItems}
+                viewAllHref="/payments"
+                totalAmount={collection.windowAmount}
+                totalCount={collection.windowCount}
+                groupTotals={collection.windowGroups}
+                canSendPaymentLinks={canSendPaymentLinks}
+              />
+            </div>
+            <div className="xl:col-start-3 xl:row-span-2 xl:row-start-1">
               <DashboardPropertyBoard board={propertyBoard} todayKey={todayKey} />
+            </div>
+            <div className="xl:col-start-1 xl:row-start-2">
               <DashboardMonthPulse month={month} />
             </div>
           </div>

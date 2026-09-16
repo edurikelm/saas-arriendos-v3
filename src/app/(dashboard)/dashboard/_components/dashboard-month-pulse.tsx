@@ -37,7 +37,10 @@ export function DashboardMonthPulse({ month }: DashboardMonthPulseProps) {
           Día {month.dayOfMonth}
         </span>
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1">
+      {/* Lado a lado donde la columna da ~435px (2xl): apilados, los dos KPIs
+          hacían de la columna del mes la más alta de las tres. A 1280px la
+          columna mide ~310px y un KPI de 145px no alcanza para el monto. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
         <KpiCard
           label="Cobrado"
           value={formatCLP(month.collected)}

@@ -127,8 +127,8 @@ describe("buildDashboardSummary", () => {
   });
 
   it("collection.overdueCount y collection.overdueAmount describen SIEMPRE la misma población que collectionItems recortado", () => {
-    // 6 reservas vencidas — más que `collectionLimit` (default 4).
-    const overdueReservations = Array.from({ length: 6 }, (_, i) =>
+    // 8 reservas vencidas — más que `collectionLimit` (default 6).
+    const overdueReservations = Array.from({ length: 8 }, (_, i) =>
       makeReservation({
         id: `overdue-${i + 1}`,
         billingType: "MONTHLY",
@@ -147,10 +147,10 @@ describe("buildDashboardSummary", () => {
 
     const summary = buildDashboardSummary(buildInput(overdueReservations));
 
-    // El KPI cuenta las 6, aunque la lista solo muestre 4 (default collectionLimit).
-    expect(summary.collection.overdueCount).toBe(6);
-    expect(summary.collection.overdueAmount).toBe(600_000);
-    expect(summary.collectionItems).toHaveLength(4);
+    // El KPI cuenta las 8, aunque la lista solo muestre 6 (default collectionLimit).
+    expect(summary.collection.overdueCount).toBe(8);
+    expect(summary.collection.overdueAmount).toBe(800_000);
+    expect(summary.collectionItems).toHaveLength(6);
     expect(summary.collectionItems.every((item) => item.bucket === "OVERDUE")).toBe(true);
   });
 
@@ -903,10 +903,12 @@ describe("buildDashboardSummary — agenda", () => {
   });
 
   it("amountDue de un evento coincide con el monto de cobranza (0 si está pagada) y hasNoPayments refleja si hubo un pago completado — incluye una reserva fuera de collectionItems por el tope", () => {
-    // 4 reservas de relleno más vencidas que la reserva bajo prueba, para
-    // que esta última quede en la posición 5 y salga del recorte por
-    // `collectionLimit` (default 4).
+    // 6 reservas de relleno más vencidas que la reserva bajo prueba, para
+    // que esta última quede en la posición 7 y salga del recorte por
+    // `collectionLimit` (default 6).
     const paddingDueDates = [
+      "2026-08-12T15:00:00.000Z",
+      "2026-08-13T15:00:00.000Z",
       "2026-08-14T15:00:00.000Z",
       "2026-08-15T15:00:00.000Z",
       "2026-08-16T15:00:00.000Z",
@@ -925,7 +927,7 @@ describe("buildDashboardSummary — agenda", () => {
       }),
     );
 
-    // La menos vencida de las 5 → queda fuera de `collectionItems`, pero
+    // La menos vencida de las 7 → queda fuera de `collectionItems`, pero
     // sale HOY (DEPARTURE) y debe traer su monto real igual.
     const departingHidden = makeReservation({
       billingType: "MONTHLY",
