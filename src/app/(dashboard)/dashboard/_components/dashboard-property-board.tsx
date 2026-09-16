@@ -4,7 +4,9 @@ import type {
   DashboardPropertyBoard as DashboardPropertyBoardData,
   DashboardPropertyStatus,
 } from "@/lib/dashboard/summary";
+import { DashboardSection } from "./dashboard-section";
 import { relativeDayInline } from "./day-labels";
+import { PropertyDot } from "./property-dot";
 
 const CHANNEL_LABEL: Record<DashboardExternalChannel, string> = {
   AIRBNB: "Airbnb",
@@ -123,53 +125,42 @@ export function DashboardPropertyBoard({ board, todayKey }: DashboardPropertyBoa
   const unitNoun = board.allSingleUnit ? "ocupadas hoy" : "unidades ocupadas hoy";
 
   return (
-    <section aria-labelledby="propiedades-heading" className="flex h-full flex-col">
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <h2
-            id="propiedades-heading"
-            className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
-          >
-            Propiedades
-          </h2>
-          <p className="mt-1 text-[10px] tabular-nums text-muted-foreground">
-            <span className="font-bold text-foreground">{board.occupiedUnits}</span> de{" "}
-            {board.totalUnits} {unitNoun}
-          </p>
-        </div>
-        <Link
-          href="/calendar"
-          className="shrink-0 text-[10px] font-bold uppercase text-primary hover:underline"
-        >
-          Ver calendario
-        </Link>
-      </div>
-
-      <div className="flex-1 overflow-hidden rounded-md border border-border bg-card">
-        <ul className="divide-y divide-border">
-          {board.properties.map((property) => {
-            const parts = statusParts(property, todayKey);
-            return (
-              <li key={property.propertyId}>
-                <Link
-                  href={`/properties/${property.propertyId}`}
-                  className="flex items-baseline justify-between gap-3 px-4 py-2.5 transition-colors hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[color:var(--foreground)]!"
-                >
-                  <span className="min-w-0 truncate text-xs font-bold text-foreground">
+    <DashboardSection
+      headingId="propiedades-heading"
+      title="Propiedades"
+      meta={
+        <>
+          <span className="font-bold text-foreground">{board.occupiedUnits}</span> de{" "}
+          {board.totalUnits} {unitNoun}
+        </>
+      }
+      action={{ href: "/calendar", label: "Ver calendario" }}
+    >
+      <ul className="divide-y divide-border/60">
+        {board.properties.map((property) => {
+          const parts = statusParts(property, todayKey);
+          return (
+            <li key={property.propertyId}>
+              <Link
+                href={`/properties/${property.propertyId}`}
+                className="flex items-start justify-between gap-3 px-4 py-2.5 transition-colors hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[color:var(--foreground)]!"
+              >
+                <span className="flex min-w-0 items-baseline gap-2">
+                  <PropertyDot color={property.propertyColor} />
+                  {/* Sin `truncate`, igual que los nombres de agenda y cobros. */}
+                  <span className="min-w-0 text-xs leading-snug font-semibold break-words text-foreground">
                     {property.propertyName}
                   </span>
-                  <span className="shrink-0 text-[10px] tabular-nums">
-                    <span className={LEAD_CLASS[parts.tone]}>{parts.lead}</span>
-                    {parts.detail && (
-                      <span className="text-muted-foreground"> · {parts.detail}</span>
-                    )}
-                  </span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-    </section>
+                </span>
+                <span className="shrink-0 pt-px text-right text-[10px] leading-snug tabular-nums">
+                  <span className={LEAD_CLASS[parts.tone]}>{parts.lead}</span>
+                  {parts.detail && <span className="text-muted-foreground"> · {parts.detail}</span>}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </DashboardSection>
   );
 }

@@ -146,6 +146,7 @@ export async function getDashboardSummary(options?: {
       id: p.id,
       name: p.name,
       unitsAvailable: p.unitsAvailable,
+      color: p.color,
     })),
     reservations: dashboardReservations,
     externalBlocks: dashboardExternalBlocks,

@@ -60,8 +60,8 @@ interface DashboardHomeProps {
  * la carga de datos y el fallback de error, y esto se pueda renderizar con
  * datos armados a mano (tests, revisión visual) sin sesión ni base.
  *
- * Estructura: lo que pide acción arriba (agenda y cobros), lo que se consulta
- * abajo (propiedades y el mes). Una cuenta sin reservas ve solo los primeros
+ * Estructura: lo que pide acción primero (agenda y cobros), lo que se consulta
+ * después (propiedades y el mes) — en columnas en desktop, apilado en móvil. Una cuenta sin reservas ve solo los primeros
  * pasos: cada sección sería una caja vacía.
  */
 export function DashboardHome({ summary, banner, canSendPaymentLinks = false }: DashboardHomeProps) {
@@ -118,13 +118,18 @@ export function DashboardHome({ summary, banner, canSendPaymentLinks = false }: 
         <DashboardOnboarding hasProperties={!isEmpty.properties} />
       ) : (
         <>
-          {/* Lado a lado solo desde xl: con el sidebar, a 1024px la columna de
-              cobros quedaría en ~224px, sin espacio para monto y vencimiento
-              en la misma fila. */}
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-            <div className="xl:col-span-2">
-              <DashboardAgenda agenda={agenda} todayKey={todayKey} />
-            </div>
+          {/* Tres columnas desde xl: cada sección es una lista de filas cortas
+              (nombre + cifra), y a 2/3 del ancho esas filas quedaban con un
+              hueco en el medio y la card de agenda estirada a la altura de
+              cobros. Cada card termina donde termina su contenido
+              (`items-start`), así una agenda corta no deja caja vacía.
+
+              En lg, dos columnas: a 1/3 la columna de cobros quedaría en
+              ~224px, sin espacio para monto y acciones en la misma fila. El
+              orden del DOM es el de lectura en móvil: lo que pide acción
+              (agenda, cobros) antes de lo que se consulta (propiedades, mes). */}
+          <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2 xl:grid-cols-3">
+            <DashboardAgenda agenda={agenda} todayKey={todayKey} />
             <DashboardCobranzaList
               items={cobranzaItems}
               viewAllHref="/payments"
@@ -133,13 +138,10 @@ export function DashboardHome({ summary, banner, canSendPaymentLinks = false }: 
               groupTotals={collection.windowGroups}
               canSendPaymentLinks={canSendPaymentLinks}
             />
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-            <div className="xl:col-span-2">
+            <div className="grid grid-cols-1 items-start gap-6 lg:col-span-2 lg:grid-cols-2 xl:col-span-1 xl:grid-cols-1">
               <DashboardPropertyBoard board={propertyBoard} todayKey={todayKey} />
+              <DashboardMonthPulse month={month} />
             </div>
-            <DashboardMonthPulse month={month} />
           </div>
         </>
       )}

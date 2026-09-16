@@ -60,6 +60,7 @@ function makeEvent(overrides: Partial<DashboardAgendaEvent>): DashboardAgendaEve
     billingType: "DAILY",
     nights: 5,
     months: 0,
+    lastNightDateKey: "2026-09-18",
     unitsBooked: 1,
     amountDue: 0,
     hasNoPayments: false,
