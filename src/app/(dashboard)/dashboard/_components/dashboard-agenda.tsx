@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { CalendarCheck, LogIn, LogOut } from "lucide-react";
 import { formatCLP } from "@/lib/format/currency";
 import type {
@@ -10,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { DashboardSection } from "./dashboard-section";
 import { agendaDayHeading, relativeDayInline } from "./day-labels";
 import { PropertyDot } from "./property-dot";
+import { ReservationPreviewLink } from "./reservation-preview-link";
 
 const KIND_LABEL: Record<DashboardAgendaEventKind, string> = {
   ARRIVAL: "Llega",
@@ -138,8 +138,9 @@ function AgendaEventRow({ event, todayKey }: { event: DashboardAgendaEvent; toda
 
   return (
     <li>
-      <Link
-        href={`/reservations/${event.reservationId}`}
+      {/* Click simple: el preview de `/calendar`. Ctrl+click o sin JS: la página. */}
+      <ReservationPreviewLink
+        reservationId={event.reservationId}
         className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[color:var(--foreground)]!"
       >
         {/*
@@ -183,7 +184,7 @@ function AgendaEventRow({ event, todayKey }: { event: DashboardAgendaEvent; toda
             </p>
           </div>
         )}
-      </Link>
+      </ReservationPreviewLink>
     </li>
   );
 }
