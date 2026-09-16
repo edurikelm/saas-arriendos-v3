@@ -120,7 +120,8 @@ export interface DashboardExternalBlockInput {
 }
 
 export interface DashboardSummaryInput {
-  properties: Array<{ id: string; name: string; unitsAvailable: number }>;
+  /** `color` es el que el dueño eligió para la propiedad; solo identifica, no calcula nada. */
+  properties: Array<{ id: string; name: string; unitsAvailable: number; color?: string | null }>;
   reservations: DashboardReservationInput[];
   /** Bloqueos ACTIVE. Opcional: sin iCal (plan FREE) no hay ninguno. */
   externalBlocks?: DashboardExternalBlockInput[];
@@ -319,6 +320,11 @@ export interface DashboardAgendaEvent {
   nights: number;
   /** Meses inclusivos (`getInclusiveMonths`). `0` para DAILY. */
   months: number;
+  /**
+   * `YYYY-MM-DD` de la Última Noche (`endDate`, CONTEXT.md): la última noche
+   * que duerme el huésped, no el día de salida (ese es el día siguiente).
+   */
+  lastNightDateKey: string;
   unitsBooked: number;
   /**
    * Plata exigible de la reserva: el MISMO monto que su fila en "Por cobrar"
@@ -333,6 +339,8 @@ export interface DashboardAgendaEvent {
    * Distingue "sin pagos" de "saldo" en la fila.
    */
   hasNoPayments: boolean;
+  /** Color de la propiedad (dato del usuario). La UI cae a `--primary` sin él. */
+  propertyColor?: string | null;
 }
 
 export interface DashboardAgendaDay {
@@ -383,6 +391,8 @@ export interface DashboardPropertyOccupant {
 export interface DashboardPropertyStatus {
   propertyId: string;
   propertyName: string;
+  /** Color de la propiedad (dato del usuario). La UI cae a `--primary` sin él. */
+  propertyColor?: string | null;
   unitsAvailable: number;
   /**
    * Unidades consumidas la noche de HOY: Σ `unitsBooked` de las reservas no
@@ -868,10 +878,12 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
       reservationId: r.id,
       propertyId: r.propertyId,
       propertyName: r.property.name,
+      propertyColor: r.property.color,
       clientName: r.client.name,
       billingType: r.billingType,
       nights: getNights(startIso, endIso),
       months,
+      lastNightDateKey: endKey,
       unitsBooked: r.unitsBooked,
       amountDue: amountDueByReservationId.get(r.id) ?? 0,
       hasNoPayments,
@@ -1020,6 +1032,7 @@ export function buildDashboardSummary(input: DashboardSummaryInput): DashboardSu
     return {
       propertyId: p.id,
       propertyName: p.name,
+      propertyColor: p.color ?? null,
       unitsAvailable: p.unitsAvailable,
       unitsOccupied,
       state,

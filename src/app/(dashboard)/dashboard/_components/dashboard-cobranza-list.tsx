@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { formatDateOnly } from "@/lib/domain/timezone";
 import type { DashboardNextCharge } from "@/lib/dashboard/summary";
 import { CobranzaRowActions } from "./cobranza-row-actions";
+import { DashboardSection } from "./dashboard-section";
 
 /**
  * Bucket de cobranza — alineado 1:1 con `DashboardCollectionBucket`
@@ -98,6 +99,17 @@ const GROUP_LABEL: Record<CobranzaGroupKey, string> = {
 const GROUP_TEXT: Record<CobranzaGroupKey, string> = {
   OVERDUE: "text-destructive-text",
   DUE_SOON: "text-warning-text",
+};
+
+/**
+ * Banda del encabezado de grupo, del mismo tono que su texto. Par medido en
+ * DESIGN.md (The Fill-vs-Text Rule): `-text` sobre `bg-{tono}/10` pasa AA en
+ * los dos temas. Sigue siendo UN portador de color por grupo — banda y texto
+ * dicen lo mismo en el mismo lugar; las filas siguen neutras.
+ */
+const GROUP_BAND: Record<CobranzaGroupKey, string> = {
+  OVERDUE: "bg-destructive/10",
+  DUE_SOON: "bg-warning/10",
 };
 
 /** Orden de render de los grupos. `items` ya llega en este orden. */
@@ -252,10 +264,8 @@ export interface CobranzaGroupTotal {
 interface DashboardCobranzaListProps {
   items: CobranzaItem[];
   /**
-   * Si se provee, el título se renderiza como bloque standalone AFUERA del card,
-   * junto con un link "Ver todas" que apunta a esta URL (alineado con el patrón
-   * canónico de `/dashboard` sección "Próximas reservas"). Si se omite, el título
-   * se mantiene dentro del card (back-compat).
+   * Si se provee, la banda de título de la card (`DashboardSection`) lleva un
+   * link "Ver todas" a esta URL. Si se omite, la banda va sin link.
    */
   viewAllHref?: string;
   /** Label del link "Ver todas". Default: "Ver todas". */
@@ -333,36 +343,14 @@ export function DashboardCobranzaList({
   }).filter((group) => group.items.length > 0 || group.total.count > 0);
 
   return (
-    <section aria-labelledby="cobros-pendientes-heading" className="flex h-full flex-col">
-      {viewAllHref && (
-        <div className="mb-4 flex items-center justify-between">
-          <h2
-            id="cobros-pendientes-heading"
-            className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
-          >
-            Cobros pendientes
-          </h2>
-          <Link
-            href={viewAllHref}
-            className="text-[10px] font-bold uppercase text-primary hover:underline"
-          >
-            {viewAllLabel}
-          </Link>
-        </div>
-      )}
-      <div className="flex flex-1 flex-col overflow-hidden rounded-md border border-border bg-card">
-        {viewAllHref ? null : (
-          <div className="border-b border-border px-4 py-3">
-            <h2
-              id="cobros-pendientes-heading"
-              className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
-            >
-              Cobros pendientes
-            </h2>
-          </div>
-        )}
+    <DashboardSection
+      headingId="cobros-pendientes-heading"
+      title="Cobros pendientes"
+      meta="Vencidos y próximos 7 días"
+      action={viewAllHref ? { href: viewAllHref, label: viewAllLabel } : undefined}
+    >
         {groups.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 py-6 text-center">
+          <div className="flex flex-col items-center justify-center gap-2 px-4 py-6 text-center">
             <CheckCircle2 className="size-5 text-success-text" aria-hidden="true" />
             <p className="text-xs font-bold text-foreground">Sin cobros pendientes</p>
             <p className="text-[10px] text-muted-foreground">
@@ -370,7 +358,7 @@ export function DashboardCobranzaList({
             </p>
           </div>
         ) : (
-          <div className="flex-1">
+          <div>
             {groups.map((group, groupIdx) => {
               const headingId = `cobros-grupo-${group.key.toLowerCase()}`;
               // Cobros del grupo que ninguna fila representa (filas cortadas
@@ -398,8 +386,9 @@ export function DashboardCobranzaList({
                   */}
                   <div
                     className={cn(
-                      "flex items-baseline justify-between gap-2 border-b border-border px-4 pb-2",
-                      groupIdx === 0 ? "pt-3" : "pt-5"
+                      "flex items-baseline justify-between gap-2 border-b border-border px-4 py-1.5",
+                      groupIdx > 0 && "border-t",
+                      GROUP_BAND[group.key]
                     )}
                   >
                     <h3
@@ -420,14 +409,14 @@ export function DashboardCobranzaList({
                       {formatCLP(group.total.amount)}
                     </span>
                   </div>
-                  <ul aria-labelledby={headingId} className="py-1">
+                  <ul aria-labelledby={headingId} className="divide-y divide-border/60">
                     {group.items.map((item, idx) => {
                       const { primary, chip } = dueLabelParts(item);
                       return (
                         <li key={`${item.reservationId}-${idx}`} className="flex items-start">
                           <Link
                             href={`/reservations/${item.reservationId}`}
-                            className="block min-w-0 flex-1 px-4 py-2 transition-colors hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[color:var(--foreground)]!"
+                            className="block min-w-0 flex-1 px-4 py-2.5 transition-colors hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[color:var(--foreground)]!"
                           >
                             {/*
                               El estado del grupo viaja acá para que el nombre
@@ -456,7 +445,7 @@ export function DashboardCobranzaList({
                             */}
                             <span className="sr-only">{BUCKET_LABEL[item.bucket]}</span>
                             <div className="flex items-baseline justify-between gap-3">
-                              <p className="min-w-0 flex-1 truncate text-xs font-bold text-foreground">
+                              <p className="min-w-0 flex-1 text-xs leading-snug font-semibold break-words text-foreground">
                                 {item.clientName}
                               </p>
                               {/*
@@ -466,7 +455,7 @@ export function DashboardCobranzaList({
                                 no se puede escanear como columna. La urgencia
                                 ya la carga el grupo.
                               */}
-                              <p className="shrink-0 text-xs font-bold tabular-nums text-foreground">
+                              <p className="shrink-0 text-xs font-semibold tabular-nums text-foreground">
                                 {formatCLP(item.amount)}
                               </p>
                             </div>
@@ -498,7 +487,7 @@ export function DashboardCobranzaList({
                             se salía 14px sobre el padding hasta quedar a 3px
                             del borde de la card (medido a 1440px).
                           */}
-                          <div className="flex w-19 shrink-0 gap-0.5 py-2 pr-4">
+                          <div className="flex w-19 shrink-0 gap-0.5 py-2.5 pr-4">
                             <CobranzaRowActions
                               reservationId={item.reservationId}
                               clientName={item.clientName}
@@ -550,7 +539,6 @@ export function DashboardCobranzaList({
             {formatCLP(resolvedTotal)}
           </span>
         </div>
-      </div>
-    </section>
+    </DashboardSection>
   );
 }

@@ -15,6 +15,7 @@ function makeEvent(overrides: Partial<DashboardAgendaEvent> = {}): DashboardAgen
     billingType: "DAILY",
     nights: 5,
     months: 0,
+    lastNightDateKey: "2026-09-18",
     unitsBooked: 1,
     amountDue: 0,
     hasNoPayments: false,
@@ -94,6 +95,56 @@ describe("DashboardAgenda", () => {
 
     expect(screen.getByText("Cabaña El Mirador · 1 noche")).toBeTruthy();
     expect(screen.getByText("Cabaña El Mirador · 3 meses · 2 unidades")).toBeTruthy();
+  });
+
+  // La Última Noche es la noche anterior al día de salida (CONTEXT.md): una
+  // salida del viernes 18 muestra "jueves 17", nunca el 18.
+  it("muestra la última noche de las reservas diarias, no de las mensuales", () => {
+    const agenda = makeAgenda({
+      days: [
+        { dateKey: TODAY, offset: 0, events: [] },
+        {
+          dateKey: "2026-09-18",
+          offset: 4,
+          events: [
+            makeEvent({ kind: "DEPARTURE", lastNightDateKey: "2026-09-17" }),
+            makeEvent({ reservationId: "res-2", clientName: "Luis Pérez", lastNightDateKey: "2026-10-02" }),
+            makeEvent({
+              reservationId: "res-3",
+              clientName: "Andrea Soto",
+              billingType: "MONTHLY",
+              months: 3,
+              lastNightDateKey: "2026-12-17",
+            }),
+          ],
+        },
+      ],
+    });
+
+    render(<DashboardAgenda agenda={agenda} todayKey={TODAY} />);
+
+    const camila = screen.getByRole("link", { name: /Camila Rojas/ });
+    expect(within(camila).getByText("Última noche jue 17")).toBeTruthy();
+    const luis = screen.getByRole("link", { name: /Luis Pérez/ });
+    expect(within(luis).getByText("Última noche vie 2 oct")).toBeTruthy();
+    const andrea = screen.getByRole("link", { name: /Andrea Soto/ });
+    expect(within(andrea).queryByText(/Última noche/)).toBeNull();
+  });
+
+  it("una salida de hoy muestra su última noche como ayer", () => {
+    const agenda = makeAgenda({
+      days: [
+        {
+          dateKey: TODAY,
+          offset: 0,
+          events: [makeEvent({ kind: "DEPARTURE", lastNightDateKey: "2026-09-13" })],
+        },
+      ],
+    });
+
+    render(<DashboardAgenda agenda={agenda} todayKey={TODAY} />);
+
+    expect(screen.getByText("Última noche ayer")).toBeTruthy();
   });
 
   // El monto solo aparece cuando hay plata exigible, y sin color: el color de

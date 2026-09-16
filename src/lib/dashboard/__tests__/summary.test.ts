@@ -745,6 +745,23 @@ describe("buildDashboardSummary — agenda", () => {
     expect(arrival?.kind).toBe("ARRIVAL");
   });
 
+  it("lastNightDateKey es el endDate (Última Noche), no el día de salida", () => {
+    const reservation = makeReservation({
+      billingType: "DAILY",
+      status: "CONFIRMED",
+      startDate: new Date("2026-08-20T15:00:00.000Z"),
+      endDate: new Date("2026-08-24T15:00:00.000Z"), // última noche hoy → sale mañana
+    });
+
+    const summary = buildDashboardSummary(buildInput([reservation]));
+
+    const departure = summary.agenda.days
+      .find((d) => d.offset === 1)
+      ?.events.find((e) => e.reservationId === reservation.id);
+    expect(departure?.kind).toBe("DEPARTURE");
+    expect(departure?.lastNightDateKey).toBe("2026-08-24");
+  });
+
   it("endDate = ayer genera DEPARTURE en offset 0; endDate = hoy genera DEPARTURE en offset 1 (no hoy)", () => {
     const departsToday = makeReservation({
       billingType: "DAILY",

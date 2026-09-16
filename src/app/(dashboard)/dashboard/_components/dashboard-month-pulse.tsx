@@ -26,16 +26,18 @@ export function DashboardMonthPulse({ month }: DashboardMonthPulseProps) {
   const previousMonth = monthName(month.previousMonthKey);
 
   return (
-    <section aria-labelledby="mes-heading" className="flex h-full flex-col">
-      <div className="mb-4">
-        <h2
-          id="mes-heading"
-          className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
-        >
+    // Sin card propia: `KpiCard` ya trae su marco (DESIGN.md, Cards → Cuándo
+    // NO usar). El título va al mismo tamaño que el de las otras secciones.
+    <section aria-labelledby="mes-heading">
+      <div className="mb-2 flex items-baseline justify-between gap-3 px-1">
+        <h2 id="mes-heading" className="text-sm font-medium text-foreground">
           {currentMonth}
         </h2>
+        <span className="text-[10px] tabular-nums text-muted-foreground">
+          Día {month.dayOfMonth}
+        </span>
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1">
         <KpiCard
           label="Cobrado"
           value={formatCLP(month.collected)}
