@@ -1,6 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { DashboardAgenda as AgendaData, DashboardAgendaEvent } from "@/lib/dashboard/summary";
+
+const push = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+
 import { DashboardAgenda } from "../dashboard-agenda";
 
 const TODAY = "2026-09-14";
@@ -68,6 +72,80 @@ describe("DashboardAgenda", () => {
 
     const link = screen.getByRole("link", { name: /Camila Rojas/ });
     expect(link.getAttribute("href")).toBe("/reservations/res-1");
+  });
+
+  describe("preview de la reserva", () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      push.mockReset();
+    });
+
+    const renderOne = () =>
+      render(
+        <DashboardAgenda
+          agenda={makeAgenda({ days: [{ dateKey: TODAY, offset: 0, events: [makeEvent()] }] })}
+          todayKey={TODAY}
+        />,
+      );
+
+    const apiReservation = {
+      id: "res-1",
+      propertyId: "prop-1",
+      clientId: "cli-1",
+      startDate: "2026-09-14T15:00:00.000Z",
+      endDate: "2026-09-18T15:00:00.000Z",
+      billingType: "DAILY",
+      unitsBooked: 1,
+      totalPrice: "300000",
+      status: "CONFIRMED",
+      bookingAirbnb: false,
+      notes: null,
+      createdAt: "2026-09-01T12:00:00.000Z",
+      property: {
+        id: "prop-1",
+        name: "Cabaña El Mirador",
+        color: "#3B82F6",
+        unitsAvailable: 1,
+        dailyPrice: "60000",
+        monthlyPrice: null,
+      },
+      client: { id: "cli-1", name: "Camila Rojas", email: "camila@example.com", phone: null },
+      payments: [],
+    };
+
+    it("un click abre el mismo preview que /calendar, con el link a la reserva completa", async () => {
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => apiReservation });
+      vi.stubGlobal("fetch", fetchMock);
+      renderOne();
+
+      fireEvent.click(screen.getByRole("link", { name: /Camila Rojas/ }));
+
+      const cta = await screen.findByRole("link", { name: /Ver reserva completa/ });
+      expect(cta.getAttribute("href")).toBe("/reservations/res-1");
+      expect(fetchMock).toHaveBeenCalledWith("/api/reservations/res-1");
+      expect(screen.getByText("camila@example.com")).toBeTruthy();
+      expect(push).not.toHaveBeenCalled();
+    });
+
+    it("si no se puede traer el detalle, navega a la página de la reserva", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+      renderOne();
+
+      fireEvent.click(screen.getByRole("link", { name: /Camila Rojas/ }));
+
+      await waitFor(() => expect(push).toHaveBeenCalledWith("/reservations/res-1"));
+      expect(screen.queryByRole("link", { name: /Ver reserva completa/ })).toBeNull();
+    });
+
+    it("ctrl+click conserva la navegación del link y no abre el preview", () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+      renderOne();
+
+      fireEvent.click(screen.getByRole("link", { name: /Camila Rojas/ }), { ctrlKey: true });
+
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
   });
 
   it("muestra la duración en noches para diarias y en meses para mensuales", () => {
