@@ -1,4 +1,4 @@
-import { startOfMonth, endOfMonth } from "date-fns";
+import { addDaysToDateKey, nowKeyInBusinessTz } from "@/lib/domain/timezone";
 import { getDecisionSummary, getOutstandingSnapshot, type OutstandingSnapshot } from "@/lib/actions/reports";
 import type { ReportDecisionSummary } from "@/lib/reports/decision-summary";
 import { getProperties } from "@/lib/actions/properties";
@@ -11,10 +11,14 @@ interface Property { id: string; name: string; unitsAvailable: number; }
 interface SessionInfo { plan: string | null; }
 
 export default async function ReportsPage() {
-  // Default date range = "current_month" (matches client's initial quickRange: "current_month")
-  const now = new Date();
-  const defaultStartDate = startOfMonth(now);
-  const defaultEndDate = endOfMonth(now);
+  // Default date range = "current_month" (matches client's initial quickRange: "current_month").
+  // El mes es el de Santiago, no el del servidor: en Vercel (UTC) el
+  // `startOfMonth(new Date())` de las 21:00 del último día ya es el mes siguiente.
+  const todayKey = nowKeyInBusinessTz();
+  const rangeStartKey = `${todayKey.slice(0, 7)}-01`;
+  const [year, month] = todayKey.split("-").map(Number);
+  const nextMonthStartKey = `${month === 12 ? year + 1 : year}-${String(month === 12 ? 1 : month + 1).padStart(2, "0")}-01`;
+  const rangeEndKey = addDaysToDateKey(nextMonthStartKey, -1);
 
   const [
     initialSnapshot,
@@ -25,7 +29,7 @@ export default async function ReportsPage() {
     getOutstandingSnapshot(),
     getProperties(),
     getSession(),
-    getDecisionSummary({ rangeStart: defaultStartDate, rangeEnd: defaultEndDate, propertyId: undefined }),
+    getDecisionSummary({ rangeStartKey, rangeEndKey, propertyId: undefined }),
   ]);
 
   const initialSessionInfo: SessionInfo = {

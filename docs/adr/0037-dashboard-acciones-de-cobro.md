@@ -167,6 +167,7 @@ aceptan un `onError` opcional.
   comparan `paidAt` por día UTC para el rango, pero `revenue-series` lo agrupa por mes de Santiago. Un
   pago real entre las 20:00 y las 23:59 de Santiago (por ejemplo, un webhook de Mercado Pago de noche)
   sigue quedando en días distintos según la cifra. Es trabajo aparte, porque es dominio de reportes.
+  Resuelto en ADR-0038 (2026-09-16).
 - **La fila y el diálogo usan palabras distintas.** La fila dice "Registrar pago" y, para un cobro
   existente, el diálogo se titula "Marcar como pagado", el título compartido con `/payments`.
 

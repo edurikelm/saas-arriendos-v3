@@ -104,10 +104,10 @@ export function endOfDayInTz(dateKey: string, tz: string = BUSINESS_TIME_ZONE): 
 /**
  * Mediodía de pared del día `dateKey` en `tz`, como instante. Es la forma de
  * guardar el `paidAt` de un pago manual: el owner elige un DÍA, pero `paidAt`
- * es un instante, y ese instante tiene que caer en el día elegido tanto leído
- * en Santiago (`formatInstant`, meses de `revenue-series`) como por día UTC
- * (rangos de `decision-summary`). El mediodía de Santiago son las 15:00 o 16:00
- * UTC: lejos de los dos bordes.
+ * es un instante, y ese instante tiene que caer en el día elegido leído en
+ * Santiago (`formatInstant`, rangos y meses de `revenue-series`, ADR-0038). El
+ * mediodía de Santiago son las 15:00 o 16:00 UTC: cae en el mismo día también
+ * por día UTC, lejos de los dos bordes.
  *
  * Reemplaza a `new Date(y, m - 1, d, 12)`, que es el mediodía del NAVEGADOR:
  * medido el 2026-09-15 con `TZ` real, desde Sídney, Auckland o Fiji ese
@@ -224,6 +224,21 @@ export function dateOnlyKey(date: Date | string): string {
     return /^\d{4}-\d{2}-\d{2}/.test(date) ? date.slice(0, 10) : getDateKeyInTz(date);
   }
   return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Inverso de `dateOnlyKey` para un `Date` que se va a leer con él: la clave
+ * `YYYY-MM-DD` anclada a medianoche UTC. `dateOnlyKey(dateOnlyFromKey(k)) === k`
+ * en cualquier zona del proceso.
+ *
+ * Es la forma de pasar un DÍA de negocio como `Date` a los módulos que acotan
+ * por día (`buildDecisionSummary`, `revenue-series`): esos leen los bordes del
+ * rango con `dateOnlyKey`. NO es un instante del día en Santiago —la medianoche
+ * UTC son las 20:00 o 21:00 del día anterior allá—, así que no sirve para
+ * compararlo contra instantes reales (`paidAt`); para eso, `startOfDayInTz`.
+ */
+export function dateOnlyFromKey(dateKey: string): Date {
+  return new Date(`${dateKey}T00:00:00.000Z`);
 }
 
 /**

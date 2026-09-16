@@ -20,7 +20,7 @@ import {
   buildCashByMethod,
   type CashPaymentInput,
 } from "@/lib/reports/revenue-series";
-import { BUSINESS_TIME_ZONE } from "@/lib/domain/timezone";
+import { BUSINESS_TIME_ZONE, dateOnlyFromKey } from "@/lib/domain/timezone";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -143,10 +143,11 @@ describe("buildMonthlyCollectedCash", () => {
   const noonSantiago = (y: number, m: number, d: number) =>
     new Date(Date.UTC(y, m - 1, d, 15, 0, 0));
 
-  // Jan 2026 range in Santiago: Jan 1 00:00 to Jan 31 23:59:59
-  // In UTC: Jan 1 03:00 to Feb 1 02:59:59
-  const rangeStart = new Date(Date.UTC(2026, 0, 1, 3, 0, 0));
-  const rangeEnd = new Date(Date.UTC(2026, 1, 1, 2, 59, 59));
+  // Jan 2026: el rango son DÍAS, leídos con `dateOnlyKey` (ADR-0038). Antes
+  // este fixture era el instante de fin de día en Santiago (Feb 1 02:59 UTC),
+  // que como día es el 1 de febrero.
+  const rangeStart = dateOnlyFromKey("2026-01-01");
+  const rangeEnd = dateOnlyFromKey("2026-01-31");
 
   it("sums eligible payments into correct monthKey (America/Santiago)", () => {
     const payments: CashPaymentInput[] = [

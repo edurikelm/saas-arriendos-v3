@@ -247,7 +247,7 @@ describe("ReportsClient - rango personalizado", () => {
 
     await waitFor(() => {
       expect(getDecisionSummary).toHaveBeenCalledWith(
-        expect.objectContaining({ rangeStart: CUSTOM_FROM, rangeEnd: CUSTOM_TO }),
+        expect.objectContaining({ rangeStartKey: "2026-01-05", rangeEndKey: "2026-01-20" }),
       );
     });
   });
@@ -277,7 +277,7 @@ describe("ReportsClient - rango personalizado", () => {
     await user.click(screen.getByTestId("custom-range-trigger"));
     await waitFor(() => {
       expect(getDecisionSummary).toHaveBeenCalledWith(
-        expect.objectContaining({ rangeStart: CUSTOM_FROM, rangeEnd: CUSTOM_TO }),
+        expect.objectContaining({ rangeStartKey: "2026-01-05", rangeEndKey: "2026-01-20" }),
       );
     });
     vi.mocked(getDecisionSummary).mockClear();

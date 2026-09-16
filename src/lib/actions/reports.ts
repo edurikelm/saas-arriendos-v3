@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import type { Prisma } from "@prisma/client";
 import { getSession } from "@/lib/auth/session";
 import { startOfMonth, endOfMonth } from "date-fns";
-import { nightsBetweenDateOnly } from "@/lib/domain/timezone";
+import { dateOnlyFromKey, dateOnlyKey, nightsBetweenDateOnly } from "@/lib/domain/timezone";
 import {
   buildCollectionReportRows,
   buildAgingBuckets,
@@ -504,8 +504,29 @@ export async function getOutstandingSnapshot(
 
 export interface DecisionSummaryFilters {
   propertyId?: string;
-  rangeStart: Date;
-  rangeEnd: Date;
+  /**
+   * Primer y último día del rango, inclusive, como `YYYY-MM-DD` (ADR-0038).
+   *
+   * Son claves y no `Date` porque el día lo elige el navegador: un `Date` de
+   * `startOfMonth`/`endOfMonth` llega como instante de la zona del navegador
+   * (en Chile, fin de mes = 02:59 UTC del día siguiente) y en el servidor ya
+   * no se puede saber qué día era. El cliente arma la clave con `localDateKey`.
+   */
+  rangeStartKey: string;
+  rangeEndKey: string;
+}
+
+const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Clave `YYYY-MM-DD` de un día que existe. El formato no alcanza: `new Date`
+ * acepta `2026-02-30` y lo corre al 2 de marzo sin avisar, así que se exige que
+ * la clave vuelva idéntica.
+ */
+function isValidDateKey(key: string): boolean {
+  if (!DATE_KEY_RE.test(key)) return false;
+  const date = dateOnlyFromKey(key);
+  return !Number.isNaN(date.getTime()) && dateOnlyKey(date) === key;
 }
 
 /**
@@ -523,7 +544,10 @@ export async function getDecisionSummary(
   const session = await getSession();
   if (!session) return null;
 
-  const { propertyId, rangeStart, rangeEnd } = filters;
+  const { propertyId, rangeStartKey, rangeEndKey } = filters;
+  if (!isValidDateKey(rangeStartKey) || !isValidDateKey(rangeEndKey)) return null;
+  const rangeStart = dateOnlyFromKey(rangeStartKey);
+  const rangeEnd = dateOnlyFromKey(rangeEndKey);
 
   // Fetch all properties the user owns (optionally filtered by propertyId).
   // propertyId is always combined with userId (ownerId) for security.
