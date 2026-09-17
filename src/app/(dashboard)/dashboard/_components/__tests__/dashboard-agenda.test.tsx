@@ -5,7 +5,7 @@ import type { DashboardAgenda as AgendaData, DashboardAgendaEvent } from "@/lib/
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
-import { DashboardAgenda } from "../dashboard-agenda";
+import { AGENDA_ROW_LIMIT, DashboardAgenda, cutAgendaDays } from "../dashboard-agenda";
 
 const TODAY = "2026-09-14";
 
@@ -148,7 +148,7 @@ describe("DashboardAgenda", () => {
     });
   });
 
-  it("muestra la duración en noches para diarias y en meses para mensuales", () => {
+  it("una llegada muestra la propiedad y abajo la duración: noches en diarias, meses en mensuales", () => {
     const agenda = makeAgenda({
       days: [
         {
@@ -171,21 +171,24 @@ describe("DashboardAgenda", () => {
 
     render(<DashboardAgenda agenda={agenda} todayKey={TODAY} />);
 
-    expect(screen.getByText("Cabaña El Mirador · 1 noche")).toBeTruthy();
-    expect(screen.getByText("Cabaña El Mirador · 3 meses · 2 unidades")).toBeTruthy();
+    const camila = screen.getByRole("link", { name: /Camila Rojas/ });
+    expect(within(camila).getByText("Cabaña El Mirador")).toBeTruthy();
+    expect(within(camila).getByText("1 noche · última noche vie 18")).toBeTruthy();
+    const andrea = screen.getByRole("link", { name: /Andrea Soto/ });
+    expect(within(andrea).getByText("3 meses · 2 unidades")).toBeTruthy();
   });
 
   // La Última Noche es la noche anterior al día de salida (CONTEXT.md): una
-  // salida del viernes 18 muestra "jueves 17", nunca el 18.
-  it("muestra la última noche de las reservas diarias, no de las mensuales", () => {
+  // llegada que duerme hasta el jueves 17 muestra "jue 17", nunca el 18.
+  it("la última noche va solo en llegadas diarias", () => {
     const agenda = makeAgenda({
       days: [
         { dateKey: TODAY, offset: 0, events: [] },
         {
-          dateKey: "2026-09-18",
-          offset: 4,
+          dateKey: "2026-09-16",
+          offset: 2,
           events: [
-            makeEvent({ kind: "DEPARTURE", lastNightDateKey: "2026-09-17" }),
+            makeEvent({ nights: 2, lastNightDateKey: "2026-09-17" }),
             makeEvent({ reservationId: "res-2", clientName: "Luis Pérez", lastNightDateKey: "2026-10-02" }),
             makeEvent({
               reservationId: "res-3",
@@ -202,27 +205,36 @@ describe("DashboardAgenda", () => {
     render(<DashboardAgenda agenda={agenda} todayKey={TODAY} />);
 
     const camila = screen.getByRole("link", { name: /Camila Rojas/ });
-    expect(within(camila).getByText("Última noche jue 17")).toBeTruthy();
+    expect(within(camila).getByText("2 noches · última noche jue 17")).toBeTruthy();
     const luis = screen.getByRole("link", { name: /Luis Pérez/ });
-    expect(within(luis).getByText("Última noche vie 2 oct")).toBeTruthy();
+    expect(within(luis).getByText("5 noches · última noche vie 2 oct")).toBeTruthy();
     const andrea = screen.getByRole("link", { name: /Andrea Soto/ });
-    expect(within(andrea).queryByText(/Última noche/)).toBeNull();
+    expect(within(andrea).queryByText(/última noche/)).toBeNull();
   });
 
-  it("una salida de hoy muestra su última noche como ayer", () => {
+  // En una salida la última noche es siempre la víspera y la duración ya no se
+  // coordina: lo único que agrega es cuántas unidades preparar.
+  it("una salida no repite última noche ni duración, y solo nombra las unidades si son varias", () => {
     const agenda = makeAgenda({
       days: [
         {
           dateKey: TODAY,
           offset: 0,
-          events: [makeEvent({ kind: "DEPARTURE", lastNightDateKey: "2026-09-13" })],
+          events: [
+            makeEvent({ kind: "DEPARTURE", lastNightDateKey: "2026-09-13" }),
+            makeEvent({ kind: "DEPARTURE", reservationId: "res-2", clientName: "Jorge Muñoz", unitsBooked: 2 }),
+          ],
         },
       ],
     });
 
     render(<DashboardAgenda agenda={agenda} todayKey={TODAY} />);
 
-    expect(screen.getByText("Última noche ayer")).toBeTruthy();
+    const camila = screen.getByRole("link", { name: /Camila Rojas/ });
+    expect(within(camila).queryByText(/noche/)).toBeNull();
+    expect(within(camila).getByText("Cabaña El Mirador")).toBeTruthy();
+    const jorge = screen.getByRole("link", { name: /Jorge Muñoz/ });
+    expect(within(jorge).getByText("2 unidades")).toBeTruthy();
   });
 
   // El monto solo aparece cuando hay plata exigible, y sin color: el color de
@@ -294,5 +306,73 @@ describe("DashboardAgenda", () => {
     render(<DashboardAgenda agenda={makeAgenda()} todayKey={TODAY} />);
 
     expect(screen.getByText("No hay reservas por llegar ni por salir.")).toBeTruthy();
+  });
+
+  describe("tope de filas", () => {
+    const day = (dateKey: string, offset: number, count: number) => ({
+      dateKey,
+      offset,
+      events: Array.from({ length: count }, (_, i) =>
+        makeEvent({ reservationId: `${dateKey}-${i}`, clientName: `Cliente ${dateKey} ${i}` }),
+      ),
+    });
+
+    it("hoy y mañana van completos aunque pasen del tope", () => {
+      const cut = cutAgendaDays([day(TODAY, 0, 5), day("2026-09-15", 1, 4), day("2026-09-16", 2, 1)]);
+
+      expect(cut.days.map((d) => d.dateKey)).toEqual([TODAY, "2026-09-15"]);
+      expect(cut.hiddenCount).toBe(1);
+    });
+
+    it("después de mañana entran días enteros mientras quepan, sin partir ninguno", () => {
+      const cut = cutAgendaDays([
+        day(TODAY, 0, 3),
+        day("2026-09-15", 1, 2),
+        day("2026-09-17", 3, 1),
+        day("2026-09-18", 4, 3),
+        day("2026-09-19", 5, 1),
+      ]);
+
+      expect(AGENDA_ROW_LIMIT).toBe(6);
+      expect(cut.days.map((d) => d.dateKey)).toEqual([TODAY, "2026-09-15", "2026-09-17"]);
+      // El sábado 19 cabría solo, pero va después del viernes que no cupo.
+      expect(cut.hiddenCount).toBe(4);
+      expect(cut.hiddenDays.map((d) => d.dateKey)).toEqual(["2026-09-18", "2026-09-19"]);
+    });
+
+    it("el primer día con movimientos entra aunque solo pase del tope", () => {
+      const cut = cutAgendaDays([day(TODAY, 0, 0), day("2026-09-17", 3, 8)]);
+
+      expect(cut.days.map((d) => d.dateKey)).toEqual([TODAY, "2026-09-17"]);
+      expect(cut.hiddenCount).toBe(0);
+    });
+
+    it("lo que no cabe se cuenta al pie y lleva al calendario", () => {
+      const agenda = makeAgenda({
+        days: [day(TODAY, 0, 4), day("2026-09-15", 1, 2), day("2026-09-17", 3, 2), day("2026-09-19", 5, 1)],
+      });
+
+      render(<DashboardAgenda agenda={agenda} todayKey={TODAY} />);
+
+      expect(screen.queryByRole("list", { name: "Jueves 17" })).toBeNull();
+      const more = screen.getByRole("link", { name: "+3 movimientos más · hasta el sáb 19" });
+      expect(more.getAttribute("href")).toBe("/calendar");
+    });
+
+    it("un solo día fuera se nombra sin 'hasta'", () => {
+      const agenda = makeAgenda({
+        days: [day(TODAY, 0, 4), day("2026-09-15", 1, 2), day("2026-09-17", 3, 1)],
+      });
+
+      render(<DashboardAgenda agenda={agenda} todayKey={TODAY} />);
+
+      expect(screen.getByRole("link", { name: "+1 movimiento más · el jue 17" })).toBeTruthy();
+    });
+
+    it("sin nada fuera no hay pie", () => {
+      render(<DashboardAgenda agenda={makeAgenda({ days: [day(TODAY, 0, 2)] })} todayKey={TODAY} />);
+
+      expect(screen.queryByRole("link", { name: /movimientos? más/ })).toBeNull();
+    });
   });
 });

@@ -6,6 +6,7 @@ colors:
   # Primary
   verdigris: "oklch(0.7227 0.1920 149.5793)"
   verdigris-deep: "#2DBE85"
+  verdigris-text: "oklch(0.51 0.15 149.58)"
 
   # Semantic
   calm-sea: "oklch(0.65 0.16 150)"
@@ -209,7 +210,7 @@ El modo de la app es **Operate**. No persuade, no entretiene, no educa — opera
 La paleta es de baja saturación en neutros (gris-verdoso apenas perceptible, no gris puro) y saturación media-alta en el eje semántico. La excepción es el eje de marca (Verdigris), que es deliberadamente vivo para que active states destaquen sin gritar. **No hay colores de "data" sueltos** — los charts heredan la rampa teal del primary (`--chart-1` a `--chart-5` son verdes descendientes), no una paleta arcoíris.
 
 ### Primary
-- **Verdigris** (`oklch(0.7227 0.1920 149.5793)`): Color de marca. Usado en active state del sidebar owner, accent strip superior de tablas (`border-t-2`), fill de la ProgressBar del `<KpiCard>`, fondo de filter pills activos, texto de link primario. **No** en el icon container del `<KpiCard>`: `KpiTone` no tiene tono `primary` y `default` va a `bg-muted text-muted-foreground`. **Su rol es señalar navegación activa y resultado positivo, no decoración.** En dark mode se mantiene como `Verdigris Deep` (`#2DBE85`).
+- **Verdigris** (`oklch(0.7227 0.1920 149.5793)`): Color de marca. Usado en active state del sidebar owner, accent strip superior de tablas (`border-t-2`), fill de la ProgressBar del `<KpiCard>`, fondo de filter pills activos. Un link verde de texto chico (las bandas de `DashboardSection`) va en `text-primary-text` (**Verdigris Text**), no en `text-primary`: ver The Fill-vs-Text Rule. **No** en el icon container del `<KpiCard>`: `KpiTone` no tiene tono `primary` y `default` va a `bg-muted text-muted-foreground`. **Su rol es señalar navegación activa y resultado positivo, no decoración.** En dark mode se mantiene como `Verdigris Deep` (`#2DBE85`).
 
 ### Semantic
 - **Calm Sea** (`oklch(0.65 0.16 150)`): Estado de éxito — reservas CONFIRMED, pagos COMPLETED, KPIs de cobranza ≥85%, sublabel positivo en indicadores.
@@ -247,6 +248,8 @@ Son **tres** niveles, no dos, y confundir los dos últimos es el error sutil:
 | Legible sobre card | `--{tono}-text` | Texto e íconos sobre `--card` o sobre `bg-{tono}/10` |
 
 `--{tono}-foreground` de success/warning/info ya **no tiene versión por tema** — es un único valor definido en `:root` y heredado en `.dark`, igual que `--brand-secondary`. Antes sí tenía: el relleno (`--success`/`--warning`/`--info`) casi no cambiaba entre temas, pero su `-foreground` se invertía (L=0.30 claro → L=0.85 oscuro), así que el par `bg-{tono}` + `text-{tono}-foreground` — el que el propio nombre invita a usar — medía **1.24-1.67:1 en oscuro**: invisible sobre su propio relleno. El valor único (`oklch(0.28 0.10 150)` success, `oklch(0.40 0.10 60)` warning, `oklch(0.27 0.12 210)` info) pasa AA sobre el relleno en los dos temas: **4.56-4.63:1 claro, 4.63-5.63:1 oscuro**. En claro sigue leyéndose oscuro/negro-ish — sirve para el texto de 10px de un badge, donde el fondo teñido ya carga el color; no sirve para un valor de 20px cuyo único trabajo es comunicar el tono. Por eso existe el nivel `-text`, calibrado al mismo punto que eligió `--destructive-text`: **~5.3:1 en claro**, suficiente para AA y suficientemente saturado para seguir leyéndose verde, ámbar o cyan.
+
+**Verdigris también tiene su `-text`.** `--primary` sobre la banda `bg-muted/40` de `DashboardSection` mide **2.20:1** en claro, con links de 10px ("Ver reservas", "Ver todas", "Ver calendario") que piden 4.5:1. `--primary-text` (`oklch(0.51 0.15 149.58)`, mismo matiz que la marca, bajado al punto de los otros `-text`) mide **5.16:1** ahí. En oscuro es un alias de `--primary`: `#2DBE85` ya mide 7.31:1 sobre la misma banda. El resto de los `text-primary` del producto (active state del sidebar, link de `/admin`) no se migró en ese cambio.
 
 Medidos sobre card, valor del `<KpiCard>` a 20px bold: `--success-text` **5.34:1 claro / 8.19:1 oscuro**, `--warning-text` **5.40:1 / 9.62:1**, `--info-text` **5.20:1 / ~7:1**. Sobre `bg-{tono}/10` (el contenedor de ícono del `<KpiCard>`), **4.67–5.02:1 en claro y 5.04–8.22:1 en oscuro**, todos sobre el piso de 3:1 que WCAG 1.4.11 pide a un gráfico no-textual. En oscuro los `-text` **aclaran** en vez de oscurecer, igual que `--destructive-text`.
 
@@ -373,7 +376,7 @@ Las páginas de marketing (`landing-page.tsx`, `pricing-page.tsx`) usan `shadow-
 
 **The Marketing/Product Split.** Las superficies de marketing (landing, pricing) y las de producto (dashboard, listas, formularios, settings) tienen reglas distintas. Marketing puede usar sombras libremente como vehículo persuasivo. Producto debe permanecer plano salvo en componentes flotantes. Esta es la única excepción consciente al `The Calm Water Rule` y aplica solo a las páginas públicas de captación.
 
-**The Banded Section Rule.** `DashboardSection` (`/dashboard`) da jerarquía a una card sin shadow: el título vive DENTRO de la card, en una banda `bg-muted/40` con borde inferior, junto a un `meta` de una línea y un link de acción — no como label suelto flotando encima. Es el mismo lenguaje que ya usaba `border-t-2 border-t-primary` en `<DataTable>`: un segundo plano tonal, no elevación. La usan Agenda, Cobros pendientes y Propiedades; el mes (`DashboardMonthPulse`) **no** — sus `KpiCard` ya traen su propio marco, y envolverlos en `DashboardSection` sería doble framing (ver Cards → Cuándo NO usar). La agenda repite el mismo recurso, más tenue (`bg-muted/25`), para separar los días dentro de la card sin sumar una segunda zona de color.
+**The Banded Section Rule.** `DashboardSection` (`/dashboard`) da jerarquía a una card sin shadow: el título vive DENTRO de la card, en una banda `bg-muted/40` con borde inferior, junto a un `meta` de una línea y un link de acción — no como label suelto flotando encima. Es el mismo lenguaje que ya usaba `border-t-2 border-t-primary` en `<DataTable>`: un segundo plano tonal, no elevación. La usan Agenda, Cobros pendientes y Propiedades; el mes (`DashboardMonthPulse`) **no** — sus `KpiCard` ya traen su propio marco, y envolverlos en `DashboardSection` sería doble framing (ver Cards → Cuándo NO usar). La agenda repite el mismo recurso, más tenue (`bg-muted/25`), para separar los días dentro de la card sin sumar una segunda zona de color. `DashboardSection` es una columna flex de alto completo: agenda y cobros van lado a lado estirados al mismo alto, y el pie de cada una ("+N movimientos más", "Total") lleva `mt-auto` para quedar al fondo y no a media card.
 
 ---
 

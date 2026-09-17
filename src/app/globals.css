@@ -87,6 +87,12 @@
   --success-text: oklch(0.51 0.15 150);
   --warning-text: oklch(0.53 0.14 75);
   --info-text: oklch(0.51 0.12 200);
+  /* Verde de marca legible COMO TEXTO (links "Ver todas", "Ver calendario").
+     --primary es relleno: sobre --card mide 2.28:1 en claro y 2.20:1 sobre la
+     banda bg-muted/40 de DashboardSection, con texto de 10px que pide 4.5:1.
+     Mismo matiz que --primary (149.58), bajado al punto de los otros -text:
+     5.16:1 sobre la banda. */
+  --primary-text: oklch(0.51 0.15 149.58);
   --navbar: oklch(1 0 0);
   --navbar-foreground: #131f1a;
   --beige: oklch(0.97 0.02 200);
@@ -173,6 +179,9 @@
   --success-text: oklch(0.75 0.16 150);
   --warning-text: oklch(0.82 0.16 75);
   --info-text: oklch(0.76 0.14 200);
+  /* En oscuro el relleno ya se lee como texto: #2DBE85 mide 7.31:1 sobre la
+     banda de DashboardSection. */
+  --primary-text: var(--primary);
   --navbar: #0d1c2d;
   --navbar-foreground: #f1f5f9;
   --beige: oklch(0.30 0.02 200);
@@ -210,6 +219,7 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-text: var(--primary-text);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
