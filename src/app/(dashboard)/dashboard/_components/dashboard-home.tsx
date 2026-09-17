@@ -121,26 +121,26 @@ export function DashboardHome({ summary, banner, canSendPaymentLinks = false }: 
         <>
           {/* Tres columnas desde xl: cada sección es una lista de filas cortas
               (nombre + cifra), y a 2/3 del ancho esas filas quedaban con un
-              hueco en el medio. Cada card termina donde termina su contenido
-              (`items-start`).
+              hueco en el medio.
 
-              El mes va bajo la agenda y no bajo propiedades: apilado con
-              propiedades, la tercera columna medía casi el doble que las
-              otras dos y el hueco se mudaba abajo de agenda y cobros. La
-              posición es solo visual (`xl:col-start`/`row-start`); el DOM
-              conserva el orden de lectura —agenda, cobros, propiedades,
-              mes—, que es el que ven el móvil, el teclado y los lectores de
-              pantalla. `grid-rows-[auto_1fr]`: la fila 1 la mide solo la
-              agenda y las columnas que abarcan dos filas cargan su alto
-              sobrante en la segunda, así el mes queda pegado a la agenda.
+              Agenda y cobros van en su propia grilla y se estiran al mismo
+              alto: son las dos listas que piden acción, con el mismo tope de
+              6 filas, y leídas lado a lado su pie ("+N más", "Total") queda a
+              la misma altura. Propiedades y el mes van en la tercera columna,
+              cada una del alto de su contenido: estiradas, una cuenta con 15
+              propiedades dejaría agenda y cobros con media card vacía.
 
-              En lg, dos columnas: a 1/3 la columna de cobros quedaría en
-              ~224px, sin espacio para monto y acciones en la misma fila. */}
-          <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2 xl:grid-cols-3 xl:grid-rows-[auto_1fr]">
-            <div className="xl:col-start-1 xl:row-start-1">
+              El mes va bajo propiedades y ya no bajo la agenda: con la agenda
+              sin tope, una semana cargada lo dejaba a 1286px, fuera de la
+              primera pantalla a 1280×800; acá empieza en ~555px.
+
+              El DOM conserva el orden de lectura —agenda, cobros, propiedades,
+              mes—, que es el del móvil, el teclado y los lectores de pantalla.
+              En lg, dos columnas por fila: a 1/3 la columna de cobros quedaría
+              en ~224px, sin espacio para monto y acciones en la misma fila. */}
+          <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:col-span-2">
               <DashboardAgenda agenda={agenda} todayKey={todayKey} />
-            </div>
-            <div className="xl:col-start-2 xl:row-span-2 xl:row-start-1">
               <DashboardCobranzaList
                 items={cobranzaItems}
                 viewAllHref="/payments"
@@ -150,10 +150,8 @@ export function DashboardHome({ summary, banner, canSendPaymentLinks = false }: 
                 canSendPaymentLinks={canSendPaymentLinks}
               />
             </div>
-            <div className="xl:col-start-3 xl:row-span-2 xl:row-start-1">
+            <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2 xl:grid-cols-1">
               <DashboardPropertyBoard board={propertyBoard} todayKey={todayKey} />
-            </div>
-            <div className="xl:col-start-1 xl:row-start-2">
               <DashboardMonthPulse month={month} />
             </div>
           </div>

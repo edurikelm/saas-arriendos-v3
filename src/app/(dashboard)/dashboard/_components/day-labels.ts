@@ -30,14 +30,16 @@ export function shortDate(dateKey: string, todayKey: string): string {
 }
 
 /**
- * Día relativo en minúscula, para ir dentro de una frase: "ayer", "hoy",
- * "mañana", "vie 18", o "jue 1 oct" cuando cae en otro mes. "ayer" existe por
- * la última noche de una salida de hoy, la única fecha pasada que se muestra. El mes se agrega solo si
+ * Día relativo en minúscula, para ir dentro de una frase: "hoy", "mañana",
+ * "vie 18", o "jue 1 oct" cuando cae en otro mes. El mes se agrega solo si
  * cambia, porque "vie 18" al lado de la fecha de hoy ya es inequívoco.
+ *
+ * Solo recibe fechas de hoy en adelante. Existía un "ayer" para la última
+ * noche de una salida de hoy, que la agenda ya no muestra: en una salida es
+ * siempre la víspera.
  */
 export function relativeDayInline(dateKey: string, todayKey: string): string {
   const diff = daysBetween(todayKey, dateKey);
-  if (diff === -1) return "ayer";
   if (diff === 0) return "hoy";
   if (diff === 1) return "mañana";
   const weekday = formatDateOnly(dateKey, { weekday: "short" });

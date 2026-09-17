@@ -416,10 +416,23 @@ siguiente): mismo cálculo (`amountForRow`), sobre la ventana de cobranza comple
 items visibles del card (que vienen truncados a `collectionLimit`). Es la única cifra de dinero
 fuera de "Por cobrar", y por eso no lleva color propio.
 
-Una fila `DAILY` agrega "Última noche `<día relativo>`" bajo la propiedad, con `lastNightDateKey`
-= `endDate` (convención Última Noche); `MONTHLY` no la muestra — ahí la fecha que importa es el fin
-del contrato, ya nombrado como salida. Es la única fecha PASADA que la agenda puede mostrar (la
-última noche de una salida de hoy), por lo que "ayer" es un caso legítimo de `relativeDayInline`.
+Cada fila tiene el esqueleto de una fila de cobros: cliente y monto arriba, propiedad (y "sin
+pagos"/"saldo") abajo, y una tercera línea a todo el ancho. En una **llegada** esa línea lleva la
+duración, las unidades si son más de una y, en `DAILY`, "última noche `<día relativo>`"
+(`lastNightDateKey` = `endDate`, convención Última Noche); `MONTHLY` no la muestra — ahí la fecha
+que importa es el fin del contrato, ya nombrado como salida. En una **salida** la línea lleva solo
+las unidades si son más de una: su última noche es siempre la víspera y su duración ya no se
+coordina. Por eso la agenda nunca muestra una fecha pasada y `relativeDayInline` no tiene caso
+"ayer".
+
+La agenda muestra hasta `AGENDA_ROW_LIMIT` (6) filas, el mismo tope que "Cobros pendientes": hoy y
+mañana siempre completos; después, días enteros mientras quepan, sin partir ninguno
+(`cutAgendaDays`). Lo que queda fuera se cuenta al pie —"+6 movimientos más · hasta el mar 22"—
+con un link a `/calendar`.
+
+En `xl`, agenda y cobros van lado a lado en una grilla propia y se estiran al mismo alto, con su pie
+("+N más", "Total") al fondo (`mt-auto`); propiedades y el mes van en la tercera columna, cada uno
+del alto de su contenido. Ver ADR-0036, Layout.
 
 Cada fila de agenda y de `DashboardPropertyBoard` lleva un punto (`PropertyDot`) con
 `property.color` (dato del usuario, fallback `--primary`) — el mismo color que identifica la

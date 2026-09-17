@@ -56,11 +56,19 @@ EVENTO — algo que el dueño atiende un día concreto:
 - Una semana sin eventos dice cuándo es el próximo movimiento en vez de quedar en blanco.
 - Cada fila lleva el punto de color de su propiedad (`PropertyDot`, `property.color` con fallback
   `--primary`) — la misma clave que identifica la propiedad en `/calendar`. Es identidad, no estado.
-- Una fila `DAILY` agrega "Última noche `<día relativo>`" bajo la propiedad, con
-  `lastNightDateKey = endDate` (la misma convención de Última Noche); `MONTHLY` no la muestra,
-  porque ahí la fecha que importa ya la nombra la salida (fin del contrato). Es la única fecha
-  PASADA que la agenda puede mostrar (la última noche de una salida de hoy), así que
-  `relativeDayInline` reconoce "ayer" como caso legítimo.
+- Una llegada `DAILY` agrega "última noche `<día relativo>`", con `lastNightDateKey = endDate`
+  (la misma convención de Última Noche); `MONTHLY` no la muestra, porque ahí la fecha que importa
+  ya la nombra la salida (fin del contrato). **Actualizado (2026-09-17):** la fila pasa a tres
+  líneas con el esqueleto de una fila de cobros — cliente y monto; propiedad y "sin pagos"/"saldo";
+  duración, unidades y última noche a todo el ancho —, porque en la columna de 1/3 la línea
+  "propiedad · noches · unidades" se truncaba en 8 de 12 filas de una semana cargada. Las salidas
+  dejan de mostrar última noche y duración (la primera es siempre la víspera, la segunda ya no se
+  coordina) y solo nombran las unidades si son varias; con eso `relativeDayInline` pierde el caso
+  "ayer", que solo existía para ellas.
+- **Tope de 6 filas (2026-09-17)**, el mismo que "Por cobrar": hoy y mañana siempre completos,
+  después días enteros mientras quepan (`cutAgendaDays`), y el resto al pie como "+N movimientos
+  más · hasta el `<día>`" con link a `/calendar`. Sin tope, una semana de 12 movimientos medía
+  1106px contra 626px de cobros a 1280 y dejaba el mes a 1286px, fuera de la primera pantalla.
 - Hoy sin eventos ya no ocupa una fila propia: la banda del día dice "Sin llegadas ni salidas" — el
   subtítulo de la página ya anuncia un día vacío, así que una fila entera para repetirlo empujaba
   hacia abajo los días con eventos (PR #303).
@@ -136,23 +144,28 @@ encabezado "Vencidos" de "Por cobrar" (ADR-0033), no una segunda agregación.
 > la que dos columnas esperan a `xl` (más abajo no entra monto y vencimiento en la misma fila) sigue
 > siendo válida para el mismo salto de dos a tres columnas.
 
-Tres columnas desde `xl`, dos desde `lg`, apiladas en móvil, con `items-start`: ninguna card se
-estira a la altura de la más alta de su fila. A `lg` (1024px, con sidebar) una columna de más
-dejaría cada una en ~224px, sin espacio para monto y vencimiento en la misma fila.
+> **Actualizado (2026-09-17).** El mes iba bajo la agenda, con `xl:col-start`/`row-span-2` sobre
+> una sola grilla. Eso equilibraba las columnas con datos parecidos a producción, pero con una
+> semana cargada la agenda (sin tope entonces) medía 1106px y dejaba el mes a 1286px, fuera de la
+> primera pantalla a 1280×800, con ~700px vacíos bajo cobros y propiedades. Con el tope de 6 filas
+> de la agenda, el layout vigente es el de abajo.
 
-En `xl`, agenda, cobros y propiedades comparten la primera fila de la grilla
-(`xl:grid-rows-[auto_1fr]`) y el mes va bajo la agenda (columna 1), no bajo propiedades: apilado con
-el tablero de propiedades —la lista más larga de la página—, esa columna medía casi el doble que las
-otras dos (~800px contra ~490/570, con datos parecidos a producción). El acomodo es solo visual
-(`xl:col-start`/`row-start`/`row-span-2`): el DOM conserva el orden de lectura — agenda, cobros,
-propiedades, mes —, el mismo que ve el móvil, el teclado y un lector de pantalla. Dentro de ese
-orden se mantiene el criterio original: lo que pide acción primero (agenda, cobros), lo que se
-consulta después (propiedades, mes).
+Tres columnas desde `xl`, dos desde `lg`, apiladas en móvil. A `lg` (1024px, con sidebar) una
+columna de más dejaría cada una en ~224px, sin espacio para monto y vencimiento en la misma fila.
 
-Medido con datos parecidos a producción: a 1658px las tres columnas terminan en 568/502/418px; a
-1280px, en 718/519/418px. Los dos `KpiCard` del mes van lado a lado solo desde `2xl` (columna
-~435px); entre 1280 y 1535px siguen apilados porque a ~310px un monto en CLP no cabe en media
-columna — sin esto, mover el mes de lugar solo trasladaba el desbalance de una columna a otra.
+Agenda y cobros van en una grilla propia (`xl:col-span-2`, `lg:grid-cols-2`) y **se estiran al
+mismo alto**: son las dos listas que piden acción, con el mismo tope de 6 filas, y leídas lado a
+lado su pie ("+N movimientos más", "Total") queda a la misma altura (`DashboardSection` es una
+columna flex de alto completo y cada pie lleva `mt-auto`). Propiedades y el mes van en la tercera
+columna, uno sobre otro y cada uno del alto de su contenido (`items-start`): estirar agenda y
+cobros al alto de esa columna los vaciaría con muchas propiedades. No hay acomodo visual: el DOM y
+la pantalla siguen el mismo orden — agenda, cobros, propiedades, mes —, el del móvil, el teclado y
+un lector de pantalla, y el criterio original de lo que pide acción primero.
+
+Medido con el harness (semana de 12 movimientos, 11 cobros, 7 propiedades): a 1280px agenda y
+cobros terminan en 782px y el mes empieza en 555px; a 1658px, 765px y 506px; con una semana quieta
+a 1280, 427px y 506px. Los dos `KpiCard` del mes van lado a lado solo desde `2xl` (columna ~435px);
+entre 1280 y 1535px siguen apilados porque a ~304px un monto en CLP no cabe en media columna.
 
 ### Fuera de alcance (pendiente)
 
@@ -188,6 +201,11 @@ columna — sin esto, mover el mes de lugar solo trasladaba el desbalance de una
   `property-dot.tsx` (`PropertyDot`). `summary.ts` suma `lastNightDateKey` a `DashboardAgendaEvent`
   y `propertyColor` opcional a `DashboardAgendaEvent` / `DashboardPropertyStatus`; `day-labels.ts`
   suma el caso "ayer" a `relativeDayInline`.
+- 2026-09-17: `dashboard-agenda.tsx` suma `AGENDA_ROW_LIMIT` y `cutAgendaDays` (tope de filas) y
+  reordena la fila en tres líneas; `dashboard-home.tsx` pasa a dos grillas anidadas (agenda y cobros
+  del mismo alto; propiedades y mes en la tercera columna); `DashboardSection` es columna flex de
+  alto completo; `day-labels.ts` quita "ayer"; `globals.css` suma `--primary-text` para los links
+  de las bandas (ver DESIGN.md, The Fill-vs-Text Rule).
 - `src/app/(dashboard)/dashboard/page.tsx` — pasa a cargar datos y delegar el render a
   `DashboardHome`; conserva el fallback de error.
 - Eliminados, con sus tests: `DashboardReservasTable` (tabla "Agenda de reservas" y su toggle

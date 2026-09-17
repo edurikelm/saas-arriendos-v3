@@ -529,9 +529,11 @@ export function DashboardCobranzaList({
         {/*
           El total siempre va al fondo de la card, incluso sin cobros
           (0 · $0) — el dueño no debería tener que inferir el estado de su
-          cartera por la ausencia de este bloque.
+          cartera por la ausencia de este bloque. `mt-auto`: cuando la card
+          se estira al alto de la agenda, el total baja al pie en vez de
+          quedar pegado a la última fila.
         */}
-        <div className="flex items-center justify-between gap-3 border-t border-border bg-muted/30 px-4 py-3">
+        <div className="mt-auto flex items-center justify-between gap-3 border-t border-border bg-muted/30 px-4 py-3">
           <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
             Total · {resolvedCount} {resolvedCount === 1 ? "cobro" : "cobros"}
           </span>
