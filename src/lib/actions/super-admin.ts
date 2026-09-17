@@ -313,6 +313,8 @@ export async function deleteUser(userId: string, confirmEmail?: string) {
       prisma.reservationChange.deleteMany({ where: { reservation: { userId } } }),
       prisma.reservation.deleteMany({ where: { userId } }),
       prisma.reservationClient.deleteMany({ where: { userId } }),
+      // Después de las reservas: `Reservation → Broker` es RESTRICT.
+      prisma.broker.deleteMany({ where: { userId } }),
       prisma.property.deleteMany({ where: { userId } }),
       // Sin FK, pero guarda los tokens OAuth de Mercado Pago: no pueden quedar huérfanos.
       prisma.userIntegration.deleteMany({ where: { userId } }),

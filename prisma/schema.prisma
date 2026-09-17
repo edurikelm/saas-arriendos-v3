@@ -164,6 +164,7 @@ model UserProfile {
 
   properties      Property[]
   clients         ReservationClient[]
+  brokers         Broker[]
   reservations    Reservation[]
   supportTickets  SupportTicket[]
   supportMessages SupportMessage[]
@@ -323,6 +324,28 @@ model ReservationClient {
   @@index([userId])
 }
 
+/// Persona a cargo del owner que le consigue arrendatarios y se lleva un
+/// porcentaje del arriendo. NO es un usuario: no inicia sesión y no ve nada del
+/// sistema. Ver ADR-0040.
+model Broker {
+  id                    String   @id @default(cuid())
+  userId                String
+  name                  String
+  email                 String?
+  phone                 String?
+  rut                   String?
+  /// Porcentaje, NO fracción: 10.00 significa 10%. El cálculo divide por 100.
+  defaultCommissionRate Decimal  @db.Decimal(5, 2)
+  active                Boolean  @default(true)
+  notes                 String?
+  createdAt             DateTime @default(now())
+
+  user         UserProfile   @relation(fields: [userId], references: [id])
+  reservations Reservation[]
+
+  @@index([userId])
+}
+
 model Reservation {
   id            String            @id @default(cuid())
   userId        String
@@ -338,9 +361,17 @@ model Reservation {
   notes         String?
   createdAt     DateTime          @default(now())
 
+  /// Quién captó esta reserva. `null` = la consiguió el owner.
+  brokerId       String?
+  /// Congelada al crear la reserva desde `Broker.defaultCommissionRate`.
+  /// Porcentaje, no fracción. Cambiar el default del captador no mueve esto:
+  /// es la condición que hace segura la derivación del monto. Ver ADR-0040 §2.
+  commissionRate Decimal? @db.Decimal(5, 2)
+
   user                        UserProfile           @relation(fields: [userId], references: [id])
   property                    Property              @relation(fields: [propertyId], references: [id])
   client                      ReservationClient     @relation(fields: [clientId], references: [id])
+  broker                      Broker?               @relation(fields: [brokerId], references: [id], onDelete: Restrict)
   payments                    Payment[]
   changes                     ReservationChange[]
   documents                   ReservationDocument[]
@@ -349,6 +380,7 @@ model Reservation {
   @@index([userId])
   @@index([propertyId])
   @@index([clientId])
+  @@index([brokerId])
   @@index([startDate])
   @@index([endDate])
 }

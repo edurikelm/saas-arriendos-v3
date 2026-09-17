@@ -8,6 +8,14 @@ Sistema SaaS para gestión de arriendos de propiedades.
 - Entidad independiente que puede existir sin reservas
 - Campos: `id`, `user_id`, `name`, `email`, `phone`, `rut`, `notes?`, `created_at`
 
+### Broker (Captador)
+- Persona a cargo del propietario que le consigue arrendatarios y se lleva un porcentaje del arriendo
+- **No es un usuario**: no inicia sesión y no ve nada del sistema. Es una fila del propietario, igual que un cliente
+- Campos: `id`, `user_id`, `name`, `email?`, `phone?`, `rut?`, `default_commission_rate`, `active`, `notes?`, `created_at`
+- `default_commission_rate` es el porcentaje que se precarga al asignarlo a una reserva; cambiarlo no mueve las reservas ya registradas
+- No se borra, se desactiva (`active: false`): la FK `Reservation → Broker` es RESTRICT para no perder la evidencia de una comisión ya pagada
+- Ver ADR-0040
+
 ### Property (Propiedad)
 - `units_available: Int` — todas las unidades son idénticas dentro de la propiedad
 - `daily_price: Decimal` — precio por noche
@@ -24,6 +32,8 @@ Sistema SaaS para gestión de arriendos de propiedades.
 - `end_date` — última noche (última noche que duerme el huésped, NO el día de check-out)
 - `status: PENDING | CONFIRMED | CANCELLED | COMPLETED`
 - `notes?` — notas editables del propietario para esa estadía
+- `broker_id?` — quién captó la reserva. `null` = la consiguió el propietario, que es el caso de la mayoría
+- `commission_rate?` — porcentaje de comisión **congelado al crear** la reserva, copiado de `Broker.default_commission_rate`. Es un porcentaje, no una fracción: `10.00` es 10%
 
 **Dos formas de fecha en el cliente, dos helpers distintos.** Entran al producto dos tipos de `Date` que necesitan tratamientos opuestos (`src/lib/domain/timezone.ts`): la forma **base**, leída de `Reservation.startDate/endDate` vía Prisma, llega anclada a 15:00/16:00 UTC — usa `dateOnlyKey`; la forma **picker**, que entrega `react-day-picker` al elegir una fecha en el formulario, es medianoche LOCAL del navegador — usa `localDateKey`. Ninguna estrategia única sirve para las dos: un slice UTC (`toISOString().split("T")[0]`) es correcto para la base pero se equivoca un día para el picker en cualquier offset positivo (Europa, Asia, Oceanía), y leer los componentes de calendario locales es correcto para el picker pero se equivoca para la base desde UTC+8, donde las 16:00 UTC ya cruzaron medianoche. Una tercera vía que parece obvia y no lo es: reinterpretar el instante en la zona de negocio con `getDateKeyInTz` **no** arregla el picker — produce exactamente el mismo día equivocado que el slice UTC, porque el instante ya venía corrido. Es el error que tenía `toDateKeyLocal`. Confundirlas fue un bug real y latente: escribía en el formulario y enviaba al servidor una fecha un día antes de la elegida, invisible en Chile (UTC−3/−4, el mercado objetivo) pero no para un usuario fuera de LATAM. La protección de 15:00/16:00 UTC en los campos date-only de la base es incidental (un artefacto de cómo se escribieron esos valores), no diseño — no asumir que sobrevive cualquier cambio futuro en cómo se persisten.
 
@@ -99,6 +109,16 @@ El webhook intenta matchear el pago en este orden:
 - **Transición a CONFIRMED**: una reserva pasa a `CONFIRMED` solo cuando la suma de `Payment` con `status: COMPLETED`, `paymentType: RESERVATION` y `deletedAt: null` alcanza `totalPrice`. Pagos `PENDING` o `paymentType: EXTRA` no participan en esta transición.
 - **Fechas de cobranza y recordatorios** (vencidos / vencen hoy / próximos 7 días) se calculan en wall-time `America/Santiago`, no en UTC. Ver ADR-0020.
 - **Fecha de negocio vs vigencia técnica**: `dueDate` responde "¿qué día es en Santiago?" y va en wall-time; `expiresAt` responde "¿cuánto dura el link?" y va en milisegundos. Confundirlas produce plazos distintos según la zona del servidor. Ver ADR-0020 §6.
+
+### Comisiones de captadores
+- **El monto no se guarda, se deriva.** No hay tabla de comisiones ni devengo escrito: la comisión de una reserva es la suma de sus pagos `COMPLETED` + `RESERVATION` + `deletedAt: null`, cada uno por la `commission_rate` congelada de esa reserva. Vive en `src/lib/brokers/`
+- **Se devenga cuando el pago se cobra**, no al crear la reserva. Un arriendo `MONTHLY` devenga cuota por cuota
+- **Base bruta**: el monto del pago, sin descontar la comisión de Mercado Pago. Si no, el mismo arriendo pagaría comisiones distintas según el medio de pago
+- **Los cobros `EXTRA` no comisionan** (multa, limpieza): no son arriendo
+- **Las cancelaciones no se revierten.** Cancelar borra los pagos `PENDING` y conserva los `COMPLETED`, así que lo derivado ya es la comisión de lo que efectivamente entró
+- Se redondea por pago y después se suma, para que un total cuadre con su detalle
+- Los ingresos de `/reports` y `/dashboard` siguen siendo **brutos**: la comisión es un bloque aparte, no un descuento de "Cobrado"
+- Ver ADR-0040
 
 ### Cancelación
 - Libre — cualquier parte puede cancelar
