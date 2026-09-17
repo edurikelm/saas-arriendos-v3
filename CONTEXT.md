@@ -399,7 +399,7 @@ const session = await requireSuperAdmin();
 Patrón canónico:
 - Página de lista → `PageHeader` + barra de filtros + `<DataTable>` directo (sin Card)
 - Sección de página (ej: `/admin/users/[id]` tab "Reservas") → título/descripción como bloque standalone + `<DataTable>` directo
-- `/dashboard` (agenda, tablero de propiedades) → título + link ("Ver reservas" / "Ver calendario") como bloque standalone + lista dentro de un contenedor `rounded-md border border-border bg-card`, sin `<DataTable>` (ADR-0036)
+- `/dashboard` (agenda, cobros, propiedades) → `DashboardSection`: título + meta + link ("Ver reservas" / "Ver todas" / "Ver calendario") en una banda `bg-muted/40` DENTRO del contenedor `rounded-lg border border-border bg-card`, sin `<DataTable>` (ADR-0036). El mes no usa `DashboardSection`: sus `KpiCard` ya traen su propio marco (ver "Cuándo NO usar" en Cards).
 - `/reports` sección "Dónde está la plata que falta" → título + subtítulo (foto del presente) + panel de antigüedad + lista de top deudores, sin `<DataTable>` (ADR-0035)
 
 `<Card>` se reserva para: KPIs (no tablas), settings, forms, secciones de detalle sin tabla, integración de Mercado Pago. **NO** usar Card para envolver tablas.
@@ -415,6 +415,22 @@ El monto de cada evento (`amountDue`) es el mismo que esa reserva tiene en "Por 
 siguiente): mismo cálculo (`amountForRow`), sobre la ventana de cobranza completa, no sobre los
 items visibles del card (que vienen truncados a `collectionLimit`). Es la única cifra de dinero
 fuera de "Por cobrar", y por eso no lleva color propio.
+
+Una fila `DAILY` agrega "Última noche `<día relativo>`" bajo la propiedad, con `lastNightDateKey`
+= `endDate` (convención Última Noche); `MONTHLY` no la muestra — ahí la fecha que importa es el fin
+del contrato, ya nombrado como salida. Es la única fecha PASADA que la agenda puede mostrar (la
+última noche de una salida de hoy), por lo que "ayer" es un caso legítimo de `relativeDayInline`.
+
+Cada fila de agenda y de `DashboardPropertyBoard` lleva un punto (`PropertyDot`) con
+`property.color` (dato del usuario, fallback `--primary`) — el mismo color que identifica la
+propiedad en `/calendar`, así que las dos pantallas se leen con la misma clave. Es identidad, no
+estado: el estado sigue en las palabras de la fila.
+
+Un click simple en una fila de la agenda abre el mismo preview que `/calendar`
+(`ReservationPreviewDialog`, vía `ReservationPreviewLink`) en vez de navegar; el detalle se trae al
+click por `GET /api/reservations/[id]`. Ctrl/cmd/shift/alt + click, click del medio y la navegación
+sin JS siguen yendo a `/reservations/[id]`. Solo la agenda: las filas de "Cobros pendientes" y de
+propiedades navegan directo. Ver ADR-0039.
 
 `DashboardPropertyBoard` (`summary.propertyBoard`) lista TODAS las propiedades. La ocupación de la
 noche de hoy suma `unitsBooked` de reservas no canceladas que cubren hoy más 1 por cada Bloqueo de
@@ -432,20 +448,20 @@ Una reserva `PENDING` no tiene señal propia en `/dashboard`: pasa a `CONFIRMED`
 el pago (`confirmReservationIfPaid`, ADR-0025), así que `PENDING` ya equivale a "tiene saldo" — la
 misma señal que "Por cobrar".
 
-Ver ADR-0036.
+Ver ADR-0036 y ADR-0039 (preview de reserva desde la agenda).
 
 ### `/dashboard` — sección "Cobros pendientes"
 
 `DashboardCobranzaList` (`src/app/(dashboard)/dashboard/_components/dashboard-cobranza-list.tsx`)
 agrupa los cobros por urgencia en **dos** grupos visuales — `OVERDUE` y `DUE_SOON`
-(`DUE_TODAY` + `UPCOMING_7D`) — y el color del estado vive **solo** en el encabezado del grupo.
-Las filas no llevan pill ni monto teñido. Ver ADR-0033 y la regla "The Grouped Status Rule" de
-`DESIGN.md` antes de agregar color a una fila.
+(`DUE_TODAY` + `UPCOMING_7D`) — y el color del estado vive **solo** en el encabezado del grupo (texto
+y la banda tonal que lo acompaña, mismo tono). Las filas no llevan pill ni monto teñido. Ver
+ADR-0033 y la regla "The Grouped Status Rule" de `DESIGN.md` antes de agregar color a una fila.
 
 **Subtotales:** los encabezados usan `collection.overdueWindow*` / `collection.dueSoonWindow*`
 (prop `groupTotals`), no la suma de `items`. `collectionItems` viene truncado a `collectionLimit`
-(default 4), así que derivar el subtotal de los items visibles mentiría cuando hay más cobros de
-los que caben. Invariante garantizada por construcción en `buildDashboardSummary`:
+(default 6, ver ADR-0033), así que derivar el subtotal de los items visibles mentiría cuando hay
+más cobros de los que caben. Invariante garantizada por construcción en `buildDashboardSummary`:
 
 ```
 overdueWindow* + dueSoonWindow* === window*
@@ -520,6 +536,7 @@ Grid de 7 columnas en todas las resoluciones. Celdas: `min-h-12 sm:min-h-20 lg:m
   - ADR-0036: `docs/adr/0036-dashboard-inicio-por-eventos.md` — `/dashboard` rediseñado a cuatro zonas sin cifras repetidas: agenda por EVENTO (llegada/salida, no por reserva), tablero con todas las propiedades (incluye Bloqueos de Canal Externo), el mes (cobrado vs. mismo tramo del mes anterior), y "Primeros pasos" para cuentas sin reservas
   - ADR-0037: `docs/adr/0037-dashboard-acciones-de-cobro.md` — acciones de "Por cobrar" sobre `nextCharge` (el cobro impago más antiguo, o crear el pago del saldo cuando no existe ninguno), sin cambiar server actions de pagos; `paidAt` manual al mediodía de Santiago (`businessNoonOfDateKey`)
   - ADR-0038: `docs/adr/0038-reportes-paidat-por-dia-de-negocio.md` — la caja de `/reports` y `/dashboard` ubica `paidAt` por su día en Santiago (`isPaidAtInRange`); el rango son días (`dateOnlyFromKey`) y `getDecisionSummary` recibe claves `YYYY-MM-DD`
+  - ADR-0039: `docs/adr/0039-dashboard-preview-reserva-en-agenda.md` — click simple en una fila de la agenda abre `ReservationPreviewDialog` (el mismo preview de `/calendar`) en vez de navegar; sigue siendo un link real y degrada a la página de la reserva si la carga falla
 
 ## Seams de dominio en `src/lib/`
 

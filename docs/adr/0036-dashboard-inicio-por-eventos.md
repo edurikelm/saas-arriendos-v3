@@ -54,6 +54,18 @@ EVENTO — algo que el dueño atiende un día concreto:
   (`amountForRow`), sobre la ventana de cobranza completa y no sobre los items visibles de esa
   lista. Va sin color — el color de la plata vive en "Por cobrar".
 - Una semana sin eventos dice cuándo es el próximo movimiento en vez de quedar en blanco.
+- Cada fila lleva el punto de color de su propiedad (`PropertyDot`, `property.color` con fallback
+  `--primary`) — la misma clave que identifica la propiedad en `/calendar`. Es identidad, no estado.
+- Una fila `DAILY` agrega "Última noche `<día relativo>`" bajo la propiedad, con
+  `lastNightDateKey = endDate` (la misma convención de Última Noche); `MONTHLY` no la muestra,
+  porque ahí la fecha que importa ya la nombra la salida (fin del contrato). Es la única fecha
+  PASADA que la agenda puede mostrar (la última noche de una salida de hoy), así que
+  `relativeDayInline` reconoce "ayer" como caso legítimo.
+- Hoy sin eventos ya no ocupa una fila propia: la banda del día dice "Sin llegadas ni salidas" — el
+  subtítulo de la página ya anuncia un día vacío, así que una fila entera para repetirlo empujaba
+  hacia abajo los días con eventos (PR #303).
+- Un click simple en una fila abre el mismo preview que `/calendar` en vez de navegar (ver
+  ADR-0039); Cobros y Propiedades siguen navegando directo.
 
 ### 2. Por cobrar
 
@@ -117,9 +129,30 @@ encabezado "Vencidos" de "Por cobrar" (ADR-0033), no una segunda agregación.
 
 ### Layout
 
-Dos columnas solo desde `xl`: a `lg` (1024px, con sidebar) la columna de cobros quedaría en
-~224px, sin espacio para monto y vencimiento en la misma fila. Orden: lo que pide acción arriba
-(agenda, cobros), lo que se consulta abajo (propiedades, mes).
+> **Actualizado (PRs #302/#303, 2026-09-16).** Esta sección describía dos columnas desde `xl`, con
+> agenda y propiedades en `xl:col-span-2` (2/3 del ancho). A ese ancho las filas de agenda y
+> propiedades — nombre + una cifra corta — dejaban un hueco horizontal, y la card de agenda se
+> estiraba a la altura de la de cobros. El layout vigente es el que se describe abajo; la razón por
+> la que dos columnas esperan a `xl` (más abajo no entra monto y vencimiento en la misma fila) sigue
+> siendo válida para el mismo salto de dos a tres columnas.
+
+Tres columnas desde `xl`, dos desde `lg`, apiladas en móvil, con `items-start`: ninguna card se
+estira a la altura de la más alta de su fila. A `lg` (1024px, con sidebar) una columna de más
+dejaría cada una en ~224px, sin espacio para monto y vencimiento en la misma fila.
+
+En `xl`, agenda, cobros y propiedades comparten la primera fila de la grilla
+(`xl:grid-rows-[auto_1fr]`) y el mes va bajo la agenda (columna 1), no bajo propiedades: apilado con
+el tablero de propiedades —la lista más larga de la página—, esa columna medía casi el doble que las
+otras dos (~800px contra ~490/570, con datos parecidos a producción). El acomodo es solo visual
+(`xl:col-start`/`row-start`/`row-span-2`): el DOM conserva el orden de lectura — agenda, cobros,
+propiedades, mes —, el mismo que ve el móvil, el teclado y un lector de pantalla. Dentro de ese
+orden se mantiene el criterio original: lo que pide acción primero (agenda, cobros), lo que se
+consulta después (propiedades, mes).
+
+Medido con datos parecidos a producción: a 1658px las tres columnas terminan en 568/502/418px; a
+1280px, en 718/519/418px. Los dos `KpiCard` del mes van lado a lado solo desde `2xl` (columna
+~435px); entre 1280 y 1535px siguen apilados porque a ~310px un monto en CLP no cabe en media
+columna — sin esto, mover el mes de lugar solo trasladaba el desbalance de una columna a otra.
 
 ### Fuera de alcance (pendiente)
 
@@ -150,6 +183,11 @@ Dos columnas solo desde `xl`: a `lg` (1024px, con sidebar) la columna de cobros 
   ni base — tests y revisión visual), `dashboard-agenda.tsx`, `dashboard-property-board.tsx`,
   `dashboard-month-pulse.tsx`, `dashboard-onboarding.tsx`, `day-labels.ts` (fechas relativas: "hoy",
   "mañana", "vie 18").
+- PRs #302/#303 (2026-09-16) agregan `dashboard-section.tsx` (`DashboardSection`, banda de título
+  tonal reutilizada por agenda, cobros y propiedades — ver DESIGN.md, "The Banded Section Rule") y
+  `property-dot.tsx` (`PropertyDot`). `summary.ts` suma `lastNightDateKey` a `DashboardAgendaEvent`
+  y `propertyColor` opcional a `DashboardAgendaEvent` / `DashboardPropertyStatus`; `day-labels.ts`
+  suma el caso "ayer" a `relativeDayInline`.
 - `src/app/(dashboard)/dashboard/page.tsx` — pasa a cargar datos y delegar el render a
   `DashboardHome`; conserva el fallback de error.
 - Eliminados, con sus tests: `DashboardReservasTable` (tabla "Agenda de reservas" y su toggle
@@ -194,6 +232,9 @@ Dos columnas solo desde `xl`: a `lg` (1024px, con sidebar) la columna de cobros 
 - ADR-0028 / 0029 / 0030 — semántica de KPIs financieros y `buildDecisionSummary`, fuente de
   `month.collected` y la ocupación del mes.
 - ADR-0033 — agrupación de "Por cobrar" por urgencia; sigue vigente, sin cambios en este ADR.
+- ADR-0037 — acciones de cobro sobre `nextCharge`.
+- ADR-0039 — click en la agenda abre el preview de la reserva.
 - `docs/plans/dashboard-improvement-plan.md` — diagnóstico previo (ver nota de estado al inicio del
   documento).
+- `DESIGN.md` — "The Banded Section Rule" (patrón de `DashboardSection`).
 - `CONTEXT.md` — sección "`/dashboard` — agenda, propiedades y el mes".

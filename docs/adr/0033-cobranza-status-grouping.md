@@ -151,9 +151,10 @@ la línea de vencimiento de cada fila, que ya dice "2 cuotas vencidas · +1 venc
 alternativa —contar la fila entera— produce un encabezado más fácil de sumar y una palabra que
 miente; entre las dos, manda la palabra.
 
-Por qué no derivarlos de `items`: `collectionItems` viene truncado a `collectionLimit` (default 4),
-así que sumar los items visibles mentiría en cuanto hay más cobros de los que caben en el card. Es
-exactamente el motivo por el que el footer ya usaba `windowAmount` y no la suma de `items`.
+Por qué no derivarlos de `items`: `collectionItems` viene truncado a `collectionLimit` (default 6,
+antes 4 — ver nota de actualización en Consequences), así que sumar los items visibles mentiría en
+cuanto hay más cobros de los que caben en el card. Es exactamente el motivo por el que el footer ya
+usaba `windowAmount` y no la suma de `items`.
 
 **Granularidad:** los conteos están en **cobros** (cuotas + extras), no en reservas — coherente con
 el footer ("Total · 6 cobros"), e intencionalmente distintos de `overdueCount` / `dueTodayCount`,
@@ -231,8 +232,13 @@ el resto de props del componente, que siguen el mismo patrón).
 
 ### Negative
 
-- Con `collectionLimit = 4`, en el peor caso 2 encabezados sobre 4 filas es overhead vertical.
-  Aceptado: cada encabezado es una línea de 10px y aporta el subtotal.
+> **Actualizado (PR #303, 2026-09-16):** `DEFAULT_COLLECTION_LIMIT` pasó de 4 a 6 — el 4 original
+> venía de igualar la altura de esta card a la tabla "Agenda de reservas" que ADR-0036 eliminó, así
+> que ya no tenía razón de ser una vez que esa tabla dejó de existir. El razonamiento de abajo no
+> cambia, solo el número de filas.
+
+- Con `collectionLimit = 6` (antes 4), en el peor caso 2 encabezados sobre 6 filas es overhead
+  vertical. Aceptado: cada encabezado es una línea de 10px y aporta el subtotal.
 - El conteo del encabezado (cobros) no es comparable con la cantidad de filas visibles (reservas).
   Es correcto pero requiere el modelo mental "una fila puede agrupar varias cuotas" — el mismo que
   el componente ya exponía con "2 cuotas vencidas".
