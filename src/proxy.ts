@@ -10,6 +10,7 @@ const protectedPaths = [
   "/reservations",
   "/calendar",
   "/clients",
+  "/brokers",
   "/reports",
   "/settings",
   "/admin",

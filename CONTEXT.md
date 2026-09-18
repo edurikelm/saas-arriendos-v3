@@ -13,7 +13,8 @@ Sistema SaaS para gestión de arriendos de propiedades.
 - **No es un usuario**: no inicia sesión y no ve nada del sistema. Es una fila del propietario, igual que un cliente
 - Campos: `id`, `user_id`, `name`, `email?`, `phone?`, `rut?`, `default_commission_rate`, `active`, `notes?`, `created_at`
 - `default_commission_rate` es el porcentaje que se precarga al asignarlo a una reserva; cambiarlo no mueve las reservas ya registradas
-- No se borra, se desactiva (`active: false`): la FK `Reservation → Broker` es RESTRICT para no perder la evidencia de una comisión ya pagada
+- No se borra, se desactiva (`active: false`): la FK `Reservation → Broker` es RESTRICT para no perder la evidencia de una comisión ya pagada. `deleteBroker` solo borra de verdad a uno sin ninguna reserva, para deshacer un error de tipeo
+- Se administran en `/brokers`, y no consumen el límite de clientes ni propiedades del plan FREE
 - Ver ADR-0040
 
 ### Property (Propiedad)
