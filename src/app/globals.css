@@ -93,6 +93,18 @@
      Mismo matiz que --primary (149.58), bajado al punto de los otros -text:
      5.16:1 sobre la banda. */
   --primary-text: oklch(0.51 0.15 149.58);
+  /* Banda de resumen: el renglón que muestra el resultado de un formulario
+     mientras se llena (total y neto del modal de reserva). Verdigris lavado,
+     OPACO a propósito: la banda es sticky y el contenido pasa por debajo, así
+     que un bg-primary/10 dejaría asomar las filas y haría que el contraste
+     dependiera de lo que haya detrás. Medido sobre la banda:
+     --summary-muted-foreground 6.96:1, --primary-text 4.86:1, --foreground
+     15.47:1. El texto secundario sale del matiz del foreground (160), no del
+     gris de --muted-foreground: sobre un fondo teñido, el gris se ve lavado.
+     Guardado por src/lib/design/__tests__/summary-band-contrast.test.ts. */
+  --summary: oklch(0.965 0.03 150);
+  --summary-border: oklch(0.89 0.05 150);
+  --summary-muted-foreground: oklch(0.44 0.035 160);
   --navbar: oklch(1 0 0);
   --navbar-foreground: #131f1a;
   --beige: oklch(0.97 0.02 200);
@@ -182,6 +194,12 @@
   /* En oscuro el relleno ya se lee como texto: #2DBE85 mide 7.31:1 sobre la
      banda de DashboardSection. */
   --primary-text: var(--primary);
+  /* Banda de resumen en oscuro: verde profundo sobre el azul del casco, no un
+     gris. Medido: --summary-muted-foreground 8.30:1, --primary-text 6.43:1,
+     --foreground 13.97:1. */
+  --summary: oklch(0.26 0.04 162);
+  --summary-border: oklch(0.36 0.05 158);
+  --summary-muted-foreground: oklch(0.80 0.03 160);
   --navbar: #0d1c2d;
   --navbar-foreground: #f1f5f9;
   --beige: oklch(0.30 0.02 200);
@@ -220,6 +238,9 @@
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary-text: var(--primary-text);
+  --color-summary: var(--summary);
+  --color-summary-border: var(--summary-border);
+  --color-summary-muted-foreground: var(--summary-muted-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);

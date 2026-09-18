@@ -251,40 +251,54 @@ export function ReservationForm({
             va donde se ve mientras se llena, no al final. Fijo porque en móvil
             el formulario scrollea y el total es lo que se vuelve a mirar.
             Sangra hasta el borde (-mx/-mt) para que el contenido que pasa por
-            debajo no asome por los costados; el fondo es el del diálogo y la
-            separación, una línea de borde — sin sombra (DESIGN.md: plano por
-            defecto).
+            debajo no asome por los costados. Fondo `--summary`: verdigris
+            lavado y opaco, para que se lea como el resultado del formulario y
+            no como una segunda línea del encabezado. Sin sombra (DESIGN.md:
+            plano por defecto); la separación es un borde del mismo matiz.
             `top` negativo y no `top-0`: el borde de pegado de un sticky es el
             del padding del contenedor que scrollea, no el del scrollport. Con
             `top-0` quedaba 16px abajo y las filas asomaban por encima al
             scrollear. Medido en móvil. */}
         <div
           data-testid="reservation-summary"
-          className="sticky -top-4 sm:-top-6 z-10 -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 flex min-h-11 items-center gap-3 border-b border-border bg-popover px-4 py-2.5 sm:px-6"
+          className="sticky -top-4 sm:-top-6 z-10 -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 flex min-h-11 items-center gap-3 border-b border-summary-border bg-summary px-4 py-2.5 sm:px-6"
         >
           {showFinancialSummary ? (
             <>
-              <span className="min-w-0 truncate text-xs text-muted-foreground tabular-nums">
+              <span className="min-w-0 truncate text-xs text-summary-muted-foreground tabular-nums">
                 <span className="sm:hidden">{stayShort}</span>
                 <span className="hidden sm:inline">{stayLong}</span>
               </span>
 
-              <div className="ml-auto flex shrink-0 items-baseline gap-3 tabular-nums">
+              {/* Se lee como una cuenta, de izquierda a derecha: total, menos
+                  el captador, igual al neto. Cada tramo es rótulo + cifra con
+                  el mismo peso; solo el resultado sube de tamaño y toma el
+                  verde, que es el rol de Verdigris (resultado primario). */}
+              <div className="ml-auto flex min-w-0 shrink-0 items-baseline gap-3 text-xs text-summary-muted-foreground tabular-nums">
                 {effectiveRate !== null ? (
                   <>
-                    <span className="text-xs text-muted-foreground">
+                    {/* Los {" "} entre tramos no se ven (en flex, el espacio
+                        suelto no ocupa lugar; lo separa el gap) pero evitan que
+                        un lector de pantalla lea "$400.000Ana Rojas". */}
+                    <span>
                       <span className="sr-only sm:not-sr-only">Total </span>
                       ${totalAmount.toLocaleString("es-CL")}
-                    </span>
+                    </span>{" "}
                     {/* La comisión cede en móvil: el neto ya la implica, y la
                         línea no alcanza para las cuatro cifras. Queda para
                         lectores de pantalla en todos los anchos. */}
-                    <span className="sr-only sm:not-sr-only text-xs text-muted-foreground">
-                      −${projectedCommission.toLocaleString("es-CL")}{" "}
-                      <span className="text-[10px]">
-                        ({selectedBroker?.name ?? "Captador"} {formatRate(effectiveRate)})
-                      </span>
-                    </span>
+                    <span className="sr-only sm:not-sr-only sm:inline-flex sm:items-baseline sm:gap-1">
+                      {/* Solo el nombre se trunca: con la tasa adentro del
+                          mismo span, un nombre largo se comía el porcentaje. */}
+                      <span
+                        className="max-w-32 truncate"
+                        title={selectedBroker?.name ?? "Captador"}
+                      >
+                        {selectedBroker?.name ?? "Captador"}
+                      </span>{" "}
+                      <span>{formatRate(effectiveRate)}</span>{" "}
+                      <span>−${projectedCommission.toLocaleString("es-CL")}</span>
+                    </span>{" "}
                     <span className="text-sm font-bold text-primary-text">
                       Neto ${netAmount.toLocaleString("es-CL")}
                     </span>
@@ -297,7 +311,7 @@ export function ReservationForm({
               </div>
             </>
           ) : (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-summary-muted-foreground">
               Elige propiedad y fechas para calcular el total
             </span>
           )}

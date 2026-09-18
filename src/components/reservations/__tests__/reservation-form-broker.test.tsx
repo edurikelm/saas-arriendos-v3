@@ -164,7 +164,8 @@ describe("ReservationForm — barra de resumen", () => {
   it("nombra al captador con la tasa en formato chileno", async () => {
     renderForm({ ...stay, brokerId: "brk-1", commissionRate: 8.5 });
 
-    await waitFor(() => expect(summaryText()).toContain("(Ana Rojas 8,5%)"));
+    // Rótulo antes de la cifra, como el resto de la cuenta: "Ana Rojas 8,5% −$34.000".
+    await waitFor(() => expect(summaryText()).toContain("Ana Rojas 8,5% −$34.000"));
   });
 
   it("en móvil la comisión cede pero sigue disponible para lectores de pantalla", async () => {
@@ -173,10 +174,20 @@ describe("ReservationForm — barra de resumen", () => {
     renderForm({ ...stay, brokerId: "brk-1", commissionRate: 8.5 });
 
     await waitFor(() => expect(summaryText()).toContain("−$34.000"));
-    const commission = screen.getByText(/−\$34\.000/);
-    expect(commission.className).toContain("sr-only");
-    expect(commission.className).toContain("sm:not-sr-only");
-    expect(commission.className).not.toMatch(/(^|\s)hidden(\s|$)/);
+    const segment = screen.getByText("−$34.000").parentElement!;
+    expect(segment.className).toContain("sr-only");
+    expect(segment.className).toContain("sm:not-sr-only");
+    expect(segment.className).not.toMatch(/(^|\s)hidden(\s|$)/);
+  });
+
+  it("usa la superficie de resumen del sistema, no el fondo del diálogo", async () => {
+    // Opaca a propósito: es sticky y el contenido pasa por debajo.
+    renderForm(stay);
+
+    const bar = await screen.findByTestId("reservation-summary");
+    expect(bar.className).toContain("bg-summary");
+    expect(bar.className).toContain("border-summary-border");
+    expect(bar.className).not.toContain("bg-popover");
   });
 
   it("todo en una sola línea: la barra no apila filas", async () => {
