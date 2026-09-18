@@ -154,13 +154,19 @@ export async function getReservationCommissionsForBroker(
  * Para el detalle de la reserva: "este captador lleva devengado X en esta
  * estadía". Histórico completo a propósito — la pregunta del owner acá no es
  * del mes, es de la estadía.
+ *
+ * Pide `userId` y filtra por él, igual que las server actions de pagos
+ * (`findFirst({ where: { id, userId } })`): un id de reserva que llega de un
+ * request no puede devolver la comisión de otro owner. Una reserva ajena
+ * devuelve 0, igual que una que no existe.
  */
 export async function getCommissionForReservation(
   reservationId: string,
+  userId: string,
   adapter: QueryAdapter = prisma,
 ): Promise<number> {
-  const reservation = await adapter.reservation.findUnique({
-    where: { id: reservationId },
+  const reservation = await adapter.reservation.findFirst({
+    where: { id: reservationId, userId },
     select: {
       commissionRate: true,
       brokerId: true,

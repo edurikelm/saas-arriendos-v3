@@ -9,13 +9,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  */
 const mocks = vi.hoisted(() => ({
   findMany: vi.fn(),
-  findUnique: vi.fn(),
+  findFirst: vi.fn(),
 }));
 
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
     payment: { findMany: mocks.findMany },
-    reservation: { findUnique: mocks.findUnique },
+    reservation: { findFirst: mocks.findFirst },
   },
 }));
 
@@ -230,41 +230,52 @@ describe("getReservationCommissionsForBroker", () => {
 
 describe("getCommissionForReservation", () => {
   it("suma el histórico completo de la reserva, sin filtro de período", async () => {
-    mocks.findUnique.mockResolvedValue({
+    mocks.findFirst.mockResolvedValue({
       brokerId: "brk-1",
       commissionRate: 6,
       payments: [{ amount: 500_000 }, { amount: 500_000 }],
     });
 
-    expect(await getCommissionForReservation("res-1")).toBe(60_000);
+    expect(await getCommissionForReservation("res-1", "user-1")).toBe(60_000);
+  });
+
+  it("filtra por owner: un id de reserva ajeno no devuelve su comisión", async () => {
+    mocks.findFirst.mockResolvedValue(null);
+
+    expect(await getCommissionForReservation("res-de-otro", "user-1")).toBe(0);
+
+    expect(mocks.findFirst.mock.calls[0][0].where).toEqual({
+      id: "res-de-otro",
+      userId: "user-1",
+    });
   });
 
   it("devuelve 0 en una reserva sin captador", async () => {
-    mocks.findUnique.mockResolvedValue({
+    mocks.findFirst.mockResolvedValue({
       brokerId: null,
       commissionRate: null,
       payments: [{ amount: 800_000 }],
     });
 
-    expect(await getCommissionForReservation("res-1")).toBe(0);
+    expect(await getCommissionForReservation("res-1", "user-1")).toBe(0);
   });
 
   it("devuelve 0 si la reserva no existe", async () => {
-    mocks.findUnique.mockResolvedValue(null);
+    mocks.findFirst.mockResolvedValue(null);
 
-    expect(await getCommissionForReservation("no-existe")).toBe(0);
+    expect(await getCommissionForReservation("no-existe", "user-1")).toBe(0);
   });
 
   it("pide solo los pagos que comisionan", async () => {
-    mocks.findUnique.mockResolvedValue({
+    mocks.findFirst.mockResolvedValue({
       brokerId: "brk-1",
       commissionRate: 10,
       payments: [],
     });
 
-    await getCommissionForReservation("res-1");
+    await getCommissionForReservation("res-1", "user-1");
 
-    const where = mocks.findUnique.mock.calls[0][0].select.payments.where;
+    const where = mocks.findFirst.mock.calls[0][0].select.payments.where;
     expect(where).toEqual({
       status: "COMPLETED",
       paymentType: "RESERVATION",
