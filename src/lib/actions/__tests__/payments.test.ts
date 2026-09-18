@@ -67,6 +67,9 @@ const mockReservation = {
   bookingAirbnb: false,
   notes: null,
   createdAt: new Date(),
+  // Sin captador: el caso de la mayoría de las reservas (ADR-0040).
+  brokerId: null,
+  commissionRate: null,
   client: { id: 'client-1', name: 'Juan', email: 'juan@test.com', phone: '+123456' },
   property: { id: 'prop-1', name: 'Casa', userId: 'user-1' },
 };
