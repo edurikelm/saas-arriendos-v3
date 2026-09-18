@@ -8,10 +8,12 @@ import { Button } from "@/components/ui/button";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { cn } from "@/lib/utils";
 import {
+  getBrokerCommissions,
   getDecisionSummary,
   getOutstandingSnapshot,
   getReservationsReportForExport,
   getReservationsReportCount,
+  type BrokerCommissionsReport,
   type OutstandingSnapshot,
   type ReservationReport,
 } from "@/lib/actions/reports";
@@ -24,6 +26,7 @@ import { BillingTypeSplit } from "@/components/reports/billing-type-split";
 import { AgingBucketsPanel } from "@/components/reports/aging-buckets-panel";
 import { TopClientDebtorsList } from "@/components/reports/top-client-debtors-list";
 import { PropertySummaryTable } from "@/components/reports/property-summary-table";
+import { BrokerCommissionsTable } from "@/components/reports/broker-commissions-table";
 import { startOfMonth, endOfMonth, subMonths, startOfYear } from "date-fns";
 import { isReportsRangeAllowed } from "@/lib/reports/kpis";
 import { addDaysToDateKey, localDateKey, nightsBetweenDateOnly, nowKeyInBusinessTz } from "@/lib/domain/timezone";
@@ -64,6 +67,7 @@ export function ReportsClient({
   const [decisionSummaryPrev, setDecisionSummaryPrev] = useState<ReportDecisionSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [exportRowCount, setExportRowCount] = useState<number | null>(null);
+  const [commissions, setCommissions] = useState<BrokerCommissionsReport | null>(null);
 
   const [snapshot, setSnapshot] = useState<OutstandingSnapshot | null>(initialSnapshot);
   const [collectionLoading, setCollectionLoading] = useState(false);
@@ -151,7 +155,7 @@ export function ReportsClient({
     setSummaryLoading(true);
     try {
       const propertyId = selectedProperty !== "all" ? selectedProperty : undefined;
-      const [decision, decisionPrev, rowCount] = await Promise.all([
+      const [decision, decisionPrev, rowCount, brokerCommissions] = await Promise.all([
         // El rango viaja como días (`localDateKey`: el día que muestra el
         // navegador), no como instantes — ver ADR-0038.
         getDecisionSummary({
@@ -171,10 +175,16 @@ export function ReportsClient({
           startDate: effectiveDateRange.from || undefined,
           endDate: effectiveDateRange.to || undefined,
         }),
+        getBrokerCommissions({
+          rangeStartKey: localDateKey(effectiveDateRange.from),
+          rangeEndKey: localDateKey(effectiveDateRange.to),
+          propertyId,
+        }),
       ]);
       setDecisionSummary(decision);
       setDecisionSummaryPrev(decisionPrev);
       setExportRowCount(rowCount);
+      setCommissions(brokerCommissions);
     } catch (error) {
       console.error("Error fetching reports summary:", error);
     } finally {
@@ -485,6 +495,17 @@ export function ReportsClient({
           </div>
 
           <PropertySummaryTable rows={decisionSummary?.byProperty ?? []} />
+
+          {/* Comisiones de captadores. Vive acá porque obedece al rango y a la
+              propiedad del encabezado (ADR-0035). Solo se dibuja si el owner
+              trabaja con captadores: sin ninguno, la tabla sería ruido. */}
+          {commissions?.hasAnyBroker && (
+            <BrokerCommissionsTable
+              rows={commissions.brokers}
+              reservationsByBroker={commissions.reservationsByBroker}
+              totalCommission={commissions.totalCommission}
+            />
+          )}
         </div>
       </section>
 

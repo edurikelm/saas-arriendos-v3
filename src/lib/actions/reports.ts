@@ -15,6 +15,14 @@ import { selectTopClientDebtors, type ClientDebtor } from "@/lib/reports/trend";
 import { type ReportDecisionSummary } from "@/lib/reports/decision-summary";
 import { sumCollectionTotals } from "@/lib/reports/kpis";
 import type { PaginatedResponse } from "@/types/pagination";
+import { getCommissionPaymentsForOwner } from "@/lib/brokers/queries";
+import {
+  buildBrokerCommissions,
+  buildReservationCommissions,
+  sumCommissions,
+  type BrokerCommissionRow,
+  type ReservationCommissionRow,
+} from "@/lib/brokers/commission";
 import {
   sumCompletedPaymentsForOwner,
   sumPendingPaymentsForOwner,
@@ -644,4 +652,70 @@ export async function getDecisionSummary(
     rangeStart,
     rangeEnd,
   });
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Comisiones de captadores (ADR-0040)
+// ────────────────────────────────────────────────────────────────────────────
+
+export interface BrokerCommissionsReport {
+  /** Una fila por captador, ordenadas por comisión descendente. */
+  brokers: BrokerCommissionRow[];
+  /** Detalle por reserva, indexado por captador. */
+  reservationsByBroker: Record<string, ReservationCommissionRow[]>;
+  /** Suma de las comisiones del período. */
+  totalCommission: number;
+  /** Cobrado de reservas CON captador en el período. No es la caja total. */
+  totalCollected: number;
+  /**
+   * Si el propietario tiene algún captador registrado. Decide si el bloque se
+   * dibuja con su estado vacío ("nadie cobró este mes") o no se dibuja: a quien
+   * no trabaja con captadores, una tabla vacía todos los meses es ruido.
+   */
+  hasAnyBroker: boolean;
+}
+
+/**
+ * Comisiones devengadas por captador en el rango del encabezado de `/reports`.
+ *
+ * Obedece al rango y a la propiedad como el resto de la sección "Resultado del
+ * período" (ADR-0035), y lee `paidAt` por su día de negocio (ADR-0038). El monto
+ * se deriva de los pagos cobrados por la tasa congelada de cada reserva; no hay
+ * comisión guardada en ninguna parte (ADR-0040 §3).
+ */
+export async function getBrokerCommissions(
+  filters: DecisionSummaryFilters,
+): Promise<BrokerCommissionsReport | null> {
+  const session = await getSession();
+  if (!session) return null;
+
+  const { propertyId, rangeStartKey, rangeEndKey } = filters;
+  if (!isValidDateKey(rangeStartKey) || !isValidDateKey(rangeEndKey)) return null;
+
+  const [payments, brokerCount] = await Promise.all([
+    getCommissionPaymentsForOwner(session.userId, {
+      rangeStartKey,
+      rangeEndKey,
+      propertyId,
+    }),
+    prisma.broker.count({ where: { userId: session.userId } }),
+  ]);
+
+  const brokers = buildBrokerCommissions(payments);
+
+  const reservationsByBroker: Record<string, ReservationCommissionRow[]> = {};
+  for (const broker of brokers) {
+    reservationsByBroker[broker.brokerId] = buildReservationCommissions(
+      payments,
+      broker.brokerId,
+    );
+  }
+
+  return {
+    brokers,
+    reservationsByBroker,
+    totalCommission: sumCommissions(brokers),
+    totalCollected: brokers.reduce((total, b) => total + b.collectedAmount, 0),
+    hasAnyBroker: brokerCount > 0,
+  };
 }

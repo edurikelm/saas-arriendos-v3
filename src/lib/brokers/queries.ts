@@ -30,7 +30,7 @@
 import { prisma } from "@/lib/db/prisma";
 import type { Prisma } from "@prisma/client";
 import { isPaidAtInRange } from "@/lib/reports/revenue-series";
-import { BUSINESS_TIME_ZONE } from "@/lib/domain/timezone";
+import { BUSINESS_TIME_ZONE, dateOnlyKey } from "@/lib/domain/timezone";
 import {
   buildBrokerCommissions,
   buildReservationCommissions,
@@ -91,7 +91,11 @@ export async function getCommissionPaymentsForOwner(
         select: {
           id: true,
           commissionRate: true,
+          startDate: true,
+          endDate: true,
           broker: { select: { id: true, name: true } },
+          client: { select: { name: true } },
+          property: { select: { name: true } },
         },
       },
     },
@@ -115,6 +119,12 @@ export async function getCommissionPaymentsForOwner(
       brokerId: broker.id,
       brokerName: broker.name,
       commissionRate: Number(rate),
+      clientName: p.reservation.client.name,
+      propertyName: p.reservation.property.name,
+      // `startDate`/`endDate` son date-only en la base: se leen con
+      // `dateOnlyKey`, no con los getters locales (ver CONTEXT.md).
+      startDateKey: dateOnlyKey(p.reservation.startDate),
+      endDateKey: dateOnlyKey(p.reservation.endDate),
     });
   }
 

@@ -15,6 +15,9 @@ vi.mock("@/lib/actions/reports", () => ({
   getOutstandingSnapshot: vi.fn(),
   getReservationsReportCount: vi.fn(),
   getReservationsReportForExport: vi.fn(),
+  // El bloque de comisiones se pide en el mismo fetch del resumen; sin
+  // captadores no se dibuja, que es el caso de estos tests.
+  getBrokerCommissions: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock("@/lib/export-utils", () => ({
