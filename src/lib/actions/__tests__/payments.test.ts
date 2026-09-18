@@ -2271,6 +2271,8 @@ describe('markPaymentAsPaid - PAYMENT_RECEIVED notification hook', () => {
         amount: '50000',
         method: 'CASH',
         reservationId: 'res-1',
+        // Marked by the owner: born read, does not ring.
+        actorUserId: 'user-1',
       }),
     );
   });
@@ -2362,6 +2364,8 @@ describe('processMercadoPagoWebhook - PAYMENT_RECEIVED notification hook', () =>
         reservationId: 'res-1',
       }),
     );
+    // Paid by the client through Mercado Pago: no actor, so it rings.
+    expect(mockRecordDomainEvent.mock.calls[0][0]).not.toHaveProperty('actorUserId');
   });
 
   it('does not call recordDomainEvent when status is not COMPLETED', async () => {
@@ -2476,6 +2480,7 @@ describe('revertPayment - PAYMENT_REVERTED notification hook', () => {
         clientName: 'Juan',
         amount: '50000',
         reservationId: 'res-1',
+        actorUserId: 'user-1',
       }),
     );
   });

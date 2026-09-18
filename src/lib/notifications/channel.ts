@@ -22,6 +22,12 @@ export interface NotificationIntent {
   body: string;
   link?: string;
   userId: string;
+  /**
+   * The recipient caused this event (e.g. the owner marked a payment as paid).
+   * The in-app row is created already read: it stays in the list as history
+   * but does not raise the badge nor ring the bell.
+   */
+  alreadyRead?: boolean;
 }
 
 /**

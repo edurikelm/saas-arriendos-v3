@@ -27,8 +27,9 @@ interface NotificationChannel {
 - `notificationKey`: clave única de deduplicación (ej. `payment-received:pay_abc123`)
 - `type`: enum NotificationType
 - `title`, `body`: snapshots en el momento del evento
-- `link`: URL interna opcional
+- `link`: URL interna opcional. Los pagos no tienen página propia: sus notificaciones enlazan a la reserva (`/reservations/{reservationId}`). `/payments/{id}` existe solo para redirigir las notificaciones viejas que guardaron ese link.
 - `userId`: destinatario
+- `alreadyRead`: el destinatario causó el evento (ver §7)
 
 `DispatchResult` es una discriminated union que permite al caller distinguir entre éxito, skip intencional (email deshabilitado, sin API key), y error.
 
@@ -108,6 +109,26 @@ Las server actions que emiten notificaciones siguen este orden:
 
 **Por qué:** si el pago se actualiza (ej. se corrige el monto), las notificaciones viejas deben seguir mostrando lo que pasó en el momento del evento. Es el mismo patrón que usa `SupportMessage` con su `body` inmutable. Esto evita inconsistencias entre "lo que pasó" y "lo que dice la notificación".
 
+El email se arma desde ese mismo snapshot (`renderNotificationEmail`), no re-renderizando desde el `type`: hasta 2026-09-18 el `EmailChannel` re-renderizaba solo con el tipo y mandaba "Pago recibido: un cliente (—)", y los de suscripción caían a un asunto genérico. El snapshot se escapa al interpolarlo en HTML y el link se hace absoluto con `NEXT_PUBLIC_APP_URL` (si falta, el email va sin link en vez de con uno roto).
+
+### 7. Las acciones propias nacen leídas (2026-09-18)
+
+`DomainEvent` lleva `actorUserId` opcional: quién causó el evento. Si coincide con el destinatario (el owner creó la reserva, marcó el pago como pagado, lo revirtió), el `InAppChannel` crea la notificación con su `NotificationRead` en el mismo `create`. Queda en la lista como historial, pero no suma al contador ni hace sonar la campana. Lo que viene de afuera —pago por webhook de Mercado Pago, recordatorios del cron— no lleva actor y queda sin leer.
+
+**Por qué:** antes de este cambio, prácticamente todas las notificaciones en producción eran de acciones del mismo owner. Con sonido, la campana habría sonado 30 segundos después de cada click propio. El email se sigue mandando en ambos casos: esta regla es del contador, no del canal.
+
+Un caller nuevo de `recordDomainEvent` que ejecute el owner debe pasar `actorUserId: session.userId`; uno disparado por un tercero o un sistema, no.
+
+### 8. Aviso en la campana: sonido y animación (2026-09-18)
+
+`DashboardLayoutClient` consulta `getUnreadNotificationStatus()` cada 30 s, al volver el foco y al volver a la pestaña (solo con la pestaña visible). Suena cuando el `createdAt` de la no leída más reciente es posterior a la más nueva ya vista (`shouldRing`); al cargar, la referencia es la más nueva de las notificaciones iniciales, así que lo que ya estaba no suena. Se compara el timestamp y no la cantidad porque una leída en otro dispositivo y una nueva en el mismo intervalo dejan la cantidad igual.
+
+- El sonido se toca **una vez desde el layout**, no desde la campana: hay dos campanas montadas (barra móvil y navbar desktop, una oculta por CSS).
+- Sonido sintetizado con Web Audio (sin archivo). Los navegadores bloquean el audio hasta el primer gesto del usuario; el `AudioContext` se prepara en el primer click/tecla, y sin gesto previo solo hay animación.
+- Silencio por dispositivo (`localStorage`), con un botón en el encabezado del popover. Es preferencia del equipo donde se usa, no de la cuenta.
+- La animación (campana que se balancea, contador que salta) respeta `prefers-reduced-motion`.
+- Latencia de hasta 30 s. Tiempo real (Supabase Realtime/SSE) no se justifica todavía.
+
 ## Consequences
 
 ### Positive
@@ -135,6 +156,8 @@ Las server actions que emiten notificaciones siguen este orden:
   - `src/lib/notifications/select-reminders-for-dispatch.ts` — pure function for milestone selection
   - `src/lib/notifications/render-notification.ts` — snapshot rendering
   - `src/lib/notifications/compute-has-unread.ts` — unread state computation
+  - `src/lib/notifications/should-ring.ts` — cuándo suena la campana (§8)
+  - `src/lib/notifications/notification-sound.ts` — sonido y preferencia de silencio (§8)
   - `src/lib/domain/timezone.ts` — timezone helpers (ADR-0020 follow-up)
 - Tests:
   - `src/lib/notifications/__tests__/in-app-channel.test.ts`

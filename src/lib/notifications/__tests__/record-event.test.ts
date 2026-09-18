@@ -162,6 +162,80 @@ describe("recordDomainEvent", () => {
     consoleSpy.mockRestore();
   });
 
+  describe("who caused the event", () => {
+    beforeEach(() => {
+      mockInAppDispatch.mockResolvedValue({ ok: true, notificationId: "notif-a", deduplicated: false });
+      mockEmailDispatch.mockResolvedValue({ ok: true, notificationId: "notif-a", deduplicated: false });
+    });
+
+    it("marks the notification already read when the owner did it (e.g. marked a payment as paid)", async () => {
+      const { recordDomainEvent } = await import("@/lib/notifications/record-event");
+
+      await recordDomainEvent({
+        type: "PAYMENT_RECEIVED",
+        paymentId: "pay-own",
+        ownerId: "user-1",
+        ownerEmail: "owner@test.com",
+        clientName: "Juan",
+        amount: "$150.000",
+        method: "CASH",
+        reservationId: "res-123",
+        actorUserId: "user-1",
+      });
+
+      expect(mockInAppDispatch.mock.calls[0][0].alreadyRead).toBe(true);
+    });
+
+    it("leaves it unread when it came from outside (Mercado Pago webhook, cron)", async () => {
+      const { recordDomainEvent } = await import("@/lib/notifications/record-event");
+
+      await recordDomainEvent({
+        type: "PAYMENT_RECEIVED",
+        paymentId: "pay-mp",
+        ownerId: "user-1",
+        ownerEmail: "owner@test.com",
+        clientName: "Juan",
+        amount: "$150.000",
+        method: "MERCADO_PAGO",
+        reservationId: "res-123",
+      });
+
+      expect(mockInAppDispatch.mock.calls[0][0].alreadyRead).toBe(false);
+    });
+
+    it("leaves it unread when someone other than the owner did it", async () => {
+      const { recordDomainEvent } = await import("@/lib/notifications/record-event");
+
+      await recordDomainEvent({
+        type: "RESERVATION_CREATED",
+        reservationId: "res-123",
+        ownerId: "user-1",
+        ownerEmail: "owner@test.com",
+        clientName: "Juan",
+        propertyName: "Casa",
+        actorUserId: "admin-9",
+      });
+
+      expect(mockInAppDispatch.mock.calls[0][0].alreadyRead).toBe(false);
+    });
+
+    it("still emails the owner about their own actions", async () => {
+      const { recordDomainEvent } = await import("@/lib/notifications/record-event");
+
+      await recordDomainEvent({
+        type: "RESERVATION_CREATED",
+        reservationId: "res-123",
+        ownerId: "user-1",
+        ownerEmail: "owner@test.com",
+        clientName: "Juan",
+        propertyName: "Casa",
+        actorUserId: "user-1",
+      });
+
+      expect(mockEmailDispatch).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("PAYMENT_RECEIVED", () => {
     it("dispatches to inAppChannel with correct intent", async () => {
       const { recordDomainEvent } = await import("@/lib/notifications/record-event");
@@ -187,7 +261,7 @@ describe("recordDomainEvent", () => {
           type: "PAYMENT_RECEIVED",
           title: expect.stringContaining("Juan"),
           body: expect.stringContaining("$150.000"),
-          link: "/payments/pay-456",
+          link: "/reservations/res-123",
           userId: "user-1",
         }),
         expect.objectContaining({
@@ -208,6 +282,7 @@ describe("recordDomainEvent", () => {
         type: "PAYMENT_RECEIVED",
         paymentId: "pay-789",
         ownerId: "user-2",
+        reservationId: "res-123",
         ownerEmail: "owner2@test.com",
         clientName: "María",
         amount: "$200.000",
@@ -231,6 +306,7 @@ describe("recordDomainEvent", () => {
           type: "PAYMENT_RECEIVED",
           paymentId: "pay-999",
           ownerId: "user-1",
+          reservationId: "res-123",
           ownerEmail: "owner@test.com",
           clientName: "Test",
           amount: "$100",
@@ -270,7 +346,7 @@ describe("recordDomainEvent", () => {
           notificationKey: "payment-reminder:pay-rem-1:DUE_TODAY",
           type: "PAYMENT_REMINDER",
           title: expect.stringContaining("Juan"),
-          link: "/payments/pay-rem-1",
+          link: "/reservations/res-123",
           userId: "user-1",
         }),
         expect.objectContaining({
@@ -293,6 +369,7 @@ describe("recordDomainEvent", () => {
         paymentId: "pay-rem-2",
         milestone: "DUE_TODAY",
         ownerId: "user-2",
+        reservationId: "res-123",
         ownerEmail: "owner2@test.com",
         clientName: "María",
         amount: "$200.000",
@@ -314,6 +391,7 @@ describe("recordDomainEvent", () => {
         paymentId: "pay-rem-3",
         milestone: "OVERDUE_1_DAY",
         ownerId: "user-1",
+        reservationId: "res-123",
         ownerEmail: "owner@test.com",
         clientName: "Ana",
         amount: "$80.000",
@@ -334,6 +412,7 @@ describe("recordDomainEvent", () => {
         paymentId: "pay-rem-4",
         milestone: "BEFORE_3_DAYS",
         ownerId: "user-1",
+        reservationId: "res-123",
         ownerEmail: "owner@test.com",
         clientName: "Pedro",
         amount: "$300.000",
@@ -356,6 +435,7 @@ describe("recordDomainEvent", () => {
           paymentId: "pay-rem-5",
           milestone: "OVERDUE_3_DAYS",
           ownerId: "user-1",
+          reservationId: "res-123",
           ownerEmail: "owner@test.com",
           clientName: "Test",
           amount: "$100",
@@ -379,6 +459,7 @@ describe("recordDomainEvent", () => {
           paymentId: "pay-rem-6",
           milestone: "OVERDUE_7_DAYS",
           ownerId: "user-1",
+          reservationId: "res-123",
           ownerEmail: "owner@test.com",
           clientName: "Laura",
           amount: "$500",
@@ -414,7 +495,7 @@ describe("recordDomainEvent", () => {
         expect.objectContaining({
           notificationKey: "payment-reminder:pay-rem-email-skipped:DUE_TODAY",
           type: "PAYMENT_REMINDER",
-          link: "/payments/pay-rem-email-skipped",
+          link: "/reservations/res-email",
           userId: "user-email",
         }),
         expect.objectContaining({
@@ -436,6 +517,7 @@ describe("recordDomainEvent", () => {
         paymentId: "pay-m1",
         milestone: "BEFORE_1_DAY",
         ownerId: "user-m1",
+        reservationId: "res-123",
         ownerEmail: "owner@test.com",
         clientName: "Pedro",
         amount: "$120.000",
@@ -456,6 +538,7 @@ describe("recordDomainEvent", () => {
         paymentId: "pay-m3",
         milestone: "OVERDUE_3_DAYS",
         ownerId: "user-m3",
+        reservationId: "res-123",
         ownerEmail: "owner@test.com",
         clientName: "Ana",
         amount: "$90.000",
@@ -491,7 +574,7 @@ describe("recordDomainEvent", () => {
           type: "PAYMENT_REVERTED",
           title: expect.stringContaining("Juan"),
           body: expect.stringContaining("revirtió"),
-          link: "/payments/pay-rev-1",
+          link: "/reservations/res-123",
           userId: "user-1",
         }),
         expect.objectContaining({
@@ -512,6 +595,7 @@ describe("recordDomainEvent", () => {
         type: "PAYMENT_REVERTED",
         paymentId: "pay-rev-2",
         ownerId: "user-1",
+        reservationId: "res-123",
         ownerEmail: "owner@test.com",
         clientName: "María",
         amount: "$80.000",
@@ -538,6 +622,7 @@ describe("recordDomainEvent", () => {
           type: "PAYMENT_REVERTED",
           paymentId: "pay-rev-3",
           ownerId: "user-1",
+          reservationId: "res-123",
           ownerEmail: "owner@test.com",
           clientName: "Test",
           amount: "$100",

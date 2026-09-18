@@ -1,11 +1,25 @@
-import { describe, expect, it } from "vitest";
-import { renderNotification, type NotificationRenderData } from "@/lib/notifications/render-notification";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  renderNotification,
+  renderNotificationEmail,
+  type NotificationRenderData,
+} from "@/lib/notifications/render-notification";
 
 function render(data: NotificationRenderData, format: "in-app" | "email" = "email") {
   return renderNotification(data, format);
 }
 
 describe("renderNotification", () => {
+  // Email links are absolute (see renderNotificationEmail).
+  const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+  beforeEach(() => {
+    process.env.NEXT_PUBLIC_APP_URL = "https://app.rentalpro.cl";
+  });
+  afterEach(() => {
+    if (originalAppUrl !== undefined) process.env.NEXT_PUBLIC_APP_URL = originalAppUrl;
+    else delete process.env.NEXT_PUBLIC_APP_URL;
+  });
+
   describe("RESERVATION_CREATED", () => {
     it("renders subject with client and property names", () => {
       const result = render({
@@ -31,7 +45,7 @@ describe("renderNotification", () => {
         reservationId: "res-123",
       });
 
-      expect(result.html).toContain("/reservations/res-123");
+      expect(result.html).toContain('href="https://app.rentalpro.cl/reservations/res-123"');
     });
   });
 
@@ -178,15 +192,17 @@ describe("renderNotification", () => {
       expect(result.text).toBeTruthy();
     });
 
-    it("includes payment link in HTML when paymentId is provided", () => {
+    it("links to the reservation (payments have no page of their own)", () => {
       const result = render({
         type: "PAYMENT_REVERTED",
         clientName: "Test",
         amount: "$100",
         paymentId: "pay-123",
+        reservationId: "res-9",
       });
 
-      expect(result.html).toContain("/payments/pay-123");
+      expect(result.html).toContain("https://app.rentalpro.cl/reservations/res-9");
+      expect(result.html).not.toContain("/payments/");
     });
   });
 
@@ -222,6 +238,32 @@ describe("renderNotification", () => {
 
       expect(result.text).not.toContain("<");
       expect(result.text).not.toContain(">");
+    });
+  });
+
+  describe("renderNotificationEmail", () => {
+    it("escapes HTML typed into names", () => {
+      const result = renderNotificationEmail({
+        subject: 'Nueva reserva: <b>Ana</b> en "Casa"',
+        body: "Reserva de <script>alert(1)</script> & cía.",
+      });
+
+      expect(result.html).not.toContain("<script>");
+      expect(result.html).not.toContain("<b>Ana</b>");
+      expect(result.html).toContain("&lt;script&gt;alert(1)&lt;/script&gt; &amp; cía.");
+      expect(result.html).toContain("&quot;Casa&quot;");
+      // Plain text is not HTML: it stays as typed.
+      expect(result.text).toBe("Reserva de <script>alert(1)</script> & cía.");
+    });
+
+    it("keeps an already absolute link as is", () => {
+      const result = renderNotificationEmail({
+        subject: "s",
+        body: "b",
+        link: "https://www.mercadopago.cl/x",
+      });
+
+      expect(result.html).toContain('href="https://www.mercadopago.cl/x"');
     });
   });
 

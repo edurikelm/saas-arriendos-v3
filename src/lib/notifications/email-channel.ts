@@ -16,8 +16,7 @@ import type {
   NotificationRecipient,
   DispatchResult,
 } from "./channel";
-import { renderNotification } from "./render-notification";
-import type { NotificationRenderData } from "./render-notification";
+import { renderNotificationEmail } from "./render-notification";
 
 export class EmailChannel implements NotificationChannel {
   readonly name = "email" as const;
@@ -39,19 +38,19 @@ export class EmailChannel implements NotificationChannel {
       return { ok: true, skipped: "email-disabled" };
     }
 
-    const renderData: NotificationRenderData = {
-      type: intent.type,
-      reservationId: intent.link?.startsWith("/reservations/") ? intent.link.split("/").pop() : undefined,
-      paymentId: intent.link?.startsWith("/payments/") ? intent.link.split("/").pop() : undefined,
-    };
-
     if (!apiKey || !fromEmail) {
       console.log(`[Notifications][email] No API key/from. Skipping. notificationKey=${intent.notificationKey} to=${recipient.email} subject="${intent.title}"`);
       return { ok: true, skipped: "no-api-key" };
     }
 
     const resend = new Resend(apiKey);
-    const rendered = renderNotification(renderData, "email");
+    // The intent already carries the rendered title/body with the event data
+    // (client, property, amount). Re-rendering from the type alone lost it.
+    const rendered = renderNotificationEmail({
+      subject: intent.title,
+      body: intent.body,
+      link: intent.link,
+    });
 
     try {
       const result = await resend.emails.send({

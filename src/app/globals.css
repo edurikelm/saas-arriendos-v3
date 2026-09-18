@@ -374,6 +374,60 @@
     }
   }
 
+  /* Campana de notificaciones: cuando llega una nueva (ringKey de
+     DashboardLayoutClient) la campana se balancea y el contador salta. */
+  @keyframes rentalpro-bell-ring {
+    0%, 82%, 100% {
+      transform: rotate(0);
+    }
+    10% {
+      transform: rotate(16deg);
+    }
+    22% {
+      transform: rotate(-14deg);
+    }
+    34% {
+      transform: rotate(10deg);
+    }
+    46% {
+      transform: rotate(-8deg);
+    }
+    58% {
+      transform: rotate(4deg);
+    }
+    70% {
+      transform: rotate(-2deg);
+    }
+  }
+
+  @keyframes rentalpro-badge-pop {
+    0% {
+      transform: scale(0.6);
+    }
+    55% {
+      transform: scale(1.2);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  .notification-bell-ring {
+    transform-origin: 50% 2px;
+    animation: rentalpro-bell-ring 900ms ease-in-out both;
+  }
+
+  .notification-badge-pop {
+    animation: rentalpro-badge-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .notification-bell-ring,
+    .notification-badge-pop {
+      animation: none;
+    }
+  }
+
   .dashboard-shell-bg {
     background:
       radial-gradient(circle at top right, color-mix(in oklch, var(--primary) 10%, transparent), transparent 28rem),

@@ -65,6 +65,24 @@
         ],
         "createdAt": "2026-09-10T23:12:32.383Z",
         "reason": "DESIGN.md define 'overflow-hidden rounded-md border border-t-2 border-t-primary border-border bg-card' como el wrapper firma de DataTable (seccion DataTable + Do's); el acento superior sobre esquinas redondeadas es intencional en todo el producto. Este contenedor lo replica verbatim desde reservations-list-client.tsx para que la lista movil se lea como la misma tabla en otro ancho."
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#333",
+        "files": [
+          "src/lib/notifications/render-notification.ts"
+        ],
+        "createdAt": "2026-09-18T17:46:59.653Z",
+        "reason": "claude: pre-existing inline colors of the transactional email template; email clients cannot use the app's CSS tokens"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#888",
+        "files": [
+          "src/lib/notifications/render-notification.ts"
+        ],
+        "createdAt": "2026-09-18T17:46:59.767Z",
+        "reason": "claude: pre-existing inline colors of the transactional email template; email clients cannot use the app's CSS tokens"
       }
     ]
   }

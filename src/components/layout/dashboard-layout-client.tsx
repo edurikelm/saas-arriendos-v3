@@ -1,12 +1,18 @@
 "use client";
 
-import { ReactNode, useState, useEffect, useCallback } from "react";
+import { ReactNode, useState, useEffect, useCallback, useRef } from "react";
 import { DashboardSidebar } from "@/components/layout/dashboard-sidebar";
 import { DashboardNavbar } from "@/components/layout/dashboard-navbar";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/notifications/notification-bell";
-import { getUnreadNotificationCount, type RecentNotification } from "@/lib/actions/notifications";
+import { getUnreadNotificationStatus, type RecentNotification } from "@/lib/actions/notifications";
+import { newestCreatedAt, shouldRing } from "@/lib/notifications/should-ring";
+import {
+  isNotificationSoundEnabled,
+  playNotificationSound,
+  primeNotificationSound,
+} from "@/lib/notifications/notification-sound";
 
 interface DashboardLayoutClientProps {
   children: ReactNode;
@@ -29,15 +35,35 @@ export function DashboardLayoutClient({
 }: DashboardLayoutClientProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [liveNotificationUnreadCount, setLiveNotificationUnreadCount] = useState(notificationUnreadCount);
+  // Each increment rings the bell once. It lives here and not in the bell
+  // because two bells are mounted (mobile bar + desktop navbar): ringing from
+  // each one would play the sound twice.
+  const [ringKey, setRingKey] = useState(0);
+  const lastSeenUnreadAt = useRef(newestCreatedAt(initialNotifications));
 
   const refreshUnreadCount = useCallback(async () => {
     if (document.visibilityState !== "visible") return;
     try {
-      const count = await getUnreadNotificationCount();
+      const { count, latestUnreadAt } = await getUnreadNotificationStatus();
       setLiveNotificationUnreadCount(count);
+      if (shouldRing(latestUnreadAt, lastSeenUnreadAt.current)) {
+        lastSeenUnreadAt.current = latestUnreadAt;
+        setRingKey((key) => key + 1);
+        if (isNotificationSoundEnabled()) playNotificationSound();
+      }
     } catch {
       // Best-effort polling — ignore errors
     }
+  }, []);
+
+  // Audio only starts inside a user gesture: prepare it on the first one.
+  useEffect(() => {
+    window.addEventListener("pointerdown", primeNotificationSound, { once: true });
+    window.addEventListener("keydown", primeNotificationSound, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", primeNotificationSound);
+      window.removeEventListener("keydown", primeNotificationSound);
+    };
   }, []);
 
   useEffect(() => {
@@ -85,12 +111,14 @@ export function DashboardLayoutClient({
           </div>
           <NotificationBell
             unreadCount={liveNotificationUnreadCount}
+            ringKey={ringKey}
             initialNotifications={initialNotifications}
             onNotificationsRead={handleNotificationsRead}
           />
         </div>
         <DashboardNavbar
           notificationUnreadCount={liveNotificationUnreadCount}
+          notificationRingKey={ringKey}
           initialNotifications={initialNotifications}
           onNotificationsRead={handleNotificationsRead}
           eyebrow="Panel de Control"

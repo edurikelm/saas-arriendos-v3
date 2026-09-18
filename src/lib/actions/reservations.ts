@@ -713,6 +713,7 @@ export async function createReservation(data: unknown) {
       ownerName: owner?.name ?? undefined,
       clientName: client.name,
       propertyName: property.name,
+      actorUserId: session.userId,
     });
   } catch (err) {
     console.error("[Notifications] recordDomainEvent failed", err);

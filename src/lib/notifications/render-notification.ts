@@ -105,7 +105,7 @@ function renderPaymentReceived(
   const amount = data.amount ?? "—";
   const subject = `Pago recibido: ${clientName} (${amount})`;
   const bodyText = `Se registró un pago de ${amount} de ${clientName}.`;
-  const link = data.paymentId ? `/payments/${data.paymentId}` : undefined;
+  const link = data.reservationId ? `/reservations/${data.reservationId}` : undefined;
 
   return buildRendered(subject, bodyText, link, format);
 }
@@ -138,7 +138,7 @@ function renderPaymentReminder(
     bodyText = `Recordatorio: el pago de ${amount} de ${clientName} (${milestone}).`;
   }
 
-  const link = data.paymentId ? `/payments/${data.paymentId}` : undefined;
+  const link = data.reservationId ? `/reservations/${data.reservationId}` : undefined;
   return buildRendered(subject, bodyText, link, format);
 }
 
@@ -150,7 +150,7 @@ function renderPaymentFailed(
   const amount = data.amount ?? "—";
   const subject = `Pago fallido: ${clientName} (${amount})`;
   const bodyText = `El pago de ${amount} de ${clientName} no pudo procesarse.`;
-  const link = data.paymentId ? `/payments/${data.paymentId}` : undefined;
+  const link = data.reservationId ? `/reservations/${data.reservationId}` : undefined;
 
   return buildRendered(subject, bodyText, link, format);
 }
@@ -163,7 +163,7 @@ function renderPaymentReverted(
   const amount = data.amount ?? "—";
   const subject = `Pago revertido: ${clientName} (${amount})`;
   const bodyText = `Se revirtió el pago de ${amount} de ${clientName}.${data.reason ? ` Motivo: ${data.reason}.` : ""}`;
-  const link = data.paymentId ? `/payments/${data.paymentId}` : undefined;
+  const link = data.reservationId ? `/reservations/${data.reservationId}` : undefined;
   return buildRendered(subject, bodyText, link, format);
 }
 
@@ -181,19 +181,40 @@ function buildRendered(
     };
   }
 
-  const linkHtml = link
-    ? `<p><a href="${link}">Ver detalles en RentalPro</a></p>`
+  return renderNotificationEmail({ subject, body: bodyText, link });
+}
+
+/**
+ * Wraps an already-rendered notification (the title/body snapshot stored in
+ * the in-app row) into the email template.
+ *
+ * The snapshot is interpolated into HTML, so it is escaped: it carries names
+ * typed by the owner (client, property). The link becomes absolute with
+ * NEXT_PUBLIC_APP_URL because a relative href does not open from a mail
+ * client; without that variable the link is left out instead of shipping a
+ * broken one.
+ */
+export function renderNotificationEmail(input: {
+  subject: string;
+  body: string;
+  link?: string | null;
+}): RenderedNotification {
+  const { subject, body } = input;
+  const href = input.link ? toAbsoluteUrl(input.link) : undefined;
+
+  const linkHtml = href
+    ? `<p><a href="${escapeHtml(href)}">Ver detalles en RentalPro</a></p>`
     : "";
   const html = `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>${subject}</title>
+  <title>${escapeHtml(subject)}</title>
 </head>
 <body style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-  <h2 style="color: #333;">${subject}</h2>
-  <p>${bodyText}</p>
+  <h2 style="color: #333;">${escapeHtml(subject)}</h2>
+  <p>${escapeHtml(body)}</p>
   ${linkHtml}
   <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
   <p style="color: #888; font-size: 12px;">
@@ -202,5 +223,26 @@ function buildRendered(
 </body>
 </html>`.trim();
 
-  return { subject, html, text: bodyText };
+  const text = href ? `${body}\n\nVer detalles: ${href}` : body;
+  return { subject, html, text };
+}
+
+function toAbsoluteUrl(link: string): string | undefined {
+  if (/^https?:\/\//.test(link)) return link;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (!appUrl) return undefined;
+  try {
+    return new URL(link, appUrl).toString();
+  } catch {
+    return undefined;
+  }
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
