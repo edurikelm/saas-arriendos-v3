@@ -14,7 +14,7 @@ import {
   sliceBuckets,
 } from "@/lib/reservations/list-order";
 import { countCompletedPaymentsForReservation } from "@/lib/payments/queries";
-import { commissionForPayments } from "@/lib/brokers/commission";
+import { commissionForPayment, commissionForPayments } from "@/lib/brokers/commission";
 import { ZodError } from "zod";
 import { recordDomainEvent } from "@/lib/notifications/record-event";
 import { canTransition } from "@/lib/reservations/state-machine";
@@ -379,6 +379,16 @@ export async function getReservationById(id: string) {
           active: reservation.broker.active,
         }
       : null,
+    // Comisión del arriendo completo, si se cobrara todo. No es deuda con el
+    // captador todavía: eso es `commissionAccrued`. Sirve para "cuánto me deja
+    // esta reserva", que es la pregunta del detalle.
+    commissionProjected:
+      reservation.commissionRate === null
+        ? 0
+        : commissionForPayment(
+            Number(reservation.totalPrice),
+            Number(reservation.commissionRate),
+          ),
     // Comisión devengada hasta hoy, derivada de los pagos que ya están en esta
     // consulta (ADR-0040 §3). No hay query extra ni monto guardado.
     commissionAccrued:

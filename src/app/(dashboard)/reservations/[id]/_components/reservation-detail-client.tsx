@@ -26,6 +26,7 @@ import type { LucideIcon } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { formatCLP } from "@/lib/format/currency";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -120,6 +121,8 @@ interface ReservationDetailClientProps {
     broker?: { id: string; name: string; active: boolean } | null;
     /** Comisión devengada hasta hoy, derivada de los pagos cobrados. */
     commissionAccrued?: number;
+    /** Comisión del arriendo completo si se cobrara todo. Todavía no es deuda. */
+    commissionProjected?: number;
     property: Property;
     client: Client;
     payments: Payment[];
@@ -868,7 +871,7 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
             <section aria-label="Captación">
               <h2 className="text-sm font-bold text-foreground mb-3">Captación</h2>
               <Card>
-                <CardContent className="p-4 sm:p-5 space-y-3">
+                <CardContent className="p-4 sm:p-5 space-y-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-foreground truncate">
@@ -882,16 +885,45 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
                       <Badge variant="outline" className="text-[10px] shrink-0">Inactivo</Badge>
                     )}
                   </div>
-                  <div className="border-t border-border pt-3">
+
+                  {/* Dos preguntas distintas, dos bloques. "Si se cobra todo" es
+                      para decidir; "ya devengada" es lo que se le debe hoy. */}
+                  <div className="border-t border-border pt-3 space-y-2">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      Comisión devengada
+                      Si se cobra todo
                     </p>
-                    <p className="text-lg font-bold text-foreground">
-                      ${(reservation.commissionAccrued ?? 0).toLocaleString("es-CL")}
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-xs text-muted-foreground">Comisión</span>
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        −{formatCLP(reservation.commissionProjected ?? 0)}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-xs font-medium text-foreground">Neto para ti</span>
+                      <span className="text-sm font-bold text-foreground tabular-nums">
+                        {formatCLP(Number(reservation.totalPrice) - (reservation.commissionProjected ?? 0))}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-border pt-3 space-y-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Ya devengada
                     </p>
-                    <p className="text-[10px] text-muted-foreground">
-                      Sobre los pagos ya cobrados de esta reserva
-                    </p>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        Sobre {formatCLP(paidAmount)} cobrados
+                      </span>
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        −{formatCLP(reservation.commissionAccrued ?? 0)}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-xs font-medium text-foreground">Te queda</span>
+                      <span className="text-sm font-bold text-foreground tabular-nums">
+                        {formatCLP(paidAmount - (reservation.commissionAccrued ?? 0))}
+                      </span>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -969,7 +1001,9 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
               ✕
             </Button>
           </DialogHeader>
-          <div className="p-5">
+          {/* Sin padding propio: el formulario ya trae el suyo (`p-4 sm:p-6`) y
+              los dos juntos dejaban el modal con 44px de aire por lado. */}
+          <div>
             <ReservationForm
               properties={[
                 {

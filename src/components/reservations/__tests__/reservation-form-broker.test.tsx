@@ -102,3 +102,55 @@ describe('ReservationForm — Captación', () => {
     expect(rate.value).toBe('6.25');
   });
 });
+
+describe("ReservationForm — comisión en el resumen financiero", () => {
+  const stay = {
+    propertyId: "prop-1",
+    clientId: "client-1",
+    billingType: "DAILY" as const,
+    unitsBooked: 1,
+    startDate: new Date("2026-09-05T15:00:00Z"),
+    endDate: new Date("2026-09-12T15:00:00Z"),
+  };
+
+  it("descuenta la comisión del total y muestra el neto para el propietario", async () => {
+    // 8 noches × $50.000 = $400.000 ; 8,5% = $34.000 ; neto $366.000
+    renderForm({ ...stay, brokerId: "brk-1", commissionRate: 8.5 });
+
+    await waitFor(() => expect(screen.getByText("$400.000")).toBeTruthy());
+    expect(screen.getByText("−$34.000")).toBeTruthy();
+    expect(screen.getByText("Neto para ti")).toBeTruthy();
+    expect(screen.getByText("$366.000")).toBeTruthy();
+  });
+
+  it("nombra al captador junto al descuento", async () => {
+    renderForm({ ...stay, brokerId: "brk-1", commissionRate: 8.5 });
+
+    // Con coma, como el resto de la interfaz.
+    await waitFor(() =>
+      expect(screen.getByText(/Ana Rojas \(\s*8,5%\)/)).toBeTruthy(),
+    );
+  });
+
+  it("sin captador el resumen no habla de comisión ni de neto", async () => {
+    renderForm(stay);
+
+    await waitFor(() => expect(screen.getByText("$400.000")).toBeTruthy());
+    expect(screen.queryByText("Neto para ti")).toBeNull();
+  });
+
+  it("el resumen va al final, después de captación y notas", async () => {
+    // Es la conclusión: queda pegada al botón que la confirma.
+    renderForm({ ...stay, brokerId: "brk-1", commissionRate: 8.5 });
+
+    await waitFor(() => expect(screen.getByText("Resumen Financiero")).toBeTruthy());
+
+    const order = ["Captación", "Notas adicionales", "Resumen Financiero"].map((label) => {
+      const node = screen.getByText(label);
+      return Array.from(document.querySelectorAll("form *")).indexOf(node);
+    });
+
+    expect(order[0]).toBeLessThan(order[1]);
+    expect(order[1]).toBeLessThan(order[2]);
+  });
+});

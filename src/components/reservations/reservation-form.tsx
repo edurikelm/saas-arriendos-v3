@@ -28,11 +28,8 @@ import {
   CalendarCheck,
   Wallet,
   Info,
-  CalendarDays,
   Handshake,
 } from "lucide-react";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
 
 interface ReservationFormProps {
   properties: Array<{
@@ -140,6 +137,7 @@ export function ReservationForm({
   const unitsBooked = useWatch({ control, name: "unitsBooked" });
   const bookingAirbnb = useWatch({ control, name: "bookingAirbnb" });
   const brokerId = useWatch({ control, name: "brokerId" });
+  const commissionRate = useWatch({ control, name: "commissionRate" });
   const isMonthly = billingType === "MONTHLY";
   const isAtFreeLimit = plan === "FREE" && clientsList.length >= 5;
 
@@ -218,6 +216,19 @@ export function ReservationForm({
 
   const showFinancialSummary = selectedProperty && dateRange.from && endDate;
 
+  // Comisión proyectada del arriendo completo. Es la misma cuenta que hace el
+  // seam (`commissionForPayment`), pero sobre el total en vez de sobre un pago:
+  // acá todavía no hay pagos, y el owner necesita ver lo que le queda ANTES de
+  // guardar, que es cuando todavía puede negociar el porcentaje.
+  const selectedBroker = brokers.find((b) => b.id === brokerId);
+  const effectiveRate =
+    brokerId && typeof commissionRate === "number" && Number.isFinite(commissionRate)
+      ? commissionRate
+      : null;
+  const projectedCommission =
+    effectiveRate === null ? 0 : Math.round((totalAmount * effectiveRate) / 100);
+  const netAmount = totalAmount - projectedCommission;
+
   return (
     <>
       <div className="flex flex-col max-h-[calc(90vh-65px)]">
@@ -228,11 +239,11 @@ export function ReservationForm({
         <input type="hidden" {...register("startDate")} />
         <input type="hidden" {...register("endDate")} />
 
-        {/* Section 1: Detalles de la Propiedad */}
+        {/* Section 1: Reserva — qué propiedad y para quién */}
         <div className="space-y-4">
           <div className="flex items-center gap-2 pb-1 border-b border-border">
             <Building2 className="h-4 w-4 text-primary" />
-            <h3 className="text-[10px] font-bold text-foreground uppercase tracking-wider">Detalles de la Propiedad</h3>
+            <h3 className="text-[10px] font-bold text-foreground uppercase tracking-wider">Reserva</h3>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
@@ -276,11 +287,11 @@ export function ReservationForm({
           </div>
         </div>
 
-        {/* Section 2: Configuración de Estancia */}
+        {/* Section 2: Estadía */}
         <div className="space-y-4">
           <div className="flex items-center gap-2 pb-1 border-b border-border">
             <CalendarCheck className="h-4 w-4 text-primary" />
-            <h3 className="text-[10px] font-bold text-foreground uppercase tracking-wider">Configuración de Estancia</h3>
+            <h3 className="text-[10px] font-bold text-foreground uppercase tracking-wider">Estadía</h3>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -445,69 +456,7 @@ export function ReservationForm({
           </div>
         </div>
 
-        {/* Section 3: Resumen Financiero */}
-        {showFinancialSummary && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 pb-1 border-b border-border">
-              <Wallet className="h-4 w-4 text-primary" />
-              <h3 className="text-[10px] font-bold text-foreground uppercase tracking-wider">Resumen Financiero</h3>
-            </div>
-
-            <div className="bg-card ring-1 ring-foreground/10 rounded-xl overflow-hidden">
-              <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] divide-y md:divide-y-0 md:divide-x divide-border">
-                {/* Detalle */}
-                <div className="p-4 sm:p-5 space-y-2">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Info className="h-3.5 w-3.5" />
-                    <p className="text-[10px] uppercase font-bold tracking-wider">Detalle</p>
-                  </div>
-                  <p className="text-sm font-semibold text-foreground">
-                    {isMonthly
-                      ? `${months} ${months === 1 ? "mes" : "meses"} × ${unitsBooked || 1} ${(unitsBooked || 1) === 1 ? "unidad" : "unidades"}`
-                      : `${nights} ${nights === 1 ? "noche" : "noches"} × ${unitsBooked || 1} ${(unitsBooked || 1) === 1 ? "unidad" : "unidades"}`}
-                  </p>
-                </div>
-
-                {/* Período */}
-                <div className="p-4 sm:p-5 space-y-2">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <CalendarDays className="h-3.5 w-3.5" />
-                    <p className="text-[10px] uppercase font-bold tracking-wider">Período</p>
-                  </div>
-                  <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-                    <span className="text-[10px] text-muted-foreground font-medium uppercase self-center">Desde</span>
-                    <span className="text-sm font-semibold text-foreground tabular-nums">
-                      {format(dateRange.from!, "d MMM, yyyy", { locale: es })}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground font-medium uppercase self-center">Hasta</span>
-                    <span className="text-sm font-semibold text-foreground tabular-nums">
-                      {format(endDate!, "d MMM, yyyy", { locale: es })}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Monto Total */}
-                <div className="p-4 sm:p-5 space-y-2 bg-muted/30 md:bg-transparent md:min-w-[200px]">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Wallet className="h-3.5 w-3.5" />
-                    <p className="text-[10px] uppercase font-bold tracking-wider">Monto Total</p>
-                  </div>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl font-bold text-primary tabular-nums">${totalAmount.toLocaleString("es-CL")}</span>
-                    <span className="text-xs font-medium text-primary/60 uppercase">CLP</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground tabular-nums">
-                    {isMonthly
-                      ? `$${Number(selectedProperty.monthlyPrice).toLocaleString("es-CL")} / mes`
-                      : `$${Number(selectedProperty.dailyPrice).toLocaleString("es-CL")} / noche`}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Section 4: Captación */}
+        {/* Section 3: Captación */}
         <div className="space-y-4">
           <div className="flex items-center gap-2 pb-1 border-b border-border">
             <Handshake className="h-4 w-4 text-primary" />
@@ -565,7 +514,7 @@ export function ReservationForm({
           </div>
         </div>
 
-        {/* Section 5: Notas adicionales */}
+        {/* Section 4: Notas adicionales */}
         <div className="space-y-1.5">
           <Label htmlFor="notes" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Notas adicionales</Label>
           <Textarea
@@ -580,6 +529,76 @@ export function ReservationForm({
             <p id="notes-error" className="text-xs text-destructive-text mt-1">{errors.notes.message}</p>
           )}
         </div>
+        {/* Section 5: Resumen — la conclusión, pegada al botón que la confirma */}
+        {showFinancialSummary && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 pb-1 border-b border-border">
+              <Wallet className="h-4 w-4 text-primary" />
+              <h3 className="text-[10px] font-bold text-foreground uppercase tracking-wider">Resumen Financiero</h3>
+            </div>
+
+            <div className="bg-card ring-1 ring-foreground/10 rounded-xl overflow-hidden">
+              {/* Dos celdas y no tres: la celda "Período" repetía las fechas
+                  que el propio campo de estadía muestra dos secciones más
+                  arriba, y ese alto extra era justo lo que forzaba a scrollear
+                  para ver el neto. */}
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] divide-y md:divide-y-0 md:divide-x divide-border">
+                {/* Detalle */}
+                <div className="p-4 sm:p-5 space-y-2">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Info className="h-3.5 w-3.5" />
+                    <p className="text-[10px] uppercase font-bold tracking-wider">Detalle</p>
+                  </div>
+                  <p className="text-sm font-semibold text-foreground">
+                    {isMonthly
+                      ? `${months} ${months === 1 ? "mes" : "meses"} × ${unitsBooked || 1} ${(unitsBooked || 1) === 1 ? "unidad" : "unidades"}`
+                      : `${nights} ${nights === 1 ? "noche" : "noches"} × ${unitsBooked || 1} ${(unitsBooked || 1) === 1 ? "unidad" : "unidades"}`}
+                  </p>
+                </div>
+
+                {/* Monto Total */}
+                <div className="p-4 sm:p-5 space-y-2 bg-muted/30 md:bg-transparent md:min-w-[200px]">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Wallet className="h-3.5 w-3.5" />
+                    <p className="text-[10px] uppercase font-bold tracking-wider">Monto Total</p>
+                  </div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-2xl font-bold text-primary tabular-nums">${totalAmount.toLocaleString("es-CL")}</span>
+                    <span className="text-xs font-medium text-primary/60 uppercase">CLP</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground tabular-nums">
+                    {isMonthly
+                      ? `$${Number(selectedProperty.monthlyPrice).toLocaleString("es-CL")} / mes`
+                      : `$${Number(selectedProperty.dailyPrice).toLocaleString("es-CL")} / noche`}
+                  </p>
+
+                  {projectedCommission > 0 && (
+                    <div className="border-t border-border pt-2 mt-2 space-y-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-[10px] text-muted-foreground truncate">
+                          {selectedBroker?.name ?? "Captador"} (
+                          {(effectiveRate ?? 0).toLocaleString("es-CL", { maximumFractionDigits: 2 })}%)
+                        </span>
+                        <span className="text-xs text-muted-foreground tabular-nums shrink-0">
+                          −${projectedCommission.toLocaleString("es-CL")}
+                        </span>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          Neto para ti
+                        </span>
+                        <span className="text-sm font-bold text-foreground tabular-nums shrink-0">
+                          ${netAmount.toLocaleString("es-CL")}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
       </form>
 
       {/* Footer - outside the form */}

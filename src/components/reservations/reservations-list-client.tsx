@@ -531,7 +531,7 @@ export function ReservationsListClient({
       )}
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="w-[95vw] max-w-xl gap-0 p-0 overflow-hidden" showCloseButton={false}>
+        <DialogContent className="w-[95vw] max-w-2xl gap-0 p-0 overflow-hidden" showCloseButton={false}>
           <DialogHeader className="border-b border-border px-5 py-4 flex-row items-center justify-between gap-2 space-y-0">
             <div className="space-y-1">
               <DialogTitle>Nueva Reserva</DialogTitle>
@@ -566,7 +566,7 @@ export function ReservationsListClient({
       </Dialog>
 
       <Dialog open={!!editingReservation} onOpenChange={() => setEditingReservation(null)}>
-        <DialogContent className="w-[95vw] max-w-xl gap-0 p-0 overflow-hidden" showCloseButton={false}>
+        <DialogContent className="w-[95vw] max-w-2xl gap-0 p-0 overflow-hidden" showCloseButton={false}>
           <DialogHeader className="border-b border-border px-5 py-4 flex-row items-center justify-between gap-2 space-y-0">
             <div className="space-y-1">
               <DialogTitle>Editar Reserva</DialogTitle>
