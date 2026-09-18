@@ -597,6 +597,8 @@ export function ReservationsListClient({
                 unitsBooked: editingReservation.unitsBooked,
                 bookingAirbnb: editingReservation.bookingAirbnb,
                 notes: editingReservation.notes || "",
+                brokerId: editingReservation.brokerId ?? "",
+                commissionRate: editingReservation.commissionRate ?? undefined,
               }}
               onSubmit={handleEdit}
               onCancel={() => setEditingReservation(null)}

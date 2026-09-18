@@ -19,6 +19,7 @@ import { ClientForm } from "@/components/clients/client-form";
 import { createClient } from "@/lib/actions/clients";
 import { toast } from "sonner";
 import { getBlockedDates } from "@/lib/actions/reservations";
+import { getActiveBrokers } from "@/lib/actions/brokers";
 import { getNights } from "@/components/reservations/reservation-status";
 import { dateOnlyKey, localDateKey } from "@/lib/domain/timezone";
 import type { ClientInput } from "@/lib/validations/client";
@@ -28,6 +29,7 @@ import {
   Wallet,
   Info,
   CalendarDays,
+  Handshake,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -64,6 +66,12 @@ export function ReservationForm({
   const [clientsList, setClientsList] = React.useState(clients);
   const [isCreateClientOpen, setIsCreateClientOpen] = useState(false);
   const [serverError, setServerError] = useState<string | undefined>();
+  // El formulario se trae sus propios captadores activos, como ya hace con las
+  // fechas bloqueadas. Evita pasar la lista por las tres superficies que lo
+  // montan (lista, calendario y detalle).
+  const [brokers, setBrokers] = useState<
+    { id: string; name: string; defaultCommissionRate: number }[]
+  >([]);
 
   // Dos formas de fecha entran a este formulario y necesitan tratamientos
   // opuestos (ver `src/lib/domain/timezone.ts`): `initialData` viene de la
@@ -121,6 +129,8 @@ export function ReservationForm({
       bookingAirbnb: initialData?.bookingAirbnb || false,
       notes: initialData?.notes || "",
       months: initialData?.months,
+      brokerId: initialData?.brokerId || "",
+      commissionRate: initialData?.commissionRate ?? undefined,
     },
   });
 
@@ -129,6 +139,7 @@ export function ReservationForm({
   const clientId = useWatch({ control, name: "clientId" });
   const unitsBooked = useWatch({ control, name: "unitsBooked" });
   const bookingAirbnb = useWatch({ control, name: "bookingAirbnb" });
+  const brokerId = useWatch({ control, name: "brokerId" });
   const isMonthly = billingType === "MONTHLY";
   const isAtFreeLimit = plan === "FREE" && clientsList.length >= 5;
 
@@ -158,6 +169,10 @@ export function ReservationForm({
   const selectedProperty = properties.find((p) => p.id === selectedPropertyId);
 
   useEffect(() => {
+    getActiveBrokers().then(setBrokers);
+  }, []);
+
+  useEffect(() => {
     if (selectedPropertyId) {
       getBlockedDates(selectedPropertyId).then(setBlockedDates);
     } else {
@@ -165,6 +180,22 @@ export function ReservationForm({
       setBlockedDates([]);
     }
   }, [selectedPropertyId]);
+
+  // Elegir captador precarga SU porcentaje por defecto, y el propietario puede
+  // pisarlo para esta reserva. Desde el guardado, la tasa es un dato de la
+  // reserva y no vuelve a leerse del captador (ADR-0040 §2).
+  const handleBrokerChange = (value: string | undefined) => {
+    const nextId = value || "";
+    setValue("brokerId", nextId);
+
+    if (!nextId) {
+      setValue("commissionRate", undefined);
+      return;
+    }
+
+    const broker = brokers.find((b) => b.id === nextId);
+    if (broker) setValue("commissionRate", broker.defaultCommissionRate);
+  };
 
   const handleFormSubmit = async (data: ReservationFormData) => {
     setIsSubmitting(true);
@@ -476,7 +507,65 @@ export function ReservationForm({
           </div>
         )}
 
-        {/* Section 4: Notas adicionales */}
+        {/* Section 4: Captación */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 pb-1 border-b border-border">
+            <Handshake className="h-4 w-4 text-primary" />
+            <h3 className="text-[10px] font-bold text-foreground uppercase tracking-wider">Captación</h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="brokerId" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Captador</Label>
+              <Combobox
+                id="brokerId"
+                className="h-9 w-full bg-card"
+                options={[
+                  { value: "", label: "Sin captador", subtitle: "La conseguí yo" },
+                  ...brokers.map((b) => ({
+                    value: b.id,
+                    label: b.name,
+                    subtitle: `${b.defaultCommissionRate.toLocaleString("es-CL", { maximumFractionDigits: 2 })}% por defecto`,
+                  })),
+                ]}
+                value={brokerId || ""}
+                onValueChange={handleBrokerChange}
+                placeholder="Sin captador"
+                searchPlaceholder="Buscar captador..."
+                notFoundMessage="No hay captadores activos"
+                aria-invalid={!!errors.brokerId}
+              />
+              {errors.brokerId && (
+                <p className="text-xs text-destructive-text mt-1">{errors.brokerId.message}</p>
+              )}
+            </div>
+
+            {brokerId ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="commissionRate" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Comisión (%) *</Label>
+                <Input
+                  id="commissionRate"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  className="h-9 bg-card"
+                  aria-invalid={!!errors.commissionRate}
+                  aria-describedby={errors.commissionRate ? "commissionRate-error" : undefined}
+                  {...register("commissionRate", { valueAsNumber: true })}
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Queda fijo en esta reserva: cambiar el porcentaje del captador
+                  después no la mueve.
+                </p>
+                {errors.commissionRate && (
+                  <p id="commissionRate-error" className="text-xs text-destructive-text mt-1">{errors.commissionRate.message}</p>
+                )}
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Section 5: Notas adicionales */}
         <div className="space-y-1.5">
           <Label htmlFor="notes" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Notas adicionales</Label>
           <Textarea
