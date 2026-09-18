@@ -26,8 +26,6 @@ import type { ClientInput } from "@/lib/validations/client";
 import {
   Building2,
   CalendarCheck,
-  Wallet,
-  Info,
   Handshake,
 } from "lucide-react";
 
@@ -229,6 +227,18 @@ export function ReservationForm({
     effectiveRate === null ? 0 : Math.round((totalAmount * effectiveRate) / 100);
   const netAmount = totalAmount - projectedCommission;
 
+  // Unidad de la estadía para la barra de resumen. Corta en móvil ("8 noches")
+  // y con las unidades en pantallas anchas ("8 noches × 2 unidades").
+  const stayCount = isMonthly ? months ?? 0 : nights;
+  const stayUnit = isMonthly
+    ? stayCount === 1 ? "mes" : "meses"
+    : stayCount === 1 ? "noche" : "noches";
+  const units = unitsBooked || 1;
+  const stayShort = `${stayCount} ${stayUnit}`;
+  const stayLong = `${stayShort} × ${units} ${units === 1 ? "unidad" : "unidades"}`;
+  const formatRate = (rate: number) =>
+    `${rate.toLocaleString("es-CL", { maximumFractionDigits: 2 })}%`;
+
   return (
     <>
       <div className="flex flex-col max-h-[calc(90vh-65px)]">
@@ -236,6 +246,63 @@ export function ReservationForm({
           onSubmit={handleSubmit(handleFormSubmit)}
           className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 sm:space-y-6"
         >
+        {/* Resumen en una línea, primero y fijo arriba del scroll.
+            Es la lectura en vivo del formulario: cambia con cada campo, así que
+            va donde se ve mientras se llena, no al final. Fijo porque en móvil
+            el formulario scrollea y el total es lo que se vuelve a mirar.
+            Sangra hasta el borde (-mx/-mt) para que el contenido que pasa por
+            debajo no asome por los costados; el fondo es el del diálogo y la
+            separación, una línea de borde — sin sombra (DESIGN.md: plano por
+            defecto).
+            `top` negativo y no `top-0`: el borde de pegado de un sticky es el
+            del padding del contenedor que scrollea, no el del scrollport. Con
+            `top-0` quedaba 16px abajo y las filas asomaban por encima al
+            scrollear. Medido en móvil. */}
+        <div
+          data-testid="reservation-summary"
+          className="sticky -top-4 sm:-top-6 z-10 -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 flex min-h-11 items-center gap-3 border-b border-border bg-popover px-4 py-2.5 sm:px-6"
+        >
+          {showFinancialSummary ? (
+            <>
+              <span className="min-w-0 truncate text-xs text-muted-foreground tabular-nums">
+                <span className="sm:hidden">{stayShort}</span>
+                <span className="hidden sm:inline">{stayLong}</span>
+              </span>
+
+              <div className="ml-auto flex shrink-0 items-baseline gap-3 tabular-nums">
+                {effectiveRate !== null ? (
+                  <>
+                    <span className="text-xs text-muted-foreground">
+                      <span className="sr-only sm:not-sr-only">Total </span>
+                      ${totalAmount.toLocaleString("es-CL")}
+                    </span>
+                    {/* La comisión cede en móvil: el neto ya la implica, y la
+                        línea no alcanza para las cuatro cifras. Queda para
+                        lectores de pantalla en todos los anchos. */}
+                    <span className="sr-only sm:not-sr-only text-xs text-muted-foreground">
+                      −${projectedCommission.toLocaleString("es-CL")}{" "}
+                      <span className="text-[10px]">
+                        ({selectedBroker?.name ?? "Captador"} {formatRate(effectiveRate)})
+                      </span>
+                    </span>
+                    <span className="text-sm font-bold text-primary-text">
+                      Neto ${netAmount.toLocaleString("es-CL")}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-sm font-bold text-primary-text">
+                    Total ${totalAmount.toLocaleString("es-CL")}
+                  </span>
+                )}
+              </div>
+            </>
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              Elige propiedad y fechas para calcular el total
+            </span>
+          )}
+        </div>
+
         <input type="hidden" {...register("startDate")} />
         <input type="hidden" {...register("endDate")} />
 
@@ -529,76 +596,6 @@ export function ReservationForm({
             <p id="notes-error" className="text-xs text-destructive-text mt-1">{errors.notes.message}</p>
           )}
         </div>
-        {/* Section 5: Resumen — la conclusión, pegada al botón que la confirma */}
-        {showFinancialSummary && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 pb-1 border-b border-border">
-              <Wallet className="h-4 w-4 text-primary" />
-              <h3 className="text-[10px] font-bold text-foreground uppercase tracking-wider">Resumen Financiero</h3>
-            </div>
-
-            <div className="bg-card ring-1 ring-foreground/10 rounded-xl overflow-hidden">
-              {/* Dos celdas y no tres: la celda "Período" repetía las fechas
-                  que el propio campo de estadía muestra dos secciones más
-                  arriba, y ese alto extra era justo lo que forzaba a scrollear
-                  para ver el neto. */}
-              <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] divide-y md:divide-y-0 md:divide-x divide-border">
-                {/* Detalle */}
-                <div className="p-4 sm:p-5 space-y-2">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Info className="h-3.5 w-3.5" />
-                    <p className="text-[10px] uppercase font-bold tracking-wider">Detalle</p>
-                  </div>
-                  <p className="text-sm font-semibold text-foreground">
-                    {isMonthly
-                      ? `${months} ${months === 1 ? "mes" : "meses"} × ${unitsBooked || 1} ${(unitsBooked || 1) === 1 ? "unidad" : "unidades"}`
-                      : `${nights} ${nights === 1 ? "noche" : "noches"} × ${unitsBooked || 1} ${(unitsBooked || 1) === 1 ? "unidad" : "unidades"}`}
-                  </p>
-                </div>
-
-                {/* Monto Total */}
-                <div className="p-4 sm:p-5 space-y-2 bg-muted/30 md:bg-transparent md:min-w-[200px]">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Wallet className="h-3.5 w-3.5" />
-                    <p className="text-[10px] uppercase font-bold tracking-wider">Monto Total</p>
-                  </div>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl font-bold text-primary tabular-nums">${totalAmount.toLocaleString("es-CL")}</span>
-                    <span className="text-xs font-medium text-primary/60 uppercase">CLP</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground tabular-nums">
-                    {isMonthly
-                      ? `$${Number(selectedProperty.monthlyPrice).toLocaleString("es-CL")} / mes`
-                      : `$${Number(selectedProperty.dailyPrice).toLocaleString("es-CL")} / noche`}
-                  </p>
-
-                  {projectedCommission > 0 && (
-                    <div className="border-t border-border pt-2 mt-2 space-y-1">
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className="text-[10px] text-muted-foreground truncate">
-                          {selectedBroker?.name ?? "Captador"} (
-                          {(effectiveRate ?? 0).toLocaleString("es-CL", { maximumFractionDigits: 2 })}%)
-                        </span>
-                        <span className="text-xs text-muted-foreground tabular-nums shrink-0">
-                          −${projectedCommission.toLocaleString("es-CL")}
-                        </span>
-                      </div>
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                          Neto para ti
-                        </span>
-                        <span className="text-sm font-bold text-foreground tabular-nums shrink-0">
-                          ${netAmount.toLocaleString("es-CL")}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
       </form>
 
       {/* Footer - outside the form */}

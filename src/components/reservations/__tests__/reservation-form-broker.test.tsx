@@ -103,7 +103,7 @@ describe('ReservationForm — Captación', () => {
   });
 });
 
-describe("ReservationForm — comisión en el resumen financiero", () => {
+describe("ReservationForm — barra de resumen", () => {
   const stay = {
     propertyId: "prop-1",
     clientId: "client-1",
@@ -113,44 +113,78 @@ describe("ReservationForm — comisión en el resumen financiero", () => {
     endDate: new Date("2026-09-12T15:00:00Z"),
   };
 
-  it("descuenta la comisión del total y muestra el neto para el propietario", async () => {
-    // 8 noches × $50.000 = $400.000 ; 8,5% = $34.000 ; neto $366.000
-    renderForm({ ...stay, brokerId: "brk-1", commissionRate: 8.5 });
+  /** Texto de la barra, normalizado. */
+  function summaryText() {
+    return (screen.getByTestId("reservation-summary").textContent ?? "").replace(/\s+/g, " ");
+  }
 
-    await waitFor(() => expect(screen.getByText("$400.000")).toBeTruthy());
-    expect(screen.getByText("−$34.000")).toBeTruthy();
-    expect(screen.getByText("Neto para ti")).toBeTruthy();
-    expect(screen.getByText("$366.000")).toBeTruthy();
+  it("va primero en el formulario y queda fija arriba al scrollear", async () => {
+    // Es la lectura en vivo del formulario: tiene que verse mientras se llena,
+    // y en móvil el formulario scrollea.
+    renderForm(stay);
+
+    const bar = await screen.findByTestId("reservation-summary");
+    const form = bar.closest("form")!;
+
+    expect(form.firstElementChild).toBe(bar);
+    expect(bar.className).toContain("sticky");
+    // Negativo, igual al padding del form: el sticky se pega al borde del
+    // padding, así que `top-0` dejaba 16px por donde asomaban las filas.
+    expect(bar.className).toContain("-top-4");
+    expect(bar.className).toContain("sm:-top-6");
   });
 
-  it("nombra al captador junto al descuento", async () => {
-    renderForm({ ...stay, brokerId: "brk-1", commissionRate: 8.5 });
+  it("sin fechas explica qué falta en vez de quedar vacía", async () => {
+    // Misma altura antes y después: el formulario no salta cuando aparece el total.
+    renderForm({ propertyId: "prop-1", clientId: "client-1" });
 
-    // Con coma, como el resto de la interfaz.
     await waitFor(() =>
-      expect(screen.getByText(/Ana Rojas \(\s*8,5%\)/)).toBeTruthy(),
+      expect(summaryText()).toContain("Elige propiedad y fechas para calcular el total"),
     );
   });
 
-  it("sin captador el resumen no habla de comisión ni de neto", async () => {
+  it("sin captador muestra la estadía y el total", async () => {
+    // 8 noches × $50.000 = $400.000
     renderForm(stay);
 
-    await waitFor(() => expect(screen.getByText("$400.000")).toBeTruthy());
-    expect(screen.queryByText("Neto para ti")).toBeNull();
+    await waitFor(() => expect(summaryText()).toContain("Total $400.000"));
+    expect(summaryText()).toContain("8 noches");
+    expect(summaryText()).not.toContain("Neto");
   });
 
-  it("el resumen va al final, después de captación y notas", async () => {
-    // Es la conclusión: queda pegada al botón que la confirma.
+  it("con captador descuenta la comisión y termina en el neto", async () => {
+    // $400.000 al 8,5% = $34.000 ; neto $366.000
     renderForm({ ...stay, brokerId: "brk-1", commissionRate: 8.5 });
 
-    await waitFor(() => expect(screen.getByText("Resumen Financiero")).toBeTruthy());
+    await waitFor(() => expect(summaryText()).toContain("Neto $366.000"));
+    expect(summaryText()).toContain("$400.000");
+    expect(summaryText()).toContain("−$34.000");
+  });
 
-    const order = ["Captación", "Notas adicionales", "Resumen Financiero"].map((label) => {
-      const node = screen.getByText(label);
-      return Array.from(document.querySelectorAll("form *")).indexOf(node);
-    });
+  it("nombra al captador con la tasa en formato chileno", async () => {
+    renderForm({ ...stay, brokerId: "brk-1", commissionRate: 8.5 });
 
-    expect(order[0]).toBeLessThan(order[1]);
-    expect(order[1]).toBeLessThan(order[2]);
+    await waitFor(() => expect(summaryText()).toContain("(Ana Rojas 8,5%)"));
+  });
+
+  it("en móvil la comisión cede pero sigue disponible para lectores de pantalla", async () => {
+    // Visualmente oculta bajo `sm`, nunca con `hidden`: `sr-only` la deja en el
+    // árbol de accesibilidad en todos los anchos.
+    renderForm({ ...stay, brokerId: "brk-1", commissionRate: 8.5 });
+
+    await waitFor(() => expect(summaryText()).toContain("−$34.000"));
+    const commission = screen.getByText(/−\$34\.000/);
+    expect(commission.className).toContain("sr-only");
+    expect(commission.className).toContain("sm:not-sr-only");
+    expect(commission.className).not.toMatch(/(^|\s)hidden(\s|$)/);
+  });
+
+  it("todo en una sola línea: la barra no apila filas", async () => {
+    renderForm({ ...stay, brokerId: "brk-1", commissionRate: 8.5 });
+
+    const bar = await screen.findByTestId("reservation-summary");
+    expect(bar.className).toContain("flex");
+    expect(bar.className).not.toContain("flex-col");
+    expect(bar.className).not.toContain("grid");
   });
 });
