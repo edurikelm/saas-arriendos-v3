@@ -26,13 +26,8 @@ import type { ClientInput } from "@/lib/validations/client";
 import {
   Building2,
   CalendarCheck,
-  Wallet,
-  Info,
-  CalendarDays,
   Handshake,
 } from "lucide-react";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
 
 interface ReservationFormProps {
   properties: Array<{
@@ -140,6 +135,7 @@ export function ReservationForm({
   const unitsBooked = useWatch({ control, name: "unitsBooked" });
   const bookingAirbnb = useWatch({ control, name: "bookingAirbnb" });
   const brokerId = useWatch({ control, name: "brokerId" });
+  const commissionRate = useWatch({ control, name: "commissionRate" });
   const isMonthly = billingType === "MONTHLY";
   const isAtFreeLimit = plan === "FREE" && clientsList.length >= 5;
 
@@ -218,6 +214,31 @@ export function ReservationForm({
 
   const showFinancialSummary = selectedProperty && dateRange.from && endDate;
 
+  // Comisión proyectada del arriendo completo. Es la misma cuenta que hace el
+  // seam (`commissionForPayment`), pero sobre el total en vez de sobre un pago:
+  // acá todavía no hay pagos, y el owner necesita ver lo que le queda ANTES de
+  // guardar, que es cuando todavía puede negociar el porcentaje.
+  const selectedBroker = brokers.find((b) => b.id === brokerId);
+  const effectiveRate =
+    brokerId && typeof commissionRate === "number" && Number.isFinite(commissionRate)
+      ? commissionRate
+      : null;
+  const projectedCommission =
+    effectiveRate === null ? 0 : Math.round((totalAmount * effectiveRate) / 100);
+  const netAmount = totalAmount - projectedCommission;
+
+  // Unidad de la estadía para la barra de resumen. Corta en móvil ("8 noches")
+  // y con las unidades en pantallas anchas ("8 noches × 2 unidades").
+  const stayCount = isMonthly ? months ?? 0 : nights;
+  const stayUnit = isMonthly
+    ? stayCount === 1 ? "mes" : "meses"
+    : stayCount === 1 ? "noche" : "noches";
+  const units = unitsBooked || 1;
+  const stayShort = `${stayCount} ${stayUnit}`;
+  const stayLong = `${stayShort} × ${units} ${units === 1 ? "unidad" : "unidades"}`;
+  const formatRate = (rate: number) =>
+    `${rate.toLocaleString("es-CL", { maximumFractionDigits: 2 })}%`;
+
   return (
     <>
       <div className="flex flex-col max-h-[calc(90vh-65px)]">
@@ -225,14 +246,85 @@ export function ReservationForm({
           onSubmit={handleSubmit(handleFormSubmit)}
           className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 sm:space-y-6"
         >
+        {/* Resumen en una línea, primero y fijo arriba del scroll.
+            Es la lectura en vivo del formulario: cambia con cada campo, así que
+            va donde se ve mientras se llena, no al final. Fijo porque en móvil
+            el formulario scrollea y el total es lo que se vuelve a mirar.
+            Sangra hasta el borde (-mx/-mt) para que el contenido que pasa por
+            debajo no asome por los costados. Fondo `--summary`: verdigris
+            lavado y opaco, para que se lea como el resultado del formulario y
+            no como una segunda línea del encabezado. Sin sombra (DESIGN.md:
+            plano por defecto); la separación es un borde del mismo matiz.
+            `top` negativo y no `top-0`: el borde de pegado de un sticky es el
+            del padding del contenedor que scrollea, no el del scrollport. Con
+            `top-0` quedaba 16px abajo y las filas asomaban por encima al
+            scrollear. Medido en móvil. */}
+        <div
+          data-testid="reservation-summary"
+          className="sticky -top-4 sm:-top-6 z-10 -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 flex min-h-11 items-center gap-3 border-b border-summary-border bg-summary px-4 py-2.5 sm:px-6"
+        >
+          {showFinancialSummary ? (
+            <>
+              <span className="min-w-0 truncate text-xs text-summary-muted-foreground tabular-nums">
+                <span className="sm:hidden">{stayShort}</span>
+                <span className="hidden sm:inline">{stayLong}</span>
+              </span>
+
+              {/* Se lee como una cuenta, de izquierda a derecha: total, menos
+                  el captador, igual al neto. Cada tramo es rótulo + cifra con
+                  el mismo peso; solo el resultado sube de tamaño y toma el
+                  verde, que es el rol de Verdigris (resultado primario). */}
+              <div className="ml-auto flex min-w-0 shrink-0 items-baseline gap-3 text-xs text-summary-muted-foreground tabular-nums">
+                {effectiveRate !== null ? (
+                  <>
+                    {/* Los {" "} entre tramos no se ven (en flex, el espacio
+                        suelto no ocupa lugar; lo separa el gap) pero evitan que
+                        un lector de pantalla lea "$400.000Ana Rojas". */}
+                    <span>
+                      <span className="sr-only sm:not-sr-only">Total </span>
+                      ${totalAmount.toLocaleString("es-CL")}
+                    </span>{" "}
+                    {/* La comisión cede en móvil: el neto ya la implica, y la
+                        línea no alcanza para las cuatro cifras. Queda para
+                        lectores de pantalla en todos los anchos. */}
+                    <span className="sr-only sm:not-sr-only sm:inline-flex sm:items-baseline sm:gap-1">
+                      {/* Solo el nombre se trunca: con la tasa adentro del
+                          mismo span, un nombre largo se comía el porcentaje. */}
+                      <span
+                        className="max-w-32 truncate"
+                        title={selectedBroker?.name ?? "Captador"}
+                      >
+                        {selectedBroker?.name ?? "Captador"}
+                      </span>{" "}
+                      <span>{formatRate(effectiveRate)}</span>{" "}
+                      <span>−${projectedCommission.toLocaleString("es-CL")}</span>
+                    </span>{" "}
+                    <span className="text-sm font-bold text-primary-text">
+                      Neto ${netAmount.toLocaleString("es-CL")}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-sm font-bold text-primary-text">
+                    Total ${totalAmount.toLocaleString("es-CL")}
+                  </span>
+                )}
+              </div>
+            </>
+          ) : (
+            <span className="text-xs text-summary-muted-foreground">
+              Elige propiedad y fechas para calcular el total
+            </span>
+          )}
+        </div>
+
         <input type="hidden" {...register("startDate")} />
         <input type="hidden" {...register("endDate")} />
 
-        {/* Section 1: Detalles de la Propiedad */}
+        {/* Section 1: Reserva — qué propiedad y para quién */}
         <div className="space-y-4">
           <div className="flex items-center gap-2 pb-1 border-b border-border">
             <Building2 className="h-4 w-4 text-primary" />
-            <h3 className="text-[10px] font-bold text-foreground uppercase tracking-wider">Detalles de la Propiedad</h3>
+            <h3 className="text-[10px] font-bold text-foreground uppercase tracking-wider">Reserva</h3>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
@@ -276,11 +368,11 @@ export function ReservationForm({
           </div>
         </div>
 
-        {/* Section 2: Configuración de Estancia */}
+        {/* Section 2: Estadía */}
         <div className="space-y-4">
           <div className="flex items-center gap-2 pb-1 border-b border-border">
             <CalendarCheck className="h-4 w-4 text-primary" />
-            <h3 className="text-[10px] font-bold text-foreground uppercase tracking-wider">Configuración de Estancia</h3>
+            <h3 className="text-[10px] font-bold text-foreground uppercase tracking-wider">Estadía</h3>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -445,69 +537,7 @@ export function ReservationForm({
           </div>
         </div>
 
-        {/* Section 3: Resumen Financiero */}
-        {showFinancialSummary && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 pb-1 border-b border-border">
-              <Wallet className="h-4 w-4 text-primary" />
-              <h3 className="text-[10px] font-bold text-foreground uppercase tracking-wider">Resumen Financiero</h3>
-            </div>
-
-            <div className="bg-card ring-1 ring-foreground/10 rounded-xl overflow-hidden">
-              <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] divide-y md:divide-y-0 md:divide-x divide-border">
-                {/* Detalle */}
-                <div className="p-4 sm:p-5 space-y-2">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Info className="h-3.5 w-3.5" />
-                    <p className="text-[10px] uppercase font-bold tracking-wider">Detalle</p>
-                  </div>
-                  <p className="text-sm font-semibold text-foreground">
-                    {isMonthly
-                      ? `${months} ${months === 1 ? "mes" : "meses"} × ${unitsBooked || 1} ${(unitsBooked || 1) === 1 ? "unidad" : "unidades"}`
-                      : `${nights} ${nights === 1 ? "noche" : "noches"} × ${unitsBooked || 1} ${(unitsBooked || 1) === 1 ? "unidad" : "unidades"}`}
-                  </p>
-                </div>
-
-                {/* Período */}
-                <div className="p-4 sm:p-5 space-y-2">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <CalendarDays className="h-3.5 w-3.5" />
-                    <p className="text-[10px] uppercase font-bold tracking-wider">Período</p>
-                  </div>
-                  <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-                    <span className="text-[10px] text-muted-foreground font-medium uppercase self-center">Desde</span>
-                    <span className="text-sm font-semibold text-foreground tabular-nums">
-                      {format(dateRange.from!, "d MMM, yyyy", { locale: es })}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground font-medium uppercase self-center">Hasta</span>
-                    <span className="text-sm font-semibold text-foreground tabular-nums">
-                      {format(endDate!, "d MMM, yyyy", { locale: es })}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Monto Total */}
-                <div className="p-4 sm:p-5 space-y-2 bg-muted/30 md:bg-transparent md:min-w-[200px]">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Wallet className="h-3.5 w-3.5" />
-                    <p className="text-[10px] uppercase font-bold tracking-wider">Monto Total</p>
-                  </div>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl font-bold text-primary tabular-nums">${totalAmount.toLocaleString("es-CL")}</span>
-                    <span className="text-xs font-medium text-primary/60 uppercase">CLP</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground tabular-nums">
-                    {isMonthly
-                      ? `$${Number(selectedProperty.monthlyPrice).toLocaleString("es-CL")} / mes`
-                      : `$${Number(selectedProperty.dailyPrice).toLocaleString("es-CL")} / noche`}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Section 4: Captación */}
+        {/* Section 3: Captación */}
         <div className="space-y-4">
           <div className="flex items-center gap-2 pb-1 border-b border-border">
             <Handshake className="h-4 w-4 text-primary" />
@@ -565,7 +595,7 @@ export function ReservationForm({
           </div>
         </div>
 
-        {/* Section 5: Notas adicionales */}
+        {/* Section 4: Notas adicionales */}
         <div className="space-y-1.5">
           <Label htmlFor="notes" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Notas adicionales</Label>
           <Textarea

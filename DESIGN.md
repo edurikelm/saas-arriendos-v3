@@ -7,6 +7,7 @@ colors:
   verdigris: "oklch(0.7227 0.1920 149.5793)"
   verdigris-deep: "#2DBE85"
   verdigris-text: "oklch(0.51 0.15 149.58)"
+  verdigris-wash: "oklch(0.965 0.03 150)"
 
   # Semantic
   calm-sea: "oklch(0.65 0.16 150)"
@@ -211,6 +212,8 @@ La paleta es de baja saturación en neutros (gris-verdoso apenas perceptible, no
 
 ### Primary
 - **Verdigris** (`oklch(0.7227 0.1920 149.5793)`): Color de marca. Usado en active state del sidebar owner, accent strip superior de tablas (`border-t-2`), fill de la ProgressBar del `<KpiCard>`, fondo de filter pills activos. Un link verde de texto chico (las bandas de `DashboardSection`) va en `text-primary-text` (**Verdigris Text**), no en `text-primary`: ver The Fill-vs-Text Rule. **No** en el icon container del `<KpiCard>`: `KpiTone` no tiene tono `primary` y `default` va a `bg-muted text-muted-foreground`. **Su rol es señalar navegación activa y resultado positivo, no decoración.** En dark mode se mantiene como `Verdigris Deep` (`#2DBE85`).
+
+- **Verdigris Wash** (`--summary`, `oklch(0.965 0.03 150)` claro / `oklch(0.26 0.04 162)` oscuro): Superficie de la **banda de resumen**, el renglón que muestra el resultado de un formulario mientras se llena (hoy, total y neto del modal de reserva). Es la única superficie teñida de marca y la razón es el rol de Verdigris: resultado primario. **Opaca a propósito:** la banda es sticky y el contenido pasa por debajo, así que un `bg-primary/10` dejaría asomar las filas y haría que el contraste dependiera de lo que haya detrás. Viene con su propio borde (`--summary-border`) y su propio texto secundario (`--summary-muted-foreground`), derivado del matiz del foreground y no del gris de `--muted-foreground`, que sobre un fondo teñido se lava. Medido sobre la banda: texto secundario **6.96:1 claro / 8.30:1 oscuro**, `--primary-text` **4.86:1 / 6.43:1**, foreground **15.47:1 / 13.97:1**. Lo vuelve a medir `src/lib/design/__tests__/summary-band-contrast.test.ts` leyendo los valores de `globals.css`. No usar como fondo decorativo de cards o secciones: si todo se tiñe, la banda deja de señalar el resultado.
 
 ### Semantic
 - **Calm Sea** (`oklch(0.65 0.16 150)`): Estado de éxito — reservas CONFIRMED, pagos COMPLETED, KPIs de cobranza ≥85%, sublabel positivo en indicadores.

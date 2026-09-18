@@ -279,3 +279,81 @@ describe('getReservationById', () => {
     expect(result!.changes[49].id).toBe('change-49'); // 50° más reciente
   });
 });
+
+describe('getReservationById — comisión del captador (ADR-0040)', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const { getSession } = await import('@/lib/auth/session');
+    vi.mocked(getSession).mockResolvedValue(mockSession);
+  });
+
+  /** Reserva de 560.000 al 8,5% con 300.000 ya cobrados. */
+  function reservationWithBroker(rate: number | null, paid: number) {
+    return {
+      ...buildMockReservation({
+        payments: [
+          {
+            id: 'pay-1',
+            reservationId: 'res-1',
+            paymentType: 'RESERVATION' as const,
+            title: null,
+            description: null,
+            amount: new Decimal(paid),
+            status: 'COMPLETED' as const,
+            method: 'TRANSFER' as const,
+            initPoint: null,
+            expiresAt: null,
+            installmentIndex: null,
+            dueDate: null,
+            paidAt: new Date('2026-09-01T15:00:00Z'),
+            receiptUrl: null,
+            mercadoPagoId: null,
+            deletedAt: null,
+          },
+        ] as never,
+      }),
+      totalPrice: new Decimal(560000),
+      brokerId: rate === null ? null : 'brk-1',
+      commissionRate: rate === null ? null : new Decimal(String(rate)),
+      broker: rate === null ? null : { id: 'brk-1', name: 'Ana Rojas', active: true },
+    };
+  }
+
+  it('proyecta la comisión sobre el precio total y devenga sobre lo cobrado', async () => {
+    mockPrisma.reservation.findFirst.mockResolvedValue(
+      reservationWithBroker(8.5, 300000) as never,
+    );
+
+    const result = await getReservationById('res-1');
+
+    // 560.000 × 8,5% = 47.600 ; 300.000 × 8,5% = 25.500
+    expect(result?.commissionProjected).toBe(47600);
+    expect(result?.commissionAccrued).toBe(25500);
+    expect(result?.broker).toMatchObject({ name: 'Ana Rojas', active: true });
+  });
+
+  it('sin captador las dos comisiones son 0', async () => {
+    mockPrisma.reservation.findFirst.mockResolvedValue(
+      reservationWithBroker(null, 300000) as never,
+    );
+
+    const result = await getReservationById('res-1');
+
+    expect(result?.commissionProjected).toBe(0);
+    expect(result?.commissionAccrued).toBe(0);
+    expect(result?.broker).toBe(null);
+  });
+
+  it('con captador y nada cobrado, proyecta pero no devenga', async () => {
+    // Es la diferencia que justifica mostrar los dos números: se sabe cuánto
+    // dejará la estadía sin afirmar que ya se le debe.
+    const reservation = reservationWithBroker(10, 0);
+    reservation.payments = [] as never;
+    mockPrisma.reservation.findFirst.mockResolvedValue(reservation as never);
+
+    const result = await getReservationById('res-1');
+
+    expect(result?.commissionProjected).toBe(56000);
+    expect(result?.commissionAccrued).toBe(0);
+  });
+});
