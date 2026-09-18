@@ -136,15 +136,68 @@ describe("InAppChannel", () => {
       type: "PAYMENT_RECEIVED" as const,
       title: "Pago recibido",
       body: "Se recibió un pago",
-      link: "/payments/pay_123",
+      link: "/reservations/res_1",
       userId: "user-1",
     };
 
     await channel.dispatch(intent, { userId: "user-1", email: "a@b.com" });
 
     expect(prisma.notification.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ link: "/payments/pay_123" }),
+      data: expect.objectContaining({ link: "/reservations/res_1" }),
     });
+  });
+
+  it("creates the row already read when the recipient caused the event", async () => {
+    const { prisma } = await import("@/lib/db/prisma");
+    const { InAppChannel } = await import("@/lib/notifications/in-app-channel");
+
+    const channel = new InAppChannel();
+
+    vi.mocked(prisma.notification.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.notification.create).mockResolvedValue({ id: "notif-own" } as any);
+
+    const intent = {
+      notificationKey: "payment-received:pay_own",
+      type: "PAYMENT_RECEIVED" as const,
+      title: "Pago recibido",
+      body: "Se recibió un pago",
+      userId: "user-1",
+      alreadyRead: true,
+    };
+
+    await channel.dispatch(intent, { userId: "user-1", email: "a@b.com" });
+
+    // Same write, so the badge never counts it (no window where it is unread).
+    expect(prisma.notification.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        notificationKey: "payment-received:pay_own",
+        reads: { create: { userId: "user-1", lastReadAt: expect.any(Date) } },
+      }),
+    });
+  });
+
+  it("creates the row unread when the event came from outside", async () => {
+    const { prisma } = await import("@/lib/db/prisma");
+    const { InAppChannel } = await import("@/lib/notifications/in-app-channel");
+
+    const channel = new InAppChannel();
+
+    vi.mocked(prisma.notification.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.notification.create).mockResolvedValue({ id: "notif-mp" } as any);
+
+    const intent = {
+      notificationKey: "payment-received:pay_mp",
+      type: "PAYMENT_RECEIVED" as const,
+      title: "Pago recibido",
+      body: "Se recibió un pago",
+      userId: "user-1",
+      alreadyRead: false,
+    };
+
+    await channel.dispatch(intent, { userId: "user-1", email: "a@b.com" });
+
+    const { data } = vi.mocked(prisma.notification.create).mock.calls[0][0];
+    expect(data).not.toHaveProperty("reads");
   });
 
   it("handles P2002 unique constraint violation as deduplication (concurrent race)", async () => {

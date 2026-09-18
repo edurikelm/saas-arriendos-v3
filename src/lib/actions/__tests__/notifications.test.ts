@@ -6,6 +6,7 @@ vi.mock("@/lib/db/prisma", () => ({
     notification: {
       count: vi.fn(),
       findMany: vi.fn(),
+      findFirst: vi.fn(),
       findUnique: vi.fn(),
       create: vi.fn(),
     },
@@ -41,6 +42,58 @@ const adminSession: SessionUser = {
   plan: "FREE",
   email: "admin@test.com",
 };
+
+describe("getUnreadNotificationStatus", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns count and the newest unread createdAt, scoped to the session user", async () => {
+    const { getSession } = await import("@/lib/auth/session");
+    const { prisma } = await import("@/lib/db/prisma");
+    vi.mocked(getSession).mockResolvedValue(ownerSession);
+    vi.mocked(prisma.notification.count).mockResolvedValue(2);
+    vi.mocked(prisma.notification.findFirst).mockResolvedValue({
+      createdAt: new Date("2026-09-18T12:05:00.000Z"),
+    } as any);
+
+    const { getUnreadNotificationStatus } = await import("../notifications");
+    const result = await getUnreadNotificationStatus();
+
+    expect(result).toEqual({ count: 2, latestUnreadAt: "2026-09-18T12:05:00.000Z" });
+    const unreadForOwner = {
+      userId: "owner-1",
+      reads: { none: { userId: "owner-1" } },
+    };
+    expect(prisma.notification.count).toHaveBeenCalledWith({ where: unreadForOwner });
+    expect(prisma.notification.findFirst).toHaveBeenCalledWith({
+      where: unreadForOwner,
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    });
+  });
+
+  it("returns latestUnreadAt null when everything is read", async () => {
+    const { getSession } = await import("@/lib/auth/session");
+    const { prisma } = await import("@/lib/db/prisma");
+    vi.mocked(getSession).mockResolvedValue(ownerSession);
+    vi.mocked(prisma.notification.count).mockResolvedValue(0);
+    vi.mocked(prisma.notification.findFirst).mockResolvedValue(null);
+
+    const { getUnreadNotificationStatus } = await import("../notifications");
+    expect(await getUnreadNotificationStatus()).toEqual({ count: 0, latestUnreadAt: null });
+  });
+
+  it("returns an empty status without session and does not query", async () => {
+    const { getSession } = await import("@/lib/auth/session");
+    const { prisma } = await import("@/lib/db/prisma");
+    vi.mocked(getSession).mockResolvedValue(null);
+
+    const { getUnreadNotificationStatus } = await import("../notifications");
+    expect(await getUnreadNotificationStatus()).toEqual({ count: 0, latestUnreadAt: null });
+    expect(prisma.notification.count).not.toHaveBeenCalled();
+  });
+});
 
 describe("getUnreadNotificationCount", () => {
   beforeEach(() => {

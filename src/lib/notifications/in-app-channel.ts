@@ -54,6 +54,9 @@ export class InAppChannel implements NotificationChannel {
           title: intent.title,
           body: intent.body,
           link: intent.link ?? null,
+          ...(intent.alreadyRead && {
+            reads: { create: { userId: intent.userId, lastReadAt: new Date() } },
+          }),
         },
       });
 

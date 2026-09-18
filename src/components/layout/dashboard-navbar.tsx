@@ -6,6 +6,8 @@ import type { RecentNotification } from "@/lib/actions/notifications";
 
 interface DashboardNavbarProps {
   notificationUnreadCount?: number;
+  /** Increments when a new notification arrives; rings the bell. */
+  notificationRingKey?: number;
   initialNotifications?: RecentNotification[];
   onNotificationsRead?: () => void;
   /**
@@ -17,6 +19,7 @@ interface DashboardNavbarProps {
 
 export function DashboardNavbar({
   notificationUnreadCount = 0,
+  notificationRingKey = 0,
   initialNotifications,
   onNotificationsRead,
   eyebrow,
@@ -49,6 +52,7 @@ export function DashboardNavbar({
         <div className="flex items-center gap-2">
           <NotificationBell
             unreadCount={notificationUnreadCount}
+            ringKey={notificationRingKey}
             initialNotifications={initialNotifications}
             onNotificationsRead={onNotificationsRead}
           />

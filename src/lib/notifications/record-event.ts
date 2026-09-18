@@ -26,6 +26,7 @@ export type DomainEvent =
       ownerName?: string;
       clientName: string;
       propertyName: string;
+      actorUserId?: string;
     }
   | {
       type: "PAYMENT_RECEIVED";
@@ -36,7 +37,8 @@ export type DomainEvent =
       clientName: string;
       amount: string;
       method: "MERCADO_PAGO" | "CASH" | "TRANSFER";
-      reservationId?: string;
+      reservationId: string;
+      actorUserId?: string;
     }
   | {
       type: "PAYMENT_REVERTED";
@@ -47,7 +49,8 @@ export type DomainEvent =
       clientName: string;
       amount: string;
       reason?: string;
-      reservationId?: string;
+      reservationId: string;
+      actorUserId?: string;
     }
   | {
       type: "PAYMENT_REMINDER";
@@ -59,7 +62,8 @@ export type DomainEvent =
       clientName: string;
       amount: string;
       dueDate?: string;
-      reservationId?: string;
+      reservationId: string;
+      actorUserId?: string;
     };
 
 /** Maps milestone name to daysFromToday (inverse of milestoneFromDays in select-reminders-for-dispatch) */
@@ -104,6 +108,7 @@ export async function recordDomainEvent(event: DomainEvent): Promise<void> {
         body: rendered.text,
         link: `/reservations/${event.reservationId}`,
         userId: event.ownerId,
+        alreadyRead: event.actorUserId === event.ownerId,
       };
       const recipient: NotificationRecipient = {
         userId: event.ownerId,
@@ -124,8 +129,9 @@ export async function recordDomainEvent(event: DomainEvent): Promise<void> {
         type: "PAYMENT_RECEIVED",
         title: rendered.subject,
         body: rendered.text,
-        link: `/payments/${event.paymentId}`,
+        link: `/reservations/${event.reservationId}`,
         userId: event.ownerId,
+        alreadyRead: event.actorUserId === event.ownerId,
       };
       const recipient: NotificationRecipient = {
         userId: event.ownerId,
@@ -147,8 +153,9 @@ export async function recordDomainEvent(event: DomainEvent): Promise<void> {
         type: "PAYMENT_REVERTED",
         title: rendered.subject,
         body: rendered.text,
-        link: `/payments/${event.paymentId}`,
+        link: `/reservations/${event.reservationId}`,
         userId: event.ownerId,
+        alreadyRead: event.actorUserId === event.ownerId,
       };
       const recipient: NotificationRecipient = {
         userId: event.ownerId,
@@ -173,8 +180,9 @@ export async function recordDomainEvent(event: DomainEvent): Promise<void> {
         type: "PAYMENT_REMINDER",
         title: rendered.subject,
         body: rendered.text,
-        link: `/payments/${event.paymentId}`,
+        link: `/reservations/${event.reservationId}`,
         userId: event.ownerId,
+        alreadyRead: event.actorUserId === event.ownerId,
       };
       const recipient: NotificationRecipient = {
         userId: event.ownerId,

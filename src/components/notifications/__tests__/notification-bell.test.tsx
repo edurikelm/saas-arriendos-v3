@@ -3,9 +3,16 @@ import { render, screen, act, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NotificationBell } from "../notification-bell";
 
-const { mockMarkAll, mockGetRecent } = vi.hoisted(() => ({
+const { mockMarkAll, mockGetRecent, mockPlaySound } = vi.hoisted(() => ({
   mockMarkAll: vi.fn().mockResolvedValue({ success: true, count: 5 }),
   mockGetRecent: vi.fn().mockResolvedValue([]),
+  mockPlaySound: vi.fn(),
+}));
+
+// Real preference helpers (localStorage), fake audio.
+vi.mock("@/lib/notifications/notification-sound", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/notifications/notification-sound")>()),
+  playNotificationSound: mockPlaySound,
 }));
 
 vi.mock("@/lib/actions/notifications", () => ({
@@ -46,6 +53,8 @@ describe("NotificationBell", () => {
   beforeEach(() => {
     mockMarkAll.mockClear().mockResolvedValue({ success: true, count: 5 });
     mockGetRecent.mockClear().mockResolvedValue([]);
+    mockPlaySound.mockClear();
+    window.localStorage.clear();
   });
 
   it("renders the Bell button with rounded-lg and correct aria-label", () => {
@@ -209,6 +218,89 @@ describe("NotificationBell", () => {
     // so no unread dot should remain in the list
     await waitFor(() => {
       expect(document.querySelector("span[aria-label='No leída']")).toBeNull();
+    });
+  });
+
+  describe("ring animation", () => {
+    function bellIcons(container: HTMLElement) {
+      return container.querySelectorAll("[data-testid='notification-bell-icon']");
+    }
+
+    it("does not animate on load (nothing new has arrived yet)", () => {
+      const { container } = render(<NotificationBell unreadCount={3} />);
+      const [icon] = bellIcons(container);
+      expect(icon.classList.contains("notification-bell-ring")).toBe(false);
+      const badge = container.querySelector("span.bg-destructive")!;
+      expect(badge.classList.contains("notification-badge-pop")).toBe(false);
+    });
+
+    it("swings the bell and pops the badge when ringKey increments", () => {
+      const { container, rerender } = render(<NotificationBell unreadCount={3} ringKey={0} />);
+      rerender(<NotificationBell unreadCount={4} ringKey={1} />);
+
+      const icons = bellIcons(container);
+      // Regression: icon and badge shared the same key and React left the old
+      // icon mounted next to the new one.
+      expect(icons).toHaveLength(1);
+      expect(icons[0].classList.contains("notification-bell-ring")).toBe(true);
+      const badge = container.querySelector("span.bg-destructive")!;
+      expect(badge.classList.contains("notification-badge-pop")).toBe(true);
+      expect(badge.textContent).toBe("4");
+    });
+
+    it("remounts the icon on each ring so the animation replays", () => {
+      const { container, rerender } = render(<NotificationBell unreadCount={4} ringKey={1} />);
+      const first = bellIcons(container)[0];
+      rerender(<NotificationBell unreadCount={5} ringKey={2} />);
+
+      const icons = bellIcons(container);
+      expect(icons).toHaveLength(1);
+      expect(icons[0]).not.toBe(first);
+    });
+  });
+
+  describe("sound toggle", () => {
+    async function openBell() {
+      const user = userEvent.setup();
+      render(<NotificationBell unreadCount={0} />);
+      await act(async () => {
+        await user.click(screen.getByRole("button", { name: /Notificaciones/ }));
+      });
+      return user;
+    }
+
+    it("starts with the sound on", async () => {
+      await openBell();
+      const toggle = screen.getByRole("button", { name: "Silenciar sonido de notificaciones" });
+      expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    });
+
+    it("mutes on this device and remembers it", async () => {
+      const user = await openBell();
+      const toggle = screen.getByRole("button", { name: "Silenciar sonido de notificaciones" });
+
+      await act(async () => {
+        await user.click(toggle);
+      });
+
+      expect(toggle.getAttribute("aria-pressed")).toBe("true");
+      expect(window.localStorage.getItem("rentalpro:notification-sound")).toBe("off");
+      expect(mockPlaySound).not.toHaveBeenCalled();
+    });
+
+    it("plays a preview when turning the sound back on", async () => {
+      window.localStorage.setItem("rentalpro:notification-sound", "off");
+      const user = await openBell();
+      const toggle = screen.getByRole("button", { name: "Silenciar sonido de notificaciones" });
+      expect(toggle.getAttribute("aria-pressed")).toBe("true");
+
+      await act(async () => {
+        await user.click(toggle);
+      });
+
+      expect(toggle.getAttribute("aria-pressed")).toBe("false");
+      expect(window.localStorage.getItem("rentalpro:notification-sound")).toBeNull();
+      expect(mockPlaySound).toHaveBeenCalledTimes(1);
     });
   });
 });

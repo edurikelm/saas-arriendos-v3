@@ -500,6 +500,8 @@ describe('createReservation emits RESERVATION_CREATED domain event', () => {
       ownerEmail: 'test@test.com',
       clientName: 'Juan',
       propertyName: 'Casa',
+      // The owner created it: the notification is born read and does not ring.
+      actorUserId: 'user-1',
     });
   });
 

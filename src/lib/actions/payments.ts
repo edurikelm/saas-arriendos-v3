@@ -904,6 +904,7 @@ export async function revertPayment(id: string): Promise<
       clientName: existing.reservation.client.name,
       amount: String(existing.amount),
       reservationId: existing.reservationId,
+      actorUserId: session.userId,
     });
   } catch (err) {
     console.error("[Notifications] PAYMENT_REVERTED dispatch failed", err);
@@ -965,6 +966,7 @@ export async function markPaymentAsPaid(
         amount: String(payment.amount),
         method,
         reservationId: payment.reservationId,
+        actorUserId: session.userId,
       });
     }
   } catch (err) {

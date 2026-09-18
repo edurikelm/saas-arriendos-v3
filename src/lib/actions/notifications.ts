@@ -25,6 +25,37 @@ export async function getUnreadNotificationCount(): Promise<number> {
   return count;
 }
 
+export type UnreadNotificationStatus = {
+  count: number;
+  /** createdAt (ISO) of the newest unread notification, or null if none. */
+  latestUnreadAt: string | null;
+};
+
+/**
+ * Unread count plus the newest unread timestamp, for the header polling.
+ * The timestamp is what decides whether the bell rings: comparing counts
+ * misses a new notification that arrives while another one is read elsewhere.
+ */
+export async function getUnreadNotificationStatus(): Promise<UnreadNotificationStatus> {
+  const session = await getSession();
+  if (!session) return { count: 0, latestUnreadAt: null };
+
+  const where = {
+    userId: session.userId,
+    reads: { none: { userId: session.userId } },
+  };
+  const [count, latest] = await Promise.all([
+    prisma.notification.count({ where }),
+    prisma.notification.findFirst({
+      where,
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    }),
+  ]);
+
+  return { count, latestUnreadAt: latest?.createdAt.toISOString() ?? null };
+}
+
 /**
  * Marks a single notification as read for the current user (derived from session).
  * Authorization: user must own the notification or be SUPER_ADMIN.

@@ -322,4 +322,91 @@ describe("EmailChannel", () => {
       }),
     );
   });
+
+  describe("email content", () => {
+    const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+
+    beforeEach(async () => {
+      const { prisma } = await import("@/lib/db/prisma");
+      vi.mocked(prisma.notification.findUnique).mockResolvedValue({
+        id: "notif-1",
+        deliveredAt: null,
+      } as any);
+      vi.mocked(prisma.notification.update).mockResolvedValue({} as any);
+      mockSend.mockResolvedValue({ data: { id: "email-123" }, error: null });
+      process.env.NEXT_PUBLIC_APP_URL = "https://app.rentalpro.cl";
+    });
+
+    afterEach(() => {
+      if (originalAppUrl !== undefined) process.env.NEXT_PUBLIC_APP_URL = originalAppUrl;
+      else delete process.env.NEXT_PUBLIC_APP_URL;
+    });
+
+    async function sendEmail(intent: {
+      type: "PAYMENT_RECEIVED" | "SUBSCRIPTION_ACTIVATED";
+      title: string;
+      body: string;
+      link?: string;
+    }) {
+      const { EmailChannel } = await import("@/lib/notifications/email-channel");
+      await new EmailChannel().dispatch(
+        { notificationKey: "k", userId: "user-1", ...intent },
+        { userId: "user-1", email: "owner@test.com" },
+      );
+      return mockSend.mock.calls[0][0] as { subject: string; html: string; text: string };
+    }
+
+    it("uses the rendered title and body, so client and amount reach the email", async () => {
+      // Regression: the channel re-rendered from the type alone and sent
+      // "Pago recibido: un cliente (—)".
+      const email = await sendEmail({
+        type: "PAYMENT_RECEIVED",
+        title: "Pago recibido: Juan Pérez (150000)",
+        body: "Se registró un pago de 150000 de Juan Pérez.",
+        link: "/reservations/res-1",
+      });
+
+      expect(email.subject).toBe("Pago recibido: Juan Pérez (150000)");
+      expect(email.html).toContain("Se registró un pago de 150000 de Juan Pérez.");
+      expect(email.text).toContain("Se registró un pago de 150000 de Juan Pérez.");
+      expect(email.html).not.toContain("un cliente");
+    });
+
+    it("links with an absolute URL, which a mail client can open", async () => {
+      const email = await sendEmail({
+        type: "PAYMENT_RECEIVED",
+        title: "Pago recibido",
+        body: "Se registró un pago.",
+        link: "/reservations/res-1",
+      });
+
+      expect(email.html).toContain('href="https://app.rentalpro.cl/reservations/res-1"');
+      expect(email.text).toContain("https://app.rentalpro.cl/reservations/res-1");
+    });
+
+    it("leaves the link out when NEXT_PUBLIC_APP_URL is missing instead of sending a broken one", async () => {
+      delete process.env.NEXT_PUBLIC_APP_URL;
+
+      const email = await sendEmail({
+        type: "PAYMENT_RECEIVED",
+        title: "Pago recibido",
+        body: "Se registró un pago.",
+        link: "/reservations/res-1",
+      });
+
+      expect(email.html).not.toContain("href=");
+    });
+
+    it("keeps the subscription copy (it used to fall back to a generic subject)", async () => {
+      const email = await sendEmail({
+        type: "SUBSCRIPTION_ACTIVATED",
+        title: "Tu plan PRO está activo",
+        body: "Ahora tienes acceso a iCal, documentos de reserva y propiedades ilimitadas.",
+        link: "/settings/billing",
+      });
+
+      expect(email.subject).toBe("Tu plan PRO está activo");
+      expect(email.html).not.toContain("SUBSCRIPTION_ACTIVATED");
+    });
+  });
 });
