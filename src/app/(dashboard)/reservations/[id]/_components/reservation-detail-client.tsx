@@ -25,6 +25,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -113,6 +114,12 @@ interface ReservationDetailClientProps {
     bookingAirbnb: boolean;
     notes: string | null;
     createdAt: string;
+    brokerId?: string | null;
+    /** Porcentaje congelado al crear la reserva (ADR-0040 §2). */
+    commissionRate?: number | null;
+    broker?: { id: string; name: string; active: boolean } | null;
+    /** Comisión devengada hasta hoy, derivada de los pagos cobrados. */
+    commissionAccrued?: number;
     property: Property;
     client: Client;
     payments: Payment[];
@@ -190,6 +197,16 @@ const STATUS_LABELS: Record<string, string> = {
 function formatChangeValue(field: string, value: string): string {
   if (field === "status") return STATUS_LABELS[value] ?? value;
   if (field === "billingType") return value === "MONTHLY" ? "Mensual" : value === "DAILY" ? "Diario" : value;
+  // La tasa se guarda como número suelto ("8.5"); sin el signo el historial
+  // diría "Comisión 10 → 8,5" y no se entiende de qué unidad habla, y sin
+  // formatear saldría con punto decimal en una UI que usa coma.
+  if (field === "commissionRate") {
+    if (value === "") return "Sin comisión";
+    const rate = Number(value);
+    return Number.isFinite(rate)
+      ? `${rate.toLocaleString("es-CL", { maximumFractionDigits: 2 })}%`
+      : `${value}%`;
+  }
   return value;
 }
 
@@ -204,6 +221,8 @@ function FieldLabel({ field }: { field: string }) {
     clientId: "Cliente",
     notes: "Notas",
     billingType: "Cobro",
+    brokerId: "Captador",
+    commissionRate: "Comisión",
   };
   return <span className="font-medium text-foreground">{labels[field] ?? field}</span>;
 }
@@ -843,6 +862,42 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
             />
           </div>
 
+          {/* Captación — solo si alguien la trajo. La mayoría de las reservas
+              las consigue el propietario y no tienen nada que mostrar acá. */}
+          {reservation.broker && reservation.commissionRate !== null && reservation.commissionRate !== undefined && (
+            <section aria-label="Captación">
+              <h2 className="text-sm font-bold text-foreground mb-3">Captación</h2>
+              <Card>
+                <CardContent className="p-4 sm:p-5 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {reservation.broker.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {reservation.commissionRate.toLocaleString("es-CL", { maximumFractionDigits: 2 })}% del arriendo
+                      </p>
+                    </div>
+                    {!reservation.broker.active && (
+                      <Badge variant="outline" className="text-[10px] shrink-0">Inactivo</Badge>
+                    )}
+                  </div>
+                  <div className="border-t border-border pt-3">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Comisión devengada
+                    </p>
+                    <p className="text-lg font-bold text-foreground">
+                      ${(reservation.commissionAccrued ?? 0).toLocaleString("es-CL")}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      Sobre los pagos ya cobrados de esta reserva
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
           {/* Notas — vive en la columna derecha (supplementary content).
               Mantiene h2 propio (como Documentos) para consistencia visual entre
               las secciones del sidebar. */}
@@ -941,6 +996,8 @@ export function ReservationDetailClient({ reservation }: ReservationDetailClient
                 unitsBooked: reservation.unitsBooked,
                 bookingAirbnb: reservation.bookingAirbnb,
                 notes: reservation.notes || "",
+                brokerId: reservation.brokerId ?? "",
+                commissionRate: reservation.commissionRate ?? undefined,
               }}
               onSubmit={async (data) => {
                 const { updateReservation } = await import("@/lib/actions/reservations");

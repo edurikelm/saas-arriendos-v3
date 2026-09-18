@@ -52,6 +52,11 @@ export interface Reservation {
   bookingAirbnb: boolean;
   notes: string | null;
   createdAt: string;
+  /** Quién captó la reserva. `null` = la consiguió el propietario (ADR-0040). */
+  brokerId?: string | null;
+  /** Porcentaje congelado al crear la reserva. Es porcentaje, no fracción. */
+  commissionRate?: number | null;
+  broker?: { id: string; name: string } | null;
   property: ReservationProperty;
   client: ReservationClient;
   payments: ReservationPayment[];

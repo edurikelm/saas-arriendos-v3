@@ -14,6 +14,7 @@ import {
   sliceBuckets,
 } from "@/lib/reservations/list-order";
 import { countCompletedPaymentsForReservation } from "@/lib/payments/queries";
+import { commissionForPayments } from "@/lib/brokers/commission";
 import { ZodError } from "zod";
 import { recordDomainEvent } from "@/lib/notifications/record-event";
 import { canTransition } from "@/lib/reservations/state-machine";
@@ -165,6 +166,12 @@ export async function getReservations(params?: {
       phone: true,
     },
   },
+  broker: {
+    select: {
+      id: true,
+      name: true,
+    },
+  },
   payments: {
     where: { deletedAt: null },
     select: {
@@ -267,6 +274,9 @@ export async function getReservations(params?: {
       email: r.client.email,
       phone: r.client.phone,
     },
+    brokerId: r.brokerId,
+    commissionRate: r.commissionRate === null ? null : Number(r.commissionRate),
+    broker: r.broker ? { id: r.broker.id, name: r.broker.name } : null,
     payments: r.payments.map((p) => ({
       id: p.id,
       paymentType: p.paymentType,
@@ -304,6 +314,7 @@ export async function getReservationById(id: string) {
     include: {
       property: true,
       client: true,
+      broker: true,
       // H6: filtra deletedAt en DB (antes se hacía en JS con .filter)
       payments: {
         where: { deletedAt: null },
@@ -358,6 +369,29 @@ export async function getReservationById(id: string) {
       userId: reservation.client.userId,
       createdAt: reservation.client.createdAt.toISOString(),
     },
+    brokerId: reservation.brokerId,
+    commissionRate:
+      reservation.commissionRate === null ? null : Number(reservation.commissionRate),
+    broker: reservation.broker
+      ? {
+          id: reservation.broker.id,
+          name: reservation.broker.name,
+          active: reservation.broker.active,
+        }
+      : null,
+    // Comisión devengada hasta hoy, derivada de los pagos que ya están en esta
+    // consulta (ADR-0040 §3). No hay query extra ni monto guardado.
+    commissionAccrued:
+      reservation.commissionRate === null
+        ? 0
+        : commissionForPayments(
+            reservation.payments
+              .filter(
+                (p) => p.status === "COMPLETED" && p.paymentType === "RESERVATION",
+              )
+              .map((p) => ({ amount: Number(p.amount) })),
+            Number(reservation.commissionRate),
+          ),
     payments: reservation.payments
       .map((p) => ({
         id: p.id,
@@ -557,6 +591,26 @@ export async function createReservation(data: unknown) {
     select: { name: true },
   });
 
+  // Captador: tiene que ser del mismo owner y estar activo. Un id ajeno o
+  // desactivado se rechaza en vez de guardarse: la comisión se deriva de este
+  // par (captador + tasa) y una fila mal apuntada es plata mal atribuida.
+  let brokerId: string | null = null;
+  let commissionRate: number | null = null;
+
+  if (validated.brokerId) {
+    const broker = await prisma.broker.findFirst({
+      where: { id: validated.brokerId, userId: session.userId },
+      select: { id: true, active: true },
+    });
+
+    if (!broker) return { error: "Captador no encontrado" };
+    if (!broker.active) return { error: "Ese captador está desactivado" };
+
+    brokerId = broker.id;
+    // Congelada acá y nunca más leída del captador (ADR-0040 §2 y §3).
+    commissionRate = validated.commissionRate ?? null;
+  }
+
   const startDate = new Date(validated.startDate);
   let endDate = new Date(validated.endDate);
 
@@ -601,6 +655,8 @@ export async function createReservation(data: unknown) {
         status: "PENDING",
         bookingAirbnb: validated.bookingAirbnb,
         notes: validated.notes ?? null,
+        brokerId,
+        commissionRate,
       },
     });
 
@@ -803,6 +859,83 @@ export async function updateReservation(id: string, data: unknown) {
     });
   }
 
+  // Captación aparte del resto: cambiar quién captó la reserva o su porcentaje
+  // no toca fechas, unidades ni propiedad, así que no tiene por qué pasar por
+  // el chequeo de disponibilidad ni recalcular `totalPrice`. Meterlo en
+  // `changes` lo haría, y un edit de comisión podría quedar bloqueado por una
+  // disponibilidad que otra reserva se llevó.
+  const commissionChanges: { field: string; old: string; new: string }[] = [];
+
+  if (validated.brokerId !== undefined) {
+    const nextBrokerId = validated.brokerId || null;
+
+    if (nextBrokerId !== existing.brokerId) {
+      let nextBrokerName: string | null = null;
+
+      if (nextBrokerId) {
+        const broker = await prisma.broker.findFirst({
+          where: { id: nextBrokerId, userId: session.userId },
+          select: { name: true, active: true },
+        });
+        if (!broker) return { error: "Captador no encontrado" };
+        if (!broker.active) return { error: "Ese captador está desactivado" };
+        nextBrokerName = broker.name;
+      }
+
+      const previousBrokerName = existing.brokerId
+        ? (
+            await prisma.broker.findUnique({
+              where: { id: existing.brokerId },
+              select: { name: true },
+            })
+          )?.name ?? existing.brokerId
+        : null;
+
+      updateData.brokerId = nextBrokerId;
+
+      // Al historial va el NOMBRE, no el id: es lo que el propietario tiene que
+      // poder leer. `propertyId` y `clientId` guardan ids y se muestran crudos
+      // en el detalle; no vale la pena extender esa deuda a un campo nuevo.
+      commissionChanges.push({
+        field: "brokerId",
+        old: previousBrokerName ?? "Sin captador",
+        new: nextBrokerName ?? "Sin captador",
+      });
+
+      // Sacar al captador se lleva su tasa: una tasa huérfana no devenga nada
+      // y reaparecería si mañana se le asigna otro captador.
+      if (!nextBrokerId) {
+        updateData.commissionRate = null;
+        if (existing.commissionRate !== null) {
+          commissionChanges.push({
+            field: "commissionRate",
+            old: String(Number(existing.commissionRate)),
+            new: "",
+          });
+        }
+      }
+    }
+  }
+
+  // La tasa se escribe si viene y cambió, salvo que la reserva esté quedando
+  // sin captador (ese caso ya la anuló arriba).
+  const losingBroker = "brokerId" in updateData && updateData.brokerId === null;
+
+  if (validated.commissionRate !== undefined && !losingBroker) {
+    const nextRate = validated.commissionRate;
+    const previousRate =
+      existing.commissionRate === null ? null : Number(existing.commissionRate);
+
+    if (nextRate !== null && nextRate !== previousRate) {
+      updateData.commissionRate = nextRate;
+      commissionChanges.push({
+        field: "commissionRate",
+        old: previousRate === null ? "" : String(previousRate),
+        new: String(nextRate),
+      });
+    }
+  }
+
   if (changes.length > 0) {
     const propertyId = (typeof updateData.propertyId === "string" ? updateData.propertyId : existing.propertyId);
     const startDate = (updateData.startDate instanceof Date ? updateData.startDate : existing.startDate);
@@ -840,6 +973,10 @@ export async function updateReservation(id: string, data: unknown) {
     for (const change of changes) {
       await logChange(id, change.field, change.old, change.new);
     }
+  }
+
+  for (const change of commissionChanges) {
+    await logChange(id, change.field, change.old, change.new);
   }
 
   const reservation = await prisma.reservation.update({

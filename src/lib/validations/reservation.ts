@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { commissionRateSchema } from "@/lib/validations/broker";
 
 const dateStringSchema = z.union([
   z.string(),
@@ -50,7 +51,21 @@ export const reservationSchema = z.object({
   bookingAirbnb: z.boolean().default(false),
   notes: z.string().optional().nullable(),
   months: z.number().optional(),
+  /** Quién captó la reserva. Vacío = la consiguió el propietario (ADR-0040). */
+  brokerId: z.string().optional().nullable(),
+  /** Se congela en la reserva al crearla. Ver ADR-0040 §2. */
+  commissionRate: commissionRateSchema.optional().nullable(),
 }).superRefine((data, ctx) => {
+  // Con captador tiene que venir el porcentaje: una reserva con captador y sin
+  // tasa no devengaría comisión y el error sería invisible hasta el reporte.
+  if (data.brokerId && (data.commissionRate === null || data.commissionRate === undefined)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Ingresa el porcentaje de comisión del captador",
+      path: ["commissionRate"],
+    });
+  }
+
   if (data.billingType === "MONTHLY") {
     if (!data.months || data.months < 1 || data.months > 12) {
       ctx.addIssue({
@@ -72,6 +87,16 @@ export const reservationUpdateSchema = z.object({
   bookingAirbnb: z.boolean().optional(),
   status: z.enum(["PENDING", "CONFIRMED", "CANCELLED", "COMPLETED"]).optional(),
   notes: z.string().optional().nullable(),
+  brokerId: z.string().optional().nullable(),
+  commissionRate: commissionRateSchema.optional().nullable(),
+}).superRefine((data, ctx) => {
+  if (data.brokerId && (data.commissionRate === null || data.commissionRate === undefined)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Ingresa el porcentaje de comisión del captador",
+      path: ["commissionRate"],
+    });
+  }
 });
 
 export type ReservationInput = z.infer<typeof reservationSchema>;

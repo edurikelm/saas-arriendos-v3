@@ -10,6 +10,10 @@ vi.mock('@/lib/actions/clients', () => ({
   createClient: vi.fn(),
 }));
 
+vi.mock('@/lib/actions/brokers', () => ({
+  getActiveBrokers: vi.fn().mockResolvedValue([]),
+}));
+
 vi.mock('@/components/ui/date-range-picker', () => ({
   DateRangePicker: () => <div data-testid="date-range-picker">DateRangePicker</div>,
 }));
