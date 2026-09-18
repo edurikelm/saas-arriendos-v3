@@ -36,6 +36,15 @@ export interface CommissionPaymentInput {
   brokerName: string;
   /** Porcentaje congelado en la reserva: 10 = 10%. */
   commissionRate: number;
+  /**
+   * Etiquetas de la reserva, para que el detalle se pueda leer sin abrir otra
+   * pantalla. Viajan ya serializadas (`YYYY-MM-DD` y nombre) porque el consumo
+   * es una vista: el módulo no hace nada con ellas más que pasarlas.
+   */
+  clientName: string;
+  propertyName: string;
+  startDateKey: string;
+  endDateKey: string;
 }
 
 /** Total devengado por un captador en el período consultado. */
@@ -58,6 +67,10 @@ export interface ReservationCommissionRow {
   collectedAmount: number;
   commission: number;
   paymentCount: number;
+  clientName: string;
+  propertyName: string;
+  startDateKey: string;
+  endDateKey: string;
 }
 
 // ─── Cálculo ──────────────────────────────────────────────────────────────────
@@ -157,6 +170,10 @@ export function buildReservationCommissions(
         collectedAmount: 0,
         commission: 0,
         paymentCount: 0,
+        clientName: p.clientName,
+        propertyName: p.propertyName,
+        startDateKey: p.startDateKey,
+        endDateKey: p.endDateKey,
       };
       byReservation.set(p.reservationId, row);
     }

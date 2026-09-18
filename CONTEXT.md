@@ -121,6 +121,7 @@ El webhook intenta matchear el pago en este orden:
 - **Las cancelaciones no se revierten.** Cancelar borra los pagos `PENDING` y conserva los `COMPLETED`, así que lo derivado ya es la comisión de lo que efectivamente entró
 - Se redondea por pago y después se suma, para que un total cuadre con su detalle
 - Los ingresos de `/reports` y `/dashboard` siguen siendo **brutos**: la comisión es un bloque aparte, no un descuento de "Cobrado"
+- El bloque "Comisiones de captadores" vive en la sección "Resultado del período" de `/reports` y obedece al rango y a la propiedad del encabezado (ADR-0035). Solo se dibuja si el propietario tiene algún captador registrado; su columna "Cobrado de sus reservas" es la caja de las reservas con captador, no la del período completo
 - Ver ADR-0040
 
 ### Cancelación

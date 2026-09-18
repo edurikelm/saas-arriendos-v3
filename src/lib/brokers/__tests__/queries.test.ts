@@ -42,7 +42,15 @@ function row({
     id,
     amount,
     paidAt,
-    reservation: { id: reservationId, commissionRate, broker },
+    reservation: {
+      id: reservationId,
+      commissionRate,
+      broker,
+      startDate: new Date("2026-09-05T15:00:00Z"),
+      endDate: new Date("2026-09-12T15:00:00Z"),
+      client: { name: "Juan Pérez" },
+      property: { name: "Departamento Centro" },
+    },
   };
 }
 
@@ -163,6 +171,18 @@ describe("getCommissionPaymentsForOwner — mapeo", () => {
 
     expect(rows[0].amount).toBe(450_000);
     expect(rows[0].commissionRate).toBe(8.75);
+  });
+
+  it("trae las etiquetas de la reserva para que el detalle se lea solo", async () => {
+    mocks.findMany.mockResolvedValue([row()]);
+
+    const rows = await getCommissionPaymentsForOwner("user-1", SEPTIEMBRE);
+
+    expect(rows[0].clientName).toBe("Juan Pérez");
+    expect(rows[0].propertyName).toBe("Departamento Centro");
+    // Date-only leído con `dateOnlyKey`, no con getters locales.
+    expect(rows[0].startDateKey).toBe("2026-09-05");
+    expect(rows[0].endDateKey).toBe("2026-09-12");
   });
 
   it("salta una fila sin captador en vez de reventar", async () => {

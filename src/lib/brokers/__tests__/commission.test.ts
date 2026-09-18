@@ -19,6 +19,10 @@ function payment(
     brokerId: "brk-1",
     brokerName: "Ana",
     commissionRate: 10,
+    clientName: "Juan Pérez",
+    propertyName: "Departamento Centro",
+    startDateKey: "2026-09-05",
+    endDateKey: "2026-09-12",
     ...overrides,
   };
 }
