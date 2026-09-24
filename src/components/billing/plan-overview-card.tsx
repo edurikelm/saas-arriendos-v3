@@ -101,7 +101,7 @@ export function PlanOverviewCard({ subscription, usage }: PlanOverviewCardProps)
           </div>
         )}
 
-        {!isPro && !isPending && (
+        {!isPro && !isPending && !hasActiveCancellation && (
           <div>
             <p className="text-sm text-muted-foreground">
               Plan gratuito ·{" "}

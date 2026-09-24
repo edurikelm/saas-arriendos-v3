@@ -70,6 +70,21 @@ describe("<PlanOverviewCard />", () => {
     expect(cta.getAttribute("href")).toBe("/settings/billing");
   });
 
+  it("no muestra 'Plan gratuito' durante una cancelación vigente (el plan efectivo sigue siendo PRO)", () => {
+    const sub = makeSub({
+      status: "CANCELLED",
+      cancelledAt: new Date(),
+    });
+    const proUsage: OwnerUsage = {
+      ...baseUsage,
+      propertiesLimit: Infinity,
+      clientsLimit: Infinity,
+    };
+    render(<PlanOverviewCard subscription={sub} usage={proUsage} />);
+    expect(screen.getByText("PRO")).toBeTruthy();
+    expect(screen.queryByText(/Plan gratuito/)).toBeNull();
+  });
+
   it("muestra alerta de pago pendiente y CTA 'Revisar pago pendiente' cuando PENDING", () => {
     render(
       <PlanOverviewCard
