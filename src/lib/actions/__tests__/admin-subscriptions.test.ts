@@ -38,6 +38,8 @@ const mocks = vi.hoisted(() => ({
   requireSuperAdmin: vi.fn(),
   getSession: vi.fn(),
   getSuperAdminSession: vi.fn(),
+  // Gateway MP (suscripción PRO)
+  cancelPreapproval: vi.fn(),
   // next/cache
   revalidatePath: vi.fn(),
 }));
@@ -64,6 +66,12 @@ vi.mock("@/lib/db/prisma", () => ({
 
 vi.mock("@/lib/auth/guards", () => ({
   requireSuperAdmin: mocks.requireSuperAdmin,
+}));
+
+vi.mock("@/lib/payment/pro-gateway", () => ({
+  getProGateway: vi.fn(() => ({
+    cancelPreapproval: mocks.cancelPreapproval,
+  })),
 }));
 
 vi.mock("@/lib/auth/session", () => ({
@@ -151,6 +159,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.requireSuperAdmin.mockResolvedValue(adminSession);
   mocks.getSession.mockResolvedValue(adminSession);
+  mocks.cancelPreapproval.mockResolvedValue(undefined);
 });
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -191,6 +200,7 @@ describe("adminCancelSubscription", () => {
       payload: {
         reason: "owner dispute", // trim() se aplica en el schema
         adminId: "admin-1",
+        mpCancelled: true,
       },
     });
   });
@@ -219,6 +229,7 @@ describe("adminCancelSubscription", () => {
           subscriptionId: "sub-1",
           reason: "Fraude detectado",
           adminId: "admin-1",
+          mpCancelled: true,
         }),
       },
     });
@@ -307,5 +318,86 @@ describe("adminCancelSubscription", () => {
     });
 
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/users/clxxxxxxxxxxxxxxxxxxxxxxxx");
+  });
+
+  // ── 8. Cancelación en Mercado Pago (evita el doble cobro) ─
+
+  it("cancela el preapproval en Mercado Pago ANTES de aplicar el lifecycle", async () => {
+    const authorizedSub = mockSub({ status: "AUTHORIZED", mpPreapprovalId: "mp-preapproval-123" });
+    mocks.subscriptionFindFirst.mockResolvedValue(authorizedSub);
+    mockApplySubscriptionEvent.mockResolvedValue({
+      subscription: mockSub({ status: "CANCELLED" }),
+    });
+    mocks.adminActionLogCreate.mockResolvedValue({});
+
+    const callOrder: string[] = [];
+    mocks.cancelPreapproval.mockImplementation(async () => {
+      callOrder.push("mp_cancel");
+    });
+    mockApplySubscriptionEvent.mockImplementation(async () => {
+      callOrder.push("lifecycle");
+      return { subscription: mockSub({ status: "CANCELLED" }) };
+    });
+
+    await adminCancelSubscription({
+      userId: "clxxxxxxxxxxxxxxxxxxxxxxxx",
+      reason: "Fraude",
+    });
+
+    expect(mocks.cancelPreapproval).toHaveBeenCalledWith("mp-preapproval-123");
+    expect(callOrder).toEqual(["mp_cancel", "lifecycle"]);
+  });
+
+  it("si MP falla al cancelar: throw, no llama lifecycle ni logAdminAction", async () => {
+    const authorizedSub = mockSub({ status: "AUTHORIZED", mpPreapprovalId: "mp-preapproval-123" });
+    mocks.subscriptionFindFirst.mockResolvedValue(authorizedSub);
+    mocks.cancelPreapproval.mockRejectedValue(new Error("MP down"));
+
+    await expect(
+      adminCancelSubscription({ userId: "clxxxxxxxxxxxxxxxxxxxxxxxx", reason: "Test" }),
+    ).rejects.toThrow(
+      "No pudimos cancelar la suscripción en Mercado Pago. El estado local no cambió; intenta de nuevo.",
+    );
+
+    expect(mockApplySubscriptionEvent).not.toHaveBeenCalled();
+    expect(mocks.adminActionLogCreate).not.toHaveBeenCalled();
+  });
+
+  it("sin mpPreapprovalId: no llama a MP, aplica lifecycle con mpCancelled: false", async () => {
+    const subWithoutPreapproval = mockSub({ status: "AUTHORIZED", mpPreapprovalId: null });
+    mocks.subscriptionFindFirst.mockResolvedValue(subWithoutPreapproval);
+    mockApplySubscriptionEvent.mockResolvedValue({
+      subscription: mockSub({ status: "CANCELLED" }),
+    });
+    mocks.adminActionLogCreate.mockResolvedValue({});
+
+    await adminCancelSubscription({
+      userId: "clxxxxxxxxxxxxxxxxxxxxxxxx",
+      reason: "Sin preapproval",
+    });
+
+    expect(mocks.cancelPreapproval).not.toHaveBeenCalled();
+    expect(mockApplySubscriptionEvent).toHaveBeenCalledWith({
+      type: "admin_cancel",
+      subscriptionId: "sub-1",
+      payload: {
+        reason: "Sin preapproval",
+        adminId: "admin-1",
+        mpCancelled: false,
+      },
+    });
+    expect(mocks.adminActionLogCreate).toHaveBeenCalledWith({
+      data: {
+        adminId: "admin-1",
+        targetId: "clxxxxxxxxxxxxxxxxxxxxxxxx",
+        action: "SUBSCRIPTION_CANCELLED_ADMIN",
+        details: JSON.stringify({
+          subscriptionId: "sub-1",
+          reason: "Sin preapproval",
+          adminId: "admin-1",
+          mpCancelled: false,
+        }),
+      },
+    });
   });
 });

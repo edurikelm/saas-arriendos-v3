@@ -59,6 +59,7 @@ const mocks = vi.hoisted(() => ({
   ensurePlan: vi.fn(),
   createPreapproval: vi.fn(),
   cancelPreapproval: vi.fn(),
+  fetchPreapproval: vi.fn(),
   // next/cache
   revalidatePath: vi.fn(),
 }));
@@ -93,18 +94,12 @@ vi.mock("@/lib/payment/pro-gateway", () => ({
     ensurePlan: mocks.ensurePlan,
     createPreapproval: mocks.createPreapproval,
     cancelPreapproval: mocks.cancelPreapproval,
+    fetchPreapproval: mocks.fetchPreapproval,
   })),
 }));
 
 vi.mock("@/lib/auth/guards", () => ({
   requireOwner: mocks.requireOwner,
-}));
-
-vi.mock("@/lib/payment/pro-gateway", () => ({
-  getProGateway: vi.fn(() => ({
-    ensurePlan: mocks.ensurePlan,
-    createPreapproval: mocks.createPreapproval,
-  })),
 }));
 
 vi.mock("next/cache", () => ({
@@ -411,6 +406,101 @@ describe("startProUpgrade — replace EXPIRED/FAILED", () => {
     expect(mocks.subscriptionDelete).toHaveBeenCalledWith({
       where: { id: "sub-old" },
     });
+  });
+
+  // ── ensurePreviousPreapprovalStopped: defensa contra doble cobro ──────────
+  // Una fila reemplazable (EXPIRED/FAILED/CANCELLED-expirada) puede seguir
+  // teniendo un preapproval vivo en MP — p.ej. el cron `EXPIRED_CHECK` marcó
+  // localmente EXPIRED sin que llegara el webhook de renovación. Antes de
+  // reemplazar la fila y crear un preapproval nuevo, `startProUpgrade` debe
+  // confirmar (y cancelar si hace falta) el preapproval anterior.
+
+  it("preapproval anterior sigue vivo en MP (authorized) → lo cancela y luego reemplaza", async () => {
+    const newSub = setupUpgradeSuccess({
+      id: "sub-old",
+      status: "EXPIRED",
+      mpPreapprovalId: "mp-old-preapproval",
+    });
+    mocks.fetchPreapproval.mockResolvedValueOnce({
+      id: "mp-old-preapproval",
+      status: "authorized",
+    });
+
+    const result = await startProUpgrade();
+
+    expect(mocks.fetchPreapproval).toHaveBeenCalledWith("mp-old-preapproval");
+    expect(mocks.cancelPreapproval).toHaveBeenCalledWith("mp-old-preapproval");
+    expect(result.subscriptionId).toBe(newSub.id);
+    expect(mocks.subscriptionDelete).toHaveBeenCalledWith({
+      where: { id: "sub-old" },
+    });
+  });
+
+  it("preapproval anterior ya cancelado en MP → no llama cancelPreapproval, igual reemplaza", async () => {
+    setupUpgradeSuccess({
+      id: "sub-old",
+      status: "FAILED",
+      mpPreapprovalId: "mp-old-preapproval",
+    });
+    mocks.fetchPreapproval.mockResolvedValueOnce({
+      id: "mp-old-preapproval",
+      status: "cancelled",
+    });
+
+    const result = await startProUpgrade();
+
+    expect(mocks.fetchPreapproval).toHaveBeenCalledWith("mp-old-preapproval");
+    expect(mocks.cancelPreapproval).not.toHaveBeenCalled();
+    expect(result.subscriptionId).toBe("sub-new");
+    expect(mocks.subscriptionDelete).toHaveBeenCalledWith({
+      where: { id: "sub-old" },
+    });
+  });
+
+  it("fetchPreapproval falla → throw, no reemplaza ni crea preapproval nuevo", async () => {
+    mocks.subscriptionFindUnique.mockResolvedValue(
+      mockSub({ id: "sub-old", status: "EXPIRED", mpPreapprovalId: "mp-old-preapproval" }),
+    );
+    mocks.fetchPreapproval.mockRejectedValueOnce(new Error("MP timeout"));
+
+    await expect(startProUpgrade()).rejects.toThrow(
+      "No pudimos verificar tu suscripción anterior en Mercado Pago. Intenta de nuevo en unos minutos.",
+    );
+
+    expect(mocks.subscriptionEventDeleteMany).not.toHaveBeenCalled();
+    expect(mocks.subscriptionDelete).not.toHaveBeenCalled();
+    expect(mocks.subscriptionCreate).not.toHaveBeenCalled();
+    expect(mocks.createPreapproval).not.toHaveBeenCalled();
+  });
+
+  it("cancelPreapproval falla → throw, no reemplaza ni crea preapproval nuevo", async () => {
+    mocks.subscriptionFindUnique.mockResolvedValue(
+      mockSub({ id: "sub-old", status: "EXPIRED", mpPreapprovalId: "mp-old-preapproval" }),
+    );
+    mocks.fetchPreapproval.mockResolvedValueOnce({
+      id: "mp-old-preapproval",
+      status: "authorized",
+    });
+    mocks.cancelPreapproval.mockRejectedValueOnce(new Error("MP down"));
+
+    await expect(startProUpgrade()).rejects.toThrow(
+      "No pudimos verificar tu suscripción anterior en Mercado Pago. Intenta de nuevo en unos minutos.",
+    );
+
+    expect(mocks.subscriptionEventDeleteMany).not.toHaveBeenCalled();
+    expect(mocks.subscriptionDelete).not.toHaveBeenCalled();
+    expect(mocks.subscriptionCreate).not.toHaveBeenCalled();
+    expect(mocks.createPreapproval).not.toHaveBeenCalled();
+  });
+
+  it("fila reemplazable sin mpPreapprovalId → no llama a MP para verificar", async () => {
+    setupUpgradeSuccess({ id: "sub-old", status: "EXPIRED", mpPreapprovalId: null });
+
+    const result = await startProUpgrade();
+
+    expect(result.subscriptionId).toBe("sub-new");
+    expect(mocks.fetchPreapproval).not.toHaveBeenCalled();
+    expect(mocks.cancelPreapproval).not.toHaveBeenCalled();
   });
 
   it("AUTHORIZED → upgrade attempt blocks (regression)", async () => {

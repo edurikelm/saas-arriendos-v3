@@ -94,9 +94,50 @@ function throwIfNotEligibleForUpgrade(
 }
 
 /**
+ * Antes de reemplazar una fila EXPIRED/FAILED/CANCELLED-expirada (ver
+ * `throwIfNotEligibleForUpgrade`), confirma que su preapproval en Mercado
+ * Pago ya no está vivo, y lo cancela si todavía lo está.
+ *
+ * Previene un doble cobro: una fila local EXPIRED no siempre implica que MP
+ * también dejó de cobrar — por ejemplo, el cron `EXPIRED_CHECK` puede marcar
+ * localmente EXPIRED una subscription que seguía `AUTHORIZED` en MP porque el
+ * webhook de renovación nunca llegó. Si `startProUpgrade` reemplazara la fila
+ * y creara un preapproval nuevo sin chequear esto, el owner terminaría con
+ * dos preapprovals vivos y dos cobros mensuales.
+ *
+ * No hay I/O de red dentro de la transacción de DB del replace (Prisma no lo
+ * permite de forma segura), así que este chequeo va ANTES de esa tx, no
+ * dentro. La ventana de carrera que queda — el estado cambia entre este
+ * chequeo y la tx — es la misma ventana de doble-click que ya cubre el
+ * re-check `fresh` dentro de la tx (`userId @unique`); no se amplía.
+ */
+async function ensurePreviousPreapprovalStopped(existing: {
+  mpPreapprovalId: string | null;
+}): Promise<void> {
+  if (!existing.mpPreapprovalId) return;
+
+  try {
+    const info = await getProGateway().fetchPreapproval(existing.mpPreapprovalId);
+    if (info.status !== "cancelled") {
+      await getProGateway().cancelPreapproval(existing.mpPreapprovalId);
+    }
+  } catch (error) {
+    console.error(
+      `[startProUpgrade] failed to verify/cancel previous preapproval ${existing.mpPreapprovalId}`,
+      error,
+    );
+    throw new Error(
+      "No pudimos verificar tu suscripción anterior en Mercado Pago. Intenta de nuevo en unos minutos.",
+    );
+  }
+}
+
+/**
  * Inicia el flujo de upgrade a PRO.
  *
  * 1. Pre-check: verifica que no tenga subscription activa.
+ * 1b. Si la fila existente es reemplazable y tiene `mpPreapprovalId`, confirma
+ *     con MP que ya no está vivo (`ensurePreviousPreapprovalStopped`).
  * 2. Dentro de tx: si EXPIRED/FAILED existe → delete eventos + hard-delete la fila.
  * 3. Crea `Subscription(PENDING)` vía `applySubscriptionEvent("created", tx)`.
  * 4. Post-commit: registra `AdminActionLog.SUBSCRIPTION_REPLACED`.
@@ -119,6 +160,12 @@ export async function startProUpgrade(): Promise<{
   // CANCELLED cuyo plan efectivo ya es FREE.
   const existing = await getCurrentSubscription(userId);
   throwIfNotEligibleForUpgrade(existing);
+
+  // Si llegamos acá, `existing` es null o reemplazable — defensa en
+  // profundidad contra el doble cobro descrito arriba antes de tocar la DB.
+  if (existing) {
+    await ensurePreviousPreapprovalStopped(existing);
+  }
 
   // ── REEMPLAZAR: dentro de tx, si existe fila EXPIRED/FAILED/CANCELLED-FREE → delete + create ──
   // (mover el try/catch interno al bloque tx para atomicidad)
