@@ -33,6 +33,7 @@ import {
   getSubscriptionById,
   listSubscriptionEvents,
   findLastDowngradeSnapshot,
+  hasSubscriptionEventForAuthorizedPayment,
 } from "../queries";
 
 beforeEach(() => {
@@ -363,6 +364,87 @@ describe("findLastDowngradeSnapshot", () => {
     const result = await findLastDowngradeSnapshot("user-1", txAdapter);
 
     expect(result).toEqual({ externalCalendarIds: [], externalBlockIds: [] });
+    expect(txAdapter.subscriptionEvent.findFirst).toHaveBeenCalled();
+    expect(mocks.findFirst).not.toHaveBeenCalled();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// hasSubscriptionEventForAuthorizedPayment
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("hasSubscriptionEventForAuthorizedPayment", () => {
+  it("retorna true cuando existe un evento con el payloadKey y value dados", async () => {
+    mocks.findFirst.mockResolvedValue({ id: "ev-1" });
+
+    const result = await hasSubscriptionEventForAuthorizedPayment(
+      "sub-1",
+      "renewed",
+      "mpAuthorizedPaymentId",
+      "ap-123",
+    );
+
+    expect(result).toBe(true);
+    expect(mocks.findFirst).toHaveBeenCalledWith({
+      where: {
+        subscriptionId: "sub-1",
+        type: "renewed",
+        payload: { path: ["mpAuthorizedPaymentId"], equals: "ap-123" },
+      },
+      select: { id: true },
+    });
+  });
+
+  it("retorna false cuando no existe ningún evento coincidente", async () => {
+    mocks.findFirst.mockResolvedValue(null);
+
+    const result = await hasSubscriptionEventForAuthorizedPayment(
+      "sub-1",
+      "renewed",
+      "mpAuthorizedPaymentId",
+      "ap-999",
+    );
+
+    expect(result).toBe(false);
+  });
+
+  it("filtra por mpPaymentId cuando se pide para payment_failed", async () => {
+    mocks.findFirst.mockResolvedValue({ id: "ev-2" });
+
+    const result = await hasSubscriptionEventForAuthorizedPayment(
+      "sub-2",
+      "payment_failed",
+      "mpPaymentId",
+      "payment-456",
+    );
+
+    expect(result).toBe(true);
+    expect(mocks.findFirst).toHaveBeenCalledWith({
+      where: {
+        subscriptionId: "sub-2",
+        type: "payment_failed",
+        payload: { path: ["mpPaymentId"], equals: "payment-456" },
+      },
+      select: { id: true },
+    });
+  });
+
+  it("usa el adapter pasado en vez de prisma global", async () => {
+    const txAdapter = {
+      subscriptionEvent: {
+        findFirst: vi.fn().mockResolvedValue({ id: "ev-tx" }),
+      },
+    } as any;
+
+    const result = await hasSubscriptionEventForAuthorizedPayment(
+      "sub-1",
+      "renewed",
+      "mpAuthorizedPaymentId",
+      "ap-123",
+      txAdapter,
+    );
+
+    expect(result).toBe(true);
     expect(txAdapter.subscriptionEvent.findFirst).toHaveBeenCalled();
     expect(mocks.findFirst).not.toHaveBeenCalled();
   });

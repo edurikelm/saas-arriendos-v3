@@ -720,6 +720,35 @@ describe('applySubscriptionEvent({ type: "payment_failed" })', () => {
 });
 
 // ────────────────────────────────────────────────────────────────────────────
+// applySubscriptionEvent — type: "payment_unapplied"
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('applySubscriptionEvent({ type: "payment_unapplied" })', () => {
+  it("no actualiza la subscription, registra event, NO plan change", async () => {
+    const cancelledSub = fakeSub({ status: "CANCELLED" });
+    mocks.subscriptionFindUnique.mockResolvedValue(cancelledSub);
+    mocks.subscriptionEventCreate.mockResolvedValue({} as SubscriptionEvent);
+
+    const result = await applySubscriptionEvent({
+      type: "payment_unapplied",
+      subscriptionId: "sub-1",
+      payload: { subscriptionStatus: "CANCELLED" },
+    });
+
+    expect(result.subscription.status).toBe("CANCELLED");
+    expect(result.planChange).toBeUndefined();
+    expect(mocks.subscriptionUpdate).not.toHaveBeenCalled();
+    expect(mocks.subscriptionEventCreate).toHaveBeenCalledWith({
+      data: {
+        subscriptionId: "sub-1",
+        type: "payment_unapplied",
+        payload: expect.anything(),
+      },
+    });
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
 // applyPlanChange
 // ────────────────────────────────────────────────────────────────────────────
 
