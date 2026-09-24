@@ -46,20 +46,23 @@ const TRANSITION_TABLE: StatusTuple[] = [
   ["PAUSED", "CANCELLED", true],
   ["PAUSED", "EXPIRED", true],
   ["PAUSED", "FAILED", false],
-  // CANCELLED → AUTHORIZED (reactivación manual antes de expirar) y
+  // CANCELLED → AUTHORIZED (permitida en la tabla; ningún flujo de owner la
+  // dispara hoy — no existe reactivar una CANCELLED, #195) y
   // CANCELLED → EXPIRED (el período terminó y la cancelación se procesó)
   ["CANCELLED", "PENDING", false],
   ["CANCELLED", "AUTHORIZED", true],
   ["CANCELLED", "PAUSED", false],
   ["CANCELLED", "EXPIRED", true],
   ["CANCELLED", "FAILED", false],
-  // EXPIRED → AUTHORIZED (reactivación)
+  // EXPIRED → AUTHORIZED (permitida en la tabla; `startProUpgrade` no la usa —
+  // reemplaza la fila EXPIRED con una nueva PENDING en vez de transicionarla)
   ["EXPIRED", "PENDING", false],
   ["EXPIRED", "AUTHORIZED", true],
   ["EXPIRED", "PAUSED", false],
   ["EXPIRED", "CANCELLED", false],
   ["EXPIRED", "FAILED", false],
-  // FAILED → AUTHORIZED, PAUSED, CANCELLED, EXPIRED (reactivación tras reintentar)
+  // FAILED → AUTHORIZED, PAUSED, CANCELLED, EXPIRED (idem EXPIRED: permitidas
+  // en la tabla, no en uso por ningún flujo actual)
   ["FAILED", "PENDING", false],
   ["FAILED", "AUTHORIZED", true],
   ["FAILED", "PAUSED", true],

@@ -68,7 +68,7 @@ describe("canTransition — transiciones válidas (✓)", () => {
     expect(canTransition("CANCELLED", "EXPIRED")).toBe(true);
   });
 
-  it("CANCELLED → AUTHORIZED (reactivación manual antes de expirar)", () => {
+  it("CANCELLED → AUTHORIZED (permitida en la tabla; ningún flujo de owner la dispara, #195)", () => {
     expect(canTransition("CANCELLED", "AUTHORIZED")).toBe(true);
   });
 

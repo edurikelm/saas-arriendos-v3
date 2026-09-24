@@ -16,7 +16,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { canTransition } from "@/lib/subscriptions/state-machine";
 import { PRO_PRICING } from "@/lib/subscriptions/pricing";
-import { getActiveSubscription } from "@/lib/subscriptions/queries";
+import { getActiveSubscription, getOwnerSubscription } from "@/lib/subscriptions/queries";
 import type { QueryAdapter } from "@/lib/subscriptions/queries";
 import type { Subscription, SubscriptionStatus } from "@prisma/client";
 import { recordSubscriptionNotification } from "@/lib/notifications/subscription-events";
@@ -336,8 +336,10 @@ export async function applySubscriptionEvent(
       updateData.nextPaymentDate = payload?.nextPaymentDate
         ? new Date(payload.nextPaymentDate as string)
         : null;
-      // Si la reactivación viene desde CANCELLED, limpiar marcadores de cancelación
-      // para que la subscription quede "como nueva" sin perder su historial de eventos.
+      // Si la transición CANCELLED → AUTHORIZED llega a ocurrir (la tabla la
+      // permite; ningún flujo de owner la dispara hoy — no existe reactivar,
+      // #195), limpiar marcadores de cancelación para que la subscription
+      // quede "como nueva" sin perder su historial de eventos.
       if (currentSubscription.status === "CANCELLED") {
         updateData.cancelledAt = null;
         updateData.cancellationReason = null;
@@ -442,7 +444,9 @@ export async function applySubscriptionEvent(
       if (snapshot) {
         await restoreExternalCalendars(currentSubscription.userId, snapshot, tx);
       }
-      // Si no hay snapshot (FREE puro → PRO, o CANCELLED-vigente → reactivado): no-op
+      // Si no hay snapshot (FREE puro → PRO, o CANCELLED-vigente → AUTHORIZED
+      // sin llegar a expirar — transición que la tabla permite pero que
+      // ningún flujo de owner dispara hoy, #195): no-op
     }
 
     // Registrar evento de auditoría — el snapshot se mergea DENTRO del payload
@@ -512,12 +516,20 @@ export async function applySubscriptionEvent(
 // ────────────────────────────────────────────────────────────────────────────
 
 /**
- * Wrapper sobre `getActiveSubscription` con firma más clara para server actions.
- * Busca la subscription activa del owner (PENDING | AUTHORIZED | PAUSED).
+ * Wrapper sobre `getOwnerSubscription` con firma más clara para server actions.
+ *
+ * Trae la fila de `Subscription` del owner sin filtrar por status — `null`
+ * solo si el owner nunca tuvo una. La usan `getCurrentSubscriptionAction`
+ * (todas las superficies de owner: settings, billing, dashboard, pricing),
+ * el pre-check de `startProUpgrade` y `cancelMySubscription`. Antes usaba
+ * `getActiveSubscription` (PENDING | AUTHORIZED | PAUSED), que dejaba fuera
+ * `CANCELLED`/`EXPIRED`/`FAILED` — la UI de owner mostraba FREE + "Activar
+ * PRO" para una `CANCELLED` con período todavía vigente, y ese click chocaba
+ * con `userId @unique` porque la fila seguía viva (#195 ronda 2).
  */
 export async function getCurrentSubscription(
   userId: string,
   adapter: QueryAdapter = prisma,
 ): Promise<Subscription | null> {
-  return getActiveSubscription(userId, adapter);
+  return getOwnerSubscription(userId, adapter);
 }

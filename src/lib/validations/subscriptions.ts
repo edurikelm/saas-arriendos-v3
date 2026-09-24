@@ -8,12 +8,6 @@ export const cancelSubscriptionSchema = z.object({
 
 export type CancelSubscriptionInput = z.infer<typeof cancelSubscriptionSchema>;
 
-export const reactivateSubscriptionSchema = z.object({});
-
-export type ReactivateSubscriptionInput = z.infer<
-  typeof reactivateSubscriptionSchema
->;
-
 export const adminCancelSubscriptionSchema = z.object({
   userId: z.string().cuid(),
   reason: z.string().trim().min(1).max(500),

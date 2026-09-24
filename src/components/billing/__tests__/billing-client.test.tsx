@@ -94,19 +94,105 @@ describe("BillingClient", () => {
     expect(screen.getByText(/próximo cobro/i)).toBeTruthy();
   });
 
-  it("renderiza CANCELLED: muestra banner ámbar con fecha de fin de período", async () => {
-    // Use midday UTC to avoid timezone shifting the date
+  it("renderiza CANCELLED con período vigente: muestra banner ámbar, badge PRO y sin CTA de upgrade", async () => {
+    // Fecha futura para que hasActiveCancellation sea true independiente de "hoy".
+    const futurePeriodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     const sub = createMockSubscription({
       status: "CANCELLED",
-      currentPeriodEnd: new Date("2026-08-15T12:00:00Z"),
+      currentPeriodEnd: futurePeriodEnd,
     });
     render(<BillingClient subscription={sub} usage={baseUsage} />);
 
-    // Banner ámbar
-    const banner = screen.getByText(/tu plan sigue activo hasta el/i);
+    // Badge PRO (sigue activo aunque esté cancelada)
+    expect(screen.getByText("PRO")).toBeTruthy();
+
+    // Banner ámbar con el copy que reemplazó la reactivación (#195)
+    const banner = screen.getByText(/tu plan pro sigue activo hasta el/i);
     expect(banner).toBeTruthy();
-    // The date part should be present (timezone-aware)
-    expect(banner.textContent).toMatch(/de agosto de 2026/i);
+    expect(banner.textContent).toMatch(/podrás volver a activar pro/i);
+
+    // Sin CTA de "Activar PRO": el período sigue vigente
+    expect(
+      screen.queryByRole("button", { name: /activar pro/i }),
+    ).toBeNull();
+  });
+
+  it("renderiza CANCELLED con período vencido: badge FREE y CTA 'Activar PRO' disponible", async () => {
+    const pastPeriodEnd = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const sub = createMockSubscription({
+      status: "CANCELLED",
+      currentPeriodEnd: pastPeriodEnd,
+    });
+    render(<BillingClient subscription={sub} usage={baseUsage} />);
+
+    expect(screen.getByText("FREE")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: /activar pro/i }),
+    ).toBeTruthy();
+    expect(screen.queryByText(/sigue activo hasta el/i)).toBeNull();
+  });
+
+  it("renderiza EXPIRED: CTA 'Activar PRO' disponible para resuscribirse", async () => {
+    const sub = createMockSubscription({ status: "EXPIRED", currentPeriodEnd: null });
+    render(<BillingClient subscription={sub} usage={baseUsage} />);
+
+    expect(
+      screen.getByRole("button", { name: /activar pro/i }),
+    ).toBeTruthy();
+  });
+
+  it("CANCELLED con período vigente: features 'Tu plan incluye' se muestran como incluidas (hasProAccess)", () => {
+    const futurePeriodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const sub = createMockSubscription({
+      status: "CANCELLED",
+      currentPeriodEnd: futurePeriodEnd,
+    });
+    const usage: OwnerUsage = {
+      properties: 10,
+      clients: 50,
+      propertiesLimit: Infinity,
+      clientsLimit: Infinity,
+    };
+    render(<BillingClient subscription={sub} usage={usage} />);
+
+    // Propiedades/Clientes se muestran "Ilimitadas"/"Ilimitados", no line-through
+    expect(screen.getByText("Ilimitadas")).toBeTruthy();
+    expect(screen.getByText("Ilimitados")).toBeTruthy();
+    // El caption de "Eres PRO" del panel de uso también refleja el acceso PRO
+    expect(screen.getByText(/no tienes límites/i)).toBeTruthy();
+  });
+
+  it("CANCELLED con período vigente: no muestra 'Gratis' como precio (sigue PRO en efecto)", () => {
+    const futurePeriodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const sub = createMockSubscription({
+      status: "CANCELLED",
+      currentPeriodEnd: futurePeriodEnd,
+    });
+    render(<BillingClient subscription={sub} usage={baseUsage} />);
+
+    expect(screen.queryByText("Gratis")).toBeNull();
+  });
+
+  it("Sparkles: solo en badge PRO facturando, no durante una cancelación vigente (consistente con plan-overview-card)", () => {
+    const futurePeriodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const cancelledSub = createMockSubscription({
+      status: "CANCELLED",
+      currentPeriodEnd: futurePeriodEnd,
+    });
+    const { container: cancelledContainer } = render(
+      <BillingClient subscription={cancelledSub} usage={baseUsage} />,
+    );
+    expect(
+      cancelledContainer.querySelector('svg[class*="lucide-sparkles"]'),
+    ).toBeNull();
+
+    const authorizedSub = createMockSubscription({ status: "AUTHORIZED" });
+    const { container: authorizedContainer } = render(
+      <BillingClient subscription={authorizedSub} usage={baseUsage} />,
+    );
+    expect(
+      authorizedContainer.querySelector('svg[class*="lucide-sparkles"]'),
+    ).toBeTruthy();
   });
 
   it("muestra usage correcto: usage.properties=2, propertiesLimit=3 → '2 / 3'", () => {

@@ -33,7 +33,7 @@ import type { PlanChange } from "@/lib/subscriptions/lifecycle";
  *
  * Nota sobre alcance: esto invalida la caché del SERVIDOR. Una pestaña ya
  * abierta recibe el plan nuevo en su próxima navegación, no al instante — para
- * un cambio disparado desde el propio navegador (cancelar/reactivar) eso es
+ * un cambio disparado desde el propio navegador (cancelar/activar PRO) eso es
  * inmediato, pero un downgrade por cron o webhook se refleja recién cuando el
  * owner navega. Empujarlo en vivo requeriría streaming o polling, que es
  * desproporcionado para un cambio de plan.

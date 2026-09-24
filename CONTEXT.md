@@ -153,13 +153,32 @@ dos puntos en producto, **no en el sidebar**:
    "Configuración → Plan". El card adapta CTA según estado:
    - FREE → "Pasar a PRO"
    - PRO (AUTHORIZED/PAUSED) → "Administrar plan"
-   - CANCELLED con período vigente → "Reactivar PRO"
+   - CANCELLED con período vigente → "Ver mi plan" (no existe reactivar una
+     suscripción cancelada, ver Issue #195 abajo)
    - PENDING → "Revisar pago pendiente"
 2. **`/dashboard`** — banner contextual **solo cuando accionable**:
    FREE con `usage.properties >= 2 OR usage.clients >= 4` (preventivo antes
-   de topar el límite), o CANCELLED con `currentPeriodEnd > now` (empujar
-   reactivación mientras el período pagado sigue vigente). En estado estable
-   el banner es self-null (no decora).
+   de topar el límite), o CANCELLED con `currentPeriodEnd > now` (informar que
+   PRO sigue vigente hasta esa fecha). En estado estable el banner es
+   self-null (no decora).
+
+**No existe reactivar una suscripción cancelada (Issue #195):** cancelar
+cancela el preapproval en Mercado Pago, y un preapproval cancelado en MP es
+terminal — crear uno nuevo mientras el período pagado sigue vigente cobraría
+de inmediato, duplicando esos días ya pagados. Mientras `currentPeriodEnd`
+no venza, el owner sigue en PRO (lo deriva `resolveEffectivePlan`, no un
+flag de reactivación); una vez vencido, vuelve a PRO con "Activar PRO"
+(`startProUpgrade`, el mismo flujo que reemplaza una fila `EXPIRED`/`FAILED`).
+Ver ADR-0027 §3.
+
+Las pantallas de owner (`/settings`, `/settings/billing`, `/dashboard`,
+`/pricing`) leen la fila `Subscription` del owner **sin filtrar por status**
+(`getCurrentSubscriptionAction` → `getOwnerSubscription`, `userId @unique`
+garantiza a lo sumo una fila): necesitan ver también `CANCELLED` para decidir
+si el período pagado sigue vigente, y `EXPIRED`/`FAILED` para ofrecer
+"Activar PRO" de nuevo. La lectura que sí filtra a PENDING/AUTHORIZED/PAUSED
+(`getActiveSubscription`) es un helper distinto para el pre-check de crear
+una subscription nueva y para los callers de admin.
 
 **Razón:** el sidebar ya tiene 9 items; añadir "Plan y facturación" como
 sub-item no aporta mucho vs el card de Configuración. El banner respeta la

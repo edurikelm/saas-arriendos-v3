@@ -114,7 +114,7 @@ describe("<PlanAlertBanner />", () => {
       screen.getByText("Tu plan PRO está cancelándose"),
     ).toBeTruthy();
     expect(screen.getByText(/Sigue activo hasta el/)).toBeTruthy();
-    const link = screen.getByRole("link", { name: /Reactivar PRO/i });
+    const link = screen.getByRole("link", { name: /Ver mi plan/i });
     expect(link.getAttribute("href")).toBe("/settings/billing");
   });
 

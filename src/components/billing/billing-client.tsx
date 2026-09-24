@@ -11,8 +11,8 @@ import { startProUpgrade } from "@/lib/actions/subscriptions";
 import type { OwnerUsage } from "@/lib/actions/subscriptions";
 import type { Subscription } from "@prisma/client";
 import { PRO_PRICING } from "@/lib/subscriptions/pricing";
+import { canStartUpgrade } from "@/lib/subscriptions/upgrade-eligibility";
 import { CancelSubscriptionDialog } from "./cancel-subscription-dialog";
-import { ReactivateButton } from "./reactivate-button";
 
 interface BillingClientProps {
   subscription: Subscription | null;
@@ -44,9 +44,41 @@ export function BillingClient({ subscription, usage, activeExternalCalendarCount
   };
 
   // Estado actual
+  const now = new Date();
   const isPro = subscription?.status === "AUTHORIZED" || subscription?.status === "PAUSED";
   const isCancelled = subscription?.status === "CANCELLED";
-  const planName = isPro ? "PRO" : "FREE";
+  // Mismo criterio que plan-overview-card.tsx: una CANCELLED con período
+  // vigente sigue siendo PRO en efecto (resolveEffectivePlan), aunque MP ya
+  // no vaya a cobrar de nuevo.
+  const hasActiveCancellation =
+    isCancelled &&
+    subscription?.currentPeriodEnd != null &&
+    new Date(subscription.currentPeriodEnd) > now;
+  // Mismo criterio de elegibilidad que `startProUpgrade` (ver upgrade-eligibility.ts).
+  const canUpgrade = canStartUpgrade(
+    subscription
+      ? { status: subscription.status, currentPeriodEnd: subscription.currentPeriodEnd }
+      : null,
+    now,
+  );
+
+  // Acceso PRO en efecto: AUTHORIZED/PAUSED, o CANCELLED con período vigente.
+  // Gobierna qué se muestra como "incluido" (features, límites) — no la
+  // facturación futura, que solo aplica a `isPro` (ver planPrice/precio).
+  const hasProAccess = isPro || hasActiveCancellation;
+
+  let planName: "FREE" | "PRO" = "FREE";
+  let badgeVariant: "default" | "secondary" | "warning" = "secondary";
+  if (isPro) {
+    planName = "PRO";
+    badgeVariant = "default";
+  } else if (hasActiveCancellation) {
+    planName = "PRO";
+    badgeVariant = "warning";
+  } else if (subscription?.status === "PENDING") {
+    badgeVariant = "warning";
+  }
+
   const planPrice = isPro ? `${formatPrice(PRO_PRICING.monthly.amount)} / mes` : "Gratis";
 
   return (
@@ -58,7 +90,9 @@ export function BillingClient({ subscription, usage, activeExternalCalendarCount
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Plan actual</CardTitle>
-              <Badge variant={isPro ? "default" : "secondary"} className="text-sm">
+              <Badge variant={badgeVariant} className="text-sm">
+                {/* Mismo criterio que plan-overview-card.tsx: Sparkles solo
+                    para PRO facturando, no durante una cancelación vigente. */}
                 {isPro && <Sparkles className="size-3 mr-1" />}
                 {planName}
               </Badge>
@@ -66,7 +100,12 @@ export function BillingClient({ subscription, usage, activeExternalCalendarCount
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <p className="text-3xl font-bold">{planPrice}</p>
+              {/* Mismo criterio que plan-overview-card.tsx: sin línea de precio
+                  durante una cancelación vigente — "Gratis" sería falso (sigue
+                  PRO) y el monto sería falso (MP ya no va a cobrar de nuevo). */}
+              {!hasActiveCancellation && (
+                <p className="text-3xl font-bold">{planPrice}</p>
+              )}
               {isPro && subscription?.currentPeriodEnd && (
                 <p className="text-sm text-muted-foreground mt-1">
                   Próximo cobro:{" "}
@@ -77,25 +116,24 @@ export function BillingClient({ subscription, usage, activeExternalCalendarCount
                   })}
                 </p>
               )}
-              {isCancelled && subscription?.currentPeriodEnd && (
+              {hasActiveCancellation && subscription?.currentPeriodEnd && (
                 <div className="rounded-lg border border-warning/20 bg-warning/10 p-4">
                   <p className="text-sm text-warning-text">
-                    Tu plan sigue activo hasta el{" "}
+                    Tu plan PRO sigue activo hasta el{" "}
                     {new Date(subscription.currentPeriodEnd).toLocaleDateString("es-CL", {
                       day: "2-digit",
                       month: "long",
                       year: "numeric",
                     })}
-                    . Después bajarás a FREE.
+                    . Desde esa fecha bajarás a FREE y podrás volver a activar PRO
+                    cuando quieras.
                   </p>
                 </div>
               )}
             </div>
 
-            {isCancelled && <ReactivateButton />}
-
             {/* CTA según estado */}
-            {!subscription && (
+            {canUpgrade && (
               <Button
                 onClick={handleUpgrade}
                 disabled={isPending}
@@ -142,17 +180,17 @@ export function BillingClient({ subscription, usage, activeExternalCalendarCount
             <CardTitle>Tu plan incluye</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <FeatureRow label="Propiedades" included={isPro} value={isPro ? "Ilimitadas" : "3"} />
-            <FeatureRow label="Clientes" included={isPro} value={isPro ? "Ilimitados" : "5"} />
+            <FeatureRow label="Propiedades" included={hasProAccess} value={hasProAccess ? "Ilimitadas" : "3"} />
+            <FeatureRow label="Clientes" included={hasProAccess} value={hasProAccess ? "Ilimitados" : "5"} />
             <FeatureRow
               label="Sincronización iCal (Airbnb, Booking, VRBO)"
-              included={isPro}
+              included={hasProAccess}
             />
             <FeatureRow
               label="Documentos de reserva (contratos, anexos)"
-              included={isPro}
+              included={hasProAccess}
             />
-            <FeatureRow label="Reportes con rango completo" included={isPro} />
+            <FeatureRow label="Reportes con rango completo" included={hasProAccess} />
           </CardContent>
         </Card>
       </div>
@@ -174,7 +212,7 @@ export function BillingClient({ subscription, usage, activeExternalCalendarCount
               current={usage.clients}
               limit={usage.clientsLimit}
             />
-            {isPro && (
+            {hasProAccess && (
               <p className="text-xs text-muted-foreground">
                 Eres PRO. No tienes límites.
               </p>

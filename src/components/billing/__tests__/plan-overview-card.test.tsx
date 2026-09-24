@@ -59,15 +59,30 @@ describe("<PlanOverviewCard />", () => {
     expect(cta.getAttribute("href")).toBe("/settings/billing");
   });
 
-  it("muestra alerta de cancelación y CTA 'Reactivar PRO' cuando CANCELLED con período vigente", () => {
+  it("muestra alerta de cancelación y CTA 'Ver mi plan' cuando CANCELLED con período vigente", () => {
     const sub = makeSub({
       status: "CANCELLED",
       cancelledAt: new Date(),
     });
     render(<PlanOverviewCard subscription={sub} usage={baseUsage} />);
     expect(screen.getByText(/sigue activo hasta el/)).toBeTruthy();
-    const cta = screen.getByRole("link", { name: /Reactivar PRO/i });
+    const cta = screen.getByRole("link", { name: /Ver mi plan/i });
     expect(cta.getAttribute("href")).toBe("/settings/billing");
+  });
+
+  it("no muestra 'Plan gratuito' durante una cancelación vigente (el plan efectivo sigue siendo PRO)", () => {
+    const sub = makeSub({
+      status: "CANCELLED",
+      cancelledAt: new Date(),
+    });
+    const proUsage: OwnerUsage = {
+      ...baseUsage,
+      propertiesLimit: Infinity,
+      clientsLimit: Infinity,
+    };
+    render(<PlanOverviewCard subscription={sub} usage={proUsage} />);
+    expect(screen.getByText("PRO")).toBeTruthy();
+    expect(screen.queryByText(/Plan gratuito/)).toBeNull();
   });
 
   it("muestra alerta de pago pendiente y CTA 'Revisar pago pendiente' cuando PENDING", () => {

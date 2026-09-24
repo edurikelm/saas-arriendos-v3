@@ -19,9 +19,11 @@ type CtaDef = {
 function getPricingCta({
   session,
   subscriptionStatus,
+  subscriptionCurrentPeriodEnd,
 }: {
   session: SessionUser | null;
   subscriptionStatus: SubscriptionStatus | null;
+  subscriptionCurrentPeriodEnd: Date | string | null;
 }): { free: CtaDef; pro: CtaDef } {
   // Visitante anónimo
   if (!session) {
@@ -42,7 +44,13 @@ function getPricingCta({
   // Owner autenticado
   const isPro =
     subscriptionStatus === "AUTHORIZED" || subscriptionStatus === "PAUSED";
-  const isCancelled = subscriptionStatus === "CANCELLED";
+  // Mismo criterio que billing-client.tsx / plan-overview-card.tsx: una
+  // CANCELLED-expirada (o EXPIRED/FAILED) ya bajó a FREE y debe verse como tal,
+  // con "Activar PRO" — no como una PRO cancelándose que solo se puede "ver".
+  const hasActiveCancellation =
+    subscriptionStatus === "CANCELLED" &&
+    subscriptionCurrentPeriodEnd != null &&
+    new Date(subscriptionCurrentPeriodEnd) > new Date();
 
   if (isPro) {
     return {
@@ -55,14 +63,16 @@ function getPricingCta({
     };
   }
 
-  if (isCancelled) {
+  if (hasActiveCancellation) {
+    // Sin reactivación (#195): un preapproval cancelado en MP es terminal.
+    // Mientras el período pagado siga vigente, el CTA solo lleva a ver el plan.
     return {
       free: { label: "Plan FREE", href: null, disabled: true },
-      pro: { label: "Reactivar PRO", href: "/settings/billing" },
+      pro: { label: "Ver mi plan", href: "/settings/billing" },
     };
   }
 
-  // FREE o PENDING o cualquier otro estado sin PRO activo
+  // FREE, PENDING, EXPIRED, FAILED o CANCELLED-expirada: sin PRO en efecto.
   return {
     free: { label: "Tu plan actual", href: null, current: true },
     pro: { label: "Activar PRO", href: "/settings/billing" },
@@ -369,11 +379,17 @@ function PlanCard({
 export function PricingPage({
   session,
   subscriptionStatus,
+  subscriptionCurrentPeriodEnd = null,
 }: {
   session: SessionUser | null;
   subscriptionStatus: SubscriptionStatus | null;
+  subscriptionCurrentPeriodEnd?: Date | string | null;
 }) {
-  const ctas = getPricingCta({ session, subscriptionStatus });
+  const ctas = getPricingCta({
+    session,
+    subscriptionStatus,
+    subscriptionCurrentPeriodEnd,
+  });
 
   return (
     <div className="min-h-screen bg-white text-foreground">

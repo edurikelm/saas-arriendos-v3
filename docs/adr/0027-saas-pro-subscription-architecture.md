@@ -82,6 +82,10 @@ Cuando el owner cancela, el plan sigue PRO hasta `currentPeriodEnd`. El downgrad
 - Si el owner pagó $9.990 el día 1 y cancela el día 15, sería injusto quitarle PRO al toque.
 - La cancelación inmediata solo aplica si el owner lo pide explícitamente vía soporte y un SUPER_ADMIN lo ejecuta manualmente (caso edge, fuera de scope del PRD).
 
+**No existe "reactivar" una suscripción `CANCELLED` (Issue #195):** `cancelMySubscription` cancela el preapproval en Mercado Pago, y un preapproval cancelado en MP es terminal — no se puede "descancelar". Mientras `currentPeriodEnd` siga vigente, el owner mantiene PRO (lo deriva `resolveEffectivePlan`, no un flag de reactivación); una vez vencido el período, el owner vuelve a PRO con `startProUpgrade` ("Activar PRO"), que crea un preapproval **nuevo**. Una reactivación que hubiera creado ese preapproval nuevo mientras el período viejo seguía vigente habría cobrado de inmediato, duplicando el cobro de los días ya pagados — por eso se eliminó el flujo `reactivateMySubscription` y el botón "Reactivar PRO" de la UI, reemplazado por copy que explica la fecha de vigencia y, en su momento, el mismo CTA de activar PRO.
+
+**Ronda 2 de #195 — la reactivación tampoco era alcanzable desde la UI, por una razón distinta:** `getCurrentSubscription` (la lectura que usan billing, settings, dashboard y pricing) delegaba en `getActiveSubscription`, que filtra `status IN (PENDING, AUTHORIZED, PAUSED)`. Una `CANCELLED` — vigente o no — nunca calzaba ese filtro, así que la UI de owner recibía `null` y mostraba FREE + "Activar PRO" incluso con el período pagado todavía corriendo; al hacer click, `startProUpgrade` chocaba con `userId @unique` (P2002) porque la fila `CANCELLED` seguía viva. `getCurrentSubscription` ahora delega en `getOwnerSubscription` (trae la fila sin filtrar por status) y `startProUpgrade` usa `canStartUpgrade` (`src/lib/subscriptions/upgrade-eligibility.ts`) tanto en su pre-check como en el re-check dentro de la transacción, para dar el mismo error amigable en vez de P2002 si el estado cambió entre medio.
+
 ### 4. Downgrade por impago: solo notificación, sin automatización
 
 Si el cobro recurrente falla (tarjeta vencida, fondos insuficientes), MP reintenta automáticamente. RentalPro solo:
@@ -162,7 +166,7 @@ El template de plan (`/v1/preapproval_plan`) se crea una sola vez. `MercadoPagoP
 
 ### 9. Una sola `Subscription` activa por owner
 
-Constraint `userId @unique` en `Subscription`. Si un owner cancela y luego quiere volver a PRO, NO se crea una nueva fila: se reactiva la existente (transición `CANCELLED → AUTHORIZED`) llamando `reactivateMySubscription()`.
+Constraint `userId @unique` en `Subscription`. Mientras la fila `CANCELLED` sigue con `currentPeriodEnd` vigente, ocupa el `userId @unique` y el owner no puede iniciar un upgrade nuevo (`startProUpgrade` lo bloquea explícitamente — no hay reactivación, ver §3). La transición `CANCELLED → AUTHORIZED` se mantiene en `state-machine.ts` por completitud del modelo (out of scope de #195 tocarla), pero ningún flujo de owner la dispara hoy.
 
 **Rationale:**
 

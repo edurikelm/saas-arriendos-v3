@@ -12,6 +12,7 @@ import type { DowngradeSnapshot } from "../queries";
 const mocks = vi.hoisted(() => ({
   findFirst: vi.fn(),
   findMany: vi.fn(),
+  findUnique: vi.fn(),
 }));
 
 vi.mock("@/lib/db/prisma", () => ({
@@ -19,6 +20,7 @@ vi.mock("@/lib/db/prisma", () => ({
     subscription: {
       findFirst: mocks.findFirst,
       findMany: mocks.findMany,
+      findUnique: mocks.findUnique,
     },
     subscriptionEvent: {
       findFirst: mocks.findFirst,
@@ -29,6 +31,7 @@ vi.mock("@/lib/db/prisma", () => ({
 
 import {
   getActiveSubscription,
+  getOwnerSubscription,
   getSubscriptionByPreapprovalId,
   getSubscriptionById,
   listSubscriptionEvents,
@@ -82,6 +85,55 @@ describe("getActiveSubscription", () => {
     expect(result).toEqual({ id: "sub-tx" });
     expect(txAdapter.subscription.findFirst).toHaveBeenCalled();
     expect(mocks.findFirst).not.toHaveBeenCalled();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// getOwnerSubscription
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("getOwnerSubscription", () => {
+  it("busca por userId con findUnique, sin filtrar por status", async () => {
+    const fakeSub = { id: "sub-1", userId: "user-1", status: "CANCELLED" };
+    mocks.findUnique.mockResolvedValue(fakeSub);
+
+    const result = await getOwnerSubscription("user-1");
+
+    expect(result).toBe(fakeSub);
+    expect(mocks.findUnique).toHaveBeenCalledWith({
+      where: { userId: "user-1" },
+    });
+  });
+
+  it("devuelve la fila aunque esté EXPIRED/FAILED (a diferencia de getActiveSubscription)", async () => {
+    const fakeSub = { id: "sub-1", userId: "user-1", status: "EXPIRED" };
+    mocks.findUnique.mockResolvedValue(fakeSub);
+
+    const result = await getOwnerSubscription("user-1");
+
+    expect(result).toBe(fakeSub);
+  });
+
+  it("devuelve null si el owner nunca tuvo subscription", async () => {
+    mocks.findUnique.mockResolvedValue(null);
+
+    const result = await getOwnerSubscription("user-no-sub");
+
+    expect(result).toBeNull();
+  });
+
+  it("usa el adapter pasado en vez de prisma global", async () => {
+    const txAdapter = {
+      subscription: {
+        findUnique: vi.fn().mockResolvedValue({ id: "sub-tx" }),
+      },
+    } as any;
+
+    const result = await getOwnerSubscription("user-1", txAdapter);
+
+    expect(result).toEqual({ id: "sub-tx" });
+    expect(txAdapter.subscription.findUnique).toHaveBeenCalled();
+    expect(mocks.findUnique).not.toHaveBeenCalled();
   });
 });
 

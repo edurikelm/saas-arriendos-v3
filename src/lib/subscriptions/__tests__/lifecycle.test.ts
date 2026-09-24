@@ -936,23 +936,29 @@ describe("applySubscriptionEvent notification hook", () => {
 // ────────────────────────────────────────────────────────────────────────────
 
 describe("getCurrentSubscription", () => {
-  it("delega a getActiveSubscription con el adapter", async () => {
+  it("delega a getOwnerSubscription con el adapter (sin filtrar por status)", async () => {
     const sub = fakeSub({ status: "AUTHORIZED" });
-    mocks.subscriptionFindFirst.mockResolvedValue(sub);
+    mocks.subscriptionFindUnique.mockResolvedValue(sub);
 
     const result = await getCurrentSubscription("user-1");
 
     expect(result).toBe(sub);
-    expect(mocks.subscriptionFindFirst).toHaveBeenCalledWith({
-      where: {
-        userId: "user-1",
-        status: { in: ["PENDING", "AUTHORIZED", "PAUSED"] },
-      },
+    expect(mocks.subscriptionFindUnique).toHaveBeenCalledWith({
+      where: { userId: "user-1" },
     });
   });
 
-  it("retorna null si no hay subscription activa", async () => {
-    mocks.subscriptionFindFirst.mockResolvedValue(null);
+  it("retorna también una CANCELLED (#195 ronda 2 — antes se filtraba con getActiveSubscription)", async () => {
+    const sub = fakeSub({ status: "CANCELLED" });
+    mocks.subscriptionFindUnique.mockResolvedValue(sub);
+
+    const result = await getCurrentSubscription("user-1");
+
+    expect(result).toBe(sub);
+  });
+
+  it("retorna null si el owner nunca tuvo subscription", async () => {
+    mocks.subscriptionFindUnique.mockResolvedValue(null);
 
     const result = await getCurrentSubscription("user-no-sub");
 
