@@ -676,7 +676,7 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
           source: "webhook",
           mpAuthorizedPaymentId: authorizedPaymentId,
           mpPaymentId: "payment-b-1",
-          startDate: "2026-09-21T10:00:00.000-04:00",
+          startDate: "2026-09-21T14:00:00.000Z",
           endDate: "2026-10-21T10:00:00.000-04:00",
           nextPaymentDate: "2026-10-21T10:00:00.000-04:00",
         },
@@ -1014,7 +1014,7 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
       expect(mockApplySubscriptionEvent).toHaveBeenCalledWith(
         expect.objectContaining({
           payload: expect.objectContaining({
-            startDate: "2026-09-10T08:00:00.000-04:00",
+            startDate: "2026-09-10T12:00:00.000Z",
           }),
         }),
       );
@@ -1071,7 +1071,7 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
       expect(mockApplySubscriptionEvent).toHaveBeenCalledWith(
         expect.objectContaining({
           payload: expect.objectContaining({
-            startDate: debitDate,
+            startDate: new Date(debitDate).toISOString(),
             endDate: expectedFallback,
             nextPaymentDate: expectedFallback,
           }),
@@ -1143,6 +1143,7 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
       expect(mockApplySubscriptionEvent).toHaveBeenCalledWith(
         expect.objectContaining({
           payload: expect.objectContaining({
+            startDate: "2026-09-21T15:00:00.000Z",
             endDate: expectedFallback,
             nextPaymentDate: expectedFallback,
           }),

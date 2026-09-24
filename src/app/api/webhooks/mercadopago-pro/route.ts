@@ -382,7 +382,9 @@ async function handleAuthorizedPaymentWebhook(
         source: "webhook",
         mpAuthorizedPaymentId: authorizedPaymentId,
         mpPaymentId: info.paymentId,
-        startDate,
+        // Normalizado: un debit_date malformado llegaría como Invalid Date al
+        // update y la ruta respondería 500 en cada reintento de MP.
+        startDate: new Date(debitMs).toISOString(),
         endDate,
         nextPaymentDate,
       },
