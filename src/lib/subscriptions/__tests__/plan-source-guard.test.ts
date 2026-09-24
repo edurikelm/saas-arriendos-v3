@@ -10,6 +10,12 @@
  * plan, `countOwnerUsage` y el banner del dashboard—, siempre igual: alguien
  * agrega una superficie, elige la fuente que tiene mas a mano, y elige mal. Un
  * archivo nuevo en esta lista tiene que ser una decision consciente.
+ *
+ * Un segundo guardia cubre un caso que el de arriba no ve: un `where` de
+ * Prisma que FILTRA por la columna cruda (`user: { plan: "PRO" }`) en vez de
+ * seleccionarla con `plan: true`. Es el bug real de Issue #188 — el cron de
+ * iCal filtraba calendarios por `user.plan` y nunca vio una concesion manual
+ * (`planOverride`) ni una subscription recien vencida.
  */
 
 import { describe, it, expect } from "vitest";
@@ -68,5 +74,56 @@ describe("guardia: quien puede leer UserProfile.plan", () => {
 
     expect(session).not.toContain("plan: true");
     expect(session).toContain("resolveEffectivePlan");
+  });
+});
+
+/**
+ * Archivos autorizados a filtrar/escribir `plan: "PRO"` / `plan: "FREE"`
+ * crudo fuera de un `select`, con el motivo. A diferencia de `PERMITIDOS`
+ * (que cubre `plan: true`), este regex tambien captura falsos positivos que
+ * no son ni Prisma ni `UserProfile.plan` — se documentan aca en vez de forzar
+ * un regex mas complejo que los excluya por sintaxis.
+ */
+const PERMITIDOS_FILTRO = new Set([
+  // Escribe el valor inicial de la columna denormalizada al registrar un
+  // owner nuevo (siempre FREE, coincide con el plan efectivo porque todavia
+  // no existe subscription). No es un filtro que oculte una concesion.
+  "src/lib/actions/auth.ts",
+  // Metricas de super-admin (`getSuperAdminMetrics`, `getSuperAdminStats`):
+  // cuentan el registro a proposito, igual que las vistas de admin ya
+  // permitidas en PERMITIDOS.
+  "src/lib/actions/super-admin.ts",
+  // `plan` aca es `Subscription.plan` (que solo vale "PRO", es el plan que
+  // se esta contratando), no `UserProfile.plan`. Modelo distinto, mismo
+  // nombre de campo.
+  "src/lib/subscriptions/lifecycle.ts",
+  // Estado local del formulario "crear owner" en la UI de admin (valor por
+  // defecto "FREE" de un <select>). No es un filtro ni una escritura de
+  // Prisma — el server action detras (`createOwner`/`auth.ts`) es quien
+  // realmente escribe la columna.
+  "src/components/admin/admin-users-client.tsx",
+]);
+
+// Empareja `plan: "PRO"` / `plan: "FREE"` como filtro o escritura literal, y
+// `plan: {` (un select/filtro anidado). Ignora el caso `plan: "FREE" | "PRO"`
+// (anotacion de tipo / union), que no es ni un filtro ni una escritura.
+const FILTRO_PLAN_CRUDO = /plan:\s*(?:["'](?:PRO|FREE)["'](?!\s*\|)|\{)/;
+
+describe("guardia: quien puede FILTRAR/ESCRIBIR UserProfile.plan crudo", () => {
+  it("solo los archivos autorizados usan plan: \"PRO\"/\"FREE\" fuera de un select", () => {
+    const raiz = join(process.cwd(), "src");
+    const infractores = archivosFuente(raiz)
+      .filter((abs) => FILTRO_PLAN_CRUDO.test(readFileSync(abs, "utf8")))
+      .map((abs) => relative(process.cwd(), abs).split(sep).join("/"))
+      .filter((rel) => !PERMITIDOS_FILTRO.has(rel));
+
+    expect(
+      infractores,
+      `Estos archivos filtran o escriben "plan" crudo (PRO/FREE) fuera de un select. Si es ` +
+        `un filtro/escritura sobre UserProfile.plan en una superficie de owner, usa ` +
+        `resolveEffectivePlan (@/lib/subscriptions/effective-plan) para decidir en memoria — ` +
+        `ver Issue #188. Si es Subscription.plan, una vista de admin, o no es Prisma en ` +
+        `absoluto, agregalo a PERMITIDOS_FILTRO con el motivo.`,
+    ).toEqual([]);
   });
 });
