@@ -34,6 +34,10 @@ import { recordSubscriptionNotification } from "@/lib/notifications/subscription
 import { resolveEffectivePlan } from "@/lib/subscriptions/effective-plan";
 import { revalidateAfterPlanChange } from "@/lib/subscriptions/revalidate-plan";
 import { canStartUpgrade } from "@/lib/subscriptions/upgrade-eligibility";
+import {
+  ensurePreapprovalCancelled,
+  type EnsurePreapprovalCancelledOutcome,
+} from "@/lib/subscriptions/mp-preapproval";
 
 // ────────────────────────────────────────────────────────────────────────────
 // getCurrentSubscription
@@ -93,10 +97,78 @@ function throwIfNotEligibleForUpgrade(
   throw new Error("Ya tienes PRO activo");
 }
 
+/** Resultado de `ensurePreviousPreapprovalStopped` cuando había un preapproval que verificar. */
+type PreviousPreapprovalStoppedResult = {
+  previousMpPreapprovalId: string;
+  /** Status que MP reportaba ANTES de esta llamada, o `undefined` si ni eso llegó a resolverse (404 inmediato). */
+  previousMpStatus: string | undefined;
+  outcome: EnsurePreapprovalCancelledOutcome;
+};
+
+/**
+ * Antes de reemplazar una fila EXPIRED/FAILED/CANCELLED-expirada (ver
+ * `throwIfNotEligibleForUpgrade`), confirma que su preapproval en Mercado
+ * Pago ya no está vivo, y lo cancela si todavía lo está.
+ *
+ * Previene un doble cobro: una fila local EXPIRED no siempre implica que MP
+ * también dejó de cobrar — por ejemplo, el cron `EXPIRED_CHECK` puede marcar
+ * localmente EXPIRED una subscription que seguía `AUTHORIZED` en MP porque el
+ * webhook de renovación nunca llegó. Si `startProUpgrade` reemplazara la fila
+ * y creara un preapproval nuevo sin chequear esto, el owner terminaría con
+ * dos preapprovals vivos y dos cobros mensuales.
+ *
+ * Prisma sí permite I/O de red dentro de una transacción interactiva, pero
+ * acá se evita a propósito: la tx mantiene locks de fila abiertos mientras
+ * espera la respuesta de MP, y el timeout por defecto de una tx interactiva
+ * es de 5s — muy corto para una llamada HTTP externa con reintentos. Por eso
+ * este chequeo va ANTES de la tx del replace, no dentro. Eso sí amplía la
+ * ventana de carrera entre el pre-check y la tx (ahora incluye la duración de
+ * las llamadas a MP), pero se mantiene inofensiva porque el re-check `fresh`
+ * dentro de la tx (`userId @unique`) sigue ahí: si algo cambió el estado
+ * mientras tanto, ese re-check frena antes de escribir nada.
+ */
+async function ensurePreviousPreapprovalStopped(
+  existing: { mpPreapprovalId: string | null },
+  userId: string,
+): Promise<PreviousPreapprovalStoppedResult | null> {
+  if (!existing.mpPreapprovalId) return null;
+
+  let result: Awaited<ReturnType<typeof ensurePreapprovalCancelled>>;
+  try {
+    result = await ensurePreapprovalCancelled(existing.mpPreapprovalId);
+  } catch (error) {
+    console.error(
+      `[startProUpgrade] failed to verify/cancel previous preapproval ${existing.mpPreapprovalId}`,
+      error,
+    );
+    throw new Error(
+      "No pudimos verificar tu suscripción anterior en Mercado Pago. Intenta de nuevo en unos minutos.",
+    );
+  }
+
+  if (result.previousStatus === "authorized" || result.previousStatus === "paused") {
+    // El owner puede haber pagado ya el preapproval anterior para el período
+    // vigente (una AUTHORIZED con débito reciente, o una PAUSED con saldo a
+    // favor) — candidato a revisión manual de reembolso, no algo que este
+    // flujo pueda decidir solo.
+    console.warn(
+      `[startProUpgrade] previous preapproval ${existing.mpPreapprovalId} for user ${userId} was still "${result.previousStatus}" in MP before being stopped — possible refund candidate for the current period.`,
+    );
+  }
+
+  return {
+    previousMpPreapprovalId: existing.mpPreapprovalId,
+    previousMpStatus: result.previousStatus,
+    outcome: result.outcome,
+  };
+}
+
 /**
  * Inicia el flujo de upgrade a PRO.
  *
  * 1. Pre-check: verifica que no tenga subscription activa.
+ * 1b. Si la fila existente es reemplazable y tiene `mpPreapprovalId`, confirma
+ *     con MP que ya no está vivo (`ensurePreviousPreapprovalStopped`).
  * 2. Dentro de tx: si EXPIRED/FAILED existe → delete eventos + hard-delete la fila.
  * 3. Crea `Subscription(PENDING)` vía `applySubscriptionEvent("created", tx)`.
  * 4. Post-commit: registra `AdminActionLog.SUBSCRIPTION_REPLACED`.
@@ -119,6 +191,12 @@ export async function startProUpgrade(): Promise<{
   // CANCELLED cuyo plan efectivo ya es FREE.
   const existing = await getCurrentSubscription(userId);
   throwIfNotEligibleForUpgrade(existing);
+
+  // Si llegamos acá, `existing` es null o reemplazable — defensa en
+  // profundidad contra el doble cobro descrito arriba antes de tocar la DB.
+  const previousPreapproval = existing
+    ? await ensurePreviousPreapprovalStopped(existing, userId)
+    : null;
 
   // ── REEMPLAZAR: dentro de tx, si existe fila EXPIRED/FAILED/CANCELLED-FREE → delete + create ──
   // (mover el try/catch interno al bloque tx para atomicidad)
@@ -182,6 +260,14 @@ export async function startProUpgrade(): Promise<{
             replacedSubscriptionId,
             newSubscriptionId: subscription.id,
             reason: "owner_reactivate_from_expired_or_failed",
+            // Registro de lo que encontramos/hicimos con el preapproval
+            // anterior — para reconciliar manualmente si `previousMpStatus`
+            // era "authorized"/"paused" (ver warning de refund candidate en
+            // `ensurePreviousPreapprovalStopped`). `null` cuando la fila
+            // reemplazada nunca tuvo `mpPreapprovalId`.
+            previousMpPreapprovalId: previousPreapproval?.previousMpPreapprovalId ?? null,
+            previousMpStatus: previousPreapproval?.previousMpStatus ?? null,
+            mpOutcome: previousPreapproval?.outcome ?? null,
           }),
         },
       });
@@ -284,9 +370,13 @@ export async function cancelMySubscription(
   // Si falla, el estado local queda intacto y el owner puede reintentar.
   // La subscription local se mantiene AUTHORIZED hasta que MP confirme la
   // cancelación vía webhook (que marcará CANCELLED + creará evento).
+  // `ensurePreapprovalCancelled` resuelve los casos donde MP ya lo tenía
+  // cancelado o ya no lo reconoce (404) sin tratarlos como falla.
+  let mpOutcome: EnsurePreapprovalCancelledOutcome | "no_preapproval" = "no_preapproval";
   if (subscription.mpPreapprovalId) {
     try {
-      await getProGateway().cancelPreapproval(subscription.mpPreapprovalId);
+      const result = await ensurePreapprovalCancelled(subscription.mpPreapprovalId);
+      mpOutcome = result.outcome;
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       console.error(`[cancelMySubscription] MP cancel failed for ${subscription.mpPreapprovalId}:`, msg);
@@ -299,7 +389,7 @@ export async function cancelMySubscription(
   const { planChange: cancelPlanChange } = await applySubscriptionEvent({
     type: "owner_cancel",
     subscriptionId: subscription.id,
-    payload: { reason: reason ?? null, userId },
+    payload: { reason: reason ?? null, userId, mpOutcome },
   });
   revalidateAfterPlanChange(cancelPlanChange);
 

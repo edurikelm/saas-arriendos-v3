@@ -7,6 +7,13 @@ import { getActiveSubscription } from "@/lib/subscriptions/queries";
 import { adminCancelSubscriptionSchema } from "@/lib/validations/subscriptions";
 import { logAdminAction } from "@/lib/actions/admin-actions";
 import { revalidateAfterPlanChange } from "@/lib/subscriptions/revalidate-plan";
+import {
+  ensurePreapprovalCancelled,
+  type EnsurePreapprovalCancelledOutcome,
+} from "@/lib/subscriptions/mp-preapproval";
+
+/** `mpOutcome` extiende el resultado del helper con el caso "no había nada que cancelar". */
+type MpOutcome = EnsurePreapprovalCancelledOutcome | "no_preapproval";
 
 export async function adminCancelSubscription(
   args: { userId: string; reason: string },
@@ -31,6 +38,32 @@ export async function adminCancelSubscription(
     );
   }
 
+  // Cancelar primero en Mercado Pago para que MP deje de cobrar — mismo orden
+  // que `cancelMySubscription` (src/lib/actions/subscriptions.ts). Sin esto,
+  // el admin marcaba CANCELLED localmente pero MP seguía cobrando al owner
+  // cada mes hasta que alguien lo notara.
+  // Si falla, el estado local y el AdminActionLog quedan intactos (no se
+  // ejecuta ni applySubscriptionEvent ni logAdminAction) y el admin puede
+  // reintentar. `ensurePreapprovalCancelled` (src/lib/subscriptions/mp-preapproval.ts)
+  // resuelve los casos donde MP ya lo tenía cancelado o ya no lo reconoce
+  // (404) sin tratarlos como falla.
+  let mpOutcome: MpOutcome = "no_preapproval";
+  if (subscription.mpPreapprovalId) {
+    try {
+      const result = await ensurePreapprovalCancelled(subscription.mpPreapprovalId);
+      mpOutcome = result.outcome;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error(
+        `[adminCancelSubscription] MP cancel failed for ${subscription.mpPreapprovalId} (user ${validated.userId}):`,
+        msg,
+      );
+      throw new Error(
+        "No pudimos cancelar la suscripción en Mercado Pago. El estado local no cambió; intenta de nuevo.",
+      );
+    }
+  }
+
   // Llamar lifecycle con type admin_cancel
   const { planChange } = await applySubscriptionEvent({
     type: "admin_cancel",
@@ -38,6 +71,7 @@ export async function adminCancelSubscription(
     payload: {
       reason: validated.reason,
       adminId: session.userId, // El SUPER_ADMIN que ejecuta
+      mpOutcome,
     },
   });
   revalidateAfterPlanChange(planChange);
@@ -50,6 +84,7 @@ export async function adminCancelSubscription(
       subscriptionId: subscription.id,
       reason: validated.reason,
       adminId: session.userId,
+      mpOutcome,
     },
   });
 

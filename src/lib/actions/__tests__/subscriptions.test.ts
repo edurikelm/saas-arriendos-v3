@@ -59,6 +59,7 @@ const mocks = vi.hoisted(() => ({
   ensurePlan: vi.fn(),
   createPreapproval: vi.fn(),
   cancelPreapproval: vi.fn(),
+  fetchPreapproval: vi.fn(),
   // next/cache
   revalidatePath: vi.fn(),
 }));
@@ -88,23 +89,27 @@ vi.mock("@/lib/db/prisma", () => ({
   },
 }));
 
-vi.mock("@/lib/payment/pro-gateway", () => ({
-  getProGateway: vi.fn(() => ({
-    ensurePlan: mocks.ensurePlan,
-    createPreapproval: mocks.createPreapproval,
-    cancelPreapproval: mocks.cancelPreapproval,
-  })),
-}));
+vi.mock("@/lib/payment/pro-gateway", async () => {
+  // `MpApiError` se preserva real (no mockeado) — `ensurePreapprovalCancelled`
+  // (src/lib/subscriptions/mp-preapproval.ts, NO mockeado en este archivo)
+  // hace `instanceof MpApiError` para distinguir 404 de otras fallas, así que
+  // los tests necesitan la clase real para construir esos errores.
+  const actual = await vi.importActual<typeof import("@/lib/payment/pro-gateway")>(
+    "@/lib/payment/pro-gateway",
+  );
+  return {
+    ...actual,
+    getProGateway: vi.fn(() => ({
+      ensurePlan: mocks.ensurePlan,
+      createPreapproval: mocks.createPreapproval,
+      cancelPreapproval: mocks.cancelPreapproval,
+      fetchPreapproval: mocks.fetchPreapproval,
+    })),
+  };
+});
 
 vi.mock("@/lib/auth/guards", () => ({
   requireOwner: mocks.requireOwner,
-}));
-
-vi.mock("@/lib/payment/pro-gateway", () => ({
-  getProGateway: vi.fn(() => ({
-    ensurePlan: mocks.ensurePlan,
-    createPreapproval: mocks.createPreapproval,
-  })),
 }));
 
 vi.mock("next/cache", () => ({
@@ -176,6 +181,7 @@ import {
   cancelMySubscription,
   countOwnerUsage,
 } from "../subscriptions";
+import { MpApiError } from "@/lib/payment/pro-gateway";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Setup
@@ -411,6 +417,295 @@ describe("startProUpgrade — replace EXPIRED/FAILED", () => {
     expect(mocks.subscriptionDelete).toHaveBeenCalledWith({
       where: { id: "sub-old" },
     });
+  });
+
+  // ── ensurePreviousPreapprovalStopped: defensa contra doble cobro ──────────
+  // Una fila reemplazable (EXPIRED/FAILED/CANCELLED-expirada) puede seguir
+  // teniendo un preapproval vivo en MP — p.ej. el cron `EXPIRED_CHECK` marcó
+  // localmente EXPIRED sin que llegara el webhook de renovación. Antes de
+  // reemplazar la fila y crear un preapproval nuevo, `startProUpgrade` debe
+  // confirmar (y cancelar si hace falta) el preapproval anterior.
+
+  it("preapproval anterior sigue vivo en MP (authorized) → lo cancela y luego reemplaza", async () => {
+    const newSub = setupUpgradeSuccess({
+      id: "sub-old",
+      status: "EXPIRED",
+      mpPreapprovalId: "mp-old-preapproval",
+    });
+    mocks.fetchPreapproval.mockResolvedValueOnce({
+      id: "mp-old-preapproval",
+      status: "authorized",
+    });
+
+    const result = await startProUpgrade();
+
+    expect(mocks.fetchPreapproval).toHaveBeenCalledWith("mp-old-preapproval");
+    expect(mocks.cancelPreapproval).toHaveBeenCalledWith("mp-old-preapproval");
+    expect(result.subscriptionId).toBe(newSub.id);
+    expect(mocks.subscriptionDelete).toHaveBeenCalledWith({
+      where: { id: "sub-old" },
+    });
+  });
+
+  it("preapproval anterior ya cancelado en MP → no llama cancelPreapproval, igual reemplaza", async () => {
+    setupUpgradeSuccess({
+      id: "sub-old",
+      status: "FAILED",
+      mpPreapprovalId: "mp-old-preapproval",
+    });
+    mocks.fetchPreapproval.mockResolvedValueOnce({
+      id: "mp-old-preapproval",
+      status: "cancelled",
+    });
+
+    const result = await startProUpgrade();
+
+    expect(mocks.fetchPreapproval).toHaveBeenCalledWith("mp-old-preapproval");
+    expect(mocks.cancelPreapproval).not.toHaveBeenCalled();
+    expect(result.subscriptionId).toBe("sub-new");
+    expect(mocks.subscriptionDelete).toHaveBeenCalledWith({
+      where: { id: "sub-old" },
+    });
+  });
+
+  it("preapproval anterior con status pending → lo cancela y luego reemplaza", async () => {
+    setupUpgradeSuccess({
+      id: "sub-old",
+      status: "EXPIRED",
+      mpPreapprovalId: "mp-old-preapproval",
+    });
+    mocks.fetchPreapproval.mockResolvedValueOnce({
+      id: "mp-old-preapproval",
+      status: "pending",
+    });
+
+    const result = await startProUpgrade();
+
+    expect(mocks.cancelPreapproval).toHaveBeenCalledWith("mp-old-preapproval");
+    expect(result.subscriptionId).toBe("sub-new");
+    expect(mocks.subscriptionDelete).toHaveBeenCalledWith({
+      where: { id: "sub-old" },
+    });
+  });
+
+  it("preapproval anterior con status paused → lo cancela y luego reemplaza", async () => {
+    setupUpgradeSuccess({
+      id: "sub-old",
+      status: "FAILED",
+      mpPreapprovalId: "mp-old-preapproval",
+    });
+    mocks.fetchPreapproval.mockResolvedValueOnce({
+      id: "mp-old-preapproval",
+      status: "paused",
+    });
+
+    const result = await startProUpgrade();
+
+    expect(mocks.cancelPreapproval).toHaveBeenCalledWith("mp-old-preapproval");
+    expect(result.subscriptionId).toBe("sub-new");
+    expect(mocks.subscriptionDelete).toHaveBeenCalledWith({
+      where: { id: "sub-old" },
+    });
+  });
+
+  it("CANCELLED-expirada con preapproval vivo (authorized) → lo cancela y luego reemplaza", async () => {
+    // Combina el caso "CANCELLED con currentPeriodEnd vencido" (reemplazable
+    // por ADR-0034) con un preapproval que MP todavía reporta autorizado —
+    // p.ej. el owner canceló localmente pero algo dejó el preapproval vivo.
+    const past = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    setupUpgradeSuccess({
+      id: "sub-cancelled-expired",
+      status: "CANCELLED",
+      currentPeriodEnd: past,
+      mpPreapprovalId: "mp-old-preapproval",
+    });
+    mocks.fetchPreapproval.mockResolvedValueOnce({
+      id: "mp-old-preapproval",
+      status: "authorized",
+    });
+
+    const result = await startProUpgrade();
+
+    expect(mocks.cancelPreapproval).toHaveBeenCalledWith("mp-old-preapproval");
+    expect(result.subscriptionId).toBe("sub-new");
+    expect(mocks.subscriptionDelete).toHaveBeenCalledWith({
+      where: { id: "sub-cancelled-expired" },
+    });
+  });
+
+  it("fetchPreapproval falla (error de red, no MpApiError) → throw, no reemplaza ni crea preapproval nuevo", async () => {
+    mocks.subscriptionFindUnique.mockResolvedValue(
+      mockSub({ id: "sub-old", status: "EXPIRED", mpPreapprovalId: "mp-old-preapproval" }),
+    );
+    mocks.fetchPreapproval.mockRejectedValueOnce(new Error("MP timeout"));
+
+    await expect(startProUpgrade()).rejects.toThrow(
+      "No pudimos verificar tu suscripción anterior en Mercado Pago. Intenta de nuevo en unos minutos.",
+    );
+
+    expect(mocks.subscriptionEventDeleteMany).not.toHaveBeenCalled();
+    expect(mocks.subscriptionDelete).not.toHaveBeenCalled();
+    expect(mocks.subscriptionCreate).not.toHaveBeenCalled();
+    expect(mocks.createPreapproval).not.toHaveBeenCalled();
+  });
+
+  it("fetchPreapproval responde 403 → throw, no reemplaza ni crea preapproval nuevo", async () => {
+    mocks.subscriptionFindUnique.mockResolvedValue(
+      mockSub({ id: "sub-old", status: "EXPIRED", mpPreapprovalId: "mp-old-preapproval" }),
+    );
+    mocks.fetchPreapproval.mockRejectedValueOnce(
+      new MpApiError("Mercado Pago fetch preapproval error: Forbidden", 403),
+    );
+
+    await expect(startProUpgrade()).rejects.toThrow(
+      "No pudimos verificar tu suscripción anterior en Mercado Pago. Intenta de nuevo en unos minutos.",
+    );
+
+    expect(mocks.subscriptionEventDeleteMany).not.toHaveBeenCalled();
+    expect(mocks.subscriptionDelete).not.toHaveBeenCalled();
+    expect(mocks.subscriptionCreate).not.toHaveBeenCalled();
+    expect(mocks.createPreapproval).not.toHaveBeenCalled();
+  });
+
+  it("fetchPreapproval responde 500 → throw, no reemplaza ni crea preapproval nuevo", async () => {
+    mocks.subscriptionFindUnique.mockResolvedValue(
+      mockSub({ id: "sub-old", status: "EXPIRED", mpPreapprovalId: "mp-old-preapproval" }),
+    );
+    mocks.fetchPreapproval.mockRejectedValueOnce(
+      new MpApiError("Mercado Pago fetch preapproval error: Internal Server Error", 500),
+    );
+
+    await expect(startProUpgrade()).rejects.toThrow(
+      "No pudimos verificar tu suscripción anterior en Mercado Pago. Intenta de nuevo en unos minutos.",
+    );
+
+    expect(mocks.subscriptionEventDeleteMany).not.toHaveBeenCalled();
+    expect(mocks.subscriptionDelete).not.toHaveBeenCalled();
+    expect(mocks.subscriptionCreate).not.toHaveBeenCalled();
+    expect(mocks.createPreapproval).not.toHaveBeenCalled();
+  });
+
+  it("fetchPreapproval responde 404 (MP ya no reconoce el preapproval) → reemplaza igual, con outcome not_found en el log", async () => {
+    setupUpgradeSuccess({
+      id: "sub-old",
+      status: "EXPIRED",
+      mpPreapprovalId: "mp-old-preapproval",
+    });
+    mocks.fetchPreapproval.mockRejectedValueOnce(
+      new MpApiError("Mercado Pago fetch preapproval error: Not Found", 404),
+    );
+
+    const result = await startProUpgrade();
+
+    expect(mocks.cancelPreapproval).not.toHaveBeenCalled();
+    expect(result.subscriptionId).toBe("sub-new");
+    expect(mocks.subscriptionDelete).toHaveBeenCalledWith({
+      where: { id: "sub-old" },
+    });
+    const details = JSON.parse(mocks.adminActionLogCreate.mock.calls[0][0].data.details);
+    expect(details.mpOutcome).toBe("not_found");
+    expect(details.previousMpPreapprovalId).toBe("mp-old-preapproval");
+    expect(details.previousMpStatus).toBeNull();
+  });
+
+  it("cancelPreapproval falla (no 404) → throw, no reemplaza ni crea preapproval nuevo", async () => {
+    mocks.subscriptionFindUnique.mockResolvedValue(
+      mockSub({ id: "sub-old", status: "EXPIRED", mpPreapprovalId: "mp-old-preapproval" }),
+    );
+    // Primer fetch (previo a cancelar) y re-fetch (tras el fallo de cancelar,
+    // dentro de ensurePreapprovalCancelled) — ambos siguen "authorized", así
+    // que el helper relanza el error original de cancelPreapproval.
+    mocks.fetchPreapproval.mockResolvedValue({
+      id: "mp-old-preapproval",
+      status: "authorized",
+    });
+    mocks.cancelPreapproval.mockRejectedValueOnce(
+      new MpApiError("Mercado Pago cancel preapproval error: Internal Server Error", 500),
+    );
+
+    await expect(startProUpgrade()).rejects.toThrow(
+      "No pudimos verificar tu suscripción anterior en Mercado Pago. Intenta de nuevo en unos minutos.",
+    );
+
+    expect(mocks.subscriptionEventDeleteMany).not.toHaveBeenCalled();
+    expect(mocks.subscriptionDelete).not.toHaveBeenCalled();
+    expect(mocks.subscriptionCreate).not.toHaveBeenCalled();
+    expect(mocks.createPreapproval).not.toHaveBeenCalled();
+  });
+
+  it("cancelPreapproval responde 404 → reemplaza igual, con outcome not_found en el log", async () => {
+    setupUpgradeSuccess({
+      id: "sub-old",
+      status: "EXPIRED",
+      mpPreapprovalId: "mp-old-preapproval",
+    });
+    mocks.fetchPreapproval.mockResolvedValueOnce({
+      id: "mp-old-preapproval",
+      status: "authorized",
+    });
+    mocks.cancelPreapproval.mockRejectedValueOnce(
+      new MpApiError("Mercado Pago cancel preapproval error: Not Found", 404),
+    );
+
+    const result = await startProUpgrade();
+
+    expect(result.subscriptionId).toBe("sub-new");
+    expect(mocks.subscriptionDelete).toHaveBeenCalledWith({
+      where: { id: "sub-old" },
+    });
+    const details = JSON.parse(mocks.adminActionLogCreate.mock.calls[0][0].data.details);
+    expect(details.mpOutcome).toBe("not_found");
+    expect(details.previousMpStatus).toBe("authorized");
+  });
+
+  it("SUBSCRIPTION_REPLACED incluye previousMpPreapprovalId/previousMpStatus/mpOutcome cuando había un preapproval anterior", async () => {
+    setupUpgradeSuccess({
+      id: "sub-old",
+      status: "EXPIRED",
+      mpPreapprovalId: "mp-old-preapproval",
+    });
+    mocks.fetchPreapproval.mockResolvedValueOnce({
+      id: "mp-old-preapproval",
+      status: "authorized",
+    });
+
+    await startProUpgrade();
+
+    const details = JSON.parse(mocks.adminActionLogCreate.mock.calls[0][0].data.details);
+    expect(details.previousMpPreapprovalId).toBe("mp-old-preapproval");
+    expect(details.previousMpStatus).toBe("authorized");
+    expect(details.mpOutcome).toBe("cancelled");
+  });
+
+  it("console.warn con userId y preapproval id cuando el preapproval anterior estaba authorized/paused (posible refund candidate)", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    setupUpgradeSuccess({
+      id: "sub-old",
+      status: "EXPIRED",
+      mpPreapprovalId: "mp-old-preapproval",
+    });
+    mocks.fetchPreapproval.mockResolvedValueOnce({
+      id: "mp-old-preapproval",
+      status: "authorized",
+    });
+
+    await startProUpgrade();
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("mp-old-preapproval"),
+    );
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("user-1"));
+    warnSpy.mockRestore();
+  });
+
+  it("fila reemplazable sin mpPreapprovalId → no llama a MP para verificar", async () => {
+    setupUpgradeSuccess({ id: "sub-old", status: "EXPIRED", mpPreapprovalId: null });
+
+    const result = await startProUpgrade();
+
+    expect(result.subscriptionId).toBe("sub-new");
+    expect(mocks.fetchPreapproval).not.toHaveBeenCalled();
+    expect(mocks.cancelPreapproval).not.toHaveBeenCalled();
   });
 
   it("AUTHORIZED → upgrade attempt blocks (regression)", async () => {
@@ -696,7 +991,7 @@ describe("cancelMySubscription", () => {
       data: {
         subscriptionId: "sub-1",
         type: "owner_cancel",
-        payload: { reason: "too_expensive", userId: "user-1" },
+        payload: { reason: "too_expensive", userId: "user-1", mpOutcome: "no_preapproval" },
       },
     });
     // owner_cancel NO baja el plan: el owner sigue PRO hasta fin de periodo.
@@ -736,6 +1031,93 @@ describe("cancelMySubscription", () => {
     await expect(cancelMySubscription()).rejects.toThrow(
       /No puedes cancelar.*CANCELLED/,
     );
+  });
+
+  // ── Cancelación en Mercado Pago (mpPreapprovalId seteado) ──────────────
+
+  it("con mpPreapprovalId: llama a MP para cancelar y registra mpOutcome en el evento", async () => {
+    const authorizedSub = mockSub({ status: "AUTHORIZED", mpPreapprovalId: "mp-preapproval-123" });
+    const cancelledSub = mockSub({
+      status: "CANCELLED",
+      mpPreapprovalId: "mp-preapproval-123",
+      cancelledAt: new Date(),
+      currentPeriodEnd: new Date("2025-12-31"),
+    });
+    mocks.subscriptionFindUnique
+      .mockResolvedValueOnce(authorizedSub) // pre-check (getCurrentSubscription)
+      .mockResolvedValueOnce(authorizedSub) // applySubscriptionEvent carga la sub
+      .mockResolvedValueOnce(cancelledSub); // cancelMySubscription obtiene currentPeriodEnd
+    mocks.fetchPreapproval.mockResolvedValueOnce({
+      id: "mp-preapproval-123",
+      status: "authorized",
+    });
+    mocks.subscriptionUpdate.mockResolvedValue(cancelledSub);
+    mocks.subscriptionEventCreate.mockResolvedValue({});
+
+    const result = await cancelMySubscription("not_using");
+
+    expect(result.success).toBe(true);
+    expect(mocks.fetchPreapproval).toHaveBeenCalledWith("mp-preapproval-123");
+    expect(mocks.cancelPreapproval).toHaveBeenCalledWith("mp-preapproval-123");
+    expect(mocks.subscriptionEventCreate).toHaveBeenCalledWith({
+      data: {
+        subscriptionId: "sub-1",
+        type: "owner_cancel",
+        payload: { reason: "not_using", userId: "user-1", mpOutcome: "cancelled" },
+      },
+    });
+  });
+
+  it("con mpPreapprovalId ya cancelado en MP: procede sin llamar cancelPreapproval, mpOutcome already_cancelled", async () => {
+    const authorizedSub = mockSub({ status: "AUTHORIZED", mpPreapprovalId: "mp-preapproval-123" });
+    const cancelledSub = mockSub({
+      status: "CANCELLED",
+      mpPreapprovalId: "mp-preapproval-123",
+      cancelledAt: new Date(),
+      currentPeriodEnd: new Date("2025-12-31"),
+    });
+    mocks.subscriptionFindUnique
+      .mockResolvedValueOnce(authorizedSub)
+      .mockResolvedValueOnce(authorizedSub)
+      .mockResolvedValueOnce(cancelledSub);
+    mocks.fetchPreapproval.mockResolvedValueOnce({
+      id: "mp-preapproval-123",
+      status: "cancelled",
+    });
+    mocks.subscriptionUpdate.mockResolvedValue(cancelledSub);
+    mocks.subscriptionEventCreate.mockResolvedValue({});
+
+    await cancelMySubscription();
+
+    expect(mocks.cancelPreapproval).not.toHaveBeenCalled();
+    expect(mocks.subscriptionEventCreate).toHaveBeenCalledWith({
+      data: {
+        subscriptionId: "sub-1",
+        type: "owner_cancel",
+        payload: { reason: null, userId: "user-1", mpOutcome: "already_cancelled" },
+      },
+    });
+  });
+
+  it("si MP falla al cancelar: throw, no llama applySubscriptionEvent (el estado local no cambia)", async () => {
+    const authorizedSub = mockSub({ status: "AUTHORIZED", mpPreapprovalId: "mp-preapproval-123" });
+    mocks.subscriptionFindUnique.mockResolvedValue(authorizedSub);
+    // Persistente (no Once): cubre tanto el primer fetch como el re-fetch que
+    // ensurePreapprovalCancelled intenta tras el fallo de cancelPreapproval.
+    mocks.fetchPreapproval.mockResolvedValue({
+      id: "mp-preapproval-123",
+      status: "authorized",
+    });
+    mocks.cancelPreapproval.mockRejectedValueOnce(
+      new MpApiError("Mercado Pago cancel preapproval error: Internal Server Error", 500),
+    );
+
+    await expect(cancelMySubscription()).rejects.toThrow(
+      "No pudimos cancelar la suscripción en Mercado Pago. Por favor intenta de nuevo en unos minutos.",
+    );
+
+    expect(mocks.subscriptionEventCreate).not.toHaveBeenCalled();
+    expect(mocks.subscriptionUpdate).not.toHaveBeenCalled();
   });
 });
 

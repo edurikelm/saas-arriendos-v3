@@ -17,6 +17,31 @@ import { mpFetch } from "@/lib/payment/mp-fetch";
 const BASE_URL = "https://api.mercadopago.com";
 
 // =============================================================================
+// Errors
+// =============================================================================
+
+/**
+ * Error tipado para respuestas no-ok de la API de Mercado Pago.
+ *
+ * Carga `status` (HTTP status de la respuesta) y, cuando el body lo trae,
+ * `mpError` (el `error`/`message` que MP devuelve). Los callers que necesitan
+ * distinguir casos (ej. 404 "MP ya no reconoce este preapproval" vs. 401/403/5xx
+ * "falla real, reintentar") hacen `error instanceof MpApiError` en vez de
+ * parsear el mensaje de texto.
+ */
+export class MpApiError extends Error {
+  readonly status: number;
+  readonly mpError?: string;
+
+  constructor(message: string, status: number, mpError?: string) {
+    super(message);
+    this.name = "MpApiError";
+    this.status = status;
+    this.mpError = mpError;
+  }
+}
+
+// =============================================================================
 // Types
 // =============================================================================
 
@@ -96,6 +121,26 @@ export class MercadoPagoProGateway implements ProSubscriptionGateway {
       "Content-Type": "application/json",
       Authorization: `Bearer ${this.getToken()}`,
     };
+  }
+
+  /**
+   * Construye y lanza un `MpApiError` a partir de una respuesta no-ok,
+   * intentando parsear `error`/`message` del body cuando MP lo incluye.
+   * Usado por `fetchPreapproval` y `cancelPreapproval`, los dos únicos
+   * métodos cuyos callers necesitan distinguir el `status` (ej. 404 para
+   * "MP ya no reconoce este preapproval").
+   */
+  private async throwMpApiError(response: Response, prefix: string): Promise<never> {
+    const errorData = (await response.json().catch(() => ({}))) as {
+      error?: string;
+      message?: string;
+    };
+    const mpError = errorData.message ?? errorData.error;
+    throw new MpApiError(
+      `${prefix}: ${mpError ?? response.statusText}`,
+      response.status,
+      mpError,
+    );
   }
 
   async ensurePlan(): Promise<{ planId: string }> {
@@ -184,10 +229,7 @@ export class MercadoPagoProGateway implements ProSubscriptionGateway {
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        `Mercado Pago cancel preapproval error: ${(errorData as { message?: string }).message ?? response.statusText}`,
-      );
+      await this.throwMpApiError(response, "Mercado Pago cancel preapproval error");
     }
   }
 
@@ -198,9 +240,7 @@ export class MercadoPagoProGateway implements ProSubscriptionGateway {
     });
 
     if (!response.ok) {
-      throw new Error(
-        `Mercado Pago fetch preapproval error: ${response.statusText}`,
-      );
+      await this.throwMpApiError(response, "Mercado Pago fetch preapproval error");
     }
 
     const data = (await response.json()) as {

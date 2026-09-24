@@ -169,7 +169,10 @@ de inmediato, duplicando esos días ya pagados. Mientras `currentPeriodEnd`
 no venza, el owner sigue en PRO (lo deriva `resolveEffectivePlan`, no un
 flag de reactivación); una vez vencido, vuelve a PRO con "Activar PRO"
 (`startProUpgrade`, el mismo flujo que reemplaza una fila `EXPIRED`/`FAILED`).
-Ver ADR-0027 §3.
+Antes de reemplazar la fila, `startProUpgrade` verifica en Mercado Pago si su
+preapproval anterior sigue vivo y lo detiene si hace falta, para que no se
+creen dos preapprovals vivos para el mismo owner. Previene casos nuevos; no
+reconcilia preapprovals huérfanos anteriores a este cambio. Ver ADR-0027 §3.
 
 Las pantallas de owner (`/settings`, `/settings/billing`, `/dashboard`,
 `/pricing`) leen la fila `Subscription` del owner **sin filtrar por status**
