@@ -159,3 +159,8 @@ situación (verificado contra producción).
   downgrade. Este cambio lo activa: un owner que era PRO por período nulo pasa a
   FREE y puede quedar por encima del límite.
 - ADR-0027 §3 — el cron EXPIRED_CHECK como fallback cuando MP no notifica.
+- Issue #188 — el cron diario de sync de Calendarios Externos (ADR-0018)
+  filtraba por `user: { plan: "PRO" }`, la columna denormalizada: una
+  concesión manual (`planOverride`) nunca sincronizaba, y una subscription
+  recién vencida seguía sincronizando hasta que corriera `expired_check`.
+  Pasó a derivar el plan efectivo en memoria con `resolveEffectivePlan`.
