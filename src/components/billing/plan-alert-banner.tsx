@@ -57,7 +57,9 @@ export function PlanAlertBanner({
     : variant === "free-over-limit"
       ? overLimitCopy(usage)
       : nearLimitCopy(usage);
-  const cta = isCancelled ? "Reactivar PRO" : "Pasar a PRO";
+  // CANCELLED con período vigente no tiene reactivación (#195): un preapproval
+  // cancelado en MP es terminal, así que el CTA solo lleva a ver el plan.
+  const cta = isCancelled ? "Ver mi plan" : "Pasar a PRO";
   const Icon: LucideIcon = isCancelled ? Sparkles : AlertTriangle;
 
   return (

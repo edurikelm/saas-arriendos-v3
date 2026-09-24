@@ -107,7 +107,7 @@ describe("PricingPage", () => {
   });
 
   describe("CTAs para owner CANCELLED", () => {
-    it("PRO muestra 'Reactivar PRO' con link a /settings/billing", () => {
+    it("PRO muestra 'Ver mi plan' con link a /settings/billing", () => {
       render(
         <PricingPage
           session={mockOwnerSession}
@@ -115,9 +115,9 @@ describe("PricingPage", () => {
         />
       );
 
-      const reactivateLink = screen.getByText("Reactivar PRO").closest("a");
-      expect(reactivateLink).toBeTruthy();
-      expect((reactivateLink as HTMLAnchorElement).href).toContain(
+      const viewPlanLink = screen.getByText("Ver mi plan").closest("a");
+      expect(viewPlanLink).toBeTruthy();
+      expect((viewPlanLink as HTMLAnchorElement).href).toContain(
         "/settings/billing"
       );
     });

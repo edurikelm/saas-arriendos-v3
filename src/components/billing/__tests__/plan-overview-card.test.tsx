@@ -59,14 +59,14 @@ describe("<PlanOverviewCard />", () => {
     expect(cta.getAttribute("href")).toBe("/settings/billing");
   });
 
-  it("muestra alerta de cancelación y CTA 'Reactivar PRO' cuando CANCELLED con período vigente", () => {
+  it("muestra alerta de cancelación y CTA 'Ver mi plan' cuando CANCELLED con período vigente", () => {
     const sub = makeSub({
       status: "CANCELLED",
       cancelledAt: new Date(),
     });
     render(<PlanOverviewCard subscription={sub} usage={baseUsage} />);
     expect(screen.getByText(/sigue activo hasta el/)).toBeTruthy();
-    const cta = screen.getByRole("link", { name: /Reactivar PRO/i });
+    const cta = screen.getByRole("link", { name: /Ver mi plan/i });
     expect(cta.getAttribute("href")).toBe("/settings/billing");
   });
 

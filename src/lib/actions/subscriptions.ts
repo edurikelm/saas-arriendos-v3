@@ -12,8 +12,11 @@
  *
  * Decisiones documentadas (no cambiar sin coordinar con el equipo):
  * - `userId @unique`: 1 owner = 1 subscription activa.
- * - Si la subscription está CANCELLED y no expiró, `reactivateMySubscription`
- *   reactiva la misma fila (no se crea nueva).
+ * - No existe reactivar una suscripción CANCELLED: un preapproval cancelado
+ *   en MP es terminal, y crear uno nuevo cobraría de inmediato (doble cobro
+ *   del período ya pagado). Mientras el período vigente no termine, PRO sigue
+ *   activo (`resolveEffectivePlan`); una vez vencido, el owner vuelve con
+ *   `startProUpgrade` ("Activar PRO") (#195, ver ADR-0027 §3).
  * - Si la subscription está EXPIRED o FAILED, `startProUpgrade` ejecuta
  *   delete+create dentro de una transacción atómica (ADR-0027 §9).
  */
@@ -26,10 +29,7 @@ import {
   applySubscriptionEvent,
   getCurrentSubscription,
 } from "@/lib/subscriptions/lifecycle";
-import {
-  cancelSubscriptionSchema,
-  reactivateSubscriptionSchema,
-} from "@/lib/validations/subscriptions";
+import { cancelSubscriptionSchema } from "@/lib/validations/subscriptions";
 import { recordSubscriptionNotification } from "@/lib/notifications/subscription-events";
 import { resolveEffectivePlan } from "@/lib/subscriptions/effective-plan";
 import { revalidateAfterPlanChange } from "@/lib/subscriptions/revalidate-plan";
@@ -313,67 +313,6 @@ export async function cancelMySubscription(
   return {
     success: true,
     currentPeriodEnd: updated?.currentPeriodEnd ?? null,
-  };
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// reactivateMySubscription
-// ────────────────────────────────────────────────────────────────────────────
-
-/**
- * Reactivar una suscripción cancelada que aún no expiró.
- *
- * Solo válido si `status === CANCELLED && currentPeriodEnd > now`.
- * Pasa por `applySubscriptionEvent({ type: "authorized" })` para mantener
- * el patrón de auditoría. El lifecycle limpia `cancelledAt` y `cancellationReason`
- * cuando la transición viene de CANCELLED.
- */
-export async function reactivateMySubscription(): Promise<{
-  success: true;
-  subscription: { id: string; status: string; currentPeriodEnd: Date | null };
-}> {
-  reactivateSubscriptionSchema.parse({});
-
-  const session = await requireOwner();
-  const { userId } = session;
-
-  const subscription = await getCurrentSubscription(userId);
-
-  if (!subscription) {
-    throw new Error("No tienes una suscripción para reactivar");
-  }
-
-  if (subscription.status !== "CANCELLED") {
-    throw new Error(
-      `Solo puedes reactivar una suscripción cancelada. Estado actual: "${subscription.status}"`,
-    );
-  }
-
-  const now = new Date();
-  if (!subscription.currentPeriodEnd || subscription.currentPeriodEnd <= now) {
-    throw new Error(
-      "Tu suscripción ya expiró. Usa 'Activar PRO' para crear una nueva.",
-    );
-  }
-
-  // Transición CANCELLED → AUTHORIZED pasa por applySubscriptionEvent
-  // (state-machine.ts permite esta transición para reactivación manual).
-  const { planChange: reactivatePlanChange } = await applySubscriptionEvent({
-    type: "authorized",
-    subscriptionId: subscription.id,
-    payload: { source: "reactivate", userId },
-  });
-  revalidateAfterPlanChange(reactivatePlanChange);
-
-  revalidatePath("/settings/billing");
-
-  return {
-    success: true,
-    subscription: {
-      id: subscription.id,
-      status: "AUTHORIZED",
-      currentPeriodEnd: subscription.currentPeriodEnd,
-    },
   };
 }
 

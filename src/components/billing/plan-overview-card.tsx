@@ -50,10 +50,12 @@ export function PlanOverviewCard({ subscription, usage }: PlanOverviewCardProps)
     badgeVariant = "secondary";
   }
 
-  // CTA label se adapta al estado para empujar la acción correcta
+  // CTA label se adapta al estado para empujar la acción correcta.
+  // CANCELLED con período vigente no tiene reactivación (#195): un preapproval
+  // cancelado en MP es terminal, así que el CTA solo lleva a ver el estado del plan.
   let ctaLabel = "Administrar plan";
   if (isPending) ctaLabel = "Revisar pago pendiente";
-  else if (hasActiveCancellation) ctaLabel = "Reactivar PRO";
+  else if (hasActiveCancellation) ctaLabel = "Ver mi plan";
   else if (!isPro) ctaLabel = "Pasar a PRO";
 
   return (

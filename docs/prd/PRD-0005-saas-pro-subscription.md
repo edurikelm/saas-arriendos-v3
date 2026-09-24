@@ -216,7 +216,7 @@ Recibe un evento (de webhook, de acción de owner, de acción de admin) y:
 - `getCurrentSubscription()` — devuelve la suscripción del owner actual o `null`.
 - `startProUpgrade()` — crea `Subscription(PENDING)` + `preapproval` en MP, devuelve `{ initPoint }`. No toca plan todavía.
 - `cancelMySubscription(reason)` — llama `applySubscriptionEvent({ type: "owner_cancel" })`. El estado va a `CANCELLED` pero `currentPeriodEnd` queda intacto hasta que MP mande el evento de expiración.
-- `reactivateMySubscription()` — solo válido si está `CANCELLED` y aún no expiró.
+- ~~`reactivateMySubscription()` — solo válido si está `CANCELLED` y aún no expiró.~~ **Eliminada (#195):** un preapproval cancelado en MP es terminal; reactivar habría creado uno nuevo y cobrado de inmediato, duplicando el período ya pagado. Ver ADR-0027 §3.
 
 ### D. Webhook `/api/webhooks/mercadopago-pro`
 
@@ -342,7 +342,7 @@ El `preapproval_plan` es el template que define monto, frecuencia y moneda. Lo c
 
 ### Decisión sobre qué pasa si el owner tenía PRO y se vuelve a registrar
 
-No aplica — un owner no puede tener dos cuentas. El caso real es: owner PRO cancela, baja a FREE, luego quiere reactivar. Eso lo cubre `reactivateMySubscription()` (válido solo si la `Subscription` está `CANCELLED` y `currentPeriodEnd > now`).
+No aplica — un owner no puede tener dos cuentas. El caso real es: owner PRO cancela, baja a FREE, luego quiere volver. **Actualizado (#195):** no existe reactivar; mientras el período pagado sigue vigente el owner ya está en PRO (no hace falta reactivar nada), y una vez vencido vuelve con `startProUpgrade` ("Activar PRO"), que crea un preapproval nuevo. Ver ADR-0027 §3.
 
 ### Cómo se relaciona con el sistema existente
 
@@ -356,7 +356,7 @@ No aplica — un owner no puede tener dos cuentas. El caso real es: owner PRO ca
 
 - Plan anual con descuento.
 - Tabla de `Invoice` propia de RentalPro (boleta/factura chilena) por cada cargo de `authorized_payment`.
-- Reactivación automática desde UI con un solo click (hoy requiere reintentar el flujo de upgrade).
+- ~~Reactivación automática desde UI con un solo click (hoy requiere reintentar el flujo de upgrade).~~ **Descartado (#195):** un preapproval cancelado en MP es terminal, así que no hay "reactivar" posible sin duplicar cobro; el flujo de upgrade (reintentar) es la única vía, y así se queda.
 - Métricas: MRR, churn, upgrades netos.
 
 ## Issues a crear (sub-slice breakdown)

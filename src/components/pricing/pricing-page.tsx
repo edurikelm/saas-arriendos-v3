@@ -56,9 +56,11 @@ function getPricingCta({
   }
 
   if (isCancelled) {
+    // Sin reactivación (#195): un preapproval cancelado en MP es terminal.
+    // Mientras el período pagado siga vigente, el CTA solo lleva a ver el plan.
     return {
       free: { label: "Plan FREE", href: null, disabled: true },
-      pro: { label: "Reactivar PRO", href: "/settings/billing" },
+      pro: { label: "Ver mi plan", href: "/settings/billing" },
     };
   }
 
