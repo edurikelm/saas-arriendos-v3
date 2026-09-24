@@ -221,6 +221,32 @@ async function handlePreapprovalWebhook(
     });
   }
 
+  // Guard: un "cancelled" tardío/reintentado de MP sobre una fila local ya
+  // terminal (EXPIRED o FAILED) no debe procesarse.
+  // - EXPIRED → CANCELLED NO está permitida en la state machine (tabla 6x6,
+  //   state-machine.ts): `applySubscriptionEvent` lanzaría, la ruta
+  //   respondería 500 y MP reintentaría el mismo evento indefinidamente sin
+  //   que nada cambie.
+  // - FAILED → CANCELLED SÍ está permitida y no lanzaría, pero una fila
+  //   FAILED es legacy (puede arrastrar un `currentPeriodEnd` viejo) —
+  //   moverla a CANCELLED le regalaría PRO gratis al owner vía
+  //   `resolveEffectivePlan` mientras ese período siga sin vencer, sin que
+  //   haya un cobro nuevo detrás.
+  // En ambos casos el estado local ya es terminal: no hay nada que cancelar.
+  if (
+    eventType === "cancelled" &&
+    (subscription.status === "EXPIRED" || subscription.status === "FAILED")
+  ) {
+    console.warn(
+      `[MP Pro Webhook] Ignoring "cancelled" for already-terminal subscription ${subscription.id} (status=${subscription.status}, preapproval=${preapprovalId})`,
+    );
+    return NextResponse.json({
+      received: true,
+      subscriptionId: subscription.id,
+      warning: `Subscription already terminal: ${subscription.status}`,
+    });
+  }
+
   // 4. Aplicar evento via lifecycle (idempotente automáticamente)
   const { planChange } = await applySubscriptionEvent({
     type: eventType,

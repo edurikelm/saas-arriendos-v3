@@ -3,6 +3,7 @@ import {
   MercadoPagoProGateway,
   getProGateway,
   clearProGatewayCache,
+  MpApiError,
 } from "../pro-gateway";
 
 // Mockear fetch global antes de cada test
@@ -336,6 +337,47 @@ describe("cancelPreapproval()", () => {
     );
   });
 
+  it("lanza un MpApiError con status y mpError cuando MP responde con error al cancelar", async () => {
+    process.env.MERCADOPAGO_PRO_ACCESS_TOKEN = "token-test";
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 404,
+      statusText: "Not Found",
+      json: async () => ({ message: "Preapproval not found" }),
+    });
+
+    const gateway = new MercadoPagoProGateway();
+    const error = await gateway
+      .cancelPreapproval("preapproval-missing")
+      .catch((e) => e);
+
+    expect(error).toBeInstanceOf(MpApiError);
+    expect((error as MpApiError).status).toBe(404);
+    expect((error as MpApiError).mpError).toBe("Preapproval not found");
+  });
+
+  it("lanza un MpApiError sin mpError cuando MP no incluye error/message en el body al cancelar", async () => {
+    process.env.MERCADOPAGO_PRO_ACCESS_TOKEN = "token-test";
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: "Internal Server Error",
+      json: async () => ({}),
+    });
+
+    const gateway = new MercadoPagoProGateway();
+    const error = await gateway
+      .cancelPreapproval("preapproval-1")
+      .catch((e) => e);
+
+    expect(error).toBeInstanceOf(MpApiError);
+    expect((error as MpApiError).status).toBe(500);
+    expect((error as MpApiError).mpError).toBeUndefined();
+    expect((error as Error).message).toBe(
+      "Mercado Pago cancel preapproval error: Internal Server Error",
+    );
+  });
+
   it("lanza error si MERCADOPAGO_PRO_ACCESS_TOKEN no está al cancelar", async () => {
     const gateway = new MercadoPagoProGateway();
     await expect(gateway.cancelPreapproval("preapproval-1")).rejects.toThrow(
@@ -419,6 +461,47 @@ describe("fetchPreapproval()", () => {
     const gateway = new MercadoPagoProGateway();
     await expect(gateway.fetchPreapproval("preapproval-missing")).rejects.toThrow(
       "Mercado Pago fetch preapproval error: Not Found",
+    );
+  });
+
+  it("lanza un MpApiError con status 404 al hacer fetch de un preapproval que MP no reconoce", async () => {
+    process.env.MERCADOPAGO_PRO_ACCESS_TOKEN = "token-test";
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 404,
+      statusText: "Not Found",
+      json: async () => ({}),
+    });
+
+    const gateway = new MercadoPagoProGateway();
+    const error = await gateway
+      .fetchPreapproval("preapproval-missing")
+      .catch((e) => e);
+
+    expect(error).toBeInstanceOf(MpApiError);
+    expect((error as MpApiError).status).toBe(404);
+    expect((error as MpApiError).mpError).toBeUndefined();
+  });
+
+  it("lanza un MpApiError con mpError parseado del body cuando MP lo incluye al hacer fetch", async () => {
+    process.env.MERCADOPAGO_PRO_ACCESS_TOKEN = "token-test";
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 403,
+      statusText: "Forbidden",
+      json: async () => ({ error: "forbidden", message: "Access denied" }),
+    });
+
+    const gateway = new MercadoPagoProGateway();
+    const error = await gateway
+      .fetchPreapproval("preapproval-1")
+      .catch((e) => e);
+
+    expect(error).toBeInstanceOf(MpApiError);
+    expect((error as MpApiError).status).toBe(403);
+    expect((error as MpApiError).mpError).toBe("Access denied");
+    expect((error as Error).message).toBe(
+      "Mercado Pago fetch preapproval error: Access denied",
     );
   });
 

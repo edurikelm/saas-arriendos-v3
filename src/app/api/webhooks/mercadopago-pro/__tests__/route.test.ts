@@ -474,6 +474,77 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
     });
   });
 
+  it("preapproval cancelled on an already-EXPIRED local subscription: returns 200 with warning, does NOT call applySubscriptionEvent", async () => {
+    // EXPIRED → CANCELLED no está permitida en la state machine: sin este
+    // guard, applySubscriptionEvent lanzaría, la ruta respondería 500 y MP
+    // reintentaría el mismo webhook indefinidamente sin que nada cambie.
+    process.env.MERCADOPAGO_PRO_WEBHOOK_SECRET = "pro-secret";
+    const secret = "pro-secret";
+    const preapprovalId = "pre-expired";
+    const ts = String(Math.floor(Date.now() / 1000));
+    const requestId = "req-abc";
+    const sig = computeSignature(secret, buildManifest(preapprovalId, requestId, ts));
+
+    mockGetSubscriptionByPreapprovalId.mockResolvedValue({
+      id: "sub-expired",
+      status: "EXPIRED",
+      mpPreapprovalId: preapprovalId,
+    });
+    mockFetchPreapproval.mockResolvedValue({
+      status: "cancelled",
+    });
+
+    const response = await makeRequest(
+      `https://example.com/api/webhooks/mercadopago-pro?data.id=${preapprovalId}&topic=preapproval`,
+      buildPreapprovalPayload("preapproval.cancelled", preapprovalId),
+      { "x-request-id": requestId, "x-signature": `ts=${ts},v1=${sig}` },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      received: true,
+      subscriptionId: "sub-expired",
+      warning: "Subscription already terminal: EXPIRED",
+    });
+    expect(mockApplySubscriptionEvent).not.toHaveBeenCalled();
+  });
+
+  it("preapproval cancelled on an already-FAILED local subscription: returns 200 with warning, does NOT call applySubscriptionEvent", async () => {
+    // FAILED → CANCELLED SÍ está permitida por la state machine y no
+    // lanzaría, pero una fila FAILED es legacy: moverla a CANCELLED podría
+    // dejarle un currentPeriodEnd viejo todavía vigente y regalarle PRO al
+    // owner sin un cobro nuevo detrás.
+    process.env.MERCADOPAGO_PRO_WEBHOOK_SECRET = "pro-secret";
+    const secret = "pro-secret";
+    const preapprovalId = "pre-failed";
+    const ts = String(Math.floor(Date.now() / 1000));
+    const requestId = "req-abc";
+    const sig = computeSignature(secret, buildManifest(preapprovalId, requestId, ts));
+
+    mockGetSubscriptionByPreapprovalId.mockResolvedValue({
+      id: "sub-failed",
+      status: "FAILED",
+      mpPreapprovalId: preapprovalId,
+    });
+    mockFetchPreapproval.mockResolvedValue({
+      status: "cancelled",
+    });
+
+    const response = await makeRequest(
+      `https://example.com/api/webhooks/mercadopago-pro?data.id=${preapprovalId}&topic=preapproval`,
+      buildPreapprovalPayload("preapproval.cancelled", preapprovalId),
+      { "x-request-id": requestId, "x-signature": `ts=${ts},v1=${sig}` },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      received: true,
+      subscriptionId: "sub-failed",
+      warning: "Subscription already terminal: FAILED",
+    });
+    expect(mockApplySubscriptionEvent).not.toHaveBeenCalled();
+  });
+
   it("preapproval paused: calls applySubscriptionEvent with type=paused", async () => {
     process.env.MERCADOPAGO_PRO_WEBHOOK_SECRET = "pro-secret";
     const secret = "pro-secret";
