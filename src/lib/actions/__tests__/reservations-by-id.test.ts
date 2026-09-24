@@ -27,8 +27,11 @@ const mockSession: SessionUser = {
 function buildMockReservation(overrides: Partial<{
   payments: Array<{ id: string; deletedAt: Date | null }>;
   changes: Array<{ id: string; createdAt: Date }>;
+  // Mismo instante que usa el test para sus aserciones: dos `new Date()`
+  // separados difieren en 1 ms cuando el reloj avanza entre ambos.
+  now: Date;
 }> = {}) {
-  const now = new Date();
+  const now = overrides.now ?? new Date();
   return {
     id: 'res-1',
     userId: 'user-1',
@@ -156,6 +159,7 @@ describe('getReservationById', () => {
     vi.mocked(getSession).mockResolvedValue(mockSession);
     const now = new Date();
     const mockRes = buildMockReservation({
+      now,
       payments: [
         {
           id: 'pay-1',
