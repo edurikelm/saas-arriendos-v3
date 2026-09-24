@@ -104,10 +104,14 @@ const PERMITIDOS_FILTRO = new Set([
   "src/components/admin/admin-users-client.tsx",
 ]);
 
-// Empareja `plan: "PRO"` / `plan: "FREE"` como filtro o escritura literal, y
-// `plan: {` (un select/filtro anidado). Ignora el caso `plan: "FREE" | "PRO"`
-// (anotacion de tipo / union), que no es ni un filtro ni una escritura.
-const FILTRO_PLAN_CRUDO = /plan:\s*(?:["'](?:PRO|FREE)["'](?!\s*\|)|\{)/;
+// Empareja `plan: "PRO"` / `plan: "FREE"` como filtro o escritura literal,
+// `plan: Plan.PRO` / `plan: $Enums.Plan.PRO` (el enum de Prisma), y `plan: {`
+// (un select/filtro anidado: `{ equals }`, `{ in }`...). `\b` evita que
+// `planOverride:` u otros nombres terminados en "plan" cuenten. Ignora
+// `plan: "FREE" | "PRO"` (anotacion de tipo / union), que no es ni un filtro
+// ni una escritura.
+const FILTRO_PLAN_CRUDO =
+  /\bplan:\s*(?:["'](?:PRO|FREE)["'](?!\s*\|)|\{|(?:\$Enums\.)?Plan\.(?:PRO|FREE)\b)/;
 
 describe("guardia: quien puede FILTRAR/ESCRIBIR UserProfile.plan crudo", () => {
   it("solo los archivos autorizados usan plan: \"PRO\"/\"FREE\" fuera de un select", () => {

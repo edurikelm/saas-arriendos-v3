@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mockPrisma = vi.hoisted(() => ({
   externalCalendar: {
@@ -48,6 +48,10 @@ function buildCalendarRow(overrides: {
   };
 }
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 async function getHandler() {
   const mod = await import("../route");
   return mod.POST;
@@ -74,6 +78,7 @@ describe("POST /api/cron/external-calendars/sync — auth", () => {
 
     const res = await callRoute(null);
     expect(res.status).toBe(401);
+    expect(mockPrisma.externalCalendar.findMany).not.toHaveBeenCalled();
   });
 
   it("retorna 401 con secret incorrecto", async () => {
@@ -82,6 +87,7 @@ describe("POST /api/cron/external-calendars/sync — auth", () => {
 
     const res = await callRoute("Bearer wrong-secret");
     expect(res.status).toBe(401);
+    expect(mockPrisma.externalCalendar.findMany).not.toHaveBeenCalled();
   });
 });
 
@@ -100,7 +106,8 @@ describe("POST /api/cron/external-calendars/sync — where shape (ADR-0034)", ()
     expect(mockPrisma.externalCalendar.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { isActive: true },
-        include: {
+        select: {
+          id: true,
           user: {
             select: {
               planOverride: true,

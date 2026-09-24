@@ -13,14 +13,17 @@ export async function POST(request: Request) {
   }
 
   // ADR-0018 + Decisión 5 de ADR-0027: solo owners con plan PRO sincronizan.
-  // Calendarios de owners efectivamente FREE quedan inactivos, no se borran.
+  // Los calendarios de owners efectivamente FREE se saltan (cuentan en
+  // `skippedFree`); este cron no los desactiva ni los borra — la desactivación
+  // la hace `softStopExternalCalendars` cuando la subscription expira.
   // El plan es el EFECTIVO (ADR-0034: planOverride + subscription via
   // resolveEffectivePlan), no la columna UserProfile.plan — esa es solo
   // dato denormalizado para admin y se desincroniza de una concesión manual
   // o de una subscription recién vencida (#188).
   const calendars = await prisma.externalCalendar.findMany({
     where: { isActive: true },
-    include: {
+    select: {
+      id: true,
       user: {
         select: {
           planOverride: true,
