@@ -604,6 +604,17 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
   });
 
   describe("authorized_payment topic", () => {
+    // El guard de next_payment_date compara contra Date.now(): sin reloj fijo,
+    // las fechas de los fixtures dejarían de ser "futuras" con el tiempo.
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-09-21T15:00:00.000Z"));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
     function makeAuthorizedPaymentRequest(authorizedPaymentId: string) {
       process.env.MERCADOPAGO_PRO_WEBHOOK_SECRET = "pro-secret";
       const secret = "pro-secret";
@@ -1066,6 +1077,114 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
           }),
         }),
       );
+    });
+
+    it("nextPaymentDate still in the future but same day as the debit (not advanced): falls back", async () => {
+      const authorizedPaymentId = "ap-same-day-next-payment";
+      const debitDate = "2026-09-21T00:00:00.000-04:00";
+
+      mockFetchAuthorizedPayment.mockResolvedValue({
+        id: authorizedPaymentId,
+        preapprovalId: "preapproval-1",
+        paymentId: "payment-1",
+        paymentStatus: "approved",
+        debitDate,
+      });
+      mockGetSubscriptionByPreapprovalId.mockResolvedValue({
+        id: "sub-1",
+        status: "AUTHORIZED",
+      });
+      // Reloj fijo en 2026-09-21T15:00Z: esta fecha es futura, pero es el
+      // mismo día del débito — MP no la avanzó y el cron la expiraría hoy.
+      mockFetchPreapproval.mockResolvedValue({
+        nextPaymentDate: "2026-09-21T13:00:00.000-04:00",
+      });
+
+      const response = await makeAuthorizedPaymentRequest(authorizedPaymentId);
+
+      expect(response.status).toBe(200);
+      const expectedFallback = addMonths(
+        new Date(debitDate),
+        PRO_PRICING.monthly.frequency,
+      ).toISOString();
+      expect(mockApplySubscriptionEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            endDate: expectedFallback,
+            nextPaymentDate: expectedFallback,
+          }),
+        }),
+      );
+    });
+
+    it("malformed debitDate: does not throw, falls back from now", async () => {
+      const authorizedPaymentId = "ap-bad-debit-date";
+
+      mockFetchAuthorizedPayment.mockResolvedValue({
+        id: authorizedPaymentId,
+        preapprovalId: "preapproval-1",
+        paymentId: "payment-1",
+        paymentStatus: "approved",
+        debitDate: "not-a-date",
+      });
+      mockGetSubscriptionByPreapprovalId.mockResolvedValue({
+        id: "sub-1",
+        status: "AUTHORIZED",
+      });
+      mockFetchPreapproval.mockResolvedValue({});
+
+      const response = await makeAuthorizedPaymentRequest(authorizedPaymentId);
+
+      expect(response.status).toBe(200);
+      const expectedFallback = addMonths(
+        new Date("2026-09-21T15:00:00.000Z"),
+        PRO_PRICING.monthly.frequency,
+      ).toISOString();
+      expect(mockApplySubscriptionEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            endDate: expectedFallback,
+            nextPaymentDate: expectedFallback,
+          }),
+        }),
+      );
+    });
+
+    it("approved on a PENDING subscription (first charge before authorization): payment_unapplied logged as warn, not error", async () => {
+      const authorizedPaymentId = "ap-first-charge";
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      mockFetchAuthorizedPayment.mockResolvedValue({
+        id: authorizedPaymentId,
+        preapprovalId: "preapproval-1",
+        paymentId: "payment-1",
+        paymentStatus: "approved",
+        debitDate: "2026-09-21T10:00:00.000-04:00",
+      });
+      mockGetSubscriptionByPreapprovalId.mockResolvedValue({
+        id: "sub-1",
+        status: "PENDING",
+      });
+      mockHasSubscriptionEventForAuthorizedPayment.mockResolvedValue(false);
+
+      const response = await makeAuthorizedPaymentRequest(authorizedPaymentId);
+
+      expect(response.status).toBe(200);
+      expect(mockApplySubscriptionEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "payment_unapplied", subscriptionId: "sub-1" }),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        "[MP Pro Webhook] Approved charge on non-authorized subscription",
+        expect.objectContaining({ status: "PENDING" }),
+      );
+      expect(errorSpy).not.toHaveBeenCalledWith(
+        "[MP Pro Webhook] Approved charge on non-authorized subscription",
+        expect.anything(),
+      );
+
+      errorSpy.mockRestore();
+      warnSpy.mockRestore();
     });
 
     it("missing nextPaymentDate: same debitDate + 1 month fallback as stale", async () => {

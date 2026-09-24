@@ -152,8 +152,8 @@ export async function findLastDowngradeSnapshot(
  * `authorized_payment` para no reaplicar el mismo cobro dos veces
  * (reintentos de MP bajo el mismo authorized_payment id, o el mismo payment id).
  *
- * `payloadKey` es "mpAuthorizedPaymentId" para dedupe de `renewed` (un
- * authorized_payment aprobado renueva una sola vez) o "mpPaymentId" para
+ * `payloadKey` es "mpAuthorizedPaymentId" para dedupe de `renewed` y
+ * `payment_unapplied` (un authorized_payment aprobado se aplica una sola vez) o "mpPaymentId" para
  * dedupe de `payment_failed` (cada intento rechazado tiene su propio payment id).
  */
 export async function hasSubscriptionEventForAuthorizedPayment(

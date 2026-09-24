@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import * as crypto from "crypto";
-import { addMonths } from "date-fns";
+import { addDays, addMonths } from "date-fns";
 import { applySubscriptionEvent } from "@/lib/subscriptions/lifecycle";
 import { normalizeDataId, WEBHOOK_TIMESTAMP_TOLERANCE_MS } from "@/lib/payment/webhook-helpers";
 import {
@@ -283,7 +283,11 @@ async function handleAuthorizedPaymentWebhook(
         authorizedPaymentId,
       );
       if (!alreadyRecorded) {
-        console.error(
+        // En PENDING es esperable: el primer cobro puede llegar antes que el
+        // webhook `preapproval` que la autoriza (y fija el período). Solo los
+        // demás estados merecen alarma.
+        const log = subscription.status === "PENDING" ? console.warn : console.error;
+        log(
           "[MP Pro Webhook] Approved charge on non-authorized subscription",
           {
             subscriptionId: subscription.id,
@@ -343,7 +347,14 @@ async function handleAuthorizedPaymentWebhook(
     // de arriba bloquearía que un reintento posterior lo corrigiera. Por eso
     // solo se usa si es una fecha futura respecto al cobro que se aplica;
     // si no, se deriva sumando un mes de plan al débito.
-    const referenceMs = Math.max(Date.now(), startDate ? new Date(startDate).getTime() : 0);
+    //
+    // "Futura" no alcanza: una fecha sin avanzar puede caer unas horas después
+    // del débito (otra hora del mismo día) y el cron la expiraría igual. Una
+    // fecha avanzada de verdad queda ~1 período después del débito, así que se
+    // exige que supere al menos medio período.
+    const startMs = startDate ? new Date(startDate).getTime() : NaN;
+    const debitMs = Number.isFinite(startMs) ? startMs : Date.now();
+    const referenceMs = Math.max(Date.now(), addDays(debitMs, 15).getTime());
     const candidateNextPaymentMs = preapproval.nextPaymentDate
       ? new Date(preapproval.nextPaymentDate).getTime()
       : NaN;
@@ -354,7 +365,7 @@ async function handleAuthorizedPaymentWebhook(
     let nextPaymentDate = preapproval.nextPaymentDate;
     if (!nextPaymentDateIsUsable) {
       const fallback = addMonths(
-        new Date(startDate ?? Date.now()),
+        new Date(debitMs),
         PRO_PRICING.monthly.frequency,
       ).toISOString();
       console.warn(
