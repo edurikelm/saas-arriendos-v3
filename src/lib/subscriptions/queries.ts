@@ -16,6 +16,9 @@
 import { prisma } from "@/lib/db/prisma";
 import { Prisma } from "@prisma/client";
 import type { Subscription, SubscriptionEvent } from "@prisma/client";
+// Import type-only: lifecycle.ts importa de este módulo, así que un import de
+// valor acá crearía un ciclo. `import type` se borra en compilación y no lo hace.
+import type { SubscriptionEventType } from "@/lib/subscriptions/lifecycle";
 
 export type DowngradeSnapshot = {
   externalCalendarIds: string[];
@@ -137,4 +140,36 @@ export async function findLastDowngradeSnapshot(
   const snap = (event.payload as Record<string, unknown>).downgradeSnapshot;
   if (!snap || typeof snap !== "object") return null;
   return snap as DowngradeSnapshot;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Idempotencia de webhooks de authorized_payment
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Detecta si ya existe un `SubscriptionEvent` de `type` para esta subscription
+ * cuyo payload trae `payloadKey === value` — usado por el webhook
+ * `authorized_payment` para no reaplicar el mismo cobro dos veces
+ * (reintentos de MP bajo el mismo authorized_payment id, o el mismo payment id).
+ *
+ * `payloadKey` es "mpAuthorizedPaymentId" para dedupe de `renewed` (un
+ * authorized_payment aprobado renueva una sola vez) o "mpPaymentId" para
+ * dedupe de `payment_failed` (cada intento rechazado tiene su propio payment id).
+ */
+export async function hasSubscriptionEventForAuthorizedPayment(
+  subscriptionId: string,
+  type: SubscriptionEventType,
+  payloadKey: "mpAuthorizedPaymentId" | "mpPaymentId",
+  value: string,
+  adapter: QueryAdapter = prisma,
+): Promise<boolean> {
+  const event = await adapter.subscriptionEvent.findFirst({
+    where: {
+      subscriptionId,
+      type,
+      payload: { path: [payloadKey], equals: value },
+    },
+    select: { id: true },
+  });
+  return event !== null;
 }

@@ -35,6 +35,25 @@ export interface MpPreapprovalInfo {
   preapprovalPlanId?: string;
 }
 
+/** Info de un `authorized_payment` individual (cobro recurrente de un preapproval). */
+export interface MpAuthorizedPaymentInfo {
+  id: string;
+  /** preapproval al que pertenece este cobro — clave de correlación con la Subscription local. */
+  preapprovalId?: string;
+  /** Estado del authorized_payment en sí (no del payment): "scheduled" | "processed" | "recycling" | "cancelled" */
+  status?: string;
+  /** ID del payment de MP asociado al cobro, si ya se generó. */
+  paymentId?: string;
+  /** Estado del payment: "approved" | "rejected" | "pending" | "in_process" */
+  paymentStatus?: string;
+  /** Detalle del rechazo/estado del payment (ej. "cc_rejected_insufficient_amount"). */
+  paymentStatusDetail?: string;
+  /** Fecha en que se intentó/realizó el débito (ISO 8601). */
+  debitDate?: string;
+  /** Fecha de creación del authorized_payment (ISO 8601). */
+  dateCreated?: string;
+}
+
 export interface ProSubscriptionGateway {
   ensurePlan(): Promise<{ planId: string }>;
   createPreapproval(args: {
@@ -56,6 +75,7 @@ export interface ProSubscriptionGateway {
   }>;
   cancelPreapproval(preapprovalId: string): Promise<void>;
   fetchPreapproval(preapprovalId: string): Promise<MpPreapprovalInfo>;
+  fetchAuthorizedPayment(authorizedPaymentId: string): Promise<MpAuthorizedPaymentInfo>;
 }
 
 // =============================================================================
@@ -203,6 +223,47 @@ export class MercadoPagoProGateway implements ProSubscriptionGateway {
       endDate: data.end_date,
       payerEmail: data.payer_email,
       preapprovalPlanId: data.preapproval_plan_id,
+    };
+  }
+
+  async fetchAuthorizedPayment(
+    authorizedPaymentId: string,
+  ): Promise<MpAuthorizedPaymentInfo> {
+    const response = await mpFetch(
+      `${BASE_URL}/authorized_payments/${authorizedPaymentId}`,
+      {
+        method: "GET",
+        headers: this.headers(),
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Mercado Pago fetch authorized payment error: ${response.statusText}`,
+      );
+    }
+
+    const data = (await response.json()) as {
+      id: number | string;
+      preapproval_id?: string;
+      status?: string;
+      payment?: { id?: number | string; status?: string; status_detail?: string };
+      debit_date?: string;
+      date_created?: string;
+    };
+
+    return {
+      // `!= null` (no `!== undefined`): un `id` null se convertiría en el
+      // string literal "null" con `String(null)` si solo se chequeara undefined.
+      id: data.id != null ? String(data.id) : "",
+      preapprovalId: data.preapproval_id,
+      status: data.status,
+      paymentId:
+        data.payment?.id != null ? String(data.payment.id) : undefined,
+      paymentStatus: data.payment?.status,
+      paymentStatusDetail: data.payment?.status_detail,
+      debitDate: data.debit_date,
+      dateCreated: data.date_created,
     };
   }
 }

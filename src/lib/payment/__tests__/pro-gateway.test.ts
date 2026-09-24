@@ -431,6 +431,163 @@ describe("fetchPreapproval()", () => {
 });
 
 // =============================================================================
+// fetchAuthorizedPayment()
+// =============================================================================
+
+describe("fetchAuthorizedPayment()", () => {
+  it("hace GET a /authorized_payments/{id} con Bearer header", async () => {
+    process.env.MERCADOPAGO_PRO_ACCESS_TOKEN = "token-test";
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        id: "ap-1",
+        preapproval_id: "preapproval-1",
+        status: "processed",
+        payment: { id: "payment-1", status: "approved", status_detail: "accredited" },
+        debit_date: "2026-08-21T10:00:00.000-04:00",
+        date_created: "2026-08-21T09:00:00.000-04:00",
+      }),
+    });
+
+    const gateway = new MercadoPagoProGateway();
+    await gateway.fetchAuthorizedPayment("ap-1");
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://api.mercadopago.com/authorized_payments/ap-1",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer token-test",
+        }),
+      }),
+    );
+  });
+
+  it("mapea los campos snake_case → camelCase correctamente", async () => {
+    process.env.MERCADOPAGO_PRO_ACCESS_TOKEN = "token-test";
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        id: "ap-2",
+        preapproval_id: "preapproval-2",
+        status: "processed",
+        payment: {
+          id: "payment-2",
+          status: "rejected",
+          status_detail: "cc_rejected_insufficient_amount",
+        },
+        debit_date: "2026-08-21T10:00:00.000-04:00",
+        date_created: "2026-08-21T09:00:00.000-04:00",
+      }),
+    });
+
+    const gateway = new MercadoPagoProGateway();
+    const result = await gateway.fetchAuthorizedPayment("ap-2");
+
+    expect(result).toEqual({
+      id: "ap-2",
+      preapprovalId: "preapproval-2",
+      status: "processed",
+      paymentId: "payment-2",
+      paymentStatus: "rejected",
+      paymentStatusDetail: "cc_rejected_insufficient_amount",
+      debitDate: "2026-08-21T10:00:00.000-04:00",
+      dateCreated: "2026-08-21T09:00:00.000-04:00",
+    });
+  });
+
+  it("convierte id numérico (raíz y payment.id) a string", async () => {
+    process.env.MERCADOPAGO_PRO_ACCESS_TOKEN = "token-test";
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        id: 123456,
+        status: "processed",
+        payment: { id: 987654, status: "approved" },
+      }),
+    });
+
+    const gateway = new MercadoPagoProGateway();
+    const result = await gateway.fetchAuthorizedPayment("123456");
+
+    expect(result.id).toBe("123456");
+    expect(result.paymentId).toBe("987654");
+    expect(typeof result.id).toBe("string");
+    expect(typeof result.paymentId).toBe("string");
+  });
+
+  it("retorna campos opcionales como undefined cuando MP no los incluye (ej. sin payment aún)", async () => {
+    process.env.MERCADOPAGO_PRO_ACCESS_TOKEN = "token-test";
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        id: "ap-3",
+        status: "scheduled",
+      }),
+    });
+
+    const gateway = new MercadoPagoProGateway();
+    const result = await gateway.fetchAuthorizedPayment("ap-3");
+
+    expect(result).toEqual({
+      id: "ap-3",
+      preapprovalId: undefined,
+      status: "scheduled",
+      paymentId: undefined,
+      paymentStatus: undefined,
+      paymentStatusDetail: undefined,
+      debitDate: undefined,
+      dateCreated: undefined,
+    });
+  });
+
+  it("payment.id null se mapea a paymentId undefined, no al string \"null\"", async () => {
+    process.env.MERCADOPAGO_PRO_ACCESS_TOKEN = "token-test";
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        id: "ap-4",
+        status: "scheduled",
+        payment: { id: null, status: "pending" },
+      }),
+    });
+
+    const gateway = new MercadoPagoProGateway();
+    const result = await gateway.fetchAuthorizedPayment("ap-4");
+
+    expect(result.paymentId).toBeUndefined();
+    expect(result.paymentStatus).toBe("pending");
+  });
+
+  it("lanza error si MP responde con error al hacer fetch del authorized_payment", async () => {
+    process.env.MERCADOPAGO_PRO_ACCESS_TOKEN = "token-test";
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 404,
+      statusText: "Not Found",
+      json: async () => ({}),
+    });
+
+    const gateway = new MercadoPagoProGateway();
+    await expect(gateway.fetchAuthorizedPayment("ap-missing")).rejects.toThrow(
+      "Mercado Pago fetch authorized payment error: Not Found",
+    );
+  });
+
+  it("lanza error si MERCADOPAGO_PRO_ACCESS_TOKEN no está al hacer fetch del authorized_payment", async () => {
+    const gateway = new MercadoPagoProGateway();
+    await expect(gateway.fetchAuthorizedPayment("ap-1")).rejects.toThrow(
+      "MERCADOPAGO_PRO_ACCESS_TOKEN is not configured",
+    );
+  });
+});
+
+// =============================================================================
 // createPreapproval() - X-Idempotency-Key
 // =============================================================================
 

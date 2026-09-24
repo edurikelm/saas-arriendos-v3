@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createHmac } from "crypto";
+import { addMonths } from "date-fns";
 
 import { buildManifest, computeSignature } from "../../__tests__/helpers";
+import { PRO_PRICING } from "@/lib/subscriptions/pricing";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Mocks — hoisted para estar disponibles antes de los imports del módulo
@@ -10,15 +12,8 @@ import { buildManifest, computeSignature } from "../../__tests__/helpers";
 const mockApplySubscriptionEvent = vi.fn();
 const mockGetSubscriptionByPreapprovalId = vi.fn();
 const mockFetchPreapproval = vi.fn();
-const mockPrismaSubscriptionFindFirst = vi.fn();
-
-vi.mock("@/lib/db/prisma", () => ({
-  prisma: {
-    subscription: {
-      findFirst: mockPrismaSubscriptionFindFirst,
-    },
-  },
-}));
+const mockFetchAuthorizedPayment = vi.fn();
+const mockHasSubscriptionEventForAuthorizedPayment = vi.fn();
 
 vi.mock("@/lib/subscriptions/lifecycle", () => ({
   applySubscriptionEvent: mockApplySubscriptionEvent,
@@ -26,11 +21,13 @@ vi.mock("@/lib/subscriptions/lifecycle", () => ({
 
 vi.mock("@/lib/subscriptions/queries", () => ({
   getSubscriptionByPreapprovalId: mockGetSubscriptionByPreapprovalId,
+  hasSubscriptionEventForAuthorizedPayment: mockHasSubscriptionEventForAuthorizedPayment,
 }));
 
 vi.mock("@/lib/payment/pro-gateway", () => ({
   getProGateway: () => ({
     fetchPreapproval: mockFetchPreapproval,
+    fetchAuthorizedPayment: mockFetchAuthorizedPayment,
   }),
 }));
 
@@ -349,6 +346,7 @@ describe("verifyMpProWebhookSignature", () => {
 describe("POST /api/webhooks/mercadopago-pro", () => {
   beforeEach(() => {
     mockApplySubscriptionEvent.mockResolvedValue({ subscription: {} });
+    mockHasSubscriptionEventForAuthorizedPayment.mockResolvedValue(false);
   });
 
   it("returns 401 when x-signature header is missing", async () => {
@@ -605,59 +603,543 @@ describe("POST /api/webhooks/mercadopago-pro", () => {
     );
   });
 
-  it("authorized_payment topic: applies renewed event on first AUTHORIZED subscription", async () => {
-    process.env.MERCADOPAGO_PRO_WEBHOOK_SECRET = "pro-secret";
-    const secret = "pro-secret";
-    const paymentId = "mp-payment-999";
-    const ts = String(Math.floor(Date.now() / 1000));
-    const requestId = "req-abc";
-    const sig = computeSignature(secret, buildManifest(paymentId, requestId, ts));
+  describe("authorized_payment topic", () => {
+    function makeAuthorizedPaymentRequest(authorizedPaymentId: string) {
+      process.env.MERCADOPAGO_PRO_WEBHOOK_SECRET = "pro-secret";
+      const secret = "pro-secret";
+      const ts = String(Math.floor(Date.now() / 1000));
+      const requestId = "req-abc";
+      const sig = computeSignature(secret, buildManifest(authorizedPaymentId, requestId, ts));
 
-    mockPrismaSubscriptionFindFirst.mockResolvedValue({
-      id: "sub-6",
-      status: "AUTHORIZED",
+      return makeRequest(
+        `https://example.com/api/webhooks/mercadopago-pro?data.id=${authorizedPaymentId}&topic=authorized_payment`,
+        JSON.stringify({
+          action: "authorized_payment.created",
+          data: { id: authorizedPaymentId },
+        }),
+        { "x-request-id": requestId, "x-signature": `ts=${ts},v1=${sig}` },
+      );
+    }
+
+    it("approved: looks up the subscription by the payment's preapprovalId and renews THAT one (#190 regression)", async () => {
+      const authorizedPaymentId = "ap-999";
+
+      mockFetchAuthorizedPayment.mockResolvedValue({
+        id: authorizedPaymentId,
+        preapprovalId: "preapproval-owner-b",
+        paymentId: "payment-b-1",
+        paymentStatus: "approved",
+        debitDate: "2026-09-21T10:00:00.000-04:00",
+      });
+
+      // Dos suscripciones distintas conviven — el bug renovaba la primera
+      // que encontraba (owner A) sin importar cuál preapproval fue cobrado.
+      mockGetSubscriptionByPreapprovalId.mockImplementation((preapprovalId: string) => {
+        if (preapprovalId === "preapproval-owner-a") {
+          return Promise.resolve({ id: "sub-owner-a", status: "AUTHORIZED" });
+        }
+        if (preapprovalId === "preapproval-owner-b") {
+          return Promise.resolve({ id: "sub-owner-b", status: "AUTHORIZED" });
+        }
+        return Promise.resolve(null);
+      });
+      mockFetchPreapproval.mockResolvedValue({
+        nextPaymentDate: "2026-10-21T10:00:00.000-04:00",
+      });
+
+      const response = await makeAuthorizedPaymentRequest(authorizedPaymentId);
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        received: true,
+        subscriptionId: "sub-owner-b",
+      });
+      expect(mockGetSubscriptionByPreapprovalId).toHaveBeenCalledWith(
+        "preapproval-owner-b",
+      );
+      expect(mockFetchPreapproval).toHaveBeenCalledWith("preapproval-owner-b");
+      expect(mockApplySubscriptionEvent).toHaveBeenCalledWith({
+        type: "renewed",
+        subscriptionId: "sub-owner-b", // NOT sub-owner-a
+        payload: {
+          source: "webhook",
+          mpAuthorizedPaymentId: authorizedPaymentId,
+          mpPaymentId: "payment-b-1",
+          startDate: "2026-09-21T10:00:00.000-04:00",
+          endDate: "2026-10-21T10:00:00.000-04:00",
+          nextPaymentDate: "2026-10-21T10:00:00.000-04:00",
+        },
+      });
     });
-    mockApplySubscriptionEvent.mockResolvedValue({ subscription: {} });
 
-    const response = await makeRequest(
-      `https://example.com/api/webhooks/mercadopago-pro?data.id=${paymentId}&topic=authorized_payment`,
-      JSON.stringify({ action: "authorized_payment.created", data: { id: paymentId } }),
-      { "x-request-id": requestId, "x-signature": `ts=${ts},v1=${sig}` },
-    );
+    it("rejected: applies payment_failed with mpPaymentId and does not fetch the preapproval", async () => {
+      const authorizedPaymentId = "ap-rejected-1";
 
-    expect(response.status).toBe(200);
-    expect(mockPrismaSubscriptionFindFirst).toHaveBeenCalledWith({
-      where: { status: "AUTHORIZED" },
+      mockFetchAuthorizedPayment.mockResolvedValue({
+        id: authorizedPaymentId,
+        preapprovalId: "preapproval-1",
+        paymentId: "payment-rejected-1",
+        paymentStatus: "rejected",
+        paymentStatusDetail: "cc_rejected_insufficient_amount",
+      });
+      mockGetSubscriptionByPreapprovalId.mockResolvedValue({
+        id: "sub-1",
+        status: "AUTHORIZED",
+      });
+
+      const response = await makeAuthorizedPaymentRequest(authorizedPaymentId);
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        received: true,
+        subscriptionId: "sub-1",
+      });
+      expect(mockApplySubscriptionEvent).toHaveBeenCalledWith({
+        type: "payment_failed",
+        subscriptionId: "sub-1",
+        payload: {
+          source: "webhook",
+          mpAuthorizedPaymentId: authorizedPaymentId,
+          mpPaymentId: "payment-rejected-1",
+          statusDetail: "cc_rejected_insufficient_amount",
+        },
+      });
+      expect(mockFetchPreapproval).not.toHaveBeenCalled();
     });
-    expect(mockApplySubscriptionEvent).toHaveBeenCalledWith({
-      type: "renewed",
-      subscriptionId: "sub-6",
-      payload: { source: "webhook", mpPaymentId: paymentId },
+
+    it("rejected duplicate: returns 200 duplicate:true, lifecycle not called", async () => {
+      const authorizedPaymentId = "ap-rejected-dup";
+
+      mockFetchAuthorizedPayment.mockResolvedValue({
+        id: authorizedPaymentId,
+        preapprovalId: "preapproval-1",
+        paymentId: "payment-dup-rejected",
+        paymentStatus: "rejected",
+      });
+      mockGetSubscriptionByPreapprovalId.mockResolvedValue({
+        id: "sub-1",
+        status: "AUTHORIZED",
+      });
+      mockHasSubscriptionEventForAuthorizedPayment.mockResolvedValue(true);
+
+      const response = await makeAuthorizedPaymentRequest(authorizedPaymentId);
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        received: true,
+        subscriptionId: "sub-1",
+        duplicate: true,
+      });
+      expect(mockHasSubscriptionEventForAuthorizedPayment).toHaveBeenCalledWith(
+        "sub-1",
+        "payment_failed",
+        "mpPaymentId",
+        "payment-dup-rejected",
+      );
+      expect(mockApplySubscriptionEvent).not.toHaveBeenCalled();
     });
-  });
 
-  it("authorized_payment with no AUTHORIZED subscription: returns 200 with warning", async () => {
-    process.env.MERCADOPAGO_PRO_WEBHOOK_SECRET = "pro-secret";
-    const secret = "pro-secret";
-    const paymentId = "mp-payment-noauth";
-    const ts = String(Math.floor(Date.now() / 1000));
-    const requestId = "req-abc";
-    const sig = computeSignature(secret, buildManifest(paymentId, requestId, ts));
+    it("two rejected deliveries with different paymentIds under the same authorizedPaymentId: lifecycle called for each", async () => {
+      const authorizedPaymentId = "ap-rejected-retry";
 
-    mockPrismaSubscriptionFindFirst.mockResolvedValue(null);
+      mockGetSubscriptionByPreapprovalId.mockResolvedValue({
+        id: "sub-1",
+        status: "AUTHORIZED",
+      });
 
-    const response = await makeRequest(
-      `https://example.com/api/webhooks/mercadopago-pro?data.id=${paymentId}&topic=authorized_payment`,
-      JSON.stringify({ action: "authorized_payment.created", data: { id: paymentId } }),
-      { "x-request-id": requestId, "x-signature": `ts=${ts},v1=${sig}` },
-    );
+      mockFetchAuthorizedPayment.mockResolvedValueOnce({
+        id: authorizedPaymentId,
+        preapprovalId: "preapproval-1",
+        paymentId: "payment-attempt-1",
+        paymentStatus: "rejected",
+      });
+      const response1 = await makeAuthorizedPaymentRequest(authorizedPaymentId);
+      expect(response1.status).toBe(200);
 
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      received: true,
-      warning: "No authorized subscription",
+      mockFetchAuthorizedPayment.mockResolvedValueOnce({
+        id: authorizedPaymentId,
+        preapprovalId: "preapproval-1",
+        paymentId: "payment-attempt-2",
+        paymentStatus: "rejected",
+      });
+      const response2 = await makeAuthorizedPaymentRequest(authorizedPaymentId);
+      expect(response2.status).toBe(200);
+
+      expect(mockApplySubscriptionEvent).toHaveBeenCalledTimes(2);
+      expect(mockApplySubscriptionEvent).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          type: "payment_failed",
+          payload: expect.objectContaining({ mpPaymentId: "payment-attempt-1" }),
+        }),
+      );
+      expect(mockApplySubscriptionEvent).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          type: "payment_failed",
+          payload: expect.objectContaining({ mpPaymentId: "payment-attempt-2" }),
+        }),
+      );
     });
-    expect(mockApplySubscriptionEvent).not.toHaveBeenCalled();
+
+    it("rejected with paymentId undefined: dedupe helper not called, payment_failed still applied", async () => {
+      const authorizedPaymentId = "ap-rejected-no-payment-id";
+
+      mockFetchAuthorizedPayment.mockResolvedValue({
+        id: authorizedPaymentId,
+        preapprovalId: "preapproval-1",
+        paymentStatus: "rejected",
+        paymentStatusDetail: "cc_rejected_call_for_authorize",
+      });
+      mockGetSubscriptionByPreapprovalId.mockResolvedValue({
+        id: "sub-1",
+        status: "AUTHORIZED",
+      });
+
+      const response = await makeAuthorizedPaymentRequest(authorizedPaymentId);
+
+      expect(response.status).toBe(200);
+      expect(mockHasSubscriptionEventForAuthorizedPayment).not.toHaveBeenCalled();
+      expect(mockApplySubscriptionEvent).toHaveBeenCalledWith({
+        type: "payment_failed",
+        subscriptionId: "sub-1",
+        payload: {
+          source: "webhook",
+          mpAuthorizedPaymentId: authorizedPaymentId,
+          mpPaymentId: undefined,
+          statusDetail: "cc_rejected_call_for_authorize",
+        },
+      });
+    });
+
+    it("duplicate approved: returns 200 duplicate:true and does not call lifecycle", async () => {
+      const authorizedPaymentId = "ap-dup-1";
+
+      mockFetchAuthorizedPayment.mockResolvedValue({
+        id: authorizedPaymentId,
+        preapprovalId: "preapproval-1",
+        paymentId: "payment-dup-1",
+        paymentStatus: "approved",
+      });
+      mockGetSubscriptionByPreapprovalId.mockResolvedValue({
+        id: "sub-1",
+        status: "AUTHORIZED",
+      });
+      mockHasSubscriptionEventForAuthorizedPayment.mockResolvedValue(true);
+
+      const response = await makeAuthorizedPaymentRequest(authorizedPaymentId);
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        received: true,
+        subscriptionId: "sub-1",
+        duplicate: true,
+      });
+      expect(mockHasSubscriptionEventForAuthorizedPayment).toHaveBeenCalledWith(
+        "sub-1",
+        "renewed",
+        "mpAuthorizedPaymentId",
+        authorizedPaymentId,
+      );
+      expect(mockApplySubscriptionEvent).not.toHaveBeenCalled();
+      expect(mockFetchPreapproval).not.toHaveBeenCalled();
+    });
+
+    it("subscription not found for the payment's preapprovalId: returns 200 warning, lifecycle not called", async () => {
+      const authorizedPaymentId = "ap-no-sub";
+
+      mockFetchAuthorizedPayment.mockResolvedValue({
+        id: authorizedPaymentId,
+        preapprovalId: "preapproval-unknown",
+        paymentId: "payment-1",
+        paymentStatus: "approved",
+      });
+      mockGetSubscriptionByPreapprovalId.mockResolvedValue(null);
+
+      const response = await makeAuthorizedPaymentRequest(authorizedPaymentId);
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        received: true,
+        warning: "Subscription not found",
+      });
+      expect(mockApplySubscriptionEvent).not.toHaveBeenCalled();
+    });
+
+    it("authorized_payment without preapprovalId: returns 200 warning", async () => {
+      const authorizedPaymentId = "ap-no-preapproval";
+
+      mockFetchAuthorizedPayment.mockResolvedValue({
+        id: authorizedPaymentId,
+        paymentStatus: "approved",
+      });
+
+      const response = await makeAuthorizedPaymentRequest(authorizedPaymentId);
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        received: true,
+        warning: "Authorized payment without preapproval",
+      });
+      expect(mockGetSubscriptionByPreapprovalId).not.toHaveBeenCalled();
+      expect(mockApplySubscriptionEvent).not.toHaveBeenCalled();
+    });
+
+    it("approved on a CANCELLED subscription: applies payment_unapplied for audit, returns warning, no renewed call", async () => {
+      const authorizedPaymentId = "ap-not-authorized";
+
+      mockFetchAuthorizedPayment.mockResolvedValue({
+        id: authorizedPaymentId,
+        preapprovalId: "preapproval-1",
+        paymentId: "payment-1",
+        paymentStatus: "approved",
+        debitDate: "2026-09-21T10:00:00.000-04:00",
+      });
+      mockGetSubscriptionByPreapprovalId.mockResolvedValue({
+        id: "sub-1",
+        status: "CANCELLED",
+      });
+
+      const response = await makeAuthorizedPaymentRequest(authorizedPaymentId);
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        received: true,
+        warning: "Subscription not authorized: CANCELLED",
+      });
+      expect(mockApplySubscriptionEvent).toHaveBeenCalledWith({
+        type: "payment_unapplied",
+        subscriptionId: "sub-1",
+        payload: {
+          source: "webhook",
+          mpAuthorizedPaymentId: authorizedPaymentId,
+          mpPaymentId: "payment-1",
+          subscriptionStatus: "CANCELLED",
+          debitDate: "2026-09-21T10:00:00.000-04:00",
+        },
+      });
+      expect(mockFetchPreapproval).not.toHaveBeenCalled();
+    });
+
+    it("approved on an EXPIRED subscription: applies payment_unapplied for audit too", async () => {
+      const authorizedPaymentId = "ap-expired";
+
+      mockFetchAuthorizedPayment.mockResolvedValue({
+        id: authorizedPaymentId,
+        preapprovalId: "preapproval-1",
+        paymentId: "payment-1",
+        paymentStatus: "approved",
+        debitDate: "2026-09-21T10:00:00.000-04:00",
+      });
+      mockGetSubscriptionByPreapprovalId.mockResolvedValue({
+        id: "sub-1",
+        status: "EXPIRED",
+      });
+
+      const response = await makeAuthorizedPaymentRequest(authorizedPaymentId);
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        received: true,
+        warning: "Subscription not authorized: EXPIRED",
+      });
+      expect(mockApplySubscriptionEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "payment_unapplied", subscriptionId: "sub-1" }),
+      );
+    });
+
+    it("dedupe for payment_unapplied: already recorded → lifecycle not called", async () => {
+      const authorizedPaymentId = "ap-unapplied-dup";
+
+      mockFetchAuthorizedPayment.mockResolvedValue({
+        id: authorizedPaymentId,
+        preapprovalId: "preapproval-1",
+        paymentId: "payment-1",
+        paymentStatus: "approved",
+      });
+      mockGetSubscriptionByPreapprovalId.mockResolvedValue({
+        id: "sub-1",
+        status: "CANCELLED",
+      });
+      mockHasSubscriptionEventForAuthorizedPayment.mockResolvedValue(true);
+
+      const response = await makeAuthorizedPaymentRequest(authorizedPaymentId);
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        received: true,
+        warning: "Subscription not authorized: CANCELLED",
+      });
+      expect(mockHasSubscriptionEventForAuthorizedPayment).toHaveBeenCalledWith(
+        "sub-1",
+        "payment_unapplied",
+        "mpAuthorizedPaymentId",
+        authorizedPaymentId,
+      );
+      expect(mockApplySubscriptionEvent).not.toHaveBeenCalled();
+    });
+
+    it("approved without debitDate: startDate falls back to dateCreated", async () => {
+      const authorizedPaymentId = "ap-no-debitdate";
+
+      mockFetchAuthorizedPayment.mockResolvedValue({
+        id: authorizedPaymentId,
+        preapprovalId: "preapproval-1",
+        paymentId: "payment-1",
+        paymentStatus: "approved",
+        dateCreated: "2026-09-10T08:00:00.000-04:00",
+      });
+      mockGetSubscriptionByPreapprovalId.mockResolvedValue({
+        id: "sub-1",
+        status: "AUTHORIZED",
+      });
+      mockFetchPreapproval.mockResolvedValue({
+        nextPaymentDate: "2026-10-10T08:00:00.000-04:00",
+      });
+
+      const response = await makeAuthorizedPaymentRequest(authorizedPaymentId);
+
+      expect(response.status).toBe(200);
+      expect(mockApplySubscriptionEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            startDate: "2026-09-10T08:00:00.000-04:00",
+          }),
+        }),
+      );
+    });
+
+    it("approved where fetchPreapproval throws: returns 500, lifecycle not called", async () => {
+      const authorizedPaymentId = "ap-preapproval-error";
+
+      mockFetchAuthorizedPayment.mockResolvedValue({
+        id: authorizedPaymentId,
+        preapprovalId: "preapproval-1",
+        paymentId: "payment-1",
+        paymentStatus: "approved",
+        debitDate: "2026-09-21T10:00:00.000-04:00",
+      });
+      mockGetSubscriptionByPreapprovalId.mockResolvedValue({
+        id: "sub-1",
+        status: "AUTHORIZED",
+      });
+      mockFetchPreapproval.mockRejectedValue(new Error("MP API is down"));
+
+      const response = await makeAuthorizedPaymentRequest(authorizedPaymentId);
+
+      expect(response.status).toBe(500);
+      expect(await response.json()).toEqual({ error: "Webhook processing error" });
+      expect(mockApplySubscriptionEvent).not.toHaveBeenCalled();
+    });
+
+    it("stale nextPaymentDate (<= debitDate): endDate falls back to debitDate + 1 month of plan", async () => {
+      const authorizedPaymentId = "ap-stale-next-payment";
+      const debitDate = "2026-09-21T10:00:00.000-04:00";
+
+      mockFetchAuthorizedPayment.mockResolvedValue({
+        id: authorizedPaymentId,
+        preapprovalId: "preapproval-1",
+        paymentId: "payment-1",
+        paymentStatus: "approved",
+        debitDate,
+      });
+      mockGetSubscriptionByPreapprovalId.mockResolvedValue({
+        id: "sub-1",
+        status: "AUTHORIZED",
+      });
+      // next_payment_date que MP no alcanzó a avanzar aún — igual al débito
+      mockFetchPreapproval.mockResolvedValue({ nextPaymentDate: debitDate });
+
+      const response = await makeAuthorizedPaymentRequest(authorizedPaymentId);
+
+      expect(response.status).toBe(200);
+      const expectedFallback = addMonths(
+        new Date(debitDate),
+        PRO_PRICING.monthly.frequency,
+      ).toISOString();
+      expect(mockApplySubscriptionEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            startDate: debitDate,
+            endDate: expectedFallback,
+            nextPaymentDate: expectedFallback,
+          }),
+        }),
+      );
+    });
+
+    it("missing nextPaymentDate: same debitDate + 1 month fallback as stale", async () => {
+      const authorizedPaymentId = "ap-missing-next-payment";
+      const debitDate = "2026-09-21T10:00:00.000-04:00";
+
+      mockFetchAuthorizedPayment.mockResolvedValue({
+        id: authorizedPaymentId,
+        preapprovalId: "preapproval-1",
+        paymentId: "payment-1",
+        paymentStatus: "approved",
+        debitDate,
+      });
+      mockGetSubscriptionByPreapprovalId.mockResolvedValue({
+        id: "sub-1",
+        status: "AUTHORIZED",
+      });
+      mockFetchPreapproval.mockResolvedValue({}); // sin next_payment_date
+
+      const response = await makeAuthorizedPaymentRequest(authorizedPaymentId);
+
+      expect(response.status).toBe(200);
+      const expectedFallback = addMonths(
+        new Date(debitDate),
+        PRO_PRICING.monthly.frequency,
+      ).toISOString();
+      expect(mockApplySubscriptionEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            endDate: expectedFallback,
+            nextPaymentDate: expectedFallback,
+          }),
+        }),
+      );
+    });
+
+    it("pending payment status: returns 200 warning, no lifecycle call", async () => {
+      const authorizedPaymentId = "ap-pending";
+
+      mockFetchAuthorizedPayment.mockResolvedValue({
+        id: authorizedPaymentId,
+        preapprovalId: "preapproval-1",
+        paymentId: "payment-1",
+        paymentStatus: "pending",
+      });
+      mockGetSubscriptionByPreapprovalId.mockResolvedValue({
+        id: "sub-1",
+        status: "AUTHORIZED",
+      });
+
+      const response = await makeAuthorizedPaymentRequest(authorizedPaymentId);
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        received: true,
+        subscriptionId: "sub-1",
+        warning: "Unhandled payment status: pending",
+      });
+      expect(mockApplySubscriptionEvent).not.toHaveBeenCalled();
+    });
+
+    it("gateway throws when fetching the authorized payment: returns 500", async () => {
+      const authorizedPaymentId = "ap-error";
+
+      mockFetchAuthorizedPayment.mockRejectedValue(new Error("MP API is down"));
+
+      const response = await makeAuthorizedPaymentRequest(authorizedPaymentId);
+
+      expect(response.status).toBe(500);
+      expect(await response.json()).toEqual({
+        error: "Webhook processing error",
+      });
+      expect(mockApplySubscriptionEvent).not.toHaveBeenCalled();
+    });
   });
 
   it("unknown topic: returns 200 received without processing", async () => {

@@ -37,6 +37,7 @@ export type SubscriptionEventType =
   | "failed"
   | "renewed"
   | "payment_failed"
+  | "payment_unapplied"
   | "owner_cancel"
   | "admin_cancel"
   | "duplicate"
@@ -110,6 +111,10 @@ function targetStatusFor(eventType: SubscriptionEventType): SubscriptionStatus |
       return null;
     case "payment_failed":
       // "payment_failed" mantiene AUTHORIZED — no hay cambio de estado
+      return null;
+    case "payment_unapplied":
+      // Cobro aprobado que llegó cuando la subscription ya no estaba
+      // AUTHORIZED — no hay estado que tocar, solo auditoría (#190).
       return null;
     case "duplicate":
       // "duplicate" no produce transición
@@ -382,6 +387,11 @@ export async function applySubscriptionEvent(
       // El owner es notificado por el caller (webhook/cron)
       break;
 
+    case "payment_unapplied":
+      // No cambia status ni fechas — queda solo como registro de auditoría
+      // para reconciliación (ver payload que arma el caller en el webhook)
+      break;
+
     case "duplicate":
       // Ya manejado arriba
       break;
@@ -407,7 +417,7 @@ export async function applySubscriptionEvent(
   };
 
   const result = await runInTx(async (tx) => {
-    // "payment_failed" y "duplicate" no producen cambios en la subscription.
+    // "payment_failed", "payment_unapplied" y "duplicate" no producen cambios en la subscription.
     const hasUpdate = targetStatus !== null || type === "renewed";
 
     const updatedSubscription = hasUpdate

@@ -134,6 +134,8 @@ Cuando un owner baja a FREE, sus datos persisten. Solo se desactivan las funcion
 - Reintentos de MP para el mismo evento llegan al mismo registro y solo actualizan.
 - `SubscriptionEvent` se crea con un índice compuesto `(subscriptionId, type, createdAt)` para que la lógica de dedupe viva en el caller si es necesario.
 
+**Correlación de cobros (#190):** el topic `authorized_payment` solo trae el id del cobro, no el preapproval al que pertenece — el webhook consulta `GET /authorized_payments/{id}` para obtener `preapproval_id` y el resultado del payment, y recién ahí resuelve la `Subscription` local por `mpPreapprovalId`. Buscar "cualquier" subscription `AUTHORIZED` (como hacía la versión original) renovaba la del owner equivocado en cuanto había 2+ suscripciones PRO vigentes. Un cobro `approved` sobre una subscription que sigue `AUTHORIZED` dispara `renewed`, con `currentPeriodEnd` tomado del `next_payment_date` fresco del preapproval (o `debit_date` + 1 mes si viene stale o ausente, porque MP no siempre lo avanza antes de emitir el webhook). Un cobro `rejected` dispara `payment_failed`, sin tocar el estado. Un `approved` sobre una subscription que ya no está `AUTHORIZED` (EXPIRED, CANCELLED) se registra como `payment_unapplied`, solo auditoría — reactivarla automáticamente es una decisión de producto pendiente. La idempotencia de estos tres casos vive en `SubscriptionEvent.payload` (`mpAuthorizedPaymentId` / `mpPaymentId`), no en una columna única, porque un mismo `authorized_payment` puede reintentar cobros rechazados con `payment_id` distinto cada vez.
+
 ### 7. Precio hardcoded en `lib/subscriptions/pricing.ts`
 
 ```ts
