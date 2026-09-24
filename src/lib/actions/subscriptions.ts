@@ -33,14 +33,20 @@ import { cancelSubscriptionSchema } from "@/lib/validations/subscriptions";
 import { recordSubscriptionNotification } from "@/lib/notifications/subscription-events";
 import { resolveEffectivePlan } from "@/lib/subscriptions/effective-plan";
 import { revalidateAfterPlanChange } from "@/lib/subscriptions/revalidate-plan";
+import { canStartUpgrade } from "@/lib/subscriptions/upgrade-eligibility";
 
 // ────────────────────────────────────────────────────────────────────────────
 // getCurrentSubscription
 // ────────────────────────────────────────────────────────────────────────────
 
 /**
- * Devuelve la suscripción activa del owner actual o null.
- * Retornable desde server component.
+ * Devuelve la fila de `Subscription` del owner actual, cualquiera sea su
+ * status, o `null` si nunca tuvo una. Retornable desde server component.
+ *
+ * No filtra por status a propósito: las superficies de owner (billing,
+ * settings, dashboard, pricing) necesitan ver también `CANCELLED` (para
+ * decidir si el período pagado sigue vigente) y `EXPIRED`/`FAILED` (para
+ * ofrecer "Activar PRO" de nuevo) — ver `getOwnerSubscription` (#195 ronda 2).
  */
 export async function getCurrentSubscriptionAction() {
   const session = await requireOwner();
@@ -50,6 +56,42 @@ export async function getCurrentSubscriptionAction() {
 // ────────────────────────────────────────────────────────────────────────────
 // startProUpgrade
 // ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Traduce `canStartUpgrade` en el error que ve el owner cuando su fila actual
+ * no es reemplazable. Un solo lugar para el pre-check (fuera de tx) y el
+ * re-check (dentro de tx) de `startProUpgrade`, así ambos dan el mismo mensaje
+ * en vez de que el segundo choque con `userId @unique` (P2002).
+ */
+function throwIfNotEligibleForUpgrade(
+  existing: { status: string; currentPeriodEnd: Date | null } | null,
+): void {
+  if (canStartUpgrade(existing)) return;
+
+  if (existing?.status === "PENDING") {
+    // El segundo click del dueño mientras la PENDING inicial aún existe.
+    throw new Error(
+      "Tienes un pago PRO pendiente de autorizar. Complétalo antes de iniciar otro.",
+    );
+  }
+
+  if (existing?.status === "CANCELLED") {
+    // No elegible acá significa período vigente (currentPeriodEnd futuro):
+    // canStartUpgrade ya deriva FREE — y por lo tanto elegible — para
+    // currentPeriodEnd nulo o vencido (ADR-0034).
+    const endDate = existing.currentPeriodEnd
+      ? existing.currentPeriodEnd.toLocaleDateString("es-CL", {
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+        })
+      : "que termine tu período actual";
+    throw new Error(`Tu suscripción PRO sigue activa hasta ${endDate}`);
+  }
+
+  // AUTHORIZED / PAUSED.
+  throw new Error("Ya tienes PRO activo");
+}
 
 /**
  * Inicia el flujo de upgrade a PRO.
@@ -71,41 +113,14 @@ export async function startProUpgrade(): Promise<{
   const session = await requireOwner();
   const { userId, email } = session;
 
-  // Pre-check (existente, fuera de tx — solo bloquea casos no elegibles)
+  // Pre-check (existente, fuera de tx — solo bloquea casos no elegibles).
+  // `canStartUpgrade` es la MISMA regla que el re-check dentro de la tx más
+  // abajo (ver upgrade-eligibility.ts): sin subscription, o EXPIRED/FAILED, o
+  // CANCELLED cuyo plan efectivo ya es FREE.
   const existing = await getCurrentSubscription(userId);
+  throwIfNotEligibleForUpgrade(existing);
 
-  if (existing) {
-    if (existing.status === "AUTHORIZED" || existing.status === "PAUSED") {
-      throw new Error("Ya tienes PRO activo");
-    }
-    if (existing.status === "PENDING") {
-      // El segundo click del dueño mientras la PENDING inicial aún existe.
-      // La protección real está en el tx (P2002 si intenta create de nuevo),
-      // pero damos un mensaje útil aquí.
-      throw new Error(
-        "Tienes un pago PRO pendiente de autorizar. Complétalo antes de iniciar otro.",
-      );
-    }
-    if (existing.status === "CANCELLED") {
-      // CANCELLED con período vigente (currentPeriodEnd futuro o null legacy):
-      // bloquear. CANCELLED-expirado cae al path de replace.
-      // Si currentPeriodEnd es null (dato legacy), tratamos como vigente por safety:
-      // el owner puede tener acceso a features PRO sin que podamos probar lo contrario.
-      if (!existing.currentPeriodEnd || existing.currentPeriodEnd > new Date()) {
-        const endDate = existing.currentPeriodEnd
-          ? existing.currentPeriodEnd.toLocaleDateString("es-CL", {
-              day: "2-digit",
-              month: "long",
-              year: "numeric",
-            })
-          : "que termine tu período actual";
-        throw new Error(`Tu suscripción PRO sigue activa hasta ${endDate}`);
-      }
-      // else: CANCELLED-expired → cae al replace
-    }
-  }
-
-  // ── REEMPLAZAR: dentro de tx, si existe fila EXPIRED/FAILED → delete + create ──
+  // ── REEMPLAZAR: dentro de tx, si existe fila EXPIRED/FAILED/CANCELLED-FREE → delete + create ──
   // (mover el try/catch interno al bloque tx para atomicidad)
 
   let subscription: import("@prisma/client").Subscription;
@@ -113,20 +128,18 @@ export async function startProUpgrade(): Promise<{
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      // Re-check dentro de tx (doble-click concurrente: puede que la fila ya no exista)
+      // Re-check dentro de tx (doble-click concurrente, o el estado cambió
+      // entre el pre-check y acá — p.ej. un webhook concurrente autorizó la
+      // subscription). Frena con el mismo error amigable del pre-check en vez
+      // de dejar que el create de abajo choque con `userId @unique` (P2002).
       const fresh = await tx.subscription.findUnique({ where: { userId } });
+      throwIfNotEligibleForUpgrade(fresh);
 
-      if (
-        fresh &&
-        (fresh.status === "EXPIRED" ||
-          fresh.status === "FAILED" ||
-          // CANCELLED-expirado también es reemplazable: el pre-check lo dejó pasar
-          // (porque currentPeriodEnd <= now), pero la fila sigue ocupando el
-          // userId @unique. El cron eventualmente la convertiría a EXPIRED,
-          // pero no podemos esperar al cron aquí.
-          (fresh.status === "CANCELLED" &&
-            (!fresh.currentPeriodEnd || fresh.currentPeriodEnd <= new Date())))
-      ) {
+      if (fresh) {
+        // Reemplazable (EXPIRED/FAILED/CANCELLED-expirado): la fila sigue
+        // ocupando el `userId @unique` aunque ya no honre ningún período
+        // pagado. El cron eventualmente la convertiría a EXPIRED, pero no
+        // podemos esperar al cron aquí.
         // Borrar eventos de la subscription vieja (FK RESTRICT lo exige)
         await tx.subscriptionEvent.deleteMany({
           where: { subscriptionId: fresh.id },

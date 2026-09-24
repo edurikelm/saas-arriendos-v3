@@ -62,6 +62,11 @@ export function BillingClient({ subscription, usage, activeExternalCalendarCount
     now,
   );
 
+  // Acceso PRO en efecto: AUTHORIZED/PAUSED, o CANCELLED con período vigente.
+  // Gobierna qué se muestra como "incluido" (features, límites) — no la
+  // facturación futura, que solo aplica a `isPro` (ver planPrice/precio).
+  const hasProAccess = isPro || hasActiveCancellation;
+
   let planName: "FREE" | "PRO" = "FREE";
   let badgeVariant: "default" | "secondary" | "warning" = "secondary";
   if (isPro) {
@@ -86,16 +91,21 @@ export function BillingClient({ subscription, usage, activeExternalCalendarCount
             <div className="flex items-center justify-between">
               <CardTitle>Plan actual</CardTitle>
               <Badge variant={badgeVariant} className="text-sm">
-                {(isPro || hasActiveCancellation) && (
-                  <Sparkles className="size-3 mr-1" />
-                )}
+                {/* Mismo criterio que plan-overview-card.tsx: Sparkles solo
+                    para PRO facturando, no durante una cancelación vigente. */}
+                {isPro && <Sparkles className="size-3 mr-1" />}
                 {planName}
               </Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <p className="text-3xl font-bold">{planPrice}</p>
+              {/* Mismo criterio que plan-overview-card.tsx: sin línea de precio
+                  durante una cancelación vigente — "Gratis" sería falso (sigue
+                  PRO) y el monto sería falso (MP ya no va a cobrar de nuevo). */}
+              {!hasActiveCancellation && (
+                <p className="text-3xl font-bold">{planPrice}</p>
+              )}
               {isPro && subscription?.currentPeriodEnd && (
                 <p className="text-sm text-muted-foreground mt-1">
                   Próximo cobro:{" "}
@@ -170,17 +180,17 @@ export function BillingClient({ subscription, usage, activeExternalCalendarCount
             <CardTitle>Tu plan incluye</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <FeatureRow label="Propiedades" included={isPro} value={isPro ? "Ilimitadas" : "3"} />
-            <FeatureRow label="Clientes" included={isPro} value={isPro ? "Ilimitados" : "5"} />
+            <FeatureRow label="Propiedades" included={hasProAccess} value={hasProAccess ? "Ilimitadas" : "3"} />
+            <FeatureRow label="Clientes" included={hasProAccess} value={hasProAccess ? "Ilimitados" : "5"} />
             <FeatureRow
               label="Sincronización iCal (Airbnb, Booking, VRBO)"
-              included={isPro}
+              included={hasProAccess}
             />
             <FeatureRow
               label="Documentos de reserva (contratos, anexos)"
-              included={isPro}
+              included={hasProAccess}
             />
-            <FeatureRow label="Reportes con rango completo" included={isPro} />
+            <FeatureRow label="Reportes con rango completo" included={hasProAccess} />
           </CardContent>
         </Card>
       </div>
@@ -202,7 +212,7 @@ export function BillingClient({ subscription, usage, activeExternalCalendarCount
               current={usage.clients}
               limit={usage.clientsLimit}
             />
-            {isPro && (
+            {hasProAccess && (
               <p className="text-xs text-muted-foreground">
                 Eres PRO. No tienes límites.
               </p>

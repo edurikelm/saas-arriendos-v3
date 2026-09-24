@@ -141,6 +141,60 @@ describe("BillingClient", () => {
     ).toBeTruthy();
   });
 
+  it("CANCELLED con período vigente: features 'Tu plan incluye' se muestran como incluidas (hasProAccess)", () => {
+    const futurePeriodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const sub = createMockSubscription({
+      status: "CANCELLED",
+      currentPeriodEnd: futurePeriodEnd,
+    });
+    const usage: OwnerUsage = {
+      properties: 10,
+      clients: 50,
+      propertiesLimit: Infinity,
+      clientsLimit: Infinity,
+    };
+    render(<BillingClient subscription={sub} usage={usage} />);
+
+    // Propiedades/Clientes se muestran "Ilimitadas"/"Ilimitados", no line-through
+    expect(screen.getByText("Ilimitadas")).toBeTruthy();
+    expect(screen.getByText("Ilimitados")).toBeTruthy();
+    // El caption de "Eres PRO" del panel de uso también refleja el acceso PRO
+    expect(screen.getByText(/no tienes límites/i)).toBeTruthy();
+  });
+
+  it("CANCELLED con período vigente: no muestra 'Gratis' como precio (sigue PRO en efecto)", () => {
+    const futurePeriodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const sub = createMockSubscription({
+      status: "CANCELLED",
+      currentPeriodEnd: futurePeriodEnd,
+    });
+    render(<BillingClient subscription={sub} usage={baseUsage} />);
+
+    expect(screen.queryByText("Gratis")).toBeNull();
+  });
+
+  it("Sparkles: solo en badge PRO facturando, no durante una cancelación vigente (consistente con plan-overview-card)", () => {
+    const futurePeriodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const cancelledSub = createMockSubscription({
+      status: "CANCELLED",
+      currentPeriodEnd: futurePeriodEnd,
+    });
+    const { container: cancelledContainer } = render(
+      <BillingClient subscription={cancelledSub} usage={baseUsage} />,
+    );
+    expect(
+      cancelledContainer.querySelector('svg[class*="lucide-sparkles"]'),
+    ).toBeNull();
+
+    const authorizedSub = createMockSubscription({ status: "AUTHORIZED" });
+    const { container: authorizedContainer } = render(
+      <BillingClient subscription={authorizedSub} usage={baseUsage} />,
+    );
+    expect(
+      authorizedContainer.querySelector('svg[class*="lucide-sparkles"]'),
+    ).toBeTruthy();
+  });
+
   it("muestra usage correcto: usage.properties=2, propertiesLimit=3 → '2 / 3'", () => {
     const usage: OwnerUsage = {
       ...baseUsage,

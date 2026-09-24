@@ -35,8 +35,10 @@ export type QueryAdapter = Prisma.TransactionClient | typeof prisma;
  * Busca la suscripción activa de un owner.
  * "Activa" = status IN (PENDING, AUTHORIZED, PAUSED).
  *
- * Usada por `getCurrentSubscription` (server action) para determinar
- * el plan actual del owner sin consultar `UserProfile.plan`.
+ * Usada por `applySubscriptionEvent({ type: "created" })` para el pre-check
+ * de "el owner ya tiene una subscription en curso" y por los callers de
+ * admin. **No** es la lectura que usan las superficies de owner — para eso
+ * ver `getOwnerSubscription`, que trae la fila sin filtrar por status.
  */
 export async function getActiveSubscription(
   userId: string,
@@ -48,6 +50,26 @@ export async function getActiveSubscription(
       status: { in: ["PENDING", "AUTHORIZED", "PAUSED"] },
     },
   });
+}
+
+/**
+ * Busca la fila de `Subscription` del owner, cualquiera sea su `status`.
+ *
+ * `userId @unique` garantiza a lo sumo una fila. Esta es LA lectura que usan
+ * las superficies de owner (settings, billing, dashboard, pricing) vía
+ * `getCurrentSubscription`/`getCurrentSubscriptionAction`: a diferencia de
+ * `getActiveSubscription`, necesitan ver también `CANCELLED` (para decidir si
+ * el período pagado sigue vigente — `hasActiveCancellation`, `canStartUpgrade`)
+ * y `EXPIRED`/`FAILED` (para ofrecer "Activar PRO" de nuevo). Filtrar por
+ * status acá era el bug de #195 ronda 2: la UI de owner recibía `null` para
+ * una `CANCELLED` con período vigente y mostraba FREE + "Activar PRO", que al
+ * hacer click chocaba con `userId @unique` (P2002) porque la fila seguía viva.
+ */
+export async function getOwnerSubscription(
+  userId: string,
+  adapter: QueryAdapter = prisma,
+): Promise<Subscription | null> {
+  return adapter.subscription.findUnique({ where: { userId } });
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -118,7 +140,9 @@ export async function listSubscriptionEvents(
  *
  * Retorna `null` si:
  * - Nunca hubo un downgrade para este owner (FREE puro → PRO).
- * - El downgrade fue revertido antes de expirar (CANCELLED-vigente → reactivado).
+ * - La subscription pasó por `CANCELLED` sin llegar a expirar y volvió a
+ *   `AUTHORIZED` antes del downgrade (la transición sigue en `state-machine.ts`,
+ *   aunque ningún flujo de owner la dispara hoy — no existe reactivar, #195).
  * - El payload no contiene `downgradeSnapshot` (evento legacy o corruption).
  *
  * Usado por `restoreExternalCalendars` (#224).

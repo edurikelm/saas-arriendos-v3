@@ -19,6 +19,7 @@ export default async function PricingRoute() {
     <PricingPage
       session={session}
       subscriptionStatus={subscription?.status ?? null}
+      subscriptionCurrentPeriodEnd={subscription?.currentPeriodEnd ?? null}
     />
   );
 }

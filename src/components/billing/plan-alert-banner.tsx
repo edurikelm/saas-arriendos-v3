@@ -24,8 +24,8 @@ type PlanAlertBannerProps = {
  *    Un owner que baja de PRO no se acerca al límite: aterriza arriba de él,
  *    y decirle "cerca del límite" con 7 propiedades sobre 3 es falso. Ver
  *    `PRODUCT.md` (Límites de plan y downgrade) para la política.
- * 3. CANCELLED con `currentPeriodEnd > now` → empujar reactivación mientras
- *    el período pagado sigue vigente.
+ * 3. CANCELLED con `currentPeriodEnd > now` → avisar que PRO sigue vigente
+ *    hasta esa fecha (no existe reactivar, #195: el CTA lleva a ver el plan).
  *
  * Los umbrales salen de `usage.propertiesLimit` / `usage.clientsLimit`, nunca
  * de constantes: el copy hardcodeaba "/3" y "/5", así que decía la verdad solo

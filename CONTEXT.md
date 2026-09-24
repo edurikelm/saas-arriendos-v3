@@ -171,6 +171,15 @@ flag de reactivación); una vez vencido, vuelve a PRO con "Activar PRO"
 (`startProUpgrade`, el mismo flujo que reemplaza una fila `EXPIRED`/`FAILED`).
 Ver ADR-0027 §3.
 
+Las pantallas de owner (`/settings`, `/settings/billing`, `/dashboard`,
+`/pricing`) leen la fila `Subscription` del owner **sin filtrar por status**
+(`getCurrentSubscriptionAction` → `getOwnerSubscription`, `userId @unique`
+garantiza a lo sumo una fila): necesitan ver también `CANCELLED` para decidir
+si el período pagado sigue vigente, y `EXPIRED`/`FAILED` para ofrecer
+"Activar PRO" de nuevo. La lectura que sí filtra a PENDING/AUTHORIZED/PAUSED
+(`getActiveSubscription`) es un helper distinto para el pre-check de crear
+una subscription nueva y para los callers de admin.
+
 **Razón:** el sidebar ya tiene 9 items; añadir "Plan y facturación" como
 sub-item no aporta mucho vs el card de Configuración. El banner respeta la
 regla "Operate" del design system: muestra lo urgente, oculta lo estable.

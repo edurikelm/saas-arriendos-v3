@@ -106,12 +106,15 @@ describe("PricingPage", () => {
     });
   });
 
-  describe("CTAs para owner CANCELLED", () => {
+  describe("CTAs para owner CANCELLED con período vigente", () => {
+    const futurePeriodEnd = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
+
     it("PRO muestra 'Ver mi plan' con link a /settings/billing", () => {
       render(
         <PricingPage
           session={mockOwnerSession}
           subscriptionStatus={"CANCELLED" as SubscriptionStatus}
+          subscriptionCurrentPeriodEnd={futurePeriodEnd}
         />
       );
 
@@ -127,6 +130,7 @@ describe("PricingPage", () => {
         <PricingPage
           session={mockOwnerSession}
           subscriptionStatus={"CANCELLED" as SubscriptionStatus}
+          subscriptionCurrentPeriodEnd={futurePeriodEnd}
         />
       );
 
@@ -135,6 +139,39 @@ describe("PricingPage", () => {
       });
       expect(freeBtn).toBeTruthy();
       expect((freeBtn as HTMLButtonElement).disabled).toBe(true);
+    });
+  });
+
+  describe("CTAs para owner CANCELLED con período vencido (#195 ronda 2)", () => {
+    const pastPeriodEnd = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    it("PRO muestra 'Activar PRO', no 'Ver mi plan' — ya bajó a FREE", () => {
+      render(
+        <PricingPage
+          session={mockOwnerSession}
+          subscriptionStatus={"CANCELLED" as SubscriptionStatus}
+          subscriptionCurrentPeriodEnd={pastPeriodEnd}
+        />
+      );
+
+      expect(screen.queryByText("Ver mi plan")).toBeNull();
+      const activateLink = screen.getByText("Activar PRO").closest("a");
+      expect(activateLink).toBeTruthy();
+      expect((activateLink as HTMLAnchorElement).href).toContain(
+        "/settings/billing"
+      );
+    });
+
+    it("sin subscriptionCurrentPeriodEnd (null legacy): también 'Activar PRO' (ADR-0034 deriva FREE)", () => {
+      render(
+        <PricingPage
+          session={mockOwnerSession}
+          subscriptionStatus={"CANCELLED" as SubscriptionStatus}
+        />
+      );
+
+      expect(screen.queryByText("Ver mi plan")).toBeNull();
+      expect(screen.getByText("Activar PRO")).toBeTruthy();
     });
   });
 

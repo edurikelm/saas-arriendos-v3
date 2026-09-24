@@ -1,7 +1,8 @@
 /**
  * `canStartUpgrade` es el reflejo de UI de la regla que aplica `startProUpgrade`
- * para decidir si reemplaza una fila EXPIRED/FAILED/CANCELLED-vencida en vez de
- * bloquear. Ver el comentario del módulo para el porqué de cada caso.
+ * para decidir si reemplaza una fila EXPIRED/FAILED/CANCELLED-con-plan-FREE en
+ * vez de bloquear. El caso CANCELLED delega en `derivePlanFromSubscription`
+ * (ADR-0034) — ver el comentario del módulo para el porqué de cada caso.
  */
 
 import { describe, it, expect } from "vitest";
@@ -64,9 +65,27 @@ describe("canStartUpgrade", () => {
     ).toBe(true);
   });
 
-  it("CANCELLED con currentPeriodEnd null: no elegible (tratado como vigente)", () => {
+  it("CANCELLED con currentPeriodEnd null: elegible (ADR-0034 deriva FREE, no hay período pagado que honrar)", () => {
     expect(
       canStartUpgrade({ status: "CANCELLED", currentPeriodEnd: null }, NOW),
+    ).toBe(true);
+  });
+
+  it("CANCELLED con currentPeriodEnd futuro serializado como string (RSC → Client): no elegible", () => {
+    expect(
+      canStartUpgrade(
+        { status: "CANCELLED", currentPeriodEnd: FUTURO.toISOString() },
+        NOW,
+      ),
     ).toBe(false);
+  });
+
+  it("CANCELLED con currentPeriodEnd pasado serializado como string (RSC → Client): elegible", () => {
+    expect(
+      canStartUpgrade(
+        { status: "CANCELLED", currentPeriodEnd: PASADO.toISOString() },
+        NOW,
+      ),
+    ).toBe(true);
   });
 });

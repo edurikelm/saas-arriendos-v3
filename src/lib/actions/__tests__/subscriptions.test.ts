@@ -171,6 +171,7 @@ const mockSession: SessionUser = {
 // ────────────────────────────────────────────────────────────────────────────
 
 import {
+  getCurrentSubscriptionAction,
   startProUpgrade,
   cancelMySubscription,
   countOwnerUsage,
@@ -192,12 +193,42 @@ beforeEach(() => {
 });
 
 // ────────────────────────────────────────────────────────────────────────────
+// getCurrentSubscriptionAction
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("getCurrentSubscriptionAction", () => {
+  it("retorna una CANCELLED con período vigente (#195 ronda 2 — antes se filtraba a null)", async () => {
+    const futureDate = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
+    const cancelled = mockSub({ status: "CANCELLED", currentPeriodEnd: futureDate });
+    mocks.subscriptionFindUnique.mockResolvedValue(cancelled);
+
+    const result = await getCurrentSubscriptionAction();
+
+    expect(result).toEqual(cancelled);
+    expect(mocks.subscriptionFindUnique).toHaveBeenCalledWith({
+      where: { userId: "user-1" },
+    });
+  });
+
+  it("retorna null si el owner nunca tuvo subscription", async () => {
+    mocks.subscriptionFindUnique.mockResolvedValue(null);
+
+    const result = await getCurrentSubscriptionAction();
+
+    expect(result).toBeNull();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
 // startProUpgrade
 // ────────────────────────────────────────────────────────────────────────────
 
 describe("startProUpgrade", () => {
   it("cuando user no tiene subscription: llama gateway, crea subscription, retorna initPoint", async () => {
-    mocks.subscriptionFindFirst.mockResolvedValue(null); // no hay active sub
+    // Pre-check (getCurrentSubscription) y re-check dentro de la tx (fresh)
+    // leen por userId con findUnique — ambas llamadas retornan null.
+    mocks.subscriptionFindUnique.mockResolvedValue(null);
+    mocks.subscriptionFindFirst.mockResolvedValue(null); // getActiveSubscription dentro de "created"
     mocks.subscriptionCreate.mockResolvedValue(mockSub({ id: "sub-new", status: "PENDING" }));
     mocks.subscriptionEventCreate.mockResolvedValue({});
     mocks.ensurePlan.mockResolvedValue({ planId: "plan-123" });
@@ -234,6 +265,7 @@ describe("startProUpgrade", () => {
     // (no el placeholder hardcoded de +30d).
     const mpPeriodEnd = "2026-09-21T10:00:00.000-04:00";
     const mpPeriodStart = "2026-08-22T10:00:00.000-04:00";
+    mocks.subscriptionFindUnique.mockResolvedValue(null); // pre-check + fresh
     mocks.subscriptionFindFirst.mockResolvedValue(null);
     mocks.subscriptionCreate.mockResolvedValue(mockSub({ id: "sub-new", status: "PENDING" }));
     mocks.subscriptionEventCreate.mockResolvedValue({});
@@ -265,6 +297,7 @@ describe("startProUpgrade", () => {
     // El +30d es solo placeholder hasta el primer webhook "authorized"
     // (que sobreescribe este valor en lifecycle.ts).
     const beforeCall = Date.now();
+    mocks.subscriptionFindUnique.mockResolvedValue(null); // pre-check + fresh
     mocks.subscriptionFindFirst.mockResolvedValue(null);
     mocks.subscriptionCreate.mockResolvedValue(mockSub({ id: "sub-new", status: "PENDING" }));
     mocks.subscriptionEventCreate.mockResolvedValue({});
@@ -294,14 +327,14 @@ describe("startProUpgrade", () => {
   });
 
   it("cuando user ya tiene subscription AUTHORIZED: throw", async () => {
-    mocks.subscriptionFindFirst.mockResolvedValue(mockSub({ status: "AUTHORIZED" }));
+    mocks.subscriptionFindUnique.mockResolvedValue(mockSub({ status: "AUTHORIZED" }));
 
     await expect(startProUpgrade()).rejects.toThrow("Ya tienes PRO activo");
   });
 
   it("cuando user tiene CANCELLED no expirada: throw con fecha", async () => {
     const futureDate = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
-    mocks.subscriptionFindFirst.mockResolvedValue(
+    mocks.subscriptionFindUnique.mockResolvedValue(
       mockSub({ status: "CANCELLED", currentPeriodEnd: futureDate }),
     );
 
@@ -319,9 +352,14 @@ describe("startProUpgrade — replace EXPIRED/FAILED", () => {
   // contaminación entre tests (vi.clearAllMocks no limpia valores de retorno).
   const setupUpgradeSuccess = (existingSub: Partial<MockSub> = {}) => {
     const newSub = mockSub({ id: "sub-new", status: "PENDING" });
-    mocks.subscriptionFindUnique.mockResolvedValueOnce(mockSub(existingSub));
+    const existing = mockSub(existingSub);
+    // Pre-check (getCurrentSubscription) y re-check dentro de la tx (fresh)
+    // leen la misma fila via findUnique — dos llamadas, mismo resultado.
+    mocks.subscriptionFindUnique
+      .mockResolvedValueOnce(existing)
+      .mockResolvedValueOnce(existing);
     mocks.subscriptionEventDeleteMany.mockResolvedValueOnce({ count: 2 });
-    mocks.subscriptionDelete.mockResolvedValueOnce(mockSub(existingSub));
+    mocks.subscriptionDelete.mockResolvedValueOnce(existing);
     mocks.subscriptionCreate.mockResolvedValueOnce(newSub);
     mocks.subscriptionEventCreate.mockResolvedValueOnce({});
     mocks.ensurePlan.mockResolvedValueOnce({ planId: "plan-123" });
@@ -376,7 +414,7 @@ describe("startProUpgrade — replace EXPIRED/FAILED", () => {
   });
 
   it("AUTHORIZED → upgrade attempt blocks (regression)", async () => {
-    mocks.subscriptionFindFirst.mockResolvedValue(
+    mocks.subscriptionFindUnique.mockResolvedValue(
       mockSub({ status: "AUTHORIZED" }),
     );
 
@@ -387,7 +425,7 @@ describe("startProUpgrade — replace EXPIRED/FAILED", () => {
   });
 
   it("PAUSED → upgrade attempt blocks (regression)", async () => {
-    mocks.subscriptionFindFirst.mockResolvedValue(
+    mocks.subscriptionFindUnique.mockResolvedValue(
       mockSub({ status: "PAUSED" }),
     );
 
@@ -399,7 +437,7 @@ describe("startProUpgrade — replace EXPIRED/FAILED", () => {
 
   it("CANCELLED-vigente → upgrade attempt blocks (regression)", async () => {
     const futureDate = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
-    mocks.subscriptionFindFirst.mockResolvedValue(
+    mocks.subscriptionFindUnique.mockResolvedValue(
       mockSub({ status: "CANCELLED", currentPeriodEnd: futureDate }),
     );
 
@@ -473,15 +511,13 @@ describe("startProUpgrade — replace EXPIRED/FAILED", () => {
   });
 
   it("Doble-click concurrente: re-check dentro de tx evita delete si la fila ya no existe", async () => {
-    // Primer llamada: la fila existe → se borra
-    // Segundo llamada (simulada): la fila ya no existe → re-check la encuentra null → skip delete
+    // Ambas lecturas por findUnique (pre-check fuera de tx y re-check "fresh"
+    // dentro de la tx) ven null: ninguna otra request creó/dejó una fila.
     const newSub = mockSub({ id: "sub-new", status: "PENDING" });
 
-    // subscriptionFindUnique retorna null en la re-check dentro de tx
-    // (la fila fue borrada por la primera llamada en el mismo test)
     mocks.subscriptionFindUnique
-      .mockResolvedValueOnce(null) // pre-check (getCurrentSubscription) → no hay sub activa
-      .mockResolvedValueOnce(null); // re-check dentro de tx → la fila ya no existe
+      .mockResolvedValueOnce(null) // pre-check (getCurrentSubscription) → no hay sub
+      .mockResolvedValueOnce(null); // re-check dentro de tx (fresh) → sigue sin existir
     mocks.subscriptionEventDeleteMany.mockResolvedValue({ count: 0 });
     mocks.subscriptionDelete.mockResolvedValue(null);
     mocks.subscriptionCreate.mockResolvedValue(newSub);
@@ -501,17 +537,58 @@ describe("startProUpgrade — replace EXPIRED/FAILED", () => {
     expect(mocks.subscriptionEventDeleteMany).not.toHaveBeenCalled();
   });
 
-  it("CANCELLED + currentPeriodEnd=null: bloquea por safety (dato legacy)", async () => {
-    // Edge case: subscription legacy sin currentPeriodEnd seteada.
-    // Sin este guard, el owner podría perder acceso inadvertidamente.
-    mocks.subscriptionFindFirst.mockResolvedValue(
-      mockSub({ status: "CANCELLED", currentPeriodEnd: null }),
-    );
+  it("Race: fresh dentro de la tx es CANCELLED vigente → error amigable, no P2002 (#195 ronda 2)", async () => {
+    // El pre-check vio null (sin subscription), pero entre el pre-check y la
+    // tx una request concurrente dejó una CANCELLED con período todavía
+    // vigente (p.ej. otra pestaña completó el ciclo create→authorize→cancel).
+    // El re-check "fresh" debe frenar con el mismo error amigable del
+    // pre-check en vez de dejar que el create de abajo choque con
+    // `userId @unique` (P2002).
+    const futureDate = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
+    mocks.subscriptionFindUnique
+      .mockResolvedValueOnce(null) // pre-check: no había nada
+      .mockResolvedValueOnce(
+        mockSub({ status: "CANCELLED", currentPeriodEnd: futureDate }),
+      ); // re-check dentro de tx: la carrera ya dejó una fila vigente
 
-    await expect(startProUpgrade()).rejects.toThrow(
-      /sigue activa hasta/i,
-    );
+    await expect(startProUpgrade()).rejects.toThrow(/sigue activa hasta/);
+    expect(mocks.subscriptionEventDeleteMany).not.toHaveBeenCalled();
     expect(mocks.subscriptionDelete).not.toHaveBeenCalled();
+    expect(mocks.subscriptionCreate).not.toHaveBeenCalled();
+  });
+
+  it("CANCELLED + currentPeriodEnd=null: replace (ADR-0034 deriva FREE, no hay período pagado que honrar)", async () => {
+    // Dato legacy: sin currentPeriodEnd seteada. derivePlanFromSubscription
+    // (ADR-0034) deriva FREE para CANCELLED+null porque no hay período pagado
+    // que honrar — canStartUpgrade sigue esa misma regla (#195 ronda 2).
+    const cancelledNull = mockSub({
+      status: "CANCELLED",
+      currentPeriodEnd: null,
+      id: "sub-cancelled-null",
+    });
+    mocks.subscriptionFindUnique
+      .mockResolvedValueOnce(cancelledNull) // pre-check
+      .mockResolvedValueOnce(cancelledNull); // re-check dentro de tx (fresh)
+    mocks.subscriptionEventDeleteMany.mockResolvedValue({ count: 1 });
+    mocks.subscriptionDelete.mockResolvedValue(cancelledNull);
+    mocks.subscriptionCreate.mockResolvedValue(
+      mockSub({ id: "sub-new", status: "PENDING" }),
+    );
+    mocks.subscriptionUpdate.mockResolvedValue(
+      mockSub({ id: "sub-new", status: "PENDING" }),
+    );
+    mocks.ensurePlan.mockResolvedValue({ planId: "plan-123" });
+    mocks.createPreapproval.mockResolvedValue({
+      preapprovalId: "preapproval-123",
+      initPoint: "https://mp.example.com/init",
+    });
+
+    const result = await startProUpgrade();
+
+    expect(result.subscriptionId).toBe("sub-new");
+    expect(mocks.subscriptionDelete).toHaveBeenCalledWith({
+      where: { id: "sub-cancelled-null" },
+    });
   });
 
   it("CANCELLED + currentPeriodEnd en el pasado: replace (regresión post-fix)", async () => {
@@ -522,14 +599,12 @@ describe("startProUpgrade — replace EXPIRED/FAILED", () => {
       currentPeriodEnd: past,
       id: "sub-cancelled-expired",
     });
-    // Pre-check retorna CANCELLED-expirado. getActiveSubscription dentro del tx
-    // filtra status IN (PENDING/AUTHORIZED,PAUSED) — CANCELLED no calza → null.
-    mocks.subscriptionFindFirst.mockImplementation((args: any) => {
-      const allowed = args?.where?.status?.in ?? [];
-      if (!allowed.includes("CANCELLED")) return Promise.resolve(null);
-      return Promise.resolve(cancelledExpired);
-    });
+    // Pre-check (getCurrentSubscription) y re-check dentro de la tx (fresh)
+    // leen la misma fila CANCELLED-expirada via findUnique.
     mocks.subscriptionFindUnique.mockResolvedValue(cancelledExpired);
+    // getActiveSubscription dentro de "created" filtra PENDING/AUTHORIZED/PAUSED
+    // — CANCELLED no calza → null (la fila vieja ya se borró en la tx igual).
+    mocks.subscriptionFindFirst.mockResolvedValue(null);
     mocks.subscriptionCreate.mockResolvedValue(
       mockSub({ id: "sub-new", status: "PENDING" }),
     );
@@ -551,17 +626,11 @@ describe("startProUpgrade — replace EXPIRED/FAILED", () => {
   it("AdminActionLog failure post-tx NO afecta el return de startProUpgrade", async () => {
     // AdminActionLog es best-effort. Si falla, el owner sigue viendo su nueva subscription.
     const expired = mockSub({ id: "sub-old", status: "EXPIRED" });
-    mocks.subscriptionFindFirst.mockImplementation((args: any) => {
-      const allowed = args?.where?.status?.in ?? [];
-      // getCurrentSubscription NO filtra status — siempre retorna si existe.
-      // getActiveSubscription filtra (PENDING/AUTHORIZED/PAUSED) — EXPIRED no calza → null.
-      if (!allowed.includes("EXPIRED") && !allowed.includes("CANCELLED")) {
-        // Cuando es getActiveSubscription (filtro estricto), EXPIRED no está → null
-        return Promise.resolve(null);
-      }
-      return Promise.resolve(expired);
-    });
+    // Pre-check y re-check dentro de la tx leen la misma fila EXPIRED via findUnique.
     mocks.subscriptionFindUnique.mockResolvedValue(expired);
+    // getActiveSubscription dentro de "created" filtra PENDING/AUTHORIZED/PAUSED
+    // — EXPIRED no calza → null.
+    mocks.subscriptionFindFirst.mockResolvedValue(null);
     mocks.subscriptionCreate.mockResolvedValue(
       mockSub({ id: "sub-new", status: "PENDING" }),
     );
@@ -584,7 +653,7 @@ describe("startProUpgrade — replace EXPIRED/FAILED", () => {
 
   it("PENDING existente: bloquea con mensaje claro (no cae al tx)", async () => {
     // Segundo click del dueño mientras la PENDING inicial aún existe.
-    mocks.subscriptionFindFirst.mockResolvedValue(
+    mocks.subscriptionFindUnique.mockResolvedValue(
       mockSub({ status: "PENDING" }),
     );
 
@@ -602,18 +671,18 @@ describe("startProUpgrade — replace EXPIRED/FAILED", () => {
 
 describe("cancelMySubscription", () => {
   it('llama applySubscriptionEvent con type "owner_cancel", plan NO cambia', async () => {
-    // subscriptionFindFirst = getCurrentSubscription (AUTHORIZED)
-    // subscriptionFindUnique (1st call) = dentro de applySubscriptionEvent (AUTHORIZED antes de transición)
+    // subscriptionFindUnique (1st call) = pre-check getCurrentSubscription (AUTHORIZED)
+    // subscriptionFindUnique (2nd call) = dentro de applySubscriptionEvent (AUTHORIZED antes de transición)
     // subscriptionUpdate = la transición CANCELLED
-    // subscriptionFindUnique (2nd call) = para obtener currentPeriodEnd post-update
+    // subscriptionFindUnique (3rd call) = para obtener currentPeriodEnd post-update
     const authorizedSub = mockSub({ status: "AUTHORIZED" });
     const cancelledSub = mockSub({
       status: "CANCELLED",
       cancelledAt: new Date(),
       currentPeriodEnd: new Date("2025-12-31"),
     });
-    mocks.subscriptionFindFirst.mockResolvedValue(authorizedSub);
     mocks.subscriptionFindUnique
+      .mockResolvedValueOnce(authorizedSub) // pre-check (getCurrentSubscription)
       .mockResolvedValueOnce(authorizedSub) // applySubscriptionEvent carga la sub
       .mockResolvedValueOnce(cancelledSub);  // cancelMySubscription obtiene currentPeriodEnd
     mocks.subscriptionUpdate.mockResolvedValue(cancelledSub);
@@ -639,7 +708,7 @@ describe("cancelMySubscription", () => {
   });
 
   it("cuando no hay subscription: throw", async () => {
-    mocks.subscriptionFindFirst.mockResolvedValue(null);
+    mocks.subscriptionFindUnique.mockResolvedValue(null);
 
     await expect(cancelMySubscription()).rejects.toThrow(
       "No tienes una suscripción activa",
@@ -647,10 +716,25 @@ describe("cancelMySubscription", () => {
   });
 
   it("cuando subscription no está AUTHORIZED/PAUSED: throw", async () => {
-    mocks.subscriptionFindFirst.mockResolvedValue(mockSub({ status: "EXPIRED" }));
+    mocks.subscriptionFindUnique.mockResolvedValue(mockSub({ status: "EXPIRED" }));
 
     await expect(cancelMySubscription()).rejects.toThrow(
       /No puedes cancelar.*EXPIRED/,
+    );
+  });
+
+  it("cuando subscription está CANCELLED (ya no AUTHORIZED/PAUSED): throw con el status real (#195 ronda 2)", async () => {
+    // Antes del fix, getCurrentSubscription (via getActiveSubscription)
+    // devolvía null para una CANCELLED y el error decía "No tienes una
+    // suscripción activa" — engañoso si en realidad sí hay una fila, solo que
+    // ya no es cancelable. Ahora getCurrentSubscription trae la fila y el
+    // segundo check da el status real.
+    mocks.subscriptionFindUnique.mockResolvedValue(
+      mockSub({ status: "CANCELLED" }),
+    );
+
+    await expect(cancelMySubscription()).rejects.toThrow(
+      /No puedes cancelar.*CANCELLED/,
     );
   });
 });
